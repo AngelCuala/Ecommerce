@@ -1,0 +1,33 @@
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  @apply bg-cream text-ink font-sans antialiased;
+}
+
+h1, h2, h3, h4, .font-display {
+  @apply font-display;
+}
+
+.btn-gold {
+  @apply inline-flex items-center justify-center gap-2 rounded-full bg-gold px-6 py-3 font-semibold text-navy shadow-gold transition hover:bg-gold-light;
+}
+
+.btn-navy-outline {
+  @apply inline-flex items-center justify-center gap-2 rounded-full border-2 border-navy px-6 py-3 font-semibold text-navy transition hover:bg-navy hover:text-white;
+}
+
+.card {
+  @apply rounded-2xl bg-white shadow-card transition hover:shadow-soft;
+}
+
+.input {
+  @apply w-full rounded-xl border border-navy/15 bg-white px-4 py-2.5 text-sm text-ink placeholder:text-ink/40 focus:border-gold focus:outline-none focus:ring-2 focus:ring-gold/40;
+}
+
+.section-eyebrow {
+  @apply text-xs font-semibold uppercase tracking-[0.2em] text-gold-dark;
+}
