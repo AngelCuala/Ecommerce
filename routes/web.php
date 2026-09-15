@@ -113,8 +113,8 @@ Route::post('/register',[RegisteredUserController::class, 'store']);
 Route::post('/logout', [AuthenticatedSessionController::class, 'destroy'])
     ->middleware('auth')->name('logout');
 
-// ── Authenticated ─────────────────────────────────────────────
-Route::middleware('auth')->group(function () {
+// ── Authenticated (buyer-only) ────────────────────────────────
+Route::middleware(['auth', 'buyer_only'])->group(function () {
 
     // Cart
     Route::get('/cart',                      [CartController::class, 'index'])->name('cart.index');
@@ -142,7 +142,17 @@ Route::middleware('auth')->group(function () {
     Route::delete('/profile/addresses/{address}',           [\App\Http\Controllers\AddressController::class, 'destroy'])->name('addresses.destroy');
     Route::patch('/profile/addresses/{address}/set-default',[\App\Http\Controllers\AddressController::class, 'setDefault'])->name('addresses.set-default');
 
-    // Seller application
+    // Buyer confirm delivery
+    Route::post('/orders/{id}/confirm-delivery', [\App\Http\Controllers\OrderController::class, 'confirmDelivery'])->name('orders.confirm-delivery');
+
+    // Buyer cancel order
+    Route::post('/orders/{id}/cancel', [\App\Http\Controllers\OrderController::class, 'cancelByBuyer'])->name('orders.cancel');
+});
+
+// ── Authenticated (all roles) ─────────────────────────────────
+Route::middleware('auth')->group(function () {
+
+    // Seller application (buyers only, but keeping under auth for now)
     Route::get('/become-seller',  [SellerApplicationController::class, 'create'])->name('seller.apply');
     Route::post('/become-seller', [SellerApplicationController::class, 'store'])->name('seller.apply.store');
 
@@ -153,12 +163,6 @@ Route::middleware('auth')->group(function () {
     Route::get('/messages/direct/{threadKey}',     [MessageController::class, 'directShow'])->name('messages.direct');
     Route::post('/messages/direct/{threadKey}',    [MessageController::class, 'directStore'])->name('messages.direct.store');
     Route::post('/messages/new',                   [MessageController::class, 'directNew'])->name('messages.new');
-
-    // Buyer confirm delivery
-    Route::post('/orders/{id}/confirm-delivery', [\App\Http\Controllers\OrderController::class, 'confirmDelivery'])->name('orders.confirm-delivery');
-
-    // Buyer cancel order
-    Route::post('/orders/{id}/cancel', [\App\Http\Controllers\OrderController::class, 'cancelByBuyer'])->name('orders.cancel');
 
     // Sorting center / courier registration
     Route::get('/become-courier',  [CourierRegistrationController::class, 'create'])->name('courier.register');
@@ -214,12 +218,16 @@ Route::middleware(['auth', 'role:admin'])
     Route::delete('/categories/{id}',    [AdminCategoryController::class, 'destroy'])->name('categories.destroy');
 
     Route::get('/orders',                [AdminOrderController::class, 'index'])->name('orders.index');
-    Route::get('/orders/{id}',           [AdminOrderController::class, 'show'])->name('orders.show');
-    Route::patch('/orders/{id}',         [AdminOrderController::class, 'update'])->name('orders.update');
 
-    // Buyer management (registration review, approval, suspension)
-    Route::get('/customers',             [AdminCustomerController::class, 'index'])->name('customers.index');
-    Route::get('/customers/{id}',        [AdminCustomerController::class, 'show'])->name('customers.show');
+    // Buyer management
+    Route::get('/customers',                        [AdminCustomerController::class, 'index'])->name('customers.index');
+    Route::get('/customers/{id}',                   [AdminCustomerController::class, 'show'])->name('customers.show');
+    Route::get('/customers/{id}/valid-id',          [AdminCustomerController::class, 'validId'])->name('customers.validId');
+    Route::patch('/customers/{id}/approve',         [AdminCustomerController::class, 'approve'])->name('customers.approve');
+    Route::patch('/customers/{id}/reject',          [AdminCustomerController::class, 'reject'])->name('customers.reject');
+    Route::patch('/customers/{id}/suspend',         [AdminCustomerController::class, 'suspend'])->name('customers.suspend');
+    Route::patch('/customers/{id}/restore',         [AdminCustomerController::class, 'restore'])->name('customers.restore');
+
     Route::get('/users',                      [AdminUserController::class, 'index'])->name('users.index');
     Route::get('/users/{id}',                 [AdminUserController::class, 'show'])->name('users.show');
     Route::patch('/users/{id}/activate',      [AdminUserController::class, 'activate'])->name('users.activate');

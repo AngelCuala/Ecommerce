@@ -1,0 +1,29 @@
+name = "alvy-trade"
+main = "public/index.php"
+compatibility_date = "2024-01-01"
+
+[site]
+bucket = "./public"
+
+# PHP Worker configuration
+[[unsafe.bindings]]
+name = "PHP"
+type = "php"
+
+# Environment variables
+[vars]
+APP_ENV = "production"
+APP_DEBUG = "false"
+APP_URL = "https://alvy.trade"
+LOG_CHANNEL = "stderr"
+
+# KV Namespaces for caching (optional, but recommended)
+# [[kv_namespaces]]
+# binding = "CACHE"
+# id = "your-kv-namespace-id"
+
+# D1 Database (if you want to use Cloudflare D1)
+# [[d1_databases]]
+# binding = "DB"
+# database_name = "alvy-trade-db"
+# database_id = "your-database-id"

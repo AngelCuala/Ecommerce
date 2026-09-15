@@ -42,6 +42,20 @@ class AuthenticatedSessionController extends Controller
             ]);
         }
 
+        // Block accounts pending admin approval or rejected
+        if ($user->isPending()) {
+            Auth::guard('web')->logout();
+            throw ValidationException::withMessages([
+                'email' => 'Your account is pending administrator approval. You will be notified once it has been reviewed.',
+            ]);
+        }
+        if ($user->isRejected()) {
+            Auth::guard('web')->logout();
+            throw ValidationException::withMessages([
+                'email' => 'Your account application was rejected. Please contact support for more information.',
+            ]);
+        }
+
         $request->session()->regenerate();
         $request->session()->forget('url.intended');
 
@@ -56,6 +70,12 @@ class AuthenticatedSessionController extends Controller
         // ALVY admins → ALVY admin panel
         if ($user->isAdmin()) {
             return redirect()->route('admin.dashboard')
+                ->with('success', 'Welcome back, ' . $user->name . '!');
+        }
+
+        // Sellers → seller dashboard
+        if ($user->isSeller()) {
+            return redirect()->route('seller.dashboard')
                 ->with('success', 'Welcome back, ' . $user->name . '!');
         }
 

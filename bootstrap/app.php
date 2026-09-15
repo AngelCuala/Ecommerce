@@ -12,9 +12,10 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
-            'role'     => \App\Http\Middleware\RoleMiddleware::class,
-            'is_admin' => \App\Http\Middleware\IsAdmin::class,
-            'is_sc'    => \App\Http\Middleware\IsSortingCenter::class,
+            'role'       => \App\Http\Middleware\RoleMiddleware::class,
+            'is_admin'   => \App\Http\Middleware\IsAdmin::class,
+            'is_sc'      => \App\Http\Middleware\IsSortingCenter::class,
+            'buyer_only' => \App\Http\Middleware\BuyerOnly::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

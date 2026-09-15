@@ -1,5 +1,5 @@
-<x-layout title="Messages — ALVY">
-<div class="mx-auto max-w-3xl px-4 py-8 sm:px-6 lg:px-8">
+<x-messages-layout title="Messages" active="messages">
+<div class="mx-auto max-w-3xl">
 
     {{-- Header --}}
     <div class="mb-6 flex items-center justify-between">
@@ -113,4 +113,4 @@
         });
     }
 </script>
-</x-layout>
+</x-messages-layout>

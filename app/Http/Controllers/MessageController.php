@@ -237,6 +237,9 @@ class MessageController extends Controller
         // Seller ↔ Seller (optional — allow for now)
         if ($me->isSeller() && $other->isSeller()) return;
 
+        // Sorting center ↔ Admin (already covered above, but be explicit)
+        if ($me->isSortingCenter() && $other->isAdmin()) return;
+
         abort(403, 'You are not allowed to message this user.');
     }
 
@@ -268,9 +271,18 @@ class MessageController extends Controller
         $targets = [];
 
         if ($me->isAdmin()) {
-            // Admin can message all sellers and buyers
-            User::whereIn('role', ['seller', 'buyer'])->get()
-                ->each(fn ($u) => $targets[$u->id] = $u->name . ' (' . ucfirst($u->role) . ')');
+            // Admin can message all sellers, buyers, and sorting centers
+            User::whereIn('role', ['seller', 'buyer', 'sorting_center'])
+                ->where('id', '!=', $me->id)
+                ->orderBy('role')->orderBy('name')
+                ->get()
+                ->each(function ($u) use (&$targets) {
+                    $label = match($u->role) {
+                        'sorting_center' => $u->name . ' (Sorting Center)',
+                        default          => $u->name . ' (' . ucfirst($u->role) . ')',
+                    };
+                    $targets[$u->id] = $label;
+                });
         } elseif ($me->isSeller()) {
             // Seller can message admin and their buyers
             $admin = User::where('role', 'admin')->first();
@@ -297,6 +309,10 @@ class MessageController extends Controller
             foreach ($sellerIds as $seller) {
                 $targets[$seller->id] = $seller->name . ' (Seller)';
             }
+        } elseif ($me->isSortingCenter()) {
+            // Sorting center can message admins
+            User::where('role', 'admin')->get()
+                ->each(fn ($u) => $targets[$u->id] = $u->name . ' (Admin)');
         }
 
         return $targets;

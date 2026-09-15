@@ -117,7 +117,9 @@
         {{-- Logo --}}
         <a href="{{ route('home') }}" class="flex items-center gap-2.5 px-6 py-6">
             <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg font-display text-base font-black"
-                  style="background:transparent;overflow:hidden;padding:0;"><img src="{{ asset('images/logo.png') }}" alt="ALVY" style="width:140%;height:140%;object-fit:cover;display:block;margin:-20%;transform:scale(1.5);transform-origin:center;"></span>`n            <span class="font-display text-lg font-extrabold tracking-tight" style="color:#002b4d;">`n                ALVY
+                  style="background:transparent;overflow:hidden;padding:0;"><img src="{{ asset('images/logo.png') }}" alt="ALVY" style="width:140%;height:140%;object-fit:cover;display:block;margin:-20%;transform:scale(1.5);transform-origin:center;"></span>
+            <span class="font-display text-lg font-extrabold tracking-tight" style="color:#002b4d;">
+                ALVY
             </span>
         </a>
 
@@ -127,18 +129,34 @@
         <nav class="mt-1 flex-1 space-y-0.5 overflow-y-auto px-3 pb-4">
             @php
                 $links = [
-                    'dashboard'             => ['route'=>'admin.dashboard',                  'label'=>'Dashboard',            'emoji'=>'🏠'],
-                    'products'              => ['route'=>'admin.products.index',              'label'=>'Products',             'emoji'=>'📦'],
-                    'categories'            => ['route'=>'admin.categories.index',            'label'=>'Categories',           'emoji'=>'🏷️'],
-                    'orders'                => ['route'=>'admin.orders.index',                'label'=>'Orders',               'emoji'=>'📋'],
-                    'customers'             => ['route'=>'admin.customers.index',             'label'=>'Customers',            'emoji'=>'👥'],
-                    'users'                 => ['route'=>'admin.users.index',                 'label'=>'All Users',            'emoji'=>'🔐'],
-                    'seller-applications'   => ['route'=>'admin.seller-applications.index',   'label'=>'Seller Applications',  'emoji'=>'🏪'],
-                    'compliance'            => ['route'=>'admin.compliance.index',            'label'=>'Seller Compliance',    'emoji'=>'🔍'],
-                    'reviews'               => ['route'=>'admin.reviews.index',               'label'=>'Reviews',              'emoji'=>'⭐'],
-                    'reports'               => ['route'=>'admin.reports.index',               'label'=>'Sales Reports',        'emoji'=>'📈'],
-                    'settings'              => ['route'=>'admin.settings.index',              'label'=>'Platform Settings',    'emoji'=>'⚙️'],
-                    'messages'              => ['route'=>'messages.inbox',                    'label'=>'Messages',             'emoji'=>'💬'],
+                    // Dashboard
+                    'dashboard'           => ['route'=>'admin.dashboard',                 'label'=>'Dashboard'],
+
+                    // Manage Account Registrations
+                    'customers'           => ['route'=>'admin.customers.index',           'label'=>'Buyer Registrations'],
+                    'seller-applications' => ['route'=>'admin.seller-applications.index', 'label'=>'Seller Applications'],
+                    'couriers'            => ['route'=>'admin.couriers.index',            'label'=>'Logistics Applications'],
+
+                    // Manage User Accounts
+                    'users'               => ['route'=>'admin.users.index',               'label'=>'User Accounts'],
+
+                    // Seller Compliance
+                    'compliance'          => ['route'=>'admin.compliance.index',          'label'=>'Seller Compliance'],
+
+                    // Complaints & Disputes (uses orders as the dispute review page)
+                    'orders'              => ['route'=>'admin.orders.index',              'label'=>'Complaints & Disputes'],
+
+                    // Commission & Reports
+                    'reports'             => ['route'=>'admin.reports.index',             'label'=>'Reports & Commission'],
+
+                    // Platform Settings
+                    'settings'            => ['route'=>'admin.settings.index',            'label'=>'Platform Settings'],
+
+                    // Messages
+                    'messages'            => ['route'=>'messages.inbox',                  'label'=>'Messages'],
+
+                    // Account Management
+                    'account'             => ['route'=>'admin.account.edit',              'label'=>'Account'],
                 ];
             @endphp
             @foreach ($links as $key => $link)
@@ -148,18 +166,47 @@
                    style="{{ $isActive ? '' : 'color:#1a4d6e;' }}"
                    onmouseover="{{ $isActive ? '' : "this.style.background='#fff5f3';this.style.color='#fa4e1c';" }}"
                    onmouseout="{{ $isActive ? '' : "this.style.background='';this.style.color='#1a4d6e';" }}">
-                    <span class="nav-dot flex h-2 w-2 shrink-0 rounded-full"
-                          style="{{ $isActive ? 'background:#fa4e1c;' : 'background:#E0E0E0;' }}"></span>
-                    <span class="text-base leading-none">{{ $link['emoji'] }}</span>
-                    {{ $link['label'] }}
-                    @if ($key === 'messages')
+
+                    {{-- Per-item SVG icon --}}
+                    @if ($key === 'dashboard')
+                        <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+                    @elseif ($key === 'customers')
+                        <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/><circle cx="12" cy="13" r="2"/></svg>
+                    @elseif ($key === 'seller-applications')
+                        <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline stroke-linecap="round" stroke-linejoin="round" points="9 22 9 12 15 12 15 22"/></svg>
+                    @elseif ($key === 'couriers')
+                        <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><rect x="1" y="3" width="15" height="13" rx="1"/><path stroke-linecap="round" stroke-linejoin="round" d="M16 8h4l3 5v3h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+                    @elseif ($key === 'users')
+                        <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><circle cx="9" cy="7" r="4"/><path stroke-linecap="round" stroke-linejoin="round" d="M3 21v-2a4 4 0 014-4h4a4 4 0 014 4v2"/><path stroke-linecap="round" stroke-linejoin="round" d="M16 3.13a4 4 0 010 7.75M21 21v-2a4 4 0 00-3-3.87"/></svg>
+                    @elseif ($key === 'compliance')
+                        <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+                    @elseif ($key === 'orders')
+                        <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
+                    @elseif ($key === 'reports')
+                        <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+                    @elseif ($key === 'settings')
+                        <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><circle cx="12" cy="12" r="3"/></svg>
+                    @elseif ($key === 'messages')
                         @php $adminUnread = \App\Models\Message::where('receiver_id', auth()->id())->where('is_read', false)->count(); @endphp
+                        <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6 6 0 10-12 0v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
+                    @elseif ($key === 'account')
+                        <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path stroke-linecap="round" stroke-linejoin="round" d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+                    @else
+                        <span class="nav-dot flex h-2 w-2 shrink-0 rounded-full"
+                              style="{{ $isActive ? 'background:#fa4e1c;' : 'background:#E0E0E0;' }}"></span>
+                    @endif
+
+                    {{-- Label --}}
+                    @if ($key === 'messages')
+                        {{ $link['label'] }}
                         @if ($adminUnread > 0)
-                            <span class="ml-auto flex h-5 w-5 items-center justify-center rounded-full text-[9px] font-bold"
+                            <span class="ml-auto flex h-5 min-w-[1.25rem] items-center justify-center rounded-full px-1 text-[9px] font-bold"
                                   style="background:#fa4e1c;color:#fff;">
                                 {{ $adminUnread > 9 ? '9+' : $adminUnread }}
                             </span>
                         @endif
+                    @else
+                        {{ $link['label'] }}
                     @endif
                 </a>
             @endforeach
@@ -180,13 +227,6 @@
                 </div>
             </div>
             <div class="mt-3 flex gap-2">
-                <a href="{{ route('home') }}"
-                   class="flex-1 rounded-lg px-3 py-1.5 text-center text-xs font-semibold transition"
-                   style="background:#f0f6fa;color:#1a4d6e;"
-                   onmouseover="this.style.background='#fff1ee';this.style.color='#fa4e1c';"
-                   onmouseout="this.style.background='#f0f6fa';this.style.color='#1a4d6e';">
-                   View Site
-                </a>
                 <form action="{{ route('logout') }}" method="POST" class="flex-1">
                     @csrf
                     <button class="w-full rounded-lg px-3 py-1.5 text-xs font-semibold transition"
@@ -224,8 +264,37 @@
                     <a href="{{ route($link['route']) }}"
                        class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm {{ $isActive ? 'nav-active' : '' }}"
                        style="{{ $isActive ? '' : 'color:#1a4d6e;' }}">
-                        <span class="text-base">{{ $link['emoji'] }}</span>
+                        @if ($key === 'dashboard')
+                            <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+                        @elseif ($key === 'customers')
+                            <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/><circle cx="12" cy="13" r="2"/></svg>
+                        @elseif ($key === 'seller-applications')
+                            <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline stroke-linecap="round" stroke-linejoin="round" points="9 22 9 12 15 12 15 22"/></svg>
+                        @elseif ($key === 'couriers')
+                            <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><rect x="1" y="3" width="15" height="13" rx="1"/><path stroke-linecap="round" stroke-linejoin="round" d="M16 8h4l3 5v3h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+                        @elseif ($key === 'users')
+                            <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><circle cx="9" cy="7" r="4"/><path stroke-linecap="round" stroke-linejoin="round" d="M3 21v-2a4 4 0 014-4h4a4 4 0 014 4v2"/><path stroke-linecap="round" stroke-linejoin="round" d="M16 3.13a4 4 0 010 7.75M21 21v-2a4 4 0 00-3-3.87"/></svg>
+                        @elseif ($key === 'compliance')
+                            <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+                        @elseif ($key === 'orders')
+                            <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
+                        @elseif ($key === 'reports')
+                            <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+                        @elseif ($key === 'settings')
+                            <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><circle cx="12" cy="12" r="3"/></svg>
+                        @elseif ($key === 'messages')
+                            @php $adminUnread = \App\Models\Message::where('receiver_id', auth()->id())->where('is_read', false)->count(); @endphp
+                            <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6 6 0 10-12 0v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
+                        @elseif ($key === 'account')
+                            <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path stroke-linecap="round" stroke-linejoin="round" d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+                        @endif
                         {{ $link['label'] }}
+                        @if ($key === 'messages' && $adminUnread > 0)
+                            <span class="ml-auto flex h-5 min-w-[1.25rem] items-center justify-center rounded-full px-1 text-[9px] font-bold"
+                                  style="background:#fa4e1c;color:#fff;">
+                                {{ $adminUnread > 9 ? '9+' : $adminUnread }}
+                            </span>
+                        @endif
                     </a>
                 @endforeach
             </nav>
@@ -250,13 +319,6 @@
                 <h1 class="font-display text-xl font-extrabold leading-tight" style="color:#002b4d;">{{ $title }}</h1>
             </div>
             <div class="ml-auto flex items-center gap-3">
-                <a href="{{ route('home') }}"
-                   class="hidden rounded-full border px-4 py-1.5 text-xs font-semibold transition sm:inline-flex items-center gap-1.5"
-                   style="border-color:#E0E0E0;color:#1a4d6e;"
-                   onmouseover="this.style.borderColor='#fa4e1c';this.style.background='#fff1ee';this.style.color='#fa4e1c';"
-                   onmouseout="this.style.borderColor='#E0E0E0';this.style.background='';this.style.color='#1a4d6e';">
-                    ↗ View Site
-                </a>
             </div>
         </header>
 

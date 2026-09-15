@@ -44,6 +44,8 @@ class SellerApplicationController extends Controller
             'barangay'        => 'required|string|max:120',
             'street'          => 'required|string|max:255',
             'house_number'    => 'required|string|max:50',
+            'region'          => 'nullable|string|max:120',
+            'zip_code'        => 'nullable|string|max:20',
             'government_id'   => 'required|file|mimes:jpg,jpeg,png,pdf|max:5120',
             'business_permit' => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120',
             'description'     => 'required|string|max:1000',

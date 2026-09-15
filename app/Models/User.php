@@ -21,10 +21,11 @@ class User extends Authenticatable
         'first_name', 'last_name', 'middle_initial', 'username',
         'sex', 'contact_no', 'birthday', 'age',
         'province', 'municipality', 'barangay', 'street', 'house_number',
-        'valid_id_path', 'approval_status',
+        'valid_id_path', 'approval_status', 'rejection_reason',
 
         // Profile extras
         'phone', 'address', 'city', 'zip', 'country',
+        'profile_photo_path',
     ];
 
     protected $hidden = ['password', 'remember_token'];
@@ -42,6 +43,19 @@ class User extends Authenticatable
     public function isApproved(): bool  { return $this->approval_status === 'approved'; }
     public function isPending(): bool   { return $this->approval_status === 'pending'; }
     public function isRejected(): bool  { return $this->approval_status === 'rejected'; }
+
+    /**
+     * Virtual `status` attribute used by admin views.
+     * Returns 'suspended' when the role is suspended,
+     * otherwise returns the approval_status value.
+     */
+    public function getStatusAttribute(): string
+    {
+        if ($this->role === 'suspended') {
+            return 'suspended';
+        }
+        return $this->approval_status ?? 'pending';
+    }
 
     // ── Role helpers ──────────────────────────────────────────
     public function isAdmin(): bool       { return $this->role === 'admin'; }

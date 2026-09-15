@@ -1,9 +1,9 @@
-<x-admin-layout title="Book Management" active="products">
+<x-admin-layout title="Shop Management" active="products">
 
 <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
     <form method="GET" class="flex flex-wrap items-center gap-2">
         <input type="text" name="search" value="{{ request('search') }}"
-               placeholder="Title, author or ISBN…" class="input w-56 py-2 text-sm" style="border-color:#FFDCC2;">
+               placeholder="Search…" class="input w-56 py-2 text-sm" style="border-color:#FFDCC2;">
         <select name="category" class="input w-40 py-2 text-sm" onchange="this.form.submit()" style="border-color:#FFDCC2;">
             <option value="">All categories</option>
             @foreach ($categories as $cat)

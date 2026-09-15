@@ -27,11 +27,17 @@ class DashboardController extends Controller
             ->take(5)
             ->get();
 
-        // Sales by month — group orders by month name
-        $salesByMonth = Order::selectRaw("DATE_FORMAT(created_at, '%b') as month, SUM(total_price) as total")
-            ->groupByRaw("DATE_FORMAT(created_at, '%b'), MONTH(created_at)")
-            ->orderByRaw("MONTH(created_at)")
-            ->get();
+        // Sales by month — group orders by month name (SQLite-compatible)
+        $salesByMonth = Order::selectRaw("strftime('%m', created_at) as month_num, strftime('%Y', created_at) as year, SUM(total_price) as total")
+            ->groupByRaw("strftime('%Y-%m', created_at)")
+            ->orderByRaw("strftime('%Y-%m', created_at)")
+            ->get()
+            ->map(function ($row) {
+                $months = ['01'=>'Jan','02'=>'Feb','03'=>'Mar','04'=>'Apr','05'=>'May','06'=>'Jun',
+                           '07'=>'Jul','08'=>'Aug','09'=>'Sep','10'=>'Oct','11'=>'Nov','12'=>'Dec'];
+                $row->month = ($months[$row->month_num] ?? $row->month_num) . ' ' . $row->year;
+                return $row;
+            });
 
         return view('admin.dashboard', compact(
             'totalSales', 'totalOrders', 'totalCustomers', 'totalProducts',

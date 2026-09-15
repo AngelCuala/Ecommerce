@@ -121,36 +121,66 @@
 
                 {{-- Address with PSGC --}}
                 <div>
-                    <h2 class="text-sm font-bold mb-3" style="color:#222222;">Address</h2>
+                    <h2 class="text-sm font-bold mb-1" style="color:#222222;">Address</h2>
+                    <p class="text-xs mt-0.5 mb-3" style="color:#6b90aa;">Select your region, province, city/municipality, then barangay.</p>
                     <div class="grid gap-4 sm:grid-cols-2">
+
+                        {{-- Region --}}
                         <div class="sm:col-span-2">
+                            <label class="text-xs font-semibold" style="color:#6b90aa;">Region *</label>
+                            <select id="sa_region" name="region" class="input mt-1" required
+                                    onchange="saLoadProvincesByRegion(this.value)">
+                                <option value="">— Select Region —</option>
+                            </select>
+                        </div>
+
+                        {{-- Province --}}
+                        <div>
                             <label class="text-xs font-semibold" style="color:#6b90aa;">Province *</label>
-                            <select id="sa_province" name="province" class="input mt-1" required
-                                    onchange="saLoadMunicipalities(this.value, this.options[this.selectedIndex].text)">
+                            <select id="sa_province" name="province" class="input mt-1" required disabled
+                                    onchange="saLoadMunicipalities(this.options[this.selectedIndex].dataset.code, this.value)">
                                 <option value="">— Select Province —</option>
                             </select>
                         </div>
-                        <div class="sm:col-span-2">
+
+                        {{-- Municipality / City --}}
+                        <div>
                             <label class="text-xs font-semibold" style="color:#6b90aa;">Municipality / City *</label>
                             <select id="sa_municipality" name="municipality" class="input mt-1" required disabled
-                                    onchange="saLoadBarangays(this.value)">
+                                    onchange="saLoadBarangays(this.options[this.selectedIndex].dataset.code)">
                                 <option value="">— Select Province first —</option>
                             </select>
                         </div>
-                        <div class="sm:col-span-2">
+
+                        {{-- Barangay --}}
+                        <div>
                             <label class="text-xs font-semibold" style="color:#6b90aa;">Barangay *</label>
                             <select id="sa_barangay" name="barangay" class="input mt-1" required disabled>
                                 <option value="">— Select Municipality first —</option>
                             </select>
                         </div>
+
+                        {{-- ZIP Code --}}
                         <div>
-                            <label class="text-xs font-semibold" style="color:#6b90aa;">Street *</label>
-                            <input type="text" name="street" value="{{ old('street', auth()->user()->address ?? '') }}" class="input mt-1" required>
+                            <label class="text-xs font-semibold" style="color:#6b90aa;">ZIP Code</label>
+                            <input type="text" name="zip_code" value="{{ old('zip_code') }}" class="input mt-1"
+                                   placeholder="e.g. 1000">
                         </div>
+
+                        {{-- House Number --}}
                         <div>
-                            <label class="text-xs font-semibold" style="color:#6b90aa;">House / Unit No. *</label>
-                            <input type="text" name="house_number" value="{{ old('house_number') }}" class="input mt-1" required>
+                            <label class="text-xs font-semibold" style="color:#6b90aa;">House / Unit Number *</label>
+                            <input type="text" name="house_number" value="{{ old('house_number') }}" class="input mt-1" required
+                                   placeholder="e.g. 12B">
                         </div>
+
+                        {{-- Street --}}
+                        <div class="sm:col-span-2">
+                            <label class="text-xs font-semibold" style="color:#6b90aa;">Street / Subdivision *</label>
+                            <input type="text" name="street" value="{{ old('street', auth()->user()->address ?? '') }}" class="input mt-1" required
+                                   placeholder="e.g. Rizal Street, Sunshine Village">
+                        </div>
+
                     </div>
                 </div>
 
@@ -200,61 +230,105 @@ document.getElementById('birthday_apply')?.addEventListener('change', function (
     document.getElementById('age_apply').value = age >= 0 ? age : '';
 });
 
-// PSGC API for seller apply form
+// ── PSGC cascading address dropdowns (same as register page) ─────────
 const PSGC = '/api/psgc';
+
+function saSetLoading(id, msg) {
+    const el = document.getElementById(id);
+    el.innerHTML = `<option value="">${msg}</option>`;
+    el.disabled = true;
+}
 
 function saPopulate(id, items, placeholder) {
     const el = document.getElementById(id);
     el.innerHTML = `<option value="">${placeholder}</option>`;
     items.forEach(item => {
         const o = document.createElement('option');
-        o.value = item.name; o.dataset.code = item.code;
-        o.textContent = item.name; el.appendChild(o);
+        o.value = item.name;
+        o.dataset.code = item.code;
+        o.textContent = item.name;
+        el.appendChild(o);
     });
     el.disabled = false;
 }
 
-(async () => {
-    try {
-        const r = await fetch(`${PSGC}/provinces`);
-        saPopulate('sa_province', await r.json(), '— Select Province —');
-        const old = '{{ old("province") }}';
-        if (old) [...document.getElementById('sa_province').options].forEach(o => {
-            if (o.value === old) { o.selected = true; saLoadMunicipalities(o.dataset.code); }
-        });
-    } catch(e) {
-        document.getElementById('sa_province').innerHTML = '<option value="">⚠ Refresh to load provinces</option>';
-    }
-})();
-
-async function saLoadMunicipalities(code) {
-    const mEl = document.getElementById('sa_municipality');
-    const bEl = document.getElementById('sa_barangay');
-    mEl.innerHTML = '<option>Loading…</option>'; mEl.disabled = true;
-    bEl.innerHTML = '<option>— Select Municipality first —</option>'; bEl.disabled = true;
-    if (!code) return;
-    try {
-        const r = await fetch(`${PSGC}/provinces/${code}/municipalities`);
-        saPopulate('sa_municipality', await r.json(), '— Select Municipality —');
-        const old = '{{ old("municipality") }}';
-        if (old) [...document.getElementById('sa_municipality').options].forEach(o => {
-            if (o.value === old) { o.selected = true; saLoadBarangays(o.dataset.code); }
-        });
-    } catch(e) {}
+function saReset(id, placeholder) {
+    const el = document.getElementById(id);
+    el.innerHTML = `<option value="">${placeholder}</option>`;
+    el.disabled = true;
 }
 
-async function saLoadBarangays(code) {
-    const bEl = document.getElementById('sa_barangay');
-    bEl.innerHTML = '<option>Loading…</option>'; bEl.disabled = true;
-    if (!code) return;
+// Load regions on page load
+window.addEventListener('DOMContentLoaded', async function () {
+    saSetLoading('sa_region', 'Loading regions…');
     try {
-        const r = await fetch(`${PSGC}/municipalities/${code}/barangays`);
-        saPopulate('sa_barangay', await r.json(), '— Select Barangay —');
-        const old = '{{ old("barangay") }}';
-        if (old) [...document.getElementById('sa_barangay').options].forEach(o => {
-            if (o.value === old) o.selected = true;
-        });
-    } catch(e) {}
+        const res  = await fetch(`${PSGC}/regions`);
+        const data = await res.json();
+        saPopulate('sa_region', data, '— Select Region —');
+    } catch (e) {
+        document.getElementById('sa_region').innerHTML =
+            '<option value="">⚠ Could not load regions. Refresh to retry.</option>';
+    }
+});
+
+// Region → Province
+async function saLoadProvincesByRegion(regionName) {
+    saReset('sa_province',     '— Select Province —');
+    saReset('sa_municipality', '— Select Province first —');
+    saReset('sa_barangay',     '— Select Municipality first —');
+    if (!regionName) return;
+
+    const sel  = document.getElementById('sa_region');
+    const code = sel.options[sel.selectedIndex].dataset.code;
+
+    saSetLoading('sa_province', 'Loading provinces…');
+    try {
+        const res  = await fetch(`${PSGC}/regions/${code}/provinces`);
+        const data = await res.json();
+        if (data.length === 0) {
+            // NCR — no provinces, load cities directly
+            saPopulate('sa_province', [{ code: code, name: 'Metro Manila (NCR)' }], '— Select Province —');
+            await saLoadMunicipalities(code, 'Metro Manila (NCR)');
+        } else {
+            saPopulate('sa_province', data, '— Select Province —');
+        }
+    } catch (e) {
+        document.getElementById('sa_province').innerHTML =
+            '<option value="">⚠ Could not load provinces</option>';
+    }
+}
+
+// Province → Municipality
+async function saLoadMunicipalities(code, label) {
+    saReset('sa_municipality', '— Select Municipality / City —');
+    saReset('sa_barangay',     '— Select Municipality first —');
+    if (!code) return;
+
+    saSetLoading('sa_municipality', 'Loading cities…');
+    try {
+        const res  = await fetch(`${PSGC}/provinces/${code}/municipalities`);
+        const data = await res.json();
+        saPopulate('sa_municipality', data, '— Select Municipality / City —');
+    } catch (e) {
+        document.getElementById('sa_municipality').innerHTML =
+            '<option value="">⚠ Could not load municipalities</option>';
+    }
+}
+
+// Municipality → Barangay
+async function saLoadBarangays(code) {
+    saReset('sa_barangay', '— Select Barangay —');
+    if (!code) return;
+
+    saSetLoading('sa_barangay', 'Loading barangays…');
+    try {
+        const res  = await fetch(`${PSGC}/municipalities/${code}/barangays`);
+        const data = await res.json();
+        saPopulate('sa_barangay', data, '— Select Barangay —');
+    } catch (e) {
+        document.getElementById('sa_barangay').innerHTML =
+            '<option value="">⚠ Could not load barangays</option>';
+    }
 }
 </script>
 </x-layout>

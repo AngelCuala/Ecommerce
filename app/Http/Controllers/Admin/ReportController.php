@@ -37,10 +37,16 @@ class ReportController extends Controller
             ->get();
 
         $dailySales = Order::whereBetween('created_at', $dateFilter)
-            ->selectRaw("DATE_FORMAT(created_at, '%b %d') as day, SUM(total_price) as total")
-            ->groupByRaw("DATE_FORMAT(created_at, '%b %d'), DATE(created_at)")
-            ->orderByRaw("DATE(created_at)")
-            ->get();
+            ->selectRaw("strftime('%m-%d', created_at) as day_key, strftime('%d', created_at) as day_num, strftime('%m', created_at) as month_num, SUM(total_price) as total")
+            ->groupByRaw("strftime('%Y-%m-%d', created_at)")
+            ->orderByRaw("strftime('%Y-%m-%d', created_at)")
+            ->get()
+            ->map(function ($row) {
+                $months = ['01'=>'Jan','02'=>'Feb','03'=>'Mar','04'=>'Apr','05'=>'May','06'=>'Jun',
+                           '07'=>'Jul','08'=>'Aug','09'=>'Sep','10'=>'Oct','11'=>'Nov','12'=>'Dec'];
+                $row->day = ($months[$row->month_num] ?? $row->month_num) . ' ' . ltrim($row->day_num, '0');
+                return $row;
+            });
 
         // ── Commission Report ────────────────────────────────
         $totalCommission = OrderItem::whereBetween('created_at', $dateFilter)->sum('commission_amount');
@@ -68,12 +74,18 @@ class ReportController extends Controller
             ])->values();
 
         $dailyCommission = OrderItem::whereBetween('created_at', $dateFilter)
-            ->selectRaw("DATE_FORMAT(created_at, '%b %d') as day,
+            ->selectRaw("strftime('%m-%d', created_at) as day_key, strftime('%d', created_at) as day_num, strftime('%m', created_at) as month_num,
                 SUM(commission_amount) as commission,
                 SUM(seller_earning) as payout")
-            ->groupByRaw("DATE_FORMAT(created_at, '%b %d'), DATE(created_at)")
-            ->orderByRaw("DATE(created_at)")
-            ->get();
+            ->groupByRaw("strftime('%Y-%m-%d', created_at)")
+            ->orderByRaw("strftime('%Y-%m-%d', created_at)")
+            ->get()
+            ->map(function ($row) {
+                $months = ['01'=>'Jan','02'=>'Feb','03'=>'Mar','04'=>'Apr','05'=>'May','06'=>'Jun',
+                           '07'=>'Jul','08'=>'Aug','09'=>'Sep','10'=>'Oct','11'=>'Nov','12'=>'Dec'];
+                $row->day = ($months[$row->month_num] ?? $row->month_num) . ' ' . ltrim($row->day_num, '0');
+                return $row;
+            });
 
         return view('admin.reports.index', compact(
             'from', 'to', 'type',

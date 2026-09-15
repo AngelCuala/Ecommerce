@@ -1,132 +1,155 @@
-@extends('admin.layouts.app')
+<x-admin-layout title="Account" active="account">
 
-@section('title', 'Account Management')
-@section('topbar-icon')
-    <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="opacity:.6"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
-@endsection
+<div class="mx-auto max-w-2xl space-y-6">
 
-@section('content')
+    @if ($errors->any())
+        <div class="rounded-xl border p-4 text-sm" style="background:#FEF2F2;border-color:rgba(220,38,38,.2);color:#DC2626;">
+            <ul class="list-inside list-disc space-y-1">
+                @foreach ($errors->all() as $e)<li>{{ $e }}</li>@endforeach
+            </ul>
+        </div>
+    @endif
 
-<div class="account-grid">
-
-    {{-- System Accounts table --}}
-    <div>
-        <div class="panel">
-            <div class="panel__header">
-                <h2>System Accounts</h2>
-                <button class="btn btn--primary btn--sm">+ Add Account</button>
-            </div>
-            <table>
-                <thead>
-                    <tr>
-                        <th>Name / Email</th>
-                        <th>Role</th>
-                        <th>Status</th>
-                        <th>Created</th>
-                        <th>Last Login</th>
-                        <th>Action</th>
-                    </tr>
-                </thead>
-                <tbody>
-                @foreach(\App\Models\User::where('role','admin')->orWhere('role','courier')->latest()->get() as $u)
+    {{-- System Accounts --}}
+    <div class="card p-6">
+        <div class="flex items-center justify-between mb-4">
+            <h2 class="font-display text-base font-bold" style="color:#222222;">System Accounts</h2>
+        </div>
+        <table class="w-full text-sm">
+            <thead style="background:#e8f0f6;">
+                <tr>
+                    <th class="px-4 py-2.5 text-left text-[11px] font-bold uppercase tracking-widest" style="color:#6b90aa;">Name / Email</th>
+                    <th class="px-4 py-2.5 text-left text-[11px] font-bold uppercase tracking-widest" style="color:#6b90aa;">Role</th>
+                    <th class="px-4 py-2.5 text-left text-[11px] font-bold uppercase tracking-widest" style="color:#6b90aa;">Status</th>
+                    <th class="px-4 py-2.5 text-left text-[11px] font-bold uppercase tracking-widest" style="color:#6b90aa;">Created</th>
+                    <th class="px-4 py-2.5 text-right text-[11px] font-bold uppercase tracking-widest" style="color:#6b90aa;">Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach(\App\Models\User::whereIn('role', ['admin','sorting_center'])->latest()->get() as $u)
                     @php
                         $roleColor = match($u->role) {
-                            'admin'   => 'var(--red)',
-                            'courier' => 'var(--blue)',
-                            default   => 'var(--amber)',
+                            'admin'          => '#DC2626',
+                            'sorting_center' => '#2563EB',
+                            default          => '#fa4e1c',
                         };
-                        $isActive = !in_array($u->role,['suspended','deactivated']);
+                        $isActive = !in_array($u->role, ['suspended','deactivated']);
                     @endphp
-                    <tr>
-                        <td>
-                            <div style="font-weight:600;color:var(--text-primary);">{{ $u->name }}</div>
-                            <div class="td-sub" style="color:var(--blue);">{{ $u->email }}</div>
+                    <tr style="border-top:1px solid #dce8f0;"
+                        onmouseover="this.style.background='#e8f0f6';" onmouseout="this.style.background='';">
+                        <td class="px-4 py-3">
+                            <div class="font-semibold" style="color:#222222;">{{ $u->name }}</div>
+                            <div class="text-xs" style="color:#6b90aa;">{{ $u->email }}</div>
                         </td>
-                        <td>
-                            <span class="badge" style="background:{{ $roleColor }}22;color:{{ $roleColor }};border-color:{{ $roleColor }}44;">
-                                {{ ucfirst($u->role) }}
+                        <td class="px-4 py-3">
+                            <span class="rounded-full px-2.5 py-1 text-xs font-semibold"
+                                  style="background:{{ $roleColor }}22;color:{{ $roleColor }};">
+                                {{ ucfirst(str_replace('_', ' ', $u->role)) }}
                             </span>
                         </td>
-                        <td>
-                            @if($isActive)
-                                <span class="badge badge--active"><span class="badge__dot"></span>Active</span>
+                        <td class="px-4 py-3">
+                            @if ($isActive)
+                                <span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold"
+                                      style="background:#ECFDF5;color:#059669;">
+                                    <span class="h-1.5 w-1.5 rounded-full" style="background:#059669;"></span>Active
+                                </span>
                             @else
-                                <span class="badge badge--inactive"><span class="badge__dot"></span>Inactive</span>
+                                <span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold"
+                                      style="background:#FEF2F2;color:#DC2626;">
+                                    <span class="h-1.5 w-1.5 rounded-full" style="background:#DC2626;"></span>Inactive
+                                </span>
                             @endif
                         </td>
-                        <td class="text-muted">{{ $u->created_at->format('Y-m-d') }}</td>
-                        <td class="text-muted">{{ $u->updated_at->format('Y-m-d H:i') }}</td>
-                        <td>
-                            @if($u->id !== auth()->id())
-                                @if($isActive)
-                                    <form method="POST" action="{{ route('admin.users.suspend',$u->id) }}" style="display:inline">@csrf @method('PATCH')
-                                        <button class="btn btn--danger btn--sm">Deactivate</button>
+                        <td class="px-4 py-3 text-xs" style="color:#6b90aa;">{{ $u->created_at->format('M d, Y') }}</td>
+                        <td class="px-4 py-3 text-right">
+                            @if ($u->id !== auth()->id())
+                                @if ($isActive)
+                                    <form method="POST" action="{{ route('admin.users.suspend', $u->id) }}" class="inline">
+                                        @csrf @method('PATCH')
+                                        <button class="rounded-full border px-3 py-1 text-xs font-semibold transition"
+                                                style="border-color:#DC2626;color:#DC2626;"
+                                                onmouseover="this.style.background='#FEF2F2';"
+                                                onmouseout="this.style.background='';">
+                                            Suspend
+                                        </button>
                                     </form>
                                 @else
-                                    <form method="POST" action="{{ route('admin.users.activate',$u->id) }}" style="display:inline">@csrf @method('PATCH')
-                                        <button class="btn btn--primary btn--sm">Activate</button>
+                                    <form method="POST" action="{{ route('admin.users.activate', $u->id) }}" class="inline">
+                                        @csrf @method('PATCH')
+                                        <button class="rounded-full border px-3 py-1 text-xs font-semibold transition"
+                                                style="border-color:#059669;color:#059669;"
+                                                onmouseover="this.style.background='#ECFDF5';"
+                                                onmouseout="this.style.background='';">
+                                            Activate
+                                        </button>
                                     </form>
                                 @endif
                             @endif
                         </td>
                     </tr>
                 @endforeach
-                </tbody>
-            </table>
-        </div>
+            </tbody>
+        </table>
     </div>
 
-    {{-- My profile panel --}}
-    <div>
-        <div class="panel">
-            <div class="panel__header"><h2>My Profile</h2></div>
-            <div style="padding:20px;">
+    {{-- My Profile --}}
+    <div class="card p-6">
+        <h2 class="font-display text-base font-bold mb-5" style="color:#222222;">My Profile</h2>
 
-                {{-- Avatar --}}
-                <div style="display:flex;align-items:center;gap:14px;margin-bottom:22px;">
-                    <div style="width:48px;height:48px;border-radius:50%;background:var(--blue);color:#0d1117;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:700;">
-                        {{ strtoupper(substr(auth()->user()->name,0,1)) }}
-                    </div>
-                    <div>
-                        <div style="font-weight:600;color:var(--text-primary);">{{ auth()->user()->name }}</div>
-                        <div style="font-size:12px;color:var(--blue);">{{ auth()->user()->email }}</div>
-                        <span class="badge" style="margin-top:4px;background:rgba(248,81,73,.15);color:var(--red);border-color:rgba(248,81,73,.3);">{{ ucfirst(auth()->user()->role) }}</span>
-                    </div>
-                </div>
-
-                <form method="POST" action="{{ route('admin.account.update') }}" class="space-y-field">
-                    @csrf @method('PUT')
-                    <div class="field" style="margin-bottom:14px;">
-                        <label>Full Name</label>
-                        <input type="text" name="name" value="{{ old('name', auth()->user()->name) }}" required>
-                    </div>
-                    <div class="field" style="margin-bottom:14px;">
-                        <label>Email Address</label>
-                        <input type="email" name="email" value="{{ old('email', auth()->user()->email) }}" required>
-                    </div>
-
-                    <div class="divider"></div>
-                    <div style="font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:12px;text-transform:uppercase;letter-spacing:.3px;">Change Password</div>
-
-                    <div class="field" style="margin-bottom:14px;">
-                        <label>Current Password</label>
-                        <input type="password" name="current_password" placeholder="••••••••">
-                    </div>
-                    <div class="field" style="margin-bottom:14px;">
-                        <label>New Password</label>
-                        <input type="password" name="password" placeholder="••••••••">
-                    </div>
-                    <div class="field" style="margin-bottom:20px;">
-                        <label>Confirm New Password</label>
-                        <input type="password" name="password_confirmation" placeholder="••••••••">
-                    </div>
-
-                    <button type="submit" class="btn btn--solid-blue btn--lg" style="width:100%;">Save Changes</button>
-                </form>
+        {{-- Avatar --}}
+        <div class="flex items-center gap-4 mb-6">
+            <div class="flex h-12 w-12 items-center justify-center rounded-full font-bold text-lg"
+                 style="background:#fa4e1c;color:#fff;">
+                {{ strtoupper(substr(auth()->user()->name, 0, 1)) }}
+            </div>
+            <div>
+                <p class="font-semibold" style="color:#222222;">{{ auth()->user()->name }}</p>
+                <p class="text-sm" style="color:#6b90aa;">{{ auth()->user()->email }}</p>
+                <span class="mt-1 inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold"
+                      style="background:rgba(220,38,38,.12);color:#DC2626;">
+                    {{ ucfirst(auth()->user()->role) }}
+                </span>
             </div>
         </div>
+
+        <form method="POST" action="{{ route('admin.account.update') }}" class="space-y-4">
+            @csrf @method('PUT')
+            <div>
+                <label class="text-xs font-semibold" style="color:#6b90aa;">Full Name</label>
+                <input type="text" name="name" value="{{ old('name', auth()->user()->name) }}"
+                       class="input mt-1" required>
+            </div>
+            <div>
+                <label class="text-xs font-semibold" style="color:#6b90aa;">Email Address</label>
+                <input type="email" name="email" value="{{ old('email', auth()->user()->email) }}"
+                       class="input mt-1" required>
+            </div>
+
+            <div class="border-t pt-4" style="border-color:#dce8f0;">
+                <p class="text-xs font-bold uppercase tracking-widest mb-3" style="color:#6b90aa;">Change Password</p>
+                <div class="space-y-4">
+                    <div>
+                        <label class="text-xs font-semibold" style="color:#6b90aa;">Current Password</label>
+                        <input type="password" name="current_password" class="input mt-1" placeholder="••••••••">
+                    </div>
+                    <div>
+                        <label class="text-xs font-semibold" style="color:#6b90aa;">New Password</label>
+                        <input type="password" name="password" class="input mt-1" placeholder="••••••••">
+                    </div>
+                    <div>
+                        <label class="text-xs font-semibold" style="color:#6b90aa;">Confirm New Password</label>
+                        <input type="password" name="password_confirmation" class="input mt-1" placeholder="••••••••">
+                    </div>
+                </div>
+            </div>
+
+            <button type="submit" class="btn-gold w-full"
+                    style="background:#fa4e1c;border-color:#fa4e1c;color:#FFFFFF;">
+                Save Changes
+            </button>
+        </form>
     </div>
 
 </div>
 
-@endsection
+</x-admin-layout>

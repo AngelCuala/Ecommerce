@@ -222,14 +222,37 @@
         <div class="card p-6">
             <h2 class="font-display text-base font-bold mb-4" style="color:#222222;">Uploaded ID</h2>
             @if ($customer->valid_id_path)
-                @php
-                    $ext = strtolower(pathinfo($customer->valid_id_path, PATHINFO_EXTENSION));
-                @endphp
+                @php $ext = strtolower(pathinfo($customer->valid_id_path, PATHINFO_EXTENSION)); @endphp
                 @if (in_array($ext, ['jpg', 'jpeg', 'png']))
-                    <a href="{{ route('admin.customers.validId', $customer->id) }}" target="_blank">
-                        <img src="{{ route('admin.customers.validId', $customer->id) }}"
-                             alt="Uploaded ID" class="max-h-64 rounded-lg border" style="border-color:#dce8f0;">
-                    </a>
+                    {{-- Thumbnail — click to open lightbox --}}
+                    <img src="{{ route('admin.customers.validId', $customer->id) }}"
+                         alt="Uploaded ID"
+                         class="max-h-48 w-full rounded-lg border object-contain cursor-pointer transition hover:opacity-90"
+                         style="border-color:#dce8f0;"
+                         onclick="document.getElementById('customer-id-lightbox').classList.remove('hidden')">
+                    <p class="mt-2 text-xs text-center" style="color:#6b90aa;">Click image to view full size</p>
+
+                    {{-- Lightbox modal --}}
+                    <div id="customer-id-lightbox"
+                         class="hidden fixed inset-0 z-50 flex items-center justify-center p-4"
+                         style="background:rgba(0,0,0,.80);"
+                         onclick="this.classList.add('hidden')">
+                        <div class="relative max-w-3xl w-full" onclick="event.stopPropagation()">
+                            <button onclick="document.getElementById('customer-id-lightbox').classList.add('hidden')"
+                                    class="absolute -top-10 right-0 text-white text-2xl font-bold leading-none"
+                                    style="opacity:.8;">&times;</button>
+                            <img src="{{ route('admin.customers.validId', $customer->id) }}"
+                                 alt="Uploaded ID"
+                                 class="w-full rounded-xl object-contain"
+                                 style="max-height:80vh;">
+                            <a href="{{ route('admin.customers.validId', $customer->id) }}"
+                               target="_blank"
+                               class="mt-3 flex items-center justify-center gap-2 rounded-lg py-2 text-sm font-semibold text-white"
+                               style="background:rgba(255,255,255,.15);">
+                                ↗ Open in new tab
+                            </a>
+                        </div>
+                    </div>
                 @else
                     <a href="{{ route('admin.customers.validId', $customer->id) }}" target="_blank"
                        class="inline-flex items-center gap-2 text-sm font-semibold" style="color:#fa4e1c;">

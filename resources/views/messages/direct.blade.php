@@ -1,5 +1,5 @@
-<x-layout :title="'Chat with ' . $otherUser->name . ' — ALVY'">
-<div class="mx-auto max-w-3xl px-4 py-8 sm:px-6 lg:px-8">
+<x-messages-layout :title="'Chat with ' . $otherUser->name" active="messages">
+<div class="mx-auto max-w-3xl">
 
     {{-- Header --}}
     <div class="mb-5 flex items-center gap-3">
@@ -88,4 +88,4 @@
     var box = document.getElementById('chat-box');
     if (box) box.scrollTop = box.scrollHeight;
 </script>
-</x-layout>
+</x-messages-layout>

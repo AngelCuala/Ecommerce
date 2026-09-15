@@ -110,12 +110,12 @@
         <nav class="mt-1 flex-1 space-y-0.5 overflow-y-auto px-3 pb-4">
             @php
                 $links = [
-                    'dashboard' => ['route' => 'seller.dashboard',    'label' => 'Dashboard',  'emoji' => '🏠'],
-                    'products'  => ['route' => 'seller.books.index',  'label' => 'Products',   'emoji' => '📦'],
-                    'orders'    => ['route' => 'seller.orders.index', 'label' => 'Orders',     'emoji' => '📋'],
-                    'reports'   => ['route' => 'seller.reports',      'label' => 'Reports',    'emoji' => '📊'],
-                    'messages'  => ['route' => 'messages.inbox',      'label' => 'Messages',   'emoji' => '💬'],
-                    'account'   => ['route' => 'seller.account',      'label' => 'Account',    'emoji' => '👤'],
+                    'dashboard' => ['route' => 'seller.dashboard',    'label' => 'Dashboard'],
+                    'orders'    => ['route' => 'seller.orders.index', 'label' => 'Order Management'],
+                    'products'  => ['route' => 'seller.books.index',  'label' => 'Inventory'],
+                    'reports'   => ['route' => 'seller.reports',      'label' => 'Reports'],
+                    'messages'  => ['route' => 'messages.inbox',      'label' => 'Messages'],
+                    'account'   => ['route' => 'seller.account',      'label' => 'Account'],
                 ];
             @endphp
             @foreach ($links as $key => $link)
@@ -125,18 +125,30 @@
                    style="{{ $isActive ? '' : 'color:#555555;' }}"
                    onmouseover="{{ $isActive ? '' : "this.style.background='#fff5f3';this.style.color='#fa4e1c';" }}"
                    onmouseout="{{ $isActive ? '' : "this.style.background='';this.style.color='#555555';" }}">
-                    <span class="nav-dot flex h-2 w-2 shrink-0 rounded-full"
-                          style="{{ $isActive ? 'background:#fa4e1c;' : 'background:#E0E0E0;' }}"></span>
-                    <span class="text-base leading-none">{{ $link['emoji'] }}</span>
+
+                    {{-- SVG icon per item --}}
+                    @if ($key === 'dashboard')
+                        <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+                    @elseif ($key === 'orders')
+                        <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
+                    @elseif ($key === 'products')
+                        <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M20 7H4a1 1 0 00-1 1v10a1 1 0 001 1h16a1 1 0 001-1V8a1 1 0 00-1-1z"/><path stroke-linecap="round" stroke-linejoin="round" d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"/></svg>
+                    @elseif ($key === 'reports')
+                        <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+                    @elseif ($key === 'messages')
+                        @php $sellerUnread = \App\Models\Message::where('receiver_id', auth()->id())->where('is_read', false)->count(); @endphp
+                        <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6 6 0 10-12 0v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
+                    @elseif ($key === 'account')
+                        <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path stroke-linecap="round" stroke-linejoin="round" d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+                    @endif
+
                     {{ $link['label'] }}
-                    @if ($key === 'messages')
-                        @php $sidebarUnread = \App\Models\Message::where('receiver_id', auth()->id())->where('is_read', false)->count(); @endphp
-                        @if ($sidebarUnread > 0)
-                            <span class="ml-auto flex h-5 w-5 items-center justify-center rounded-full text-[9px] font-bold"
-                                  style="background:#fa4e1c;color:#fff;">
-                                {{ $sidebarUnread > 9 ? '9+' : $sidebarUnread }}
-                            </span>
-                        @endif
+
+                    @if ($key === 'messages' && $sellerUnread > 0)
+                        <span class="ml-auto flex h-5 min-w-[1.25rem] items-center justify-center rounded-full px-1 text-[9px] font-bold"
+                              style="background:#fa4e1c;color:#fff;">
+                            {{ $sellerUnread > 9 ? '9+' : $sellerUnread }}
+                        </span>
                     @endif
                 </a>
             @endforeach
@@ -157,13 +169,6 @@
                 </div>
             </div>
             <div class="mt-3 flex gap-2">
-                <a href="{{ route('home') }}"
-                   class="flex-1 rounded-lg px-3 py-1.5 text-center text-xs font-semibold transition"
-                   style="background:#F5F5F5;color:#555555;"
-                   onmouseover="this.style.background='#fff1ee';this.style.color='#fa4e1c';"
-                   onmouseout="this.style.background='#F5F5F5';this.style.color='#555555';">
-                   View Site
-                </a>
                 <form action="{{ route('logout') }}" method="POST" class="flex-1">
                     @csrf
                     <button class="w-full rounded-lg px-3 py-1.5 text-xs font-semibold transition"
@@ -207,8 +212,27 @@
                     <a href="{{ route($link['route']) }}"
                        class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm {{ $isActive ? 'nav-active' : '' }}"
                        style="{{ $isActive ? '' : 'color:#555555;' }}">
-                        <span class="text-base">{{ $link['emoji'] }}</span>
+                        @if ($key === 'dashboard')
+                            <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+                        @elseif ($key === 'orders')
+                            <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
+                        @elseif ($key === 'products')
+                            <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M20 7H4a1 1 0 00-1 1v10a1 1 0 001 1h16a1 1 0 001-1V8a1 1 0 00-1-1z"/><path stroke-linecap="round" stroke-linejoin="round" d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"/></svg>
+                        @elseif ($key === 'reports')
+                            <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+                        @elseif ($key === 'messages')
+                            @php $sellerUnread = \App\Models\Message::where('receiver_id', auth()->id())->where('is_read', false)->count(); @endphp
+                            <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6 6 0 10-12 0v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
+                        @elseif ($key === 'account')
+                            <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path stroke-linecap="round" stroke-linejoin="round" d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+                        @endif
                         {{ $link['label'] }}
+                        @if ($key === 'messages' && $sellerUnread > 0)
+                            <span class="ml-auto flex h-5 min-w-[1.25rem] items-center justify-center rounded-full px-1 text-[9px] font-bold"
+                                  style="background:#fa4e1c;color:#fff;">
+                                {{ $sellerUnread > 9 ? '9+' : $sellerUnread }}
+                            </span>
+                        @endif
                     </a>
                 @endforeach
             </nav>
@@ -233,13 +257,6 @@
                 <h1 class="font-display text-xl font-extrabold leading-tight" style="color:#222222;">{{ $title }}</h1>
             </div>
             <div class="ml-auto flex items-center gap-3">
-                <a href="{{ route('home') }}"
-                   class="hidden rounded-full border px-4 py-1.5 text-xs font-semibold transition sm:inline-flex items-center gap-1.5"
-                   style="border-color:#E0E0E0;color:#555555;"
-                   onmouseover="this.style.borderColor='#fa4e1c';this.style.background='#fff1ee';this.style.color='#fa4e1c';"
-                   onmouseout="this.style.borderColor='#E0E0E0';this.style.background='';this.style.color='#555555';">
-                    ↗ View Store
-                </a>
             </div>
         </header>
 

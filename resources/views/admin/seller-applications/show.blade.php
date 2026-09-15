@@ -36,18 +36,46 @@
 
         <div class="card p-6">
             <h2 class="font-display text-base font-bold mb-3" style="color:#222222;">Government ID</h2>
-            @php $ext = pathinfo($application->government_id_path, PATHINFO_EXTENSION); @endphp
-            @if (in_array(strtolower($ext), ['jpg','jpeg','png','webp']))
-                <a href="{{ asset('storage/'.$application->government_id_path) }}" target="_blank">
+            @php $ext = strtolower(pathinfo($application->government_id_path, PATHINFO_EXTENSION)); @endphp
+            @if ($application->government_id_path)
+                @if (in_array($ext, ['jpg','jpeg','png','webp']))
+                    {{-- Thumbnail — click to open lightbox --}}
                     <img src="{{ asset('storage/'.$application->government_id_path) }}"
-                         class="max-h-64 rounded-xl object-contain border" style="border-color:#dce8f0;"
-                         alt="Government ID">
-                </a>
+                         alt="Government ID"
+                         class="max-h-48 w-full rounded-xl object-contain border cursor-pointer transition hover:opacity-90"
+                         style="border-color:#dce8f0;"
+                         onclick="document.getElementById('id-lightbox').classList.remove('hidden')">
+                    <p class="mt-2 text-xs text-center" style="color:#6b90aa;">Click image to view full size</p>
+
+                    {{-- Lightbox modal --}}
+                    <div id="id-lightbox"
+                         class="hidden fixed inset-0 z-50 flex items-center justify-center p-4"
+                         style="background:rgba(0,0,0,.80);"
+                         onclick="this.classList.add('hidden')">
+                        <div class="relative max-w-3xl w-full" onclick="event.stopPropagation()">
+                            <button onclick="document.getElementById('id-lightbox').classList.add('hidden')"
+                                    class="absolute -top-10 right-0 text-white text-2xl font-bold leading-none"
+                                    style="opacity:.8;">&times;</button>
+                            <img src="{{ asset('storage/'.$application->government_id_path) }}"
+                                 alt="Government ID"
+                                 class="w-full rounded-xl object-contain"
+                                 style="max-height:80vh;">
+                            <a href="{{ asset('storage/'.$application->government_id_path) }}"
+                               target="_blank"
+                               class="mt-3 flex items-center justify-center gap-2 rounded-lg py-2 text-sm font-semibold text-white"
+                               style="background:rgba(255,255,255,.15);">
+                                ↗ Open in new tab
+                            </a>
+                        </div>
+                    </div>
+                @else
+                    <a href="{{ asset('storage/'.$application->government_id_path) }}" target="_blank"
+                       class="btn-outline inline-flex items-center gap-2 text-sm" style="border-color:#fa4e1c;color:#fa4e1c;">
+                        📄 View / Download ID Document
+                    </a>
+                @endif
             @else
-                <a href="{{ asset('storage/'.$application->government_id_path) }}" target="_blank"
-                   class="btn-outline inline-flex items-center gap-2 text-sm" style="border-color:#fa4e1c;color:#fa4e1c;">
-                    📄 View / Download ID Document
-                </a>
+                <p class="text-sm" style="color:#6b90aa;">No ID uploaded.</p>
             @endif
         </div>
     </div>
