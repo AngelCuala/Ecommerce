@@ -1,5 +1,31 @@
 <footer style="background:#002b4d;color:rgba(255,255,255,.65);">
 
+    {{-- Trust / service features --}}
+    <div style="border-bottom:1px solid rgba(255,255,255,.08);">
+        <div class="mx-auto grid max-w-7xl grid-cols-2 gap-6 px-4 py-8 sm:px-6 md:grid-cols-4 lg:px-8">
+            @foreach ([
+                ['M5 8h14l1 8H4L5 8zM8 8V6a4 4 0 018 0v2','Free Shipping','On qualifying orders'],
+                ['M12 2l8 4v6c0 5-3.5 8-8 10-4.5-2-8-5-8-10V6l8-4z','Secure Payment','100% protected'],
+                ['M3 12a9 9 0 019-9 9 9 0 018 5M21 12a9 9 0 01-9 9 9 9 0 01-8-5M8 8H3V3m13 13h5v5','Easy Returns','30-day returns'],
+                ['M18 8a6 6 0 00-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 01-3.4 0','24/7 Support','Always here to help'],
+            ] as [$path, $title, $sub])
+                <div class="flex items-center gap-3">
+                    <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full"
+                          style="background:rgba(250,78,28,.15);">
+                        <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.7"
+                             stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" style="color:#fa4e1c;">
+                            <path d="{{ $path }}"/>
+                        </svg>
+                    </span>
+                    <div>
+                        <p class="text-sm font-bold" style="color:#fff;">{{ $title }}</p>
+                        <p class="text-xs" style="color:rgba(255,255,255,.5);">{{ $sub }}</p>
+                    </div>
+                </div>
+            @endforeach
+        </div>
+    </div>
+
     <div class="mx-auto grid max-w-7xl gap-10 px-4 py-14 sm:px-6 lg:grid-cols-2 lg:px-8">
 
         {{-- Brand --}}

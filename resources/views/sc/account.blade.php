@@ -98,15 +98,27 @@
 
                 <div class="form-group">
                     <label class="form-label">Current Password</label>
-                    <input type="password" name="current_password" class="form-input" placeholder="••••••••">
+                    <div style="position:relative;">
+                        <input type="password" name="current_password" data-password class="form-input" placeholder="••••••••" style="padding-right:2.5rem;">
+                        <button type="button" data-toggle-password aria-label="Show password"
+                                style="position:absolute;right:.75rem;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:1.1rem;line-height:1;">👁️</button>
+                    </div>
                 </div>
                 <div class="form-group">
                     <label class="form-label">New Password</label>
-                    <input type="password" name="password" class="form-input" placeholder="••••••••">
+                    <div style="position:relative;">
+                        <input type="password" name="password" data-password class="form-input" placeholder="••••••••" style="padding-right:2.5rem;">
+                        <button type="button" data-toggle-password aria-label="Show password"
+                                style="position:absolute;right:.75rem;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:1.1rem;line-height:1;">👁️</button>
+                    </div>
                 </div>
                 <div class="form-group">
                     <label class="form-label">Confirm New Password</label>
-                    <input type="password" name="password_confirmation" class="form-input" placeholder="••••••••">
+                    <div style="position:relative;">
+                        <input type="password" name="password_confirmation" data-password class="form-input" placeholder="••••••••" style="padding-right:2.5rem;">
+                        <button type="button" data-toggle-password aria-label="Show password"
+                                style="position:absolute;right:.75rem;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:1.1rem;line-height:1;">👁️</button>
+                    </div>
                 </div>
 
                 <button type="submit" class="btn btn-blue" style="width:100%;justify-content:center;padding:9px;">
@@ -117,4 +129,6 @@
 
     </div>
 </div>
+
+@include('partials.password-toggle')
 @endsection

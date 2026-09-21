@@ -40,6 +40,10 @@
             @if ($application->government_id_path)
                 @if (in_array($ext, ['jpg','jpeg','png','webp']))
                     {{-- Thumbnail — click to open lightbox --}}
+            @php $ext = strtolower(pathinfo($application->government_id_path, PATHINFO_EXTENSION)); @endphp
+            @if ($application->government_id_path)
+                @if (in_array($ext, ['jpg','jpeg','png','webp']))
+                    {{-- Thumbnail — click to open lightbox --}}
                     <img src="{{ asset('storage/'.$application->government_id_path) }}"
                          alt="Government ID"
                          class="max-h-48 w-full rounded-xl object-contain border cursor-pointer transition hover:opacity-90"
@@ -70,7 +74,10 @@
                     </div>
                 @else
                     <a href="{{ asset('storage/'.$application->government_id_path) }}" target="_blank"
-                       class="btn-outline inline-flex items-center gap-2 text-sm" style="border-color:#fa4e1c;color:#fa4e1c;">
+                       class="inline-flex items-center gap-2 rounded-lg border-2 px-4 py-2 text-sm font-semibold transition"
+                       style="border-color:#fa4e1c;color:#fa4e1c;background:#fff;"
+                       onmouseover="this.style.background='#fa4e1c';this.style.color='#fff';"
+                       onmouseout="this.style.background='#fff';this.style.color='#fa4e1c';">
                         📄 View / Download ID Document
                     </a>
                 @endif

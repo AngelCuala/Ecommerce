@@ -81,6 +81,13 @@ Route::middleware(['auth', 'is_sc'])->prefix('sc')->name('sc.')->group(function 
 
     // Logout
     Route::post('/logout',              [\App\Http\Controllers\SortingCenterController::class, 'logout'])->name('logout');
+
+    // ── SC-to-SC Transfers ────────────────────────────────────
+    Route::get('/transfers',                                    [\App\Http\Controllers\SortingCenterController::class, 'transfers'])->name('transfers');
+    Route::post('/transfers/initiate',                          [\App\Http\Controllers\SortingCenterController::class, 'initiateTransfer'])->name('transfers.initiate');
+    Route::post('/transfers/{transfer}/accept',                 [\App\Http\Controllers\SortingCenterController::class, 'acceptTransfer'])->name('transfers.accept');
+    Route::post('/transfers/{transfer}/reject',                 [\App\Http\Controllers\SortingCenterController::class, 'rejectTransfer'])->name('transfers.reject');
+    Route::post('/transfers/{transfer}/cancel',                 [\App\Http\Controllers\SortingCenterController::class, 'cancelTransfer'])->name('transfers.cancel');
 });
 
 // ── Sorting Center Portal ────────────────────────────────────
@@ -115,6 +122,8 @@ Route::post('/logout', [AuthenticatedSessionController::class, 'destroy'])
 
 // ── Authenticated (buyer-only) ────────────────────────────────
 Route::middleware(['auth', 'buyer_only'])->group(function () {
+// ── Authenticated (buyer-only) ────────────────────────────────
+Route::middleware(['auth', 'buyer_only'])->group(function () {
 
     // Cart
     Route::get('/cart',                      [CartController::class, 'index'])->name('cart.index');
@@ -132,8 +141,14 @@ Route::middleware(['auth', 'buyer_only'])->group(function () {
     Route::get('/profile/personal-info',      [ProfileController::class, 'personalInfo'])->name('profile.personal-info');
     Route::patch('/profile/personal-info',    [ProfileController::class, 'update'])->name('profile.update');
     Route::get('/profile/orders',             [ProfileController::class, 'orders'])->name('profile.orders');
+    Route::get('/profile/notifications',      [ProfileController::class, 'notifications'])->name('profile.notifications');
     Route::get('/profile/settings',           [ProfileController::class, 'settings'])->name('profile.settings');
-    Route::patch('/profile/settings/password',[ProfileController::class, 'changePassword'])->name('profile.change-password');
+
+    // Accounts & Security
+    Route::get('/profile/security',           [ProfileController::class, 'security'])->name('profile.security');
+    Route::patch('/profile/security/account', [ProfileController::class, 'updateAccount'])->name('profile.account.update');
+    Route::patch('/profile/security/password',[ProfileController::class, 'changePassword'])->name('profile.change-password');
+
     Route::get('/profile/addresses',          [ProfileController::class, 'addresses'])->name('profile.addresses');
 
     // Address CRUD
@@ -153,11 +168,27 @@ Route::middleware(['auth', 'buyer_only'])->group(function () {
 Route::middleware('auth')->group(function () {
 
     // Seller application (buyers only, but keeping under auth for now)
+    // Buyer confirm delivery
+    Route::post('/orders/{id}/confirm-delivery', [\App\Http\Controllers\OrderController::class, 'confirmDelivery'])->name('orders.confirm-delivery');
+
+    // Buyer cancel order
+    Route::post('/orders/{id}/cancel', [\App\Http\Controllers\OrderController::class, 'cancelByBuyer'])->name('orders.cancel');
+});
+
+// ── Authenticated (all roles) ─────────────────────────────────
+Route::middleware('auth')->group(function () {
+
+    // Seller application (buyers only, but keeping under auth for now)
     Route::get('/become-seller',  [SellerApplicationController::class, 'create'])->name('seller.apply');
     Route::post('/become-seller', [SellerApplicationController::class, 'store'])->name('seller.apply.store');
 
     // Messaging
     Route::get('/messages',                        [MessageController::class, 'inbox'])->name('messages.inbox');
+
+    // Floating chat widget (AJAX/JSON)
+    Route::get('/chat/threads',                    [MessageController::class, 'widgetThreads'])->name('chat.threads');
+    Route::get('/chat/thread/{type}/{id}',         [MessageController::class, 'widgetThread'])->name('chat.thread')->where('id', '.*');
+    Route::post('/chat/send/{type}/{id}',          [MessageController::class, 'widgetSend'])->name('chat.send')->where('id', '.*');
     Route::get('/messages/order/{orderId}',        [MessageController::class, 'show'])->name('messages.show');
     Route::post('/messages/order/{orderId}',       [MessageController::class, 'store'])->name('messages.store');
     Route::get('/messages/direct/{threadKey}',     [MessageController::class, 'directShow'])->name('messages.direct');
@@ -218,6 +249,16 @@ Route::middleware(['auth', 'role:admin'])
     Route::delete('/categories/{id}',    [AdminCategoryController::class, 'destroy'])->name('categories.destroy');
 
     Route::get('/orders',                [AdminOrderController::class, 'index'])->name('orders.index');
+
+    // Buyer management
+    Route::get('/customers',                        [AdminCustomerController::class, 'index'])->name('customers.index');
+    Route::get('/customers/{id}',                   [AdminCustomerController::class, 'show'])->name('customers.show');
+    Route::get('/customers/{id}/valid-id',          [AdminCustomerController::class, 'validId'])->name('customers.validId');
+    Route::patch('/customers/{id}/approve',         [AdminCustomerController::class, 'approve'])->name('customers.approve');
+    Route::patch('/customers/{id}/reject',          [AdminCustomerController::class, 'reject'])->name('customers.reject');
+    Route::patch('/customers/{id}/suspend',         [AdminCustomerController::class, 'suspend'])->name('customers.suspend');
+    Route::patch('/customers/{id}/restore',         [AdminCustomerController::class, 'restore'])->name('customers.restore');
+
 
     // Buyer management
     Route::get('/customers',                        [AdminCustomerController::class, 'index'])->name('customers.index');

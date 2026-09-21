@@ -6,6 +6,7 @@ use App\Models\DeliveryArea;
 use App\Models\Message;
 use App\Models\Parcel;
 use App\Models\ParcelDelivery;
+use App\Models\ParcelTransfer;
 use App\Models\Rider;
 use App\Models\User;
 use Carbon\Carbon;
@@ -402,5 +403,193 @@ class SortingCenterController extends Controller
         $request->session()->invalidate();
         $request->session()->regenerateToken();
         return redirect()->route('sc.login');
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    //  SC-TO-SC TRANSFERS
+    // ══════════════════════════════════════════════════════════════
+
+    /**
+     * Show the transfer hub: outgoing transfers I initiated,
+     * incoming transfers addressed to me (pending acceptance).
+     */
+    public function transfers(Request $request)
+    {
+        $me = auth()->id();
+
+        // Parcels I currently hold that can be transferred
+        $myParcels = Parcel::with('seller')
+            ->where('current_sorting_center_id', $me)
+            ->whereIn('status', ['picked_up', 'sorted'])
+            ->whereNull('transfer_status')
+            ->when($request->search, fn ($q) => $q->where('tracking_number', 'like', "%{$request->search}%"))
+            ->latest()
+            ->get();
+
+        // Other sorting centers (excluding me)
+        $otherCenters = User::where('role', 'sorting_center')
+            ->where('id', '!=', $me)
+            ->orderBy('name')
+            ->get();
+
+        // Outgoing transfers I initiated (still pending)
+        $outgoing = ParcelTransfer::with(['parcel', 'toSortingCenter'])
+            ->where('from_sorting_center_id', $me)
+            ->where('status', 'pending')
+            ->latest()
+            ->get();
+
+        // Incoming transfers addressed to me (pending my acceptance)
+        $incoming = ParcelTransfer::with(['parcel', 'fromSortingCenter'])
+            ->where('to_sorting_center_id', $me)
+            ->where('status', 'pending')
+            ->latest()
+            ->get();
+
+        // Transfer history (received/rejected)
+        $history = ParcelTransfer::with(['parcel', 'fromSortingCenter', 'toSortingCenter'])
+            ->where(fn ($q) => $q->where('from_sorting_center_id', $me)
+                ->orWhere('to_sorting_center_id', $me))
+            ->whereIn('status', ['received', 'rejected'])
+            ->latest()
+            ->take(30)
+            ->get();
+
+        return view('sc.transfers', compact(
+            'myParcels', 'otherCenters', 'outgoing', 'incoming', 'history'
+        ));
+    }
+
+    /**
+     * Initiate a transfer — mark parcel as outgoing and create a transfer record.
+     */
+    public function initiateTransfer(Request $request)
+    {
+        $request->validate([
+            'parcel_id'               => 'required|exists:parcels,id',
+            'to_sorting_center_id'    => 'required|exists:users,id',
+            'reason'                  => 'nullable|string|max:500',
+        ]);
+
+        $parcel = Parcel::findOrFail($request->parcel_id);
+        $me     = auth()->id();
+
+        // Guard: only the SC currently holding the parcel can transfer it
+        if ($parcel->current_sorting_center_id !== $me) {
+            return back()->withErrors(['parcel_id' => 'You can only transfer parcels currently held by your sorting center.']);
+        }
+
+        // Guard: can't transfer if already outgoing
+        if ($parcel->transfer_status === 'outgoing') {
+            return back()->withErrors(['parcel_id' => 'This parcel already has a pending outgoing transfer.']);
+        }
+
+        $destination = User::where('id', $request->to_sorting_center_id)
+            ->where('role', 'sorting_center')
+            ->firstOrFail();
+
+        // Create transfer record
+        ParcelTransfer::create([
+            'parcel_id'               => $parcel->id,
+            'from_sorting_center_id'  => $me,
+            'to_sorting_center_id'    => $destination->id,
+            'initiated_by'            => $me,
+            'reason'                  => $request->reason,
+            'status'                  => 'pending',
+        ]);
+
+        // Mark parcel as outgoing transfer
+        $parcel->update(['transfer_status' => 'outgoing']);
+
+        return back()->with('success',
+            "Transfer of {$parcel->tracking_number} to {$destination->name} initiated. Awaiting their acceptance.");
+    }
+
+    /**
+     * Destination SC accepts the incoming transfer.
+     */
+    public function acceptTransfer(ParcelTransfer $transfer)
+    {
+        $me = auth()->id();
+
+        // Only the destination SC can accept
+        if ($transfer->to_sorting_center_id !== $me) {
+            abort(403, 'Only the destination sorting center can accept this transfer.');
+        }
+
+        if (! $transfer->isPending()) {
+            return back()->with('error', 'This transfer has already been processed.');
+        }
+
+        $parcel = $transfer->parcel;
+
+        // Update transfer record
+        $transfer->update([
+            'status'      => 'received',
+            'received_by' => $me,
+            'received_at' => now(),
+        ]);
+
+        // Hand parcel ownership to destination SC, clear transfer flag
+        $parcel->update([
+            'current_sorting_center_id' => $me,
+            'transfer_status'           => null,
+            'status'                    => 'picked_up', // back to picked_up at new SC, ready for sorting
+        ]);
+
+        return back()->with('success',
+            "Parcel {$parcel->tracking_number} received from {$transfer->fromSortingCenter->name}. It is now in your queue.");
+    }
+
+    /**
+     * Destination SC rejects the incoming transfer.
+     */
+    public function rejectTransfer(Request $request, ParcelTransfer $transfer)
+    {
+        $me = auth()->id();
+
+        if ($transfer->to_sorting_center_id !== $me) {
+            abort(403, 'Only the destination sorting center can reject this transfer.');
+        }
+
+        if (! $transfer->isPending()) {
+            return back()->with('error', 'This transfer has already been processed.');
+        }
+
+        $parcel = $transfer->parcel;
+
+        $transfer->update([
+            'status'      => 'rejected',
+            'received_by' => $me,
+            'received_at' => now(),
+        ]);
+
+        // Return parcel to the originating SC, clear transfer flag
+        $parcel->update(['transfer_status' => null]);
+
+        return back()->with('success',
+            "Transfer of {$parcel->tracking_number} rejected. It remains with {$transfer->fromSortingCenter->name}.");
+    }
+
+    /**
+     * Cancel an outgoing transfer that hasn't been accepted yet.
+     */
+    public function cancelTransfer(ParcelTransfer $transfer)
+    {
+        $me = auth()->id();
+
+        if ($transfer->from_sorting_center_id !== $me) {
+            abort(403, 'Only the originating sorting center can cancel this transfer.');
+        }
+
+        if (! $transfer->isPending()) {
+            return back()->with('error', 'This transfer has already been processed.');
+        }
+
+        $parcel = $transfer->parcel;
+        $transfer->update(['status' => 'rejected', 'received_at' => now()]);
+        $parcel->update(['transfer_status' => null]);
+
+        return back()->with('success', "Transfer of {$parcel->tracking_number} cancelled.");
     }
 }

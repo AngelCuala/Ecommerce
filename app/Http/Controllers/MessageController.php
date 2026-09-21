@@ -199,6 +199,145 @@ class MessageController extends Controller
     }
 
     // ══════════════════════════════════════════════════════════════
+    //  FLOATING CHAT WIDGET — JSON endpoints (no page reload)
+    // ══════════════════════════════════════════════════════════════
+
+    /** Return all threads (order + direct) as JSON for the popup list. */
+    public function widgetThreads()
+    {
+        $userId = auth()->id();
+
+        // Order threads
+        $orderIds = Message::whereNotNull('order_id')
+            ->where(fn ($q) => $q->where('sender_id', $userId)->orWhere('receiver_id', $userId))
+            ->pluck('order_id')->unique();
+
+        $threads = collect();
+
+        foreach ($orderIds as $oid) {
+            $last = Message::where('order_id', $oid)->latest()->first();
+            if (! $last) continue;
+            $threads->push([
+                'type'      => 'order',
+                'key'       => 'order:' . $oid,
+                'label'     => 'Order #' . str_pad($oid, 6, '0', STR_PAD_LEFT),
+                'last_body' => $last->body,
+                'last_at'   => $last->created_at->diffForHumans(),
+                'ts'        => $last->created_at->timestamp,
+                'unread'    => Message::where('order_id', $oid)->where('receiver_id', $userId)->where('is_read', false)->count(),
+            ]);
+        }
+
+        // Direct threads
+        $keys = Message::whereNull('order_id')
+            ->where(fn ($q) => $q->where('sender_id', $userId)->orWhere('receiver_id', $userId))
+            ->pluck('thread_key')->unique();
+
+        foreach ($keys as $key) {
+            $last = Message::where('thread_key', $key)->latest()->first();
+            if (! $last) continue;
+            $otherId   = $last->sender_id === $userId ? $last->receiver_id : $last->sender_id;
+            $otherUser = User::find($otherId);
+            $threads->push([
+                'type'      => 'direct',
+                'key'       => 'direct:' . $key,
+                'label'     => $otherUser?->name ?? 'Unknown',
+                'last_body' => $last->body,
+                'last_at'   => $last->created_at->diffForHumans(),
+                'ts'        => $last->created_at->timestamp,
+                'unread'    => Message::where('thread_key', $key)->where('receiver_id', $userId)->where('is_read', false)->count(),
+            ]);
+        }
+
+        $threads = $threads->sortByDesc('ts')->values();
+
+        return response()->json([
+            'threads' => $threads,
+            'unread'  => Message::where('receiver_id', $userId)->where('is_read', false)->count(),
+        ]);
+    }
+
+    /** Return the messages of a single thread as JSON + mark them read. */
+    public function widgetThread(string $type, string $id)
+    {
+        $userId = auth()->id();
+
+        if ($type === 'order') {
+            $order = Order::findOrFail((int) $id);
+            $this->authorizeOrderAccess($order);
+
+            $messages = Message::where('order_id', $order->id)->with('sender')->oldest()->get();
+            Message::where('order_id', $order->id)->where('receiver_id', $userId)
+                ->where('is_read', false)->update(['is_read' => true]);
+
+            $title = 'Order #' . str_pad($order->id, 6, '0', STR_PAD_LEFT);
+        } else {
+            [$a, $b] = explode('_', $id);
+            if ((int) $a !== $userId && (int) $b !== $userId) abort(403);
+            $otherId   = (int) $a === $userId ? (int) $b : (int) $a;
+            $otherUser = User::findOrFail($otherId);
+            $this->authorizeDirectMessage($otherUser);
+
+            $messages = Message::where('thread_key', $id)->with('sender')->oldest()->get();
+            Message::where('thread_key', $id)->where('receiver_id', $userId)
+                ->where('is_read', false)->update(['is_read' => true]);
+
+            $title = $otherUser->name;
+        }
+
+        return response()->json([
+            'title'    => $title,
+            'messages' => $messages->map(fn ($m) => [
+                'body'  => $m->body,
+                'mine'  => $m->sender_id === $userId,
+                'name'  => $m->sender->name ?? '',
+                'at'    => $m->created_at->format('M d, H:i'),
+            ]),
+        ]);
+    }
+
+    /** Send a message from the widget. */
+    public function widgetSend(Request $request, string $type, string $id)
+    {
+        $request->validate(['body' => 'required|string|max:1000']);
+        $userId = auth()->id();
+
+        if ($type === 'order') {
+            $order = Order::findOrFail((int) $id);
+            $this->authorizeOrderAccess($order);
+
+            // Receiver = the other participant of this order thread
+            $lastFromOther = Message::where('order_id', $order->id)
+                ->where('sender_id', '!=', $userId)->latest()->first();
+            $receiverId = $lastFromOther?->sender_id
+                ?? ($order->user_id === $userId ? optional($order->items()->with('book')->first())->book->seller_id : $order->user_id);
+
+            Message::create([
+                'order_id'    => $order->id,
+                'sender_id'   => $userId,
+                'receiver_id' => $receiverId,
+                'body'        => $request->body,
+            ]);
+        } else {
+            [$a, $b] = explode('_', $id);
+            if ((int) $a !== $userId && (int) $b !== $userId) abort(403);
+            $otherId   = (int) $a === $userId ? (int) $b : (int) $a;
+            $otherUser = User::findOrFail($otherId);
+            $this->authorizeDirectMessage($otherUser);
+
+            Message::create([
+                'order_id'    => null,
+                'thread_key'  => $id,
+                'sender_id'   => $userId,
+                'receiver_id' => $otherId,
+                'body'        => $request->body,
+            ]);
+        }
+
+        return response()->json(['ok' => true]);
+    }
+
+    // ══════════════════════════════════════════════════════════════
     //  HELPERS
     // ══════════════════════════════════════════════════════════════
     private function authorizeOrderAccess(Order $order): void

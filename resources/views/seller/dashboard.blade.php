@@ -12,10 +12,6 @@
                 Platform commission: <strong style="color:#fa4e1c;">{{ $commissionRate }}%</strong> per sale
             </p>
         </div>
-        <a href="{{ route('seller.books.create') }}"
-           class="rounded-xl px-5 py-2.5 text-sm font-bold text-white transition hover:opacity-90"
-           style="background:#002b4d;">+ List a Product</a>
-    </div>
 
     @if (session('success'))
         <div class="mt-5 rounded-xl border p-4 text-sm" style="background:rgba(250,78,28,.08);border-color:rgba(250,78,28,.3);color:#d93d0e;">

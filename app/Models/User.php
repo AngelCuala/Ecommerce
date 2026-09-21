@@ -22,10 +22,11 @@ class User extends Authenticatable
         'sex', 'contact_no', 'birthday', 'age',
         'province', 'municipality', 'barangay', 'street', 'house_number',
         'valid_id_path', 'approval_status', 'rejection_reason',
+        'valid_id_path', 'approval_status', 'rejection_reason',
 
         // Profile extras
         'phone', 'address', 'city', 'zip', 'country',
-        'profile_photo_path',
+        'profile_photo_path', 'bio',
     ];
 
     protected $hidden = ['password', 'remember_token'];

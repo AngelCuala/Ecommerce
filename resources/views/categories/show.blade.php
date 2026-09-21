@@ -37,7 +37,6 @@
                                : 'color:#444444;' }}"
                            onmouseover="{{ $isActive ? '' : "this.style.background='#FFF8F5';this.style.color='#fa4e1c';" }}"
                            onmouseout="{{ $isActive ? '' : "this.style.background='';this.style.color='#444444';" }}">
-                            <span class="text-base">{{ $cat['icon'] }}</span>
                             <span class="line-clamp-2 leading-snug">{{ $cat['name'] }}</span>
                         </a>
                     @endforeach
@@ -54,8 +53,8 @@
             <div class="card mb-5 overflow-hidden">
                 <div class="flex flex-wrap items-center gap-4 px-6 py-5"
                      style="background:linear-gradient(135deg,{{ $active['color'] }}20 0%,{{ $active['color'] }}08 100%);border-bottom:2px solid {{ $active['color'] }}25;">
-                    <span class="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-2xl text-3xl"
-                          style="background:{{ $active['color'] }}20;">{{ $active['icon'] }}</span>
+                    <span class="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-2xl"
+                          style="background:{{ $active['color'] }}20;"></span>
                     <div>
                         <h1 class="text-xl font-extrabold" style="color:#222222;font-family:'Nunito',sans-serif;">
                             {{ $active['name'] }}
@@ -111,7 +110,6 @@
             ══════════════════════════ --}}
             @if ($products->isEmpty())
                 <div class="card flex flex-col items-center gap-4 py-20 text-center">
-                    <span class="text-5xl">{{ $active['icon'] }}</span>
                     <div>
                         <p class="text-lg font-bold" style="color:#222222;">No products yet</p>
                         <p class="mt-1 text-sm" style="color:#999999;">
@@ -184,7 +182,6 @@
             <a href="{{ route('categories.show', $cat['slug']) }}"
                class="flex items-center gap-3 px-4 py-3 text-sm transition"
                style="{{ $cat['slug'] === $active['slug'] ? 'background:#fff1ee;color:#fa4e1c;font-weight:700;' : 'color:#444;' }}">
-                <span class="text-lg">{{ $cat['icon'] }}</span>
                 {{ $cat['name'] }}
             </a>
         @endforeach

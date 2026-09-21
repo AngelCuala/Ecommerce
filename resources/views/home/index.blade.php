@@ -1,117 +1,166 @@
 <x-layout title="ALVY — Online Shopping">
 
 {{-- ═══════════════════════════════════
-     HERO BANNER
+     HERO — matches the reference layout:
+     play badge · centered headline · avatar stack,
+     then a 5-column staggered collage with a CTA pill,
+     then a quote row with a numbered index.
+     Panels without a real product photo are left as
+     blank placeholders. Wider side margins throughout.
 ═══════════════════════════════════ --}}
-<section style="background:linear-gradient(135deg,#002b4d 0%,#003d6b 100%);">
-    <div class="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
-        <div class="grid items-center gap-8 lg:grid-cols-2">
-            <div>
-                <span class="inline-flex items-center gap-2 rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-widest"
-                      style="background:rgba(255,255,255,.2);color:#fff;">
-                    <span class="h-1.5 w-1.5 rounded-full animate-pulse" style="background:#fff;"></span>
-                    Shop Now
-                </span>
-                <h1 class="mt-4 text-4xl font-extrabold leading-tight sm:text-5xl" style="color:#fff;font-family:'Nunito',sans-serif;">
-                    Discover Products<br>You'll Love
-                </h1>
-                <p class="mt-4 max-w-md text-base" style="color:rgba(255,255,255,.8);">
-                    Thousands of products from trusted sellers. Great deals, fast delivery, easy returns.
+<section class="relative overflow-hidden" style="background:#FFFFFF;">
+    <div class="mx-auto max-w-6xl px-6 py-14 sm:px-10 lg:px-16 lg:py-20">
+
+        {{-- Headline row: play badge / headline / avatar stack --}}
+        <div class="hero-in flex flex-col items-center gap-6 sm:flex-row sm:items-center sm:justify-between" style="--d:0ms;">
+
+            {{-- Circular "learn more" badge with rotating label --}}
+            <div class="hidden shrink-0 sm:block" style="width:96px;height:96px;">
+                <div class="relative" style="width:96px;height:96px;">
+                    <svg class="spin-slow" width="96" height="96" viewBox="0 0 100 100">
+                        <defs>
+                            <path id="heroCirclePath" d="M 50,50 m -38,0 a 38,38 0 1,1 76,0 a 38,38 0 1,1 -76,0" />
+                        </defs>
+                        <text font-size="7.2" letter-spacing="1.5" style="fill:#222222;font-family:'Nunito',sans-serif;">
+                            <textPath href="#heroCirclePath" startOffset="0%">
+                                LEARN ABOUT ALVY &#8226; SEE HOW IT WORKS &#8226;
+                            </textPath>
+                        </text>
+                    </svg>
+                    <span class="absolute inset-0 m-auto flex items-center justify-center rounded-full"
+                          style="width:34px;height:34px;background:#002b4d;">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="#fff"><path d="M8 5v14l11-7z"/></svg>
+                    </span>
+                </div>
+            </div>
+
+            <h1 class="max-w-2xl text-center text-[2.25rem] font-extrabold leading-[1.08] sm:text-5xl lg:text-6xl"
+                style="color:#222222;font-family:'Nunito',sans-serif;letter-spacing:-0.02em;">
+                Bringing More,<br>To Your Cart
+            </h1>
+
+            {{-- Avatar stack (blank placeholders) --}}
+            <div class="hidden shrink-0 items-center sm:flex" style="margin-right:-6px;">
+                <span class="block rounded-full" style="width:34px;height:34px;background:#F5F5F5;border:2px solid #fff;box-shadow:0 0 0 1px #E0E0E0;margin-right:-10px;z-index:1;"></span>
+                <span class="block rounded-full" style="width:34px;height:34px;background:#F5F5F5;border:2px solid #fff;box-shadow:0 0 0 1px #E0E0E0;margin-right:-10px;z-index:2;"></span>
+                <span class="flex items-center justify-center rounded-full text-xs font-bold" style="width:34px;height:34px;background:#fa4e1c;color:#fff;border:2px solid #fff;z-index:3;">+</span>
+            </div>
+        </div>
+
+        {{-- Collage: 5 columns, staggered heights, blank panels where there's no photo --}}
+        <div class="mt-10 grid grid-cols-2 gap-4 sm:grid-cols-5 sm:gap-4">
+
+            {{-- Col 1: tall photo + short photo below --}}
+            <div class="flex flex-col gap-4">
+                <div class="hero-in photo-card" style="--d:80ms;height:220px;">
+                    <img src="{{ asset('images/photo3.png') }}" alt="ALVY Shop">
+                </div>
+                <div class="hero-in photo-card" style="--d:120ms;height:110px;">
+                    <img src="{{ asset('images/photo4.png') }}" alt="Featured">
+                </div>
+            </div>
+
+            {{-- Col 2: full height photo --}}
+            <div class="hero-in photo-card" style="--d:160ms;height:346px;">
+                <img src="{{ asset('images/photo5.png') }}" alt="Featured">
+            </div>
+
+            {{-- Col 3: landscape photo + CTA pill --}}
+            <div class="flex flex-col justify-center">
+                <div class="hero-in photo-card" style="--d:200ms;height:200px;">
+                    <img src="{{ asset('images/photo7.png') }}" alt="Featured">
+                </div>
+                <a href="{{ route('shop.index') }}"
+                   class="hero-in mt-3 flex items-center justify-center gap-2 rounded-full py-3 text-sm font-bold transition"
+                   style="--d:240ms;background:#002b4d;color:#fff;"
+                   onmouseover="this.style.background='#003d6b';" onmouseout="this.style.background='#002b4d';">
+                    Explore Collections
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M7 17L17 7M17 7H8M17 7v9"/>
+                    </svg>
+                </a>
+            </div>
+
+            {{-- Col 4: full height photo --}}
+            <div class="hero-in photo-card" style="--d:280ms;height:346px;">
+                <img src="{{ asset('images/photo6.png') }}" alt="Shop Everything">
+            </div>
+
+            {{-- Col 5: tall photo + short photo below --}}
+            <div class="flex flex-col gap-4">
+                <div class="hero-in photo-card" style="--d:320ms;height:220px;">
+                    <img src="{{ asset('images/photo8.png') }}" alt="Featured">
+                </div>
+                <div class="hero-in photo-card" style="--d:360ms;height:110px;">
+                    <img src="{{ asset('images/photo2.png') }}" alt="Featured">
+                </div>
+            </div>
+        </div>
+
+        {{-- Quote + numbered index row --}}
+        <div class="hero-in mt-14 flex flex-col gap-8 sm:flex-row sm:items-end sm:justify-between" style="--d:400ms;">
+            <blockquote class="max-w-md">
+                <span class="block text-5xl leading-none" style="color:#E0E0E0;font-family:Georgia,serif;">&#8220;</span>
+                <p class="-mt-3 text-sm leading-relaxed" style="color:#555555;">
+                    ALVY's are where all your needs are found.
                 </p>
-                <div class="mt-8 flex flex-wrap gap-3">
-                    <a href="{{ route('shop.index') }}"
-                       class="rounded-full px-8 py-3 text-sm font-bold transition"
-                       style="background:#fff;color:#fa4e1c;"
-                       onmouseover="this.style.background='#fff1ee';"
-                       onmouseout="this.style.background='#fff';">
-                        Shop Now
-                    </a>
-                    @guest
-                        <a href="{{ route('register') }}"
-                           class="rounded-full border px-8 py-3 text-sm font-bold transition"
-                           style="border-color:rgba(255,255,255,.5);color:#fff;"
-                           onmouseover="this.style.background='rgba(255,255,255,.12)';"
-                           onmouseout="this.style.background='';">
-                            Join Free
-                        </a>
-                    @endguest
-                </div>
-            </div>
-            <div class="hidden lg:flex justify-end">
-                {{-- Hero image carousel --}}
-                <div id="hero-carousel" class="relative rounded-2xl shadow-2xl overflow-hidden"
-                     style="width:500px;height:320px;">
-
-                    {{-- Slides --}}
-                    <div class="carousel-slide absolute inset-0 transition-opacity duration-700 opacity-100">
-                        <img src="{{ asset('images/photo1.png') }}"
-                             class="h-full w-full object-cover rounded-2xl"
-                             alt="ALVY Shop">
-                    </div>
-                    <div class="carousel-slide absolute inset-0 transition-opacity duration-700 opacity-0">
-                        <img src="{{ asset('images/photo2.png') }}"
-                             class="h-full w-full object-cover rounded-2xl"
-                             alt="Shop Everything">
-                    </div>
-
-                    {{-- Prev button --}}
-                    <button onclick="heroCarouselPrev()"
-                            class="absolute left-2 top-1/2 -translate-y-1/2 flex h-9 w-9 items-center justify-center rounded-full transition"
-                            style="background:rgba(0,0,0,.35);color:#fff;"
-                            onmouseover="this.style.background='rgba(0,0,0,.6)';"
-                            onmouseout="this.style.background='rgba(0,0,0,.35)';"
-                            aria-label="Previous">
-                        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
-                    </button>
-
-                    {{-- Next button --}}
-                    <button onclick="heroCarouselNext()"
-                            class="absolute right-2 top-1/2 -translate-y-1/2 flex h-9 w-9 items-center justify-center rounded-full transition"
-                            style="background:rgba(0,0,0,.35);color:#fff;"
-                            onmouseover="this.style.background='rgba(0,0,0,.6)';"
-                            onmouseout="this.style.background='rgba(0,0,0,.35)';"
-                            aria-label="Next">
-                        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
-                    </button>
-
-                    {{-- Dots --}}
-                    <div class="absolute bottom-3 left-0 right-0 flex justify-center gap-2">
-                        <button onclick="heroCarouselGo(0)" id="hero-dot-0"
-                                class="h-2 w-2 rounded-full transition"
-                                style="background:#fff;" aria-label="Slide 1"></button>
-                        <button onclick="heroCarouselGo(1)" id="hero-dot-1"
-                                class="h-2 w-2 rounded-full transition"
-                                style="background:rgba(255,255,255,.4);" aria-label="Slide 2"></button>
-                    </div>
-                </div>
-
-                <script>
-                (function () {
-                    var slides = document.querySelectorAll('#hero-carousel .carousel-slide');
-                    var dots   = [document.getElementById('hero-dot-0'), document.getElementById('hero-dot-1')];
-                    var current = 0;
-                    var timer;
-
-                    function show(idx) {
-                        slides[current].style.opacity = '0';
-                        dots[current].style.background = 'rgba(255,255,255,.4)';
-                        current = (idx + slides.length) % slides.length;
-                        slides[current].style.opacity = '1';
-                        dots[current].style.background = '#fff';
-                    }
-
-                    window.heroCarouselNext = function () { clearInterval(timer); show(current + 1); autoPlay(); };
-                    window.heroCarouselPrev = function () { clearInterval(timer); show(current - 1); autoPlay(); };
-                    window.heroCarouselGo  = function (i) { clearInterval(timer); show(i); autoPlay(); };
-
-                    function autoPlay() { timer = setInterval(function () { show(current + 1); }, 4000); }
-                    autoPlay();
-                })();
-                </script>
-            </div>
+            </blockquote>
         </div>
     </div>
 </section>
+
+<style>
+    /* one orchestrated hero reveal, staggered by --d */
+    .hero-in {
+        opacity: 0;
+        transform: translateY(18px) scale(.98);
+        animation: heroIn .7s cubic-bezier(.16,1,.3,1) forwards;
+        animation-delay: var(--d, 0ms);
+    }
+    @keyframes heroIn {
+        to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    /* Flat photo cards with hover lift + image zoom */
+    .photo-card {
+        position: relative;
+        overflow: hidden;
+        border-radius: 24px;
+        cursor: pointer;
+        transition: transform .35s cubic-bezier(.16,1,.3,1),
+                    box-shadow .35s cubic-bezier(.16,1,.3,1);
+    }
+    .photo-card img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+        transition: transform .55s cubic-bezier(.16,1,.3,1);
+    }
+    .photo-card:hover {
+        transform: translateY(-6px);
+        box-shadow: 0 18px 40px rgba(0,0,0,.18);
+    }
+    .photo-card:hover img {
+        transform: scale(1.08);
+    }
+
+    /* slow rotation on the circular "learn more" label; the play icon stays fixed */
+    .spin-slow {
+        animation: spinSlow 18s linear infinite;
+    }
+    @keyframes spinSlow {
+        to { transform: rotate(360deg); }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .hero-in { opacity: 1; transform: none; animation: none; }
+        .photo-card, .photo-card img { transition: none; }
+        .photo-card:hover { transform: none; box-shadow: none; }
+        .photo-card:hover img { transform: none; }
+        .spin-slow { animation: none; }
+    }
+</style>
 
 {{-- ═══════════════════════════════════
      CATEGORY PILLS
@@ -207,27 +256,45 @@
     @endif
 </section>
 
+{{-- Divider between Featured Products and Trending Now --}}
+<div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+    <hr style="border:none;border-top:1px solid #E0E0E0;">
+</div>
+
 {{-- ═══════════════════════════════════
-     TRUST BAR
+     TRENDING NOW
 ═══════════════════════════════════ --}}
-<section style="background:#fff;border-top:1px solid #EFEFEF;border-bottom:1px solid #EFEFEF;">
-    <div class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-        <div class="grid grid-cols-2 gap-4 md:grid-cols-4">
-            @foreach ([
-                ['Free Shipping','On qualifying orders'],
-                ['Secure Payment','100% protected'],
-                ['Easy Returns','30-day returns'],
-                ['24/7 Support','Always here to help'],
-            ] as [$title, $sub])
-                <div class="flex items-center gap-3">
-                    <div>
-                        <p class="text-sm font-bold" style="color:#222222;">{{ $title }}</p>
-                        <p class="text-xs" style="color:#999999;">{{ $sub }}</p>
-                    </div>
-                </div>
+<section class="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
+    <div class="mb-6 flex items-end justify-between">
+        <div>
+            <h2 class="font-display text-2xl font-extrabold" style="color:#002b4d;">
+                Trending Now
+                <span style="display:inline-block;width:32px;height:3px;background:#fa4e1c;border-radius:2px;margin-left:10px;vertical-align:middle;"></span>
+            </h2>
+            <p class="mt-1 text-sm" style="color:#6b90aa;">The products everyone's shopping right now.</p>
+        </div>
+        <a href="{{ route('shop.index') }}"
+           class="hidden shrink-0 items-center gap-1 text-sm font-semibold transition sm:inline-flex"
+           style="color:#fa4e1c;"
+           onmouseover="this.style.textDecoration='underline';" onmouseout="this.style.textDecoration='none';">
+            View All
+            <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M13 6l6 6-6 6"/>
+            </svg>
+        </a>
+    </div>
+
+    @if ($bestSellers->count())
+        <div class="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+            @foreach ($bestSellers as $product)
+                <x-product-card :product="$product" />
             @endforeach
         </div>
-    </div>
+    @else
+        <div class="rounded-2xl border py-16 text-center" style="border-color:#cfdce8;background:#fff;">
+            <p class="text-sm" style="color:#6b90aa;">No trending products yet. Check back soon!</p>
+        </div>
+    @endif
 </section>
 
 </x-layout>

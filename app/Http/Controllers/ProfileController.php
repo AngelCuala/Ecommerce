@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
 
 class ProfileController extends Controller
 {
@@ -13,10 +15,10 @@ class ProfileController extends Controller
         return view('profile.index', ['user' => auth()->user()]);
     }
 
-    /** Personal Info page */
+    /** Personal Info now merged into My Profile — redirect for backward compatibility */
     public function personalInfo()
     {
-        return view('profile.personal-info', ['user' => auth()->user()]);
+        return redirect()->route('profile.show');
     }
 
     /** Orders page */
@@ -29,6 +31,43 @@ class ProfileController extends Controller
             ->get();
 
         return view('profile.orders', compact('orders'));
+    }
+
+    /** Notifications page — order status updates for the buyer */
+    public function notifications()
+    {
+        $orders = auth()->user()
+            ->orders()
+            ->with('items.book')
+            ->latest('updated_at')
+            ->get();
+
+        // Build a notification feed from each order's current status
+        $notifications = $orders->map(function ($order) {
+            $meta = match (strtolower($order->status)) {
+                'pending'    => ['title' => 'Order placed',      'body' => 'We have received your order and it is awaiting processing.',       'icon' => 'clock'],
+                'processing' => ['title' => 'Order confirmed',   'body' => 'Your order is being prepared by the seller.',                     'icon' => 'box'],
+                'shipped'    => ['title' => 'Order shipped',     'body' => 'Your order is on its way. Track its progress in My Purchases.',   'icon' => 'truck'],
+                'delivered'  => ['title' => 'Order delivered',   'body' => 'Your order has been delivered. Enjoy!',                           'icon' => 'check'],
+                'cancelled'  => ['title' => 'Order cancelled',   'body' => $order->cancellation_reason ?: 'Your order has been cancelled.',   'icon' => 'x'],
+                default      => ['title' => 'Order update',      'body' => 'There is an update on your order.',                               'icon' => 'bell'],
+            };
+
+            $firstItem = $order->items->first();
+
+            return (object) [
+                'order_id'  => $order->id,
+                'title'     => $meta['title'],
+                'body'      => $meta['body'],
+                'icon'      => $meta['icon'],
+                'status'    => $order->status,
+                'thumbnail' => $firstItem?->book?->image,
+                'item_name' => $firstItem?->book?->title,
+                'at'        => $order->updated_at,
+            ];
+        });
+
+        return view('profile.notifications', compact('notifications'));
     }
 
     /** Settings page */
@@ -44,22 +83,65 @@ class ProfileController extends Controller
         return view('profile.addresses', compact('addresses'));
     }
 
-    /** Update personal info */
+    /** Accounts & Security page */
+    public function security()
+    {
+        return view('profile.security', ['user' => auth()->user()]);
+    }
+
+    /**
+     * Update profile info: profile picture, bio, gender (sex),
+     * birthday, phone, email. (Address fields intentionally excluded —
+     * addresses are managed on the dedicated Addresses page.)
+     */
     public function update(Request $request)
     {
+        $user = auth()->user();
+
         $data = $request->validate([
-            'name'    => 'required|string|max:255',
-            'email'   => 'required|email|max:255|unique:users,email,' . auth()->id(),
-            'phone'   => 'nullable|string|max:30',
-            'address' => 'nullable|string|max:255',
-            'city'    => 'nullable|string|max:120',
-            'zip'     => 'nullable|string|max:20',
-            'country' => 'nullable|string|max:120',
+            'name'     => 'required|string|max:255',
+            'email'    => ['required', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user->id)],
+            'phone'    => 'nullable|string|max:30',
+            'bio'      => 'nullable|string|max:500',
+            'sex'      => 'nullable|in:Male,Female',
+            'birthday' => 'nullable|date|before:today',
+            'avatar'   => 'nullable|image|mimes:jpg,jpeg,png,webp|max:2048',
         ]);
 
-        auth()->user()->update($data);
+        // Handle profile picture upload
+        if ($request->hasFile('avatar')) {
+            // Remove the previous photo if it exists
+            if ($user->profile_photo_path) {
+                Storage::disk('public')->delete($user->profile_photo_path);
+            }
+            $data['profile_photo_path'] = $request->file('avatar')->store('avatars', 'public');
+        }
+
+        // avatar is not a DB column
+        unset($data['avatar']);
+
+        $user->update($data);
 
         return back()->with('success', 'Profile updated successfully.');
+    }
+
+    /**
+     * Update account details: username, phone, email.
+     * (Password handled separately by changePassword.)
+     */
+    public function updateAccount(Request $request)
+    {
+        $user = auth()->user();
+
+        $data = $request->validate([
+            'username' => ['nullable', 'string', 'max:50', 'alpha_dash', Rule::unique('users', 'username')->ignore($user->id)],
+            'phone'    => 'nullable|string|max:30',
+            'email'    => ['required', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user->id)],
+        ]);
+
+        $user->update($data);
+
+        return back()->with('success', 'Account details updated successfully.');
     }
 
     /** Change password */
@@ -73,7 +155,8 @@ class ProfileController extends Controller
         $user = auth()->user();
 
         if (! Hash::check($request->current_password, $user->password)) {
-            return back()->withErrors(['current_password' => 'Current password is incorrect.']);
+            return back()->withErrors(['current_password' => 'Current password is incorrect.'])
+                ->with('password_error', true);
         }
 
         $user->update(['password' => Hash::make($request->password)]);

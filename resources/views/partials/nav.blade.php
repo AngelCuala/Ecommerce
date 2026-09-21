@@ -60,18 +60,15 @@
 
             {{-- Messages / Notifications --}}
             @auth
-                <a href="{{ route('messages.inbox') }}" title="Messages" aria-label="Messages"
+                {{-- Notifications --}}
+                <a href="{{ route('profile.notifications') }}" title="Notifications" aria-label="Notifications"
                    class="relative hidden h-9 w-9 items-center justify-center rounded-xl transition sm:flex"
                    style="color:#fff;"
                    onmouseover="this.style.background='rgba(255,255,255,.15)';"
                    onmouseout="this.style.background='';">
                     <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 17h5l-1.4-1.4A2 2 0 0118 14.2V11a6 6 0 10-12 0v3.2a2 2 0 01-.6 1.4L4 17h5m6 0a3 3 0 11-6 0m6 0H9"/>
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M18 8a6 6 0 00-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 01-3.4 0"/>
                     </svg>
-                    @if ($unreadMsgs > 0)
-                        <span class="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full text-[9px] font-bold"
-                              style="background:#fff;color:#fa4e1c;">{{ $unreadMsgs > 9 ? '9+' : $unreadMsgs }}</span>
-                    @endif
                 </a>
             @endauth
 
@@ -140,12 +137,13 @@
                             ⚙️ Admin Panel
                         </a>
                         @endif
-                        <a href="{{ route('messages.inbox') }}"
+                        <a href="{{ route('profile.orders') }}"
                            class="flex items-center gap-2 px-4 py-2.5 text-sm transition"
                            style="color:#002b4d;"
                            onmouseover="this.style.background='#FFF1E6';"
                            onmouseout="this.style.background='';">
-                            💬 My Messages
+                            <svg class="h-4 w-4 opacity-50" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/></svg>
+                            My Purchases
                         </a>
                         <div style="height:1px;background:#dce8f0;margin:0 .75rem;"></div>
                         <form action="{{ route('logout') }}" method="POST">
@@ -189,12 +187,13 @@
                 </div>
             </form>
             <div class="flex flex-wrap gap-2 text-xs font-medium" style="color:#fff;">
-                @foreach (\App\Models\Category::orderBy('name')->take(8)->get() as $cat)
-                    <a href="{{ route('shop.index', ['category' => $cat->name]) }}"
-                       class="rounded-full px-3 py-1" style="background:rgba(255,255,255,.15);">
-                        {{ $cat->name }}
-                    </a>
-                @endforeach
+                <a href="{{ route('shop.index', ['sort' => 'newest']) }}" class="rounded-full px-3 py-1" style="background:rgba(255,255,255,.15);">New Arrivals</a>
+                <a href="{{ route('shop.index', ['search' => "Women's Apparel"]) }}" class="rounded-full px-3 py-1" style="background:rgba(255,255,255,.15);">Women</a>
+                <a href="{{ route('shop.index', ['search' => "Men's Apparel"]) }}" class="rounded-full px-3 py-1" style="background:rgba(255,255,255,.15);">Men</a>
+                <a href="{{ route('shop.index', ['search' => 'Accessories']) }}" class="rounded-full px-3 py-1" style="background:rgba(255,255,255,.15);">Accessories</a>
+                <a href="{{ route('shop.index', ['search' => 'Shoes']) }}" class="rounded-full px-3 py-1" style="background:rgba(255,255,255,.15);">Shoes</a>
+                <a href="{{ route('shop.index', ['search' => 'Bags']) }}" class="rounded-full px-3 py-1" style="background:rgba(255,255,255,.15);">Bags</a>
+                <a href="{{ route('shop.index', ['sort' => 'price_low']) }}" class="rounded-full px-3 py-1" style="background:rgba(255,255,255,.25);font-weight:700;">Sale</a>
             </div>
             @auth
                 <div class="flex gap-2">

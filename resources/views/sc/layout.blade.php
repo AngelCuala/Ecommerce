@@ -62,6 +62,14 @@
                 <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
                 Reports
             </a>
+            <a href="{{ route('sc.transfers') }}" class="nav-link {{ request()->routeIs('sc.transfers*') ? 'active' : '' }}">
+                @php $pendingIncoming = \App\Models\ParcelTransfer::where('to_sorting_center_id', auth()->id())->where('status','pending')->count(); @endphp
+                <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>
+                SC Transfers
+                @if($pendingIncoming > 0)
+                    <span style="margin-left:auto;background:#fa4e1c;color:#fff;border-radius:999px;padding:1px 7px;font-size:10px;font-weight:700;">{{ $pendingIncoming }}</span>
+                @endif
+            </a>
             <a href="{{ route('sc.chat') }}" class="nav-link {{ request()->routeIs('sc.chat') ? 'active' : '' }}">
                 <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
                 Chat / Messaging

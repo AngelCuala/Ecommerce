@@ -12,10 +12,11 @@ class ProductController extends Controller
         // Slug format: {title-slug}-{id}
         $id = (int) last(explode('-', $slug));
 
-        $product = Book::with(['category', 'seller', 'images'])
+        $product = Book::with(['category', 'seller', 'images', 'variations'])
             ->findOrFail($id);
 
         $related = Book::with(['category', 'images'])
+            ->published()
             ->where('category_id', $product->category_id)
             ->where('id', '!=', $product->id)
             ->take(4)

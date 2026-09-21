@@ -88,9 +88,9 @@
                 {{ $product->title }}
             </h1>
             <p class="mt-1.5 text-sm" style="color:#1a4d6e;">
-                by <strong>{{ $product->author }}</strong>
-                @if ($product->publisher) · {{ $product->publisher }} @endif
-                @if ($product->publication_year) · {{ $product->publication_year }} @endif
+                @if ($product->brand) <strong>{{ $product->brand }}</strong>
+                @elseif ($product->author) <strong>{{ $product->author }}</strong> @endif
+                @if ($product->subcategory) · {{ $product->subcategory }} @endif
             </p>
 
             {{-- Rating row (Shopee-style, if you track ratings — placeholder shown only if available) --}}
@@ -107,8 +107,23 @@
             <div class="mt-6 rounded-xl px-4 py-3" style="background:#FFF6EE;">
                 <span class="align-middle text-sm font-medium" style="color:#fa4e1c;">₱</span>
                 <span class="font-display text-4xl font-bold align-middle" style="color:#fa4e1c;">
-                    {{ number_format($product->price, 2) }}
+                    {{ number_format($product->effective_price, 2) }}
                 </span>
+                @if ($product->hasDiscount())
+                    <span class="ml-2 align-middle text-lg line-through" style="color:#6b90aa;">
+                        ₱{{ number_format($product->price, 2) }}
+                    </span>
+                    @php
+                        $pct = $product->price > 0
+                            ? round(100 - ($product->effective_price / $product->price * 100))
+                            : 0;
+                    @endphp
+                    @if ($pct > 0)
+                        <span class="ml-2 inline-block rounded px-2 py-0.5 align-middle text-[11px] font-bold text-white" style="background:#fa4e1c;">
+                            -{{ $pct }}%
+                        </span>
+                    @endif
+                @endif
             </div>
 
             {{-- Stock / Availability --}}
@@ -134,6 +149,41 @@
             {{-- Add to cart / Buy now (Shopee dual-button pattern) --}}
             <form action="{{ route('cart.store', $product->id) }}" method="POST" class="mt-7">
                 @csrf
+
+                {{-- Variations --}}
+                @if ($product->variations->isNotEmpty())
+                    <div class="mb-5">
+                        <p class="mb-2 text-sm font-semibold" style="color:#002b4d;">Variation</p>
+                        <input type="hidden" name="variation" id="variation-input" value="">
+                        <div class="flex flex-wrap gap-2">
+                            @foreach ($product->variations as $v)
+                                <button type="button"
+                                        data-variation="{{ e($v->name) }}"
+                                        onclick="selectVariation(this)"
+                                        class="variation-btn rounded-lg border px-3 py-2 text-sm font-medium transition"
+                                        style="border-color:#cfdce8;color:#1a4d6e;"
+                                        {{ $v->stock > 0 ? '' : 'disabled' }}>
+                                    {{ $v->name }}
+                                    @if ($v->price)<span class="ml-1 text-[11px]" style="color:#6b90aa;">₱{{ number_format($v->price, 2) }}</span>@endif
+                                    @if ($v->stock <= 0)<span class="ml-1 text-[10px]" style="color:#DC2626;">(out)</span>@endif
+                                </button>
+                            @endforeach
+                        </div>
+                    </div>
+                    <script>
+                        function selectVariation(btn) {
+                            document.querySelectorAll('.variation-btn').forEach(b => {
+                                b.style.borderColor = '#cfdce8';
+                                b.style.background = '';
+                                b.style.color = '#1a4d6e';
+                            });
+                            btn.style.borderColor = '#fa4e1c';
+                            btn.style.background = '#FFF6EE';
+                            btn.style.color = '#fa4e1c';
+                            document.getElementById('variation-input').value = btn.dataset.variation;
+                        }
+                    </script>
+                @endif
                 <div class="flex flex-wrap items-center gap-3">
                     <div class="flex items-center overflow-hidden rounded-lg border" style="border-color:#cfdce8;background:#FBF7F2;">
                         <button type="button" aria-label="Decrease"
@@ -190,26 +240,43 @@
                 @endforeach
             </div>
 
-            {{-- Book Details table --}}
+            {{-- Product Details table --}}
             <div class="mt-8 rounded-2xl border p-6" style="border-color:#cfdce8;background:#FDFAF7;">
                 <h3 class="font-display text-sm font-semibold uppercase tracking-widest mb-4" style="color:#002b4d;">
-                    Book Details
+                    Product Details
                 </h3>
                 <dl class="text-sm divide-y" style="--tw-divide-color:#cfdce8;">
                     @php
-                        $details = [
-                            'Format'       => $product->format ?? '—',
-                            'Language'     => $product->language ?? 'English',
-                            'Pages'        => $product->pages ? number_format($product->pages) . ' pages' : '—',
-                            'Edition'      => $product->edition ?? '—',
-                            'Publisher'    => $product->publisher ?? '—',
-                            'Pub. Year'    => $product->publication_year ?? '—',
-                            'ISBN'         => $product->isbn ?? '—',
-                            'Category'     => $product->category->name ?? '—',
-                            'SKU'          => $product->sku ?? '—',
-                        ];
+                        $details = array_filter([
+                            'Product ID'  => $product->product_code ?? null,
+                            'Category'    => $product->category->name ?? null,
+                            'Subcategory' => $product->subcategory ?? null,
+                            'Brand'       => $product->brand ?? $product->author ?? null,
+                            'SKU'         => $product->sku ?? null,
+                            // Legacy book-specific fields (only shown when present)
+                            'Language'    => $product->language ?? null,
+                            'Publisher'   => $product->publisher ?? null,
+                            'Year'        => $product->publication_year ?? null,
+                            'ISBN'        => $product->isbn ?? null,
+                            'Edition'     => $product->edition ?? null,
+                        ], fn($v) => ! is_null($v) && $v !== '');
+
+                        // Category-specific specs stored on the product.
+                        $specs = is_array($product->specs) ? array_filter($product->specs, fn($v) => $v !== null && $v !== '') : [];
                     @endphp
-                    @foreach ($details as $label => $val)
+                    @forelse ($details as $label => $val)
+                        <div class="flex items-center justify-between py-2.5" style="border-color:#cfdce8;">
+                            <dt style="color:#6b90aa;">{{ $label }}</dt>
+                            <dd class="font-medium text-right" style="color:#002b4d;">{{ $val }}</dd>
+                        </div>
+                    @empty
+                        @if (empty($specs))
+                            <p class="py-3 text-sm" style="color:#6b90aa;">No details available.</p>
+                        @endif
+                    @endforelse
+
+                    {{-- Category-specific specifications --}}
+                    @foreach ($specs as $label => $val)
                         <div class="flex items-center justify-between py-2.5" style="border-color:#cfdce8;">
                             <dt style="color:#6b90aa;">{{ $label }}</dt>
                             <dd class="font-medium text-right" style="color:#002b4d;">{{ $val }}</dd>

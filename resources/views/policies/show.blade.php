@@ -9,6 +9,8 @@
 
     <h1 class="font-display text-3xl font-extrabold mb-2" style="color:#222222;">{{ $title }}</h1>
 
+    @php $defaultBody = \App\Models\PlatformPolicy::defaultContent($key); @endphp
+
     @if ($policy)
         <p class="text-xs mb-8" style="color:#6b90aa;">
             Last updated {{ $policy->updated_at->format('F d, Y') }}
@@ -16,6 +18,10 @@
 
         <div class="card p-8 prose prose-sm max-w-none text-sm leading-relaxed" style="color:#444444;">
             {!! $policy->content !!}
+        </div>
+    @elseif ($defaultBody)
+        <div class="card p-8 prose prose-sm max-w-none text-sm leading-relaxed" style="color:#444444;">
+            {!! $defaultBody !!}
         </div>
     @else
         <div class="card flex flex-col items-center gap-3 py-16 text-center">
@@ -25,12 +31,13 @@
         </div>
     @endif
 
-    {{-- Links to other policies --}}
+    {{-- Links to other policies (hidden on the About Us page) --}}
+    @if ($key !== 'about_us')
     <div class="mt-10 pt-8 border-t" style="border-color:#dce8f0;">
         <p class="text-xs font-bold uppercase tracking-widest mb-4" style="color:#6b90aa;">Other Policies</p>
         <div class="flex flex-wrap gap-3">
             @foreach (\App\Models\PlatformPolicy::defaultPolicies() as $p)
-                @if ($p['key'] !== $key)
+                @if ($p['key'] !== $key && $p['key'] !== 'about_us')
                     <a href="{{ route('policies.show', $p['key']) }}"
                        class="rounded-full border px-4 py-1.5 text-xs font-semibold transition"
                        style="border-color:#E0E0E0;color:#555555;"
@@ -42,5 +49,6 @@
             @endforeach
         </div>
     </div>
+    @endif
 </div>
 </x-layout>

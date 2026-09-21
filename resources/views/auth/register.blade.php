@@ -1,23 +1,54 @@
-<x-layout title="Create Account — ALVY">
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <title>Create Account — ALVY</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family:'Inter',ui-sans-serif,system-ui; }
+        .font-display { font-family:'Nunito',ui-sans-serif,system-ui; }
+        .input { width:100%;border-radius:.5rem;border:1px solid #E6D9CF;background:#fff;padding:.6rem .9rem;font-size:.875rem;color:#222;outline:none;transition:border-color .15s,box-shadow .15s; }
+        .input:focus { border-color:#fa4e1c;box-shadow:0 0 0 3px rgba(250,78,28,.12); }
+        .btn-gold { display:inline-flex;align-items:center;justify-content:center;gap:.5rem;border-radius:.5rem;padding:.75rem 1.5rem;font-weight:700;font-size:.875rem;transition:background .18s; }
+    </style>
+</head>
+<body style="background:#fbeee8;">
 
-<div class="mx-auto flex min-h-[70vh] max-w-2xl flex-col justify-center px-4 py-16 sm:px-6">
-    <div class="text-center">
-        <span class="mx-auto flex h-12 w-12 items-center justify-center rounded-xl font-display text-xl font-bold"
-              style="background:#fa4e1c;color:#FFFFFF;">B</span>
-        <h1 class="mt-4 font-display text-2xl font-bold" style="color:#222222;">Create your account</h1>
-        <p class="mt-1 text-sm" style="color:#6b90aa;">Join ALVY for faster checkout and order history.</p>
-    </div>
+<div class="min-h-screen flex items-center justify-center p-4 sm:p-8">
+    <div class="grid w-full max-w-5xl overflow-hidden rounded-2xl shadow-2xl md:grid-cols-2" style="background:#fff;">
 
-    <div class="card mt-8 p-8">
+        {{-- ══════════ LEFT: image (sticky) ══════════ --}}
+        <div class="relative hidden md:block">
+            <img src="{{ asset('images/photo1.png') }}" alt="ALVY"
+                 class="sticky top-0 h-screen max-h-full w-full object-cover" style="min-height:100%;">
+            <div class="absolute inset-0" style="background:linear-gradient(135deg,rgba(250,78,28,.15),rgba(0,43,77,.25));"></div>
+        </div>
+
+        {{-- ══════════ RIGHT: form ══════════ --}}
+        <div class="flex flex-col justify-center px-8 py-10 sm:px-12" style="background:#FDF8F5;">
+            <div class="mx-auto w-full max-w-md">
+
+                <div class="text-center">
+                    <a href="{{ route('home') }}" class="mx-auto mb-4 inline-flex h-12 w-12 items-center justify-center overflow-hidden rounded-xl">
+                        <img src="{{ asset('images/logo.png') }}" alt="ALVY" class="h-full w-full object-cover" style="transform:scale(1.4);">
+                    </a>
+                    <h1 class="font-display text-3xl font-extrabold" style="color:#222;">Create Account</h1>
+                    <p class="mt-1 text-sm" style="color:#8a7a70;">Join ALVY for faster checkout and order history.</p>
+                </div>
+
         @if ($errors->any())
-            <div class="mb-5 rounded-xl border p-4 text-sm" style="background:#FEF2F2;border-color:rgba(220,38,38,.2);color:#DC2626;">
+            <div class="mt-6 mb-1 rounded-xl border p-4 text-sm" style="background:#FEF2F2;border-color:rgba(220,38,38,.2);color:#DC2626;">
                 <ul class="list-inside list-disc space-y-1">
                     @foreach ($errors->all() as $e)<li>{{ $e }}</li>@endforeach
                 </ul>
             </div>
         @endif
 
-        <form action="{{ route('register') }}" method="POST" enctype="multipart/form-data" class="space-y-6">
+        <form action="{{ route('register') }}" method="POST" enctype="multipart/form-data" class="mt-6 space-y-6">
             @csrf
 
             <div>
@@ -41,11 +72,19 @@
                     </div>
                     <div>
                         <label class="text-xs font-semibold" style="color:#6b90aa;">Password *</label>
-                        <input type="password" name="password" class="input mt-1" required style="border-color:#FFDCC2;">
+                        <div class="relative mt-1">
+                            <input type="password" name="password" data-password class="input pr-11" required style="border-color:#FFDCC2;">
+                            <button type="button" data-toggle-password aria-label="Show password"
+                                    class="absolute right-3 top-1/2 -translate-y-1/2 text-lg leading-none" style="color:#6b90aa;">👁️</button>
+                        </div>
                     </div>
                     <div>
                         <label class="text-xs font-semibold" style="color:#6b90aa;">Confirm Password *</label>
-                        <input type="password" name="password_confirmation" class="input mt-1" required style="border-color:#FFDCC2;">
+                        <div class="relative mt-1">
+                            <input type="password" name="password_confirmation" data-password class="input pr-11" required style="border-color:#FFDCC2;">
+                            <button type="button" data-toggle-password aria-label="Show password"
+                                    class="absolute right-3 top-1/2 -translate-y-1/2 text-lg leading-none" style="color:#6b90aa;">👁️</button>
+                        </div>
                     </div>
                     <div>
                         <label class="text-xs font-semibold" style="color:#6b90aa;">Sex *</label>
@@ -155,15 +194,20 @@
                 <label for="terms" class="text-sm" style="color:#222222;">I agree to the terms and conditions</label>
             </div>
 
-            <button type="submit" class="btn-gold w-full" style="background:#fa4e1c;border-color:#fa4e1c;color:#FFFFFF;">Create Account</button>
+            <button type="submit" class="btn-gold w-full" style="background:#fa4e1c;color:#FFFFFF;"
+                    onmouseover="this.style.background='#E14F00';" onmouseout="this.style.background='#fa4e1c';">Create Account</button>
         </form>
 
-        <p class="mt-6 text-center text-sm" style="color:#6b90aa;">
+        <p class="mt-6 text-center text-sm" style="color:#8a7a70;">
             Already have an account?
-            <a href="{{ route('login') }}" class="font-semibold underline" style="color:#fa4e1c;">Sign in</a>
+            <a href="{{ route('login') }}" class="font-bold" style="color:#222;"
+               onmouseover="this.style.color='#fa4e1c';" onmouseout="this.style.color='#222';">Sign in</a>
         </p>
-    </div>
-</div>
+
+            </div>{{-- /form column inner --}}
+        </div>{{-- /right column --}}
+    </div>{{-- /split card --}}
+</div>{{-- /page wrapper --}}
 
 <script>
     // ── Age auto-calculation ─────────────────────────────────
@@ -291,4 +335,6 @@
     }
 </script>
 
-</x-layout>
+@include('partials.password-toggle')
+</body>
+</html>

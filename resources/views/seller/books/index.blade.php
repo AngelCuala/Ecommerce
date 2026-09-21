@@ -28,6 +28,7 @@
             @php
                 $statuses = [
                     'active'       => ['label'=>'Active',        'count'=>$counts['active'],       'color'=>'#059669'],
+                    'draft'        => ['label'=>'Drafts',         'count'=>$counts['draft'] ?? 0,   'color'=>'#6B7280'],
                     'low_stock'    => ['label'=>'Low Stock',      'count'=>$counts['low_stock'],    'color'=>'#D97706'],
                     'out_of_stock' => ['label'=>'Out of Stock',   'count'=>$counts['out_of_stock'],'color'=>'#DC2626'],
                     'archived'     => ['label'=>'Archived',       'count'=>$counts['archived'],     'color'=>'#6B7280'],
@@ -69,6 +70,7 @@
                     <th class="px-3 py-3 text-left text-[11px] font-bold uppercase tracking-widest" style="color:#6b90aa;">Price</th>
                     <th class="px-3 py-3 text-left text-[11px] font-bold uppercase tracking-widest" style="color:#6b90aa;">Stock</th>
                     <th class="px-3 py-3 text-left text-[11px] font-bold uppercase tracking-widest" style="color:#6b90aa;">Discount</th>
+                    <th class="px-3 py-3 text-left text-[11px] font-bold uppercase tracking-widest" style="color:#6b90aa;">Status</th>
                     <th class="px-5 py-3 text-right text-[11px] font-bold uppercase tracking-widest" style="color:#6b90aa;">Actions</th>
                 </tr>
             </thead>
@@ -83,7 +85,8 @@
                                 <div class="min-w-0">
                                     <p class="font-semibold truncate max-w-[180px]" style="color:#222222;">{{ $book->title }}</p>
                                     <p class="text-xs" style="color:#6b90aa;">
-                                        {{ $book->author }}
+                                        @if ($book->product_code){{ $book->product_code }}@endif
+                                        @if ($book->brand) · {{ $book->brand }} @elseif ($book->author) · {{ $book->author }} @endif
                                         @if ($book->sku) · SKU: {{ $book->sku }} @endif
                                     </p>
                                     @if ($book->voucher_code)
@@ -127,6 +130,21 @@
                             @else
                                 <span class="text-xs" style="color:#6b90aa;">—</span>
                             @endif
+                        </td>
+                        <td class="px-3 py-3">
+                            @php
+                                $statusStyle = match ($book->status) {
+                                    'active'       => ['Active',       '#ECFDF5', '#059669'],
+                                    'draft'        => ['Draft',        '#F3F4F6', '#6B7280'],
+                                    'inactive'     => ['Inactive',     '#F3F4F6', '#6B7280'],
+                                    'out_of_stock' => ['Out of Stock', '#FEF2F2', '#DC2626'],
+                                    default        => [ucfirst((string) $book->status ?: 'Active'), '#ECFDF5', '#059669'],
+                                };
+                            @endphp
+                            <span class="rounded-full px-2.5 py-0.5 text-[11px] font-bold"
+                                  style="background:{{ $statusStyle[1] }};color:{{ $statusStyle[2] }};">
+                                {{ $statusStyle[0] }}
+                            </span>
                         </td>
                         <td class="px-5 py-3 text-right">
                             <div class="flex items-center justify-end gap-2 flex-wrap">
@@ -176,7 +194,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="6" class="px-5 py-14 text-center">
+                        <td colspan="7" class="px-5 py-14 text-center">
                             <span class="text-3xl">
                                 @if ($status === 'archived') 📦
                                 @elseif ($status === 'low_stock') ⚠️

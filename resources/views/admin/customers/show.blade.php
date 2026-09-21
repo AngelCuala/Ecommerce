@@ -32,7 +32,7 @@
         <p class="mt-3 font-display text-lg font-bold" style="color:#222222;">
             {{ $customer->first_name }} {{ $customer->middle_initial ? $customer->middle_initial.'.' : '' }} {{ $customer->last_name }}
         </p>
-        <p class="text-sm" style="color:#6b90aa;">@{{ $customer->username }}</p>
+        <p class="text-sm" style="color:#6b90aa;">{{ '@'.$customer->username }}</p>
 
         <div class="mt-5 space-y-2 text-sm text-left">
             <div class="flex justify-between border-b pb-2" style="border-color:#dce8f0;">
@@ -133,6 +133,7 @@
                 <p class="mt-1" style="color:#222222;">{{ $customer->rejection_reason }}</p>
             </div>
         @endif
+    </div>{{-- /Left card --}}
 
     {{-- Right: full details --}}
     <div class="space-y-6">

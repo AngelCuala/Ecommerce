@@ -9,61 +9,68 @@
 
         <div class="flex-1 space-y-6">
 
-            {{-- Change Password --}}
+            @if (session('success'))
+                <div class="rounded-xl border p-3 text-sm" style="background:rgba(250,78,28,.08);border-color:rgba(250,78,28,.3);color:#fa4e1c;">
+                    ✓ {{ session('success') }}
+                </div>
+            @endif
+
+            {{-- Settings --}}
             <div class="rounded-2xl p-6 sm:p-8" style="background:#fff;border:1px solid #cfdce8;">
-                <h2 class="font-display text-xl font-bold mb-1" style="color:#002b4d;">Change Password</h2>
-                <p class="text-sm mb-6" style="color:#6b90aa;">Keep your account secure with a strong password.</p>
+                <h2 class="font-display text-xl font-bold mb-1" style="color:#002b4d;">Settings</h2>
+                <p class="text-sm mb-6" style="color:#6b90aa;">Manage your preferences and learn more about ALVY.</p>
 
-                @if (session('success'))
-                    <div class="mb-5 rounded-xl border p-3 text-sm" style="background:rgba(250,78,28,.08);border-color:rgba(250,78,28,.3);color:#fa4e1c;">
-                        ✓ {{ session('success') }}
-                    </div>
-                @endif
-                @if ($errors->any())
-                    <div class="mb-5 rounded-xl border p-3 text-sm" style="background:#FEF2F2;border-color:rgba(220,38,38,.2);color:#DC2626;">
-                        {{ $errors->first() }}
-                    </div>
-                @endif
+                <div class="divide-y" style="--tw-divide-color:#eef3f7;">
 
-                <form action="{{ route('profile.change-password') }}" method="POST" class="grid gap-5 sm:grid-cols-2">
-                    @csrf @method('PATCH')
+                    {{-- About Us --}}
+                    <a href="{{ route('policies.show', 'about_us') }}"
+                       class="flex items-center gap-4 py-4 transition"
+                       onmouseover="this.style.background='#FFF8F3';" onmouseout="this.style.background='';">
+                        <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full" style="background:#FFF1E6;">
+                            <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" style="color:#fa4e1c;">
+                                <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
+                            </svg>
+                        </span>
+                        <div class="flex-1 min-w-0">
+                            <p class="font-semibold text-sm" style="color:#002b4d;">About Us</p>
+                            <p class="text-xs" style="color:#6b90aa;">Learn about ALVY, our mission, and our marketplace.</p>
+                        </div>
+                        <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" style="color:#9db3c4;"><polyline points="9 18 15 12 9 6"/></svg>
+                    </a>
 
-                    <div class="sm:col-span-2">
-                        <label class="block text-xs font-semibold mb-1" style="color:#6b90aa;">Current Password</label>
-                        <input type="password" name="current_password"
-                               class="w-full rounded-xl border px-4 py-2.5 text-sm outline-none"
-                               style="border-color:#cfdce8;color:#002b4d;"
-                               onfocus="this.style.borderColor='#fa4e1c';" onblur="this.style.borderColor='#cfdce8';"
-                               required>
-                    </div>
+                    {{-- Accounts & Security --}}
+                    <a href="{{ route('profile.security') }}"
+                       class="flex items-center gap-4 py-4 transition"
+                       onmouseover="this.style.background='#FFF8F3';" onmouseout="this.style.background='';">
+                        <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full" style="background:#FFF1E6;">
+                            <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" style="color:#fa4e1c;">
+                                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                            </svg>
+                        </span>
+                        <div class="flex-1 min-w-0">
+                            <p class="font-semibold text-sm" style="color:#002b4d;">Accounts &amp; Security</p>
+                            <p class="text-xs" style="color:#6b90aa;">Update your username, email, phone, and password.</p>
+                        </div>
+                        <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" style="color:#9db3c4;"><polyline points="9 18 15 12 9 6"/></svg>
+                    </a>
 
-                    <div>
-                        <label class="block text-xs font-semibold mb-1" style="color:#6b90aa;">New Password</label>
-                        <input type="password" name="password"
-                               class="w-full rounded-xl border px-4 py-2.5 text-sm outline-none"
-                               style="border-color:#cfdce8;color:#002b4d;"
-                               onfocus="this.style.borderColor='#fa4e1c';" onblur="this.style.borderColor='#cfdce8';"
-                               required minlength="8">
-                    </div>
+                    {{-- Policies --}}
+                    <a href="{{ route('policies.show', 'privacy_policy') }}"
+                       class="flex items-center gap-4 py-4 transition"
+                       onmouseover="this.style.background='#FFF8F3';" onmouseout="this.style.background='';">
+                        <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full" style="background:#FFF1E6;">
+                            <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" style="color:#fa4e1c;">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/>
+                            </svg>
+                        </span>
+                        <div class="flex-1 min-w-0">
+                            <p class="font-semibold text-sm" style="color:#002b4d;">Privacy &amp; Policies</p>
+                            <p class="text-xs" style="color:#6b90aa;">Read our privacy policy, terms, and other policies.</p>
+                        </div>
+                        <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" style="color:#9db3c4;"><polyline points="9 18 15 12 9 6"/></svg>
+                    </a>
 
-                    <div>
-                        <label class="block text-xs font-semibold mb-1" style="color:#6b90aa;">Confirm New Password</label>
-                        <input type="password" name="password_confirmation"
-                               class="w-full rounded-xl border px-4 py-2.5 text-sm outline-none"
-                               style="border-color:#cfdce8;color:#002b4d;"
-                               onfocus="this.style.borderColor='#fa4e1c';" onblur="this.style.borderColor='#cfdce8';"
-                               required>
-                    </div>
-
-                    <div class="sm:col-span-2 pt-1">
-                        <button type="submit"
-                                class="rounded-full px-8 py-2.5 text-sm font-semibold transition"
-                                style="background:#fa4e1c;color:#fff;"
-                                onmouseover="this.style.background='#E14F00';" onmouseout="this.style.background='#fa4e1c';">
-                            Update Password
-                        </button>
-                    </div>
-                </form>
+                </div>
             </div>
 
             {{-- Danger Zone --}}

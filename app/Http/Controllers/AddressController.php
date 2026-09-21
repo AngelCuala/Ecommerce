@@ -58,8 +58,14 @@ class AddressController extends Controller
             'is_default'   => 'boolean',
         ]);
 
-        if (! empty($data['is_default'])) {
+        $makeDefault = ! empty($data['is_default']);
+
+        if ($makeDefault) {
             auth()->user()->addresses()->update(['is_default' => false]);
+            $data['is_default'] = true;
+        } else {
+            // Never allow the sole/last default to be silently dropped on update
+            unset($data['is_default']);
         }
 
         $address->update($data);

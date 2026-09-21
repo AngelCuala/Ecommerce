@@ -8,6 +8,13 @@
     $outOfStock = ($product->stock ?? 1) <= 0;
 @endphp
 
+@once
+<style>
+    .wishlist-btn.is-wished svg { fill: #fa4e1c; }
+    .wishlist-btn.is-wished { background: #fff; }
+</style>
+@endonce
+
 <div class="group relative flex flex-col overflow-hidden rounded-sm bg-white border border-gray-100 shadow-sm transition duration-200 hover:shadow-md hover:-translate-y-0.5">
 
     {{-- Discount badge (top-left, Shopee ribbon style) --}}
@@ -27,6 +34,17 @@
             </span>
         </div>
     @endif
+
+    {{-- Wishlist button (top-right) --}}
+    <button type="button"
+            onclick="this.classList.toggle('is-wished')"
+            class="wishlist-btn absolute right-2 top-2 z-20 flex h-8 w-8 items-center justify-center rounded-full bg-white/90 shadow-sm transition hover:bg-white"
+            title="Add to wishlist" aria-label="Add {{ $product->title }} to wishlist">
+        <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" style="color:#fa4e1c;">
+            <path stroke-linecap="round" stroke-linejoin="round"
+                  d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/>
+        </svg>
+    </button>
 
     {{-- Cover image --}}
     <a href="{{ isset($product->slug) ? route('products.show', $product->slug) : '#' }}"

@@ -13,7 +13,8 @@ class Parcel extends Model
         'seller_id', 'pickup_address', 'dropoff_address',
         'receiver_name', 'receiver_phone',
         'weight_kg', 'size', 'notes',
-        'area_id', 'status',
+        'area_id', 'status', 'transfer_status',
+        'current_sorting_center_id',
         'verified_by', 'verified_at',
     ];
 
@@ -25,10 +26,31 @@ class Parcel extends Model
     public function seller(): BelongsTo      { return $this->belongsTo(User::class, 'seller_id'); }
     public function area(): BelongsTo        { return $this->belongsTo(DeliveryArea::class, 'area_id'); }
     public function verifiedBy(): BelongsTo  { return $this->belongsTo(User::class, 'verified_by'); }
+    public function currentSortingCenter(): BelongsTo { return $this->belongsTo(User::class, 'current_sorting_center_id'); }
 
     public function parcelDelivery(): HasOne
     {
         return $this->hasOne(ParcelDelivery::class, 'parcel_id');
+    }
+
+    public function transfers(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(ParcelTransfer::class, 'parcel_id');
+    }
+
+    public function pendingTransfer(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(ParcelTransfer::class, 'parcel_id')->where('status', 'pending');
+    }
+
+    public function isBeingTransferred(): bool
+    {
+        return $this->transfer_status === 'outgoing';
+    }
+
+    public function isIncomingTransfer(): bool
+    {
+        return $this->transfer_status === 'incoming';
     }
 
     /** Generate a unique tracking number */

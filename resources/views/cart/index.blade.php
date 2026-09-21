@@ -43,7 +43,7 @@
                 <p class="font-display text-xl font-semibold" style="color:#222222;">Your cart is empty</p>
                 <p class="mt-1 text-sm" style="color:#6b90aa;">Looks like you haven't added anything yet.</p>
             </div>
-            <a href="{{ route('shop.index') }}" class="btn-gold px-8" style="background:#fa4e1c;border-color:#fa4e1c;color:#FFFFFF;">Browse Books</a>
+            <a href="{{ route('shop.index') }}" class="btn-gold px-8" style="background:#fa4e1c;border-color:#fa4e1c;color:#FFFFFF;">Browse Items</a>
         </div>
 
     @else

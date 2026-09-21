@@ -71,7 +71,13 @@
                         <span class="text-blue">{{ $parcel->dropoff_address }}</span>
                     </td>
                     <td style="color:var(--text-muted);font-size:12px;">{{ $parcel->created_at->format('Y-m-d  H:i') }}</td>
-                    <td><span class="badge {{ $badgeClass }}">{{ $badgeLabel }}</span></td>
+                    <td><span class="badge {{ $badgeClass }}">{{ $badgeLabel }}</span>
+                        @if($parcel->transfer_status === 'outgoing')
+                            <span class="badge badge-orange" style="margin-left:4px;">📤 Transferring</span>
+                        @elseif($parcel->transfer_status === 'incoming')
+                            <span class="badge badge-blue" style="margin-left:4px;">📥 Transfer In</span>
+                        @endif
+                    </td>
                     <td>
                         @if($parcel->status === 'pickup_approved')
                             <form method="POST" action="{{ route('sc.parcels.advance',$parcel) }}">@csrf

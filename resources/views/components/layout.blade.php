@@ -251,5 +251,6 @@
 <main class="flex-1">{{ $slot }}</main>
 
 @include('partials.footer')
+@include('partials.chat-widget')
 </body>
 </html>

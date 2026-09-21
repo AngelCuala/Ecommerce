@@ -208,9 +208,13 @@
 
             <div class="field">
                 <label for="password">Password</label>
-                <input type="password" id="password" name="password"
-                       placeholder="••••••••"
-                       required autocomplete="current-password">
+                <div style="position:relative;">
+                    <input type="password" id="password" name="password" data-password
+                           placeholder="••••••••" style="padding-right:2.5rem;"
+                           required autocomplete="current-password">
+                    <button type="button" data-toggle-password aria-label="Show password"
+                            style="position:absolute;right:.75rem;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:1.1rem;line-height:1;">👁️</button>
+                </div>
             </div>
 
             <div class="remember">
@@ -228,5 +232,6 @@
 
 </div>
 
+@include('partials.password-toggle')
 </body>
 </html>
