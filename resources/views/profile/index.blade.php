@@ -43,8 +43,44 @@
                     <div class="rounded-2xl border p-4 text-sm" style="background:#FEF2F2;border-color:rgba(220,38,38,.2);">
                         <strong style="color:#DC2626;">Seller application rejected.</strong>
                         @if ($app->rejection_reason)<span style="color:#d93d0e;"> Reason: {{ $app->rejection_reason }}</span>@endif
+                        <div class="mt-3">
+                            <a href="{{ route('seller.apply') }}"
+                               class="inline-flex items-center gap-1.5 rounded-full px-5 py-2 text-sm font-semibold text-white transition"
+                               style="background:#fa4e1c;"
+                               onmouseover="this.style.background='#E14F00';" onmouseout="this.style.background='#fa4e1c';">
+                                Re-apply
+                                <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M13 6l6 6-6 6"/></svg>
+                            </a>
+                        </div>
                     </div>
                 @endif
+            @elseif (($u->role ?? 'buyer') === 'buyer')
+                {{-- ═══════════ BECOME A SELLER (no application yet) ═══════════ --}}
+                <div class="overflow-hidden rounded-2xl border" style="border-color:rgba(250,78,28,.25);">
+                    <div class="flex flex-col gap-4 p-6 sm:flex-row sm:items-center sm:justify-between"
+                         style="background:linear-gradient(135deg,rgba(250,78,28,.08),rgba(0,43,77,.06));">
+                        <div class="flex items-start gap-4">
+                            <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl" style="background:#fa4e1c;">
+                                <svg class="h-6 w-6 text-white" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+                                    <path d="M3 9l1-5h16l1 5M4 9h16v10a1 1 0 01-1 1H5a1 1 0 01-1-1V9zM9 13h6"/>
+                                </svg>
+                            </div>
+                            <div class="min-w-0">
+                                <h3 class="font-display text-lg font-bold" style="color:#002b4d;">Start selling on ALVY</h3>
+                                <p class="mt-0.5 text-sm" style="color:#54728a;">
+                                    Turn your buyer account into a seller account and reach more customers. It only takes a few minutes to apply.
+                                </p>
+                            </div>
+                        </div>
+                        <a href="{{ route('seller.apply') }}"
+                           class="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-full px-6 py-2.5 text-sm font-semibold text-white transition"
+                           style="background:#fa4e1c;"
+                           onmouseover="this.style.background='#E14F00';" onmouseout="this.style.background='#fa4e1c';">
+                            Become a Seller
+                            <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M13 6l6 6-6 6"/></svg>
+                        </a>
+                    </div>
+                </div>
             @endif
 
             {{-- ═══════════ PROFILE HEADER CARD ═══════════ --}}

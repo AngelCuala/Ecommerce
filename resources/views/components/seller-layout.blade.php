@@ -95,7 +95,7 @@
            style="background:#FFFFFF;border-color:#EFEFEF;">
 
         {{-- Logo --}}
-        <a href="{{ route('home') }}" class="flex items-center gap-2.5 px-6 py-6">
+        <a href="{{ route('seller.dashboard') }}" class="flex items-center gap-2.5 px-6 py-6">
             <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg font-display text-base font-black"
                   style="background:transparent;overflow:hidden;padding:0;"><img src="{{ asset('images/logo.png') }}" alt="ALVY" style="width:140%;height:140%;object-fit:cover;display:block;margin:-20%;transform:scale(1.5);transform-origin:center;"></span>
             <div class="leading-tight">
@@ -192,7 +192,7 @@
                class="fixed inset-y-0 left-0 z-50 flex w-72 -translate-x-full flex-col"
                style="display:none;background:#FFFFFF;">
             <div class="flex items-center justify-between px-6 py-6">
-                <a href="{{ route('home') }}" class="flex items-center gap-2.5">
+                <a href="{{ route('seller.dashboard') }}" class="flex items-center gap-2.5">
                     <span class="flex h-9 w-9 items-center justify-center rounded-lg font-display text-base font-black"
                           style="background:transparent;overflow:hidden;padding:0;"><img src="{{ asset('images/logo.png') }}" alt="ALVY" style="width:140%;height:140%;object-fit:cover;display:block;margin:-20%;transform:scale(1.5);transform-origin:center;"></span>
                     <div>

@@ -202,10 +202,11 @@ class MessageController extends Controller
     //  FLOATING CHAT WIDGET — JSON endpoints (no page reload)
     // ══════════════════════════════════════════════════════════════
 
-    /** Return all threads (order + direct) as JSON for the popup list. */
+    /** Return all threads (order + direct) as JSON for the chat list. */
     public function widgetThreads()
     {
         $userId = auth()->id();
+        $me     = auth()->user();
 
         // Order threads
         $orderIds = Message::whereNotNull('order_id')
@@ -221,6 +222,7 @@ class MessageController extends Controller
                 'type'      => 'order',
                 'key'       => 'order:' . $oid,
                 'label'     => 'Order #' . str_pad($oid, 6, '0', STR_PAD_LEFT),
+                'position'  => 'Order',
                 'last_body' => $last->body,
                 'last_at'   => $last->created_at->diffForHumans(),
                 'ts'        => $last->created_at->timestamp,
@@ -228,7 +230,8 @@ class MessageController extends Controller
             ]);
         }
 
-        // Direct threads
+        // Direct threads (existing conversations)
+        $seenUserIds = [];
         $keys = Message::whereNull('order_id')
             ->where(fn ($q) => $q->where('sender_id', $userId)->orWhere('receiver_id', $userId))
             ->pluck('thread_key')->unique();
@@ -238,10 +241,12 @@ class MessageController extends Controller
             if (! $last) continue;
             $otherId   = $last->sender_id === $userId ? $last->receiver_id : $last->sender_id;
             $otherUser = User::find($otherId);
+            $seenUserIds[] = $otherId;
             $threads->push([
                 'type'      => 'direct',
                 'key'       => 'direct:' . $key,
                 'label'     => $otherUser?->name ?? 'Unknown',
+                'position'  => $this->roleLabel($otherUser?->role),
                 'last_body' => $last->body,
                 'last_at'   => $last->created_at->diffForHumans(),
                 'ts'        => $last->created_at->timestamp,
@@ -249,12 +254,58 @@ class MessageController extends Controller
             ]);
         }
 
-        $threads = $threads->sortByDesc('ts')->values();
+        // Admins and sellers see every account they can message, even with no
+        // conversation yet. Admin -> everyone; Seller -> admin + their buyers.
+        if ($me->isAdmin() || $me->isSeller()) {
+            if ($me->isAdmin()) {
+                $contactIds = User::where('id', '!=', $userId)
+                    ->whereIn('role', ['admin', 'seller', 'buyer', 'sorting_center', 'courier'])
+                    ->pluck('id')->all();
+            } else {
+                // Reuse the allowed-recipient rules (admin + this seller's buyers).
+                $contactIds = array_keys($this->getComposeTargets());
+            }
+
+            User::whereIn('id', $contactIds)
+                ->orderBy('name')
+                ->get()
+                ->each(function ($u) use (&$threads, $seenUserIds, $userId) {
+                    if (in_array($u->id, $seenUserIds)) return; // already has a thread
+                    $threads->push([
+                        'type'      => 'direct',
+                        'key'       => 'direct:' . Message::threadKey($userId, $u->id),
+                        'label'     => $u->name,
+                        'position'  => $this->roleLabel($u->role),
+                        'last_body' => '',
+                        'last_at'   => '',
+                        'ts'        => 0,
+                        'unread'    => 0,
+                    ]);
+                });
+        }
+
+        // Existing conversations first (newest), then the rest alphabetically.
+        $threads = $threads
+            ->sortBy(fn ($t) => [$t['ts'] === 0 ? 1 : 0, -$t['ts'], strtolower($t['label'])])
+            ->values();
 
         return response()->json([
             'threads' => $threads,
             'unread'  => Message::where('receiver_id', $userId)->where('is_read', false)->count(),
         ]);
+    }
+
+    /** Human-friendly label for a user role. */
+    private function roleLabel(?string $role): string
+    {
+        return match ($role) {
+            'admin'          => 'Admin',
+            'seller'         => 'Seller',
+            'buyer'          => 'Buyer',
+            'sorting_center' => 'Sorting Center',
+            'courier'        => 'Courier',
+            default          => $role ? ucfirst($role) : 'User',
+        };
     }
 
     /** Return the messages of a single thread as JSON + mark them read. */

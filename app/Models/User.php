@@ -26,7 +26,7 @@ class User extends Authenticatable
 
         // Profile extras
         'phone', 'address', 'city', 'zip', 'country',
-        'profile_photo_path', 'bio',
+        'profile_photo_path', 'bio', 'last_login_at',
     ];
 
     protected $hidden = ['password', 'remember_token'];
@@ -37,6 +37,7 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'birthday'          => 'date',
             'password'          => 'hashed',
+            'last_login_at'     => 'datetime',
         ];
     }
 

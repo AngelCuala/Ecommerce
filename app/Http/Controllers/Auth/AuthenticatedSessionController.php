@@ -61,6 +61,11 @@ class AuthenticatedSessionController extends Controller
 
         $user = Auth::user();
 
+        // Record login timestamp. Keep the previous value in the session so the
+        // profile page can show "last login" as the prior sign-in, not this one.
+        $request->session()->put('previous_login_at', $user->last_login_at);
+        $user->forceFill(['last_login_at' => now()])->saveQuietly();
+
         // Sorting center staff → SC panel
         if ($user->role === 'sorting_center') {
             return redirect()->route('sc.dashboard')

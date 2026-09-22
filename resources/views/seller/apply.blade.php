@@ -106,7 +106,7 @@
                             <label class="text-xs font-semibold" style="color:#6b90aa;">Line of Business / Category *</label>
                             <select name="line_of_business" class="input mt-1" required>
                                 <option value="">Select category</option>
-                                @foreach (['Pet Supplies','Kids & Baby','Electronics & Gadgets',"Women's Apparel",'Sports & Outdoors','Home & Garden',"Men's Apparel",'Health & Beauty','Books & Media','Food & Gourmet','Furniture & Office','Jewelry & Watches','Others'] as $biz)
+                                @foreach (['Pet Supplies','Kids & Baby','Electronics & Gadgets',"Women's Apparel",'Sports & Outdoors','Home & Garden',"Men's Apparel",'Health & Beauty','Books & Media','Food & Gourmet','Furniture & Office','Jewelry & Watches','Toys','Others'] as $biz)
                                     <option value="{{ $biz }}" @selected(old('line_of_business') === $biz)>{{ $biz }}</option>
                                 @endforeach
                             </select>

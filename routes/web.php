@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Admin\AccountController as AdminAccountController;
 use App\Http\Controllers\Admin\CategoryController as AdminCategoryController;
 use App\Http\Controllers\Admin\ComplianceController as AdminComplianceController;
 use App\Http\Controllers\Admin\CourierController as AdminCourierController;
@@ -120,8 +121,6 @@ Route::post('/register',[RegisteredUserController::class, 'store']);
 Route::post('/logout', [AuthenticatedSessionController::class, 'destroy'])
     ->middleware('auth')->name('logout');
 
-// ── Authenticated (buyer-only) ────────────────────────────────
-Route::middleware(['auth', 'buyer_only'])->group(function () {
 // ── Authenticated (buyer-only) ────────────────────────────────
 Route::middleware(['auth', 'buyer_only'])->group(function () {
 
@@ -294,8 +293,14 @@ Route::middleware(['auth', 'role:admin'])
     Route::get('/settings',                              [AdminSettingsController::class, 'index'])->name('settings.index');
     Route::post('/settings/announcements',               [AdminSettingsController::class, 'storeAnnouncement'])->name('settings.announcements.store');
     Route::patch('/settings/announcements/{id}/toggle', [AdminSettingsController::class, 'toggleAnnouncement'])->name('settings.announcements.toggle');
-    Route::delete('/settings/announcements/{id}',       [AdminSettingsController::class, 'destroyAnnouncement'])->name('settings.announcements.destroy');
     Route::get('/settings/policies/{key}',              [AdminSettingsController::class, 'showPolicy'])->name('settings.policies.show');
+    Route::put('/settings/policies/{key}',              [AdminSettingsController::class, 'updatePolicy'])->name('settings.policies.update');
+
+    // Admin account: profile + security (separate pages)
+    Route::get('/account',           [AdminAccountController::class, 'edit'])->name('account.edit');
+    Route::put('/account',           [AdminAccountController::class, 'update'])->name('account.update');
+    Route::get('/account/security',  [AdminAccountController::class, 'security'])->name('account.security');
+    Route::put('/account/security',  [AdminAccountController::class, 'updatePassword'])->name('account.password');
     Route::put('/settings/policies/{key}',              [AdminSettingsController::class, 'updatePolicy'])->name('settings.policies.update');
 
     // Sorting center / courier management
@@ -334,10 +339,6 @@ Route::middleware(['auth', 'role:admin'])
     Route::get('/chat',                              [\App\Http\Controllers\Admin\Logistics\ChatController::class, 'index'])->name('chat.index');
     Route::post('/chat/send',                        [\App\Http\Controllers\Admin\Logistics\ChatController::class, 'send'])->name('chat.send');
     Route::get('/chat/poll',                         [\App\Http\Controllers\Admin\Logistics\ChatController::class, 'poll'])->name('chat.poll');
-
-    Route::get('/account',                           [\App\Http\Controllers\Admin\Logistics\AccountController::class, 'edit'])->name('account.edit');
-    Route::put('/account',                           [\App\Http\Controllers\Admin\Logistics\AccountController::class, 'update'])->name('account.update');
-    Route::put('/account/password',                  [\App\Http\Controllers\Admin\Logistics\AccountController::class, 'updatePassword'])->name('account.password');
 });
 
 // ── Courier / Sorting Center panel ──────────────────────────
