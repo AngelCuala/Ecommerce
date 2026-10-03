@@ -9,12 +9,14 @@ class DashboardController extends Controller
 {
     public function index()
     {
-        $courier = auth()->user()->courier;
+        $courier = DeliveryController::currentCourier();
 
         $with = ['order.user', 'order.items.book.seller'];
 
-        // Available deliveries (not yet accepted by anyone)
+        // Available deliveries (not yet accepted by anyone, order still live)
         $available = Delivery::where('status', 'available')
+            ->whereNull('courier_id')
+            ->whereHas('order', fn ($q) => $q->whereNotIn('status', ['Cancelled', 'Delivered']))
             ->with($with)->latest()->get();
 
         // Items to pick up from the seller (accepted but not yet collected)
@@ -33,8 +35,13 @@ class DashboardController extends Controller
             ->whereDate('delivered_at', today())
             ->count();
 
+        // Earnings come from the delivered records themselves.
+        $totalEarnings = (float) Delivery::where('courier_id', $courier->id)
+            ->where('status', 'delivered')
+            ->sum('delivery_fee');
+
         return view('courier.dashboard', compact(
-            'courier', 'available', 'forPickup', 'forDelivery', 'todayDone'
+            'courier', 'available', 'forPickup', 'forDelivery', 'todayDone', 'totalEarnings'
         ));
     }
 

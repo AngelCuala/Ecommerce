@@ -14,7 +14,7 @@ class AccountController extends Controller
     public function index()
     {
         $user    = auth()->user();
-        $courier = $user->courier;
+        $courier = DeliveryController::currentCourier();
 
         return view('courier.account', [
             'user'        => $user,

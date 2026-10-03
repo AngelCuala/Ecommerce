@@ -99,17 +99,40 @@ class OrderController extends Controller
 
         $order = Order::findOrFail($id);
 
-        \App\Models\Delivery::updateOrCreate(
-            ['order_id' => $id],
-            [
-                'courier_name'        => $request->courier_name,
-                'tracking_number'     => $request->tracking_number,
-                'pickup_scheduled_at' => $request->pickup_scheduled_at,
-                'notes'               => $request->notes,
-                'status'              => 'accepted',
-                'delivery_fee'        => 50,
-            ]
+        // Ready for pickup: the delivery becomes "available" so an approved courier can claim it.
+        // A job a courier already claimed keeps its courier and status; only the schedule changes.
+        $delivery = \App\Models\Delivery::firstOrNew(['order_id' => $id]);
+        $claimed  = $delivery->exists && (
+            $delivery->status === 'delivered'
+            || ($delivery->courier_id && in_array($delivery->status, ['accepted', 'picked_up', 'in_transit'], true))
         );
+
+        $delivery->fill([
+            'tracking_number'     => $request->tracking_number,
+            'pickup_scheduled_at' => $request->pickup_scheduled_at,
+            'notes'               => $request->notes,
+        ]);
+        if (! $claimed) {
+            $delivery->fill([
+                'courier_id'   => null,
+                'courier_name' => $request->courier_name,
+                'status'       => 'available',
+                'delivery_fee' => 50,
+                'accepted_at'  => null,
+            ]);
+        }
+        $newlyAvailable = ! $claimed && ($delivery->isDirty('status') || ! $delivery->exists);
+        $delivery->save();
+
+        $deliveryService = app(\App\Services\DeliveryService::class);
+        if ($newlyAvailable) {
+            $deliveryService->notifyAvailableCouriers($delivery);
+        } elseif ($claimed && $delivery->status !== 'delivered') {
+            $delivery->load('courier');
+            $deliveryService->notifyCourier($delivery, 'Pickup schedule updated',
+                $deliveryService->ref($delivery) . ' pickup is now set for '
+                . \Carbon\Carbon::parse($request->pickup_scheduled_at)->format('M d, Y h:i A') . '.');
+        }
 
         // Advance order to Processing if still Pending
         if ($order->status === 'Pending') {
@@ -138,13 +161,25 @@ class OrderController extends Controller
 
         $order = Order::findOrFail($id);
 
-        \App\Models\Delivery::where('order_id', $id)->update([
-            'status'         => 'in_transit',
+        // Only a job a courier has accepted can be handed over.
+        $delivery = \App\Models\Delivery::where('order_id', $id)
+            ->where('status', 'accepted')->whereNotNull('courier_id')
+            ->with('courier')->first();
+        if (! $delivery) {
+            return back()->with('error', 'No courier has accepted this delivery yet.');
+        }
+
+        // Handed over = the courier now has the parcel (same state as the courier's "Confirm Pickup").
+        $delivery->update([
+            'status'         => 'picked_up',
             'handed_over_at' => now(),
             'picked_up_at'   => now(),
         ]);
 
-        $order->update(['status' => 'Shipped']);
+        $deliveryService = app(\App\Services\DeliveryService::class);
+        $deliveryService->advanceOrder($order, 'Shipped');
+        $deliveryService->notifyCourier($delivery, 'Parcel handed over',
+            'The seller handed over ' . $deliveryService->ref($delivery) . '. Start the delivery when you\'re on the way.');
 
         return back()->with('success', 'Order marked as handed over to courier. Status updated to Shipped.');
     }

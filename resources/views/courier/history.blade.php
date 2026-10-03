@@ -44,12 +44,15 @@
                     <p class="cx-item-meta">Buyer: {{ $delivery->order->full_name }} · {{ $delivery->order->city }}</p>
                 @endif
                 <p class="cx-item-meta" style="color:#9db3c4;">
-                    {{ $delivery->delivered_at?->format('M d, Y H:i') ?? $delivery->updated_at->format('M d, Y H:i') }}
+                    {{ $delivery->delivered_at ? 'Delivered '.$delivery->delivered_at->format('M d, Y H:i') : 'Updated '.$delivery->updated_at->format('M d, Y H:i') }}
                 </p>
             </div>
             <div style="text-align:right;">
-                <span class="cx-pill {{ $pill }}">{{ ucfirst($delivery->status) }}</span>
-                <p style="margin-top:4px;font-weight:700;color:var(--accent);">+₱{{ number_format($delivery->delivery_fee,2) }}</p>
+                <span class="cx-pill {{ $pill }}">{{ $delivery->courierStatusLabel() }}</span>
+                <p style="margin-top:4px;font-weight:700;color:{{ $delivery->status === 'delivered' ? 'var(--accent)' : 'var(--text-muted)' }};">
+                    {{ $delivery->status === 'delivered' ? '+' : '' }}₱{{ number_format($delivery->delivery_fee,2) }}
+                </p>
+                <a href="{{ route('courier.deliveries.show',$delivery->id) }}" class="cx-btn cx-btn-outline cx-btn-sm" style="margin-top:8px;">View</a>
             </div>
         </div>
     </div>

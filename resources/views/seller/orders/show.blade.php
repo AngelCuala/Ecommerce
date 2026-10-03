@@ -191,7 +191,7 @@
             @if (! in_array($order->status, ['Delivered','Cancelled']))
 
                 {{-- If no delivery scheduled yet (or the SC rejected the pickup) — show schedule form --}}
-                @if (! $delivery || $delivery->status === 'available' || ($parcel && $parcel->status === 'pickup_rejected'))
+                @if (! $delivery || ($delivery->status === 'available' && ! $delivery->pickup_scheduled_at) || ($parcel && $parcel->status === 'pickup_rejected'))
                     <div class="card p-5">
                         <h3 class="text-sm font-bold mb-1" style="color:#222222;">🚚 Schedule Courier Pickup</h3>
                         <p class="text-xs mb-4" style="color:#6b90aa;">Fill in the courier details and set a pickup date/time.</p>
@@ -221,6 +221,19 @@
                                     class="w-full rounded-xl py-2.5 text-sm font-bold text-white transition hover:opacity-90"
                                     style="background:#002b4d;">📅 Schedule Pickup</button>
                         </form>
+                    </div>
+
+                {{-- Pickup scheduled, waiting for a courier to accept the job --}}
+                @elseif ($delivery->status === 'available')
+                    <div class="card p-5 space-y-3">
+                        <h3 class="text-sm font-bold" style="color:#222222;">🚚 Waiting for a Courier</h3>
+                        <div class="rounded-xl p-4 space-y-2 text-sm" style="background:#FFFBEB;border:1px solid #FDE68A;">
+                            <div class="flex gap-2"><span style="color:#6B7280;width:120px;flex-shrink:0;">Pickup Time</span><strong style="color:#222;">{{ $delivery->pickup_scheduled_at?->format('M d, Y h:i A') }}</strong></div>
+                            @if ($delivery->notes)
+                            <div class="flex gap-2"><span style="color:#6B7280;width:120px;flex-shrink:0;">Notes</span><span style="color:#555;">{{ $delivery->notes }}</span></div>
+                            @endif
+                        </div>
+                        <p class="text-xs" style="color:#6b90aa;">The delivery request is open to couriers. You'll be notified when one accepts it.</p>
                     </div>
 
                 {{-- Courier assigned, not yet handed over --}}

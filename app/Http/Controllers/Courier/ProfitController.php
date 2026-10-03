@@ -10,11 +10,12 @@ class ProfitController extends Controller
 {
     public function index()
     {
-        $courier = auth()->user()->courier;
+        $courier = DeliveryController::currentCourier();
 
         $base = fn () => Delivery::where('courier_id', $courier->id)->where('status', 'delivered');
 
-        $totalEarnings   = (float) $courier->total_earnings;
+        // Sum the delivered records (also counts deliveries the buyer confirmed).
+        $totalEarnings   = (float) $base()->sum('delivery_fee');
         $totalDeliveries = $base()->count();
 
         // Time-window earnings (based on delivered_at)

@@ -12,7 +12,7 @@
             ['label'=>'Pending Pickup',   'value'=>$forPickup->count(),   'color'=>'var(--amber)'],
             ['label'=>'Out for Delivery', 'value'=>$forDelivery->count(), 'color'=>'var(--blue)'],
             ['label'=>'Completed Today',  'value'=>$todayDone,            'color'=>'var(--green)'],
-            ['label'=>'Total Earnings',   'value'=>'₱'.number_format($courier->total_earnings,2), 'color'=>'var(--accent)'],
+            ['label'=>'Total Earnings',   'value'=>'₱'.number_format($totalEarnings,2), 'color'=>'var(--accent)'],
         ];
     @endphp
     @foreach($stats as $s)
@@ -36,6 +36,7 @@
                     </p>
                     <p class="cx-item-meta">Seller: <strong style="color:#374151;">{{ $d->pickupName() }}</strong></p>
                     <p class="cx-item-meta">Deliver to: {{ $d->order->full_name ?? '—' }} · {{ $d->order->city ?? '' }}</p>
+                    @if($d->pickup_scheduled_at)<p class="cx-item-meta">Pickup: {{ $d->pickup_scheduled_at->format('M d, Y h:i A') }}</p>@endif
                     <p class="cx-item-meta">{{ $d->itemCount() }} item(s) · ₱{{ number_format($d->delivery_fee,2) }} fee</p>
                 </div>
                 <div class="cx-actions">
@@ -79,6 +80,12 @@
                             @csrf
                             <button class="cx-btn cx-btn-blue cx-btn-sm">Start Delivery</button>
                         </form>
+                    @else
+                        <form action="{{ route('courier.deliveries.complete',$d->id) }}" method="POST"
+                              onsubmit="return confirm('Confirm this package was delivered to the buyer?')">
+                            @csrf
+                            <button class="cx-btn cx-btn-green cx-btn-sm">Confirm Delivered</button>
+                        </form>
                     @endif
                     <a href="{{ route('courier.deliveries.show',$d->id) }}" class="cx-btn cx-btn-outline cx-btn-sm">View Delivery</a>
                 </div>
@@ -100,6 +107,7 @@
                 <p class="cx-item-title">Order #{{ str_pad($d->order_id,6,'0',STR_PAD_LEFT) }}</p>
                 <p class="cx-item-meta">Pickup from: {{ $d->pickupName() }}</p>
                 <p class="cx-item-meta">Deliver to: {{ $d->order->full_name ?? '—' }} · {{ $d->order->city ?? '' }}</p>
+                @if($d->pickup_scheduled_at)<p class="cx-item-meta">Pickup: {{ $d->pickup_scheduled_at->format('M d, Y h:i A') }}</p>@endif
                 <p class="cx-item-meta">{{ $d->itemCount() }} item(s) · Earn ₱{{ number_format($d->delivery_fee,2) }}</p>
             </div>
             <form action="{{ route('courier.deliveries.accept',$d->id) }}" method="POST"

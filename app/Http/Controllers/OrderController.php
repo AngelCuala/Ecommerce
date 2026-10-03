@@ -31,6 +31,15 @@ class OrderController extends Controller
             'cancellation_reason'  => $request->cancellation_reason,
         ]);
 
+        // A courier job that hasn't been picked up yet can no longer be completed.
+        $delivery = Delivery::where('order_id', $order->id)
+            ->whereIn('status', ['available', 'accepted'])->with('courier')->first();
+        if ($delivery) {
+            $delivery->update(['status' => 'failed', 'notes' => 'Order cancelled by buyer.']);
+            app(\App\Services\DeliveryService::class)->notifyCourier($delivery, 'Delivery cancelled',
+                'Order #' . str_pad($order->id, 6, '0', STR_PAD_LEFT) . ' was cancelled by the buyer. No pickup needed.', 'warning');
+        }
+
         return back()->with('success', 'Your order has been cancelled.');
     }
 
@@ -57,12 +66,20 @@ class OrderController extends Controller
             'payment_status' => 'Paid', // COD — payment collected on delivery
         ]);
 
-        // Mark delivery record as delivered
-        if ($order->delivery) {
-            $order->delivery->update([
+        // Mark delivery record as delivered (once) and credit the courier who carried it.
+        $delivery = $order->delivery;
+        if ($delivery && ! in_array($delivery->status, ['delivered', 'failed'], true)) {
+            $delivery->update([
                 'status'       => 'delivered',
                 'delivered_at' => now(),
             ]);
+
+            if ($delivery->courier) {
+                $delivery->courier->increment('total_earnings', $delivery->delivery_fee);
+                app(\App\Services\DeliveryService::class)->notifyCourier($delivery, 'Buyer confirmed delivery',
+                    'Order #' . str_pad($order->id, 6, '0', STR_PAD_LEFT) . ' was confirmed received. ₱'
+                    . number_format($delivery->delivery_fee, 2) . ' added to your earnings.');
+            }
         }
 
         // Notify each unique seller via the messaging system

@@ -57,6 +57,20 @@ class Delivery extends Model
         };
     }
 
+    /** Status wording used in the courier portal. */
+    public function courierStatusLabel(): string
+    {
+        return match($this->status) {
+            'available'  => 'Available',
+            'accepted'   => 'Pending Pickup',
+            'picked_up'  => 'Picked Up',
+            'in_transit' => 'Out for Delivery',
+            'delivered'  => 'Delivered',
+            'failed'     => 'Failed',
+            default      => ucfirst(str_replace('_', ' ', (string) $this->status)),
+        };
+    }
+
     public function statusLabel(): string
     {
         return match($this->status) {
