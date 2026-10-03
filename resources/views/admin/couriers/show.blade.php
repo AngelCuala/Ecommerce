@@ -1,134 +1,133 @@
 <x-admin-layout title="Courier Application" active="couriers">
 
-@if (session('success'))
-    <div class="mb-5 rounded-xl border p-3 text-sm" style="background:rgba(250,78,28,.10);border-color:rgba(250,78,28,.35);color:#d93d0e;">
-        ✓ {{ session('success') }}
-    </div>
-@endif
+<div class="mx-auto max-w-4xl">
 
-<div class="mb-5">
-    <a href="{{ route('admin.couriers.index') }}" class="text-sm" style="color:#fa4e1c;">← All Applications</a>
-</div>
+    <a href="{{ route('admin.couriers.index') }}"
+       class="mb-4 inline-flex items-center gap-1.5 text-sm font-semibold" style="color:#fa4e1c;">
+        <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
+        Back to applications
+    </a>
 
-<div class="grid gap-6 lg:grid-cols-[1fr_300px]">
+    @php
+        $sc = match ($courier->status) {
+            'approved'  => ['bg'=>'#ECFDF5','text'=>'#059669','label'=>'Approved'],
+            'rejected'  => ['bg'=>'#FEF2F2','text'=>'#DC2626','label'=>'Rejected'],
+            'suspended' => ['bg'=>'#F3F4F6','text'=>'#6B7280','label'=>'Suspended'],
+            default     => ['bg'=>'#FFFBEB','text'=>'#B45309','label'=>'Pending'],
+        };
+    @endphp
 
-    {{-- Details --}}
-    <div class="space-y-5">
-        <div class="card p-6">
-            <h2 class="font-display text-lg font-bold mb-4" style="color:#222222;">Personal Information</h2>
-            <dl class="grid gap-y-2 text-sm">
-                @foreach ([
-                    'Full Name'    => $courier->fullName(),
-                    'Sex'          => $courier->sex,
-                    'Birthday'     => $courier->birthday->format('M d, Y'),
-                    'Age'          => $courier->age,
-                    'Contact No.'  => $courier->contact_no,
-                    'Email'        => $courier->user->email,
-                    'Address'      => $courier->street.', '.$courier->barangay.', '.$courier->municipality.', '.$courier->province,
-                    'Vehicle'      => $courier->vehicle_type.' · '.$courier->plate_number,
-                    'Applied On'   => $courier->created_at->format('M d, Y H:i'),
-                ] as $label => $val)
-                    <div class="flex justify-between border-b py-2" style="border-color:#dce8f0;">
-                        <dt style="color:#6b90aa;">{{ $label }}</dt>
-                        <dd class="font-medium text-right" style="color:#222222;">{{ $val }}</dd>
+    <div class="grid gap-6 lg:grid-cols-[1fr_320px]">
+
+        {{-- Details --}}
+        <div class="space-y-6">
+            <div class="card p-6">
+                <div class="flex items-center justify-between">
+                    <h2 class="font-display text-lg font-bold" style="color:#222222;">{{ $courier->fullName() }}</h2>
+                    <span class="rounded-full px-3 py-1 text-xs font-bold" style="background:{{ $sc['bg'] }};color:{{ $sc['text'] }};">{{ $sc['label'] }}</span>
+                </div>
+                <dl class="mt-4 grid gap-x-8 gap-y-4 text-sm sm:grid-cols-2">
+                    <div><dt class="text-xs" style="color:#9db3c4;">Email</dt><dd class="font-medium" style="color:#222;">{{ $courier->user->email ?? '—' }}</dd></div>
+                    <div><dt class="text-xs" style="color:#9db3c4;">Contact No.</dt><dd class="font-medium" style="color:#222;">{{ $courier->contact_no }}</dd></div>
+                    <div><dt class="text-xs" style="color:#9db3c4;">Sex</dt><dd class="font-medium" style="color:#222;">{{ $courier->sex }}</dd></div>
+                    <div><dt class="text-xs" style="color:#9db3c4;">Birthday / Age</dt><dd class="font-medium" style="color:#222;">{{ optional($courier->birthday)->format('M d, Y') }} · {{ $courier->age }}</dd></div>
+                    <div class="sm:col-span-2"><dt class="text-xs" style="color:#9db3c4;">Address</dt><dd class="font-medium" style="color:#222;">{{ $courier->fullAddress() }}</dd></div>
+                    <div><dt class="text-xs" style="color:#9db3c4;">Vehicle Type</dt><dd class="font-medium" style="color:#222;">{{ $courier->vehicle_type }}</dd></div>
+                    <div><dt class="text-xs" style="color:#9db3c4;">Plate Number</dt><dd class="font-medium" style="color:#222;">{{ $courier->plate_number }}</dd></div>
+                    <div><dt class="text-xs" style="color:#9db3c4;">Submitted</dt><dd class="font-medium" style="color:#222;">{{ optional($courier->submitted_at ?? $courier->created_at)->format('M d, Y g:i A') }}</dd></div>
+                    @if ($courier->reviewed_at)
+                        <div><dt class="text-xs" style="color:#9db3c4;">Reviewed</dt><dd class="font-medium" style="color:#222;">{{ $courier->reviewed_at->format('M d, Y g:i A') }}</dd></div>
+                    @endif
+                </dl>
+                @if ($courier->isRejected() && $courier->rejection_reason)
+                    <div class="mt-4 rounded-lg border p-3 text-sm" style="background:#FEF2F2;border-color:rgba(220,38,38,.2);color:#DC2626;">
+                        <strong>Rejection reason:</strong> {{ $courier->rejection_reason }}
                     </div>
-                @endforeach
-            </dl>
-        </div>
+                @endif
+            </div>
 
-        {{-- Documents --}}
-        <div class="card p-6">
-            <h2 class="font-display text-base font-bold mb-4" style="color:#222222;">Documents</h2>
-            <div class="grid gap-4 sm:grid-cols-2">
-                <div>
-                    <p class="text-xs font-semibold mb-2" style="color:#6b90aa;">OR/CR</p>
-                    @php $orExt = pathinfo($courier->or_cr_path, PATHINFO_EXTENSION); @endphp
-                    @if (in_array(strtolower($orExt), ['jpg','jpeg','png']))
-                        <a href="{{ asset('storage/'.$courier->or_cr_path) }}" target="_blank">
-                            <img src="{{ asset('storage/'.$courier->or_cr_path) }}" class="max-h-48 rounded-xl border object-contain" style="border-color:#dce8f0;">
-                        </a>
-                    @else
-                        <a href="{{ asset('storage/'.$courier->or_cr_path) }}" target="_blank" class="btn-outline text-sm inline-flex" style="border-color:#fa4e1c;color:#fa4e1c;">📄 View OR/CR</a>
-                    @endif
-                </div>
-                <div>
-                    <p class="text-xs font-semibold mb-2" style="color:#6b90aa;">ID / Driver's License</p>
-                    @php $idExt = pathinfo($courier->id_license_path, PATHINFO_EXTENSION); @endphp
-                    @if (in_array(strtolower($idExt), ['jpg','jpeg','png']))
-                        <a href="{{ asset('storage/'.$courier->id_license_path) }}" target="_blank">
-                            <img src="{{ asset('storage/'.$courier->id_license_path) }}" class="max-h-48 rounded-xl border object-contain" style="border-color:#dce8f0;">
-                        </a>
-                    @else
-                        <a href="{{ asset('storage/'.$courier->id_license_path) }}" target="_blank" class="btn-outline text-sm inline-flex" style="border-color:#fa4e1c;color:#fa4e1c;">📄 View ID</a>
-                    @endif
+            {{-- Documents --}}
+            <div class="card p-6">
+                <h3 class="font-display text-base font-bold mb-4" style="color:#222222;">Documents</h3>
+                <div class="grid gap-4 sm:grid-cols-2">
+                    @foreach ([['OR / CR', $courier->or_cr_path], ["Valid ID / Driver's License", $courier->id_license_path]] as [$label, $path])
+                        <div>
+                            <p class="text-xs font-semibold mb-2" style="color:#6b90aa;">{{ $label }}</p>
+                            @if ($path)
+                                @php $ext = strtolower(pathinfo($path, PATHINFO_EXTENSION)); @endphp
+                                @if (in_array($ext, ['jpg','jpeg','png']))
+                                    <a href="{{ asset('storage/'.$path) }}" target="_blank">
+                                        <img src="{{ asset('storage/'.$path) }}" class="max-h-40 w-full rounded-lg border object-contain transition hover:opacity-90" style="border-color:#cfdce8;">
+                                    </a>
+                                @else
+                                    <a href="{{ asset('storage/'.$path) }}" target="_blank"
+                                       class="inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium" style="border-color:#cfdce8;color:#fa4e1c;">
+                                        View document
+                                    </a>
+                                @endif
+                            @else
+                                <p class="text-sm" style="color:#9db3c4;">Not uploaded.</p>
+                            @endif
+                        </div>
+                    @endforeach
                 </div>
             </div>
         </div>
-    </div>
 
-    {{-- Actions --}}
-    <div class="space-y-4">
-        <div class="card p-6">
-            <h2 class="font-display text-base font-bold mb-2" style="color:#222222;">Status</h2>
-            @php
-                $sc = match($courier->status) {
-                    'approved'  => ['bg'=>'#ECFDF5','text'=>'#059669'],
-                    'rejected'  => ['bg'=>'#FEF2F2','text'=>'#DC2626'],
-                    'suspended' => ['bg'=>'#FEF2F2','text'=>'#DC2626'],
-                    default     => ['bg'=>'#e8f0f6','text'=>'#fa4e1c'],
-                };
-            @endphp
-            <span class="inline-block rounded-full px-3 py-1 text-sm font-semibold"
-                  style="background:{{ $sc['bg'] }};color:{{ $sc['text'] }};">
-                {{ ucfirst($courier->status) }}
-            </span>
+        {{-- Actions --}}
+        <div class="space-y-4">
+            @if ($courier->isPending())
+                <div class="card p-6">
+                    <h3 class="text-sm font-bold mb-3" style="color:#222222;">Review</h3>
 
-            @if ($courier->rejection_reason)
-                <p class="mt-3 text-xs p-3 rounded-xl" style="background:#FEF2F2;color:#B91C1C;">
-                    <strong>Reason:</strong> {{ $courier->rejection_reason }}
-                </p>
+                    <form action="{{ route('admin.couriers.approve', $courier->id) }}" method="POST" class="mb-4"
+                          onsubmit="return confirm('Approve {{ addslashes($courier->fullName()) }} as a courier?')">
+                        @csrf @method('PATCH')
+                        <button class="w-full rounded-xl py-2.5 text-sm font-bold text-white transition hover:opacity-90" style="background:#059669;">
+                            Approve Courier
+                        </button>
+                    </form>
+
+                    <form action="{{ route('admin.couriers.reject', $courier->id) }}" method="POST" class="space-y-2"
+                          onsubmit="return confirm('Reject this application?')">
+                        @csrf @method('PATCH')
+                        <label class="text-xs font-semibold" style="color:#6b90aa;">Rejection reason (optional)</label>
+                        <textarea name="rejection_reason" rows="3" maxlength="500" class="input" placeholder="e.g. Blurry OR/CR, expired ID…"></textarea>
+                        <button class="w-full rounded-xl border-2 py-2.5 text-sm font-semibold transition"
+                                style="border-color:#DC2626;color:#DC2626;"
+                                onmouseover="this.style.background='#FEF2F2';" onmouseout="this.style.background='';">
+                            Reject Application
+                        </button>
+                    </form>
+                </div>
+            @elseif ($courier->isApproved())
+                <div class="card p-6">
+                    <h3 class="text-sm font-bold mb-3" style="color:#222222;">Manage</h3>
+                    <p class="text-xs mb-3" style="color:#6b90aa;">Suspend this courier to block portal access and deliveries.</p>
+                    <form action="{{ route('admin.couriers.suspend', $courier->id) }}" method="POST"
+                          onsubmit="return confirm('Suspend this courier?')">
+                        @csrf @method('PATCH')
+                        <button class="w-full rounded-xl border-2 py-2.5 text-sm font-semibold transition"
+                                style="border-color:#DC2626;color:#DC2626;"
+                                onmouseover="this.style.background='#FEF2F2';" onmouseout="this.style.background='';">
+                            Suspend Courier
+                        </button>
+                    </form>
+                </div>
+            @else
+                <div class="card p-6 text-sm" style="color:#6b90aa;">
+                    This application is <strong style="color:{{ $sc['text'] }};">{{ $sc['label'] }}</strong>. No further action available.
+                </div>
             @endif
+
+            <div class="card p-6">
+                <h3 class="text-sm font-bold mb-2" style="color:#222222;">Deliveries</h3>
+                <p class="text-2xl font-extrabold" style="color:#fa4e1c;">{{ $courier->deliveries->count() }}</p>
+                <p class="text-xs" style="color:#6b90aa;">total assigned · {{ $courier->completedDeliveries() }} completed</p>
+                <p class="mt-3 text-sm" style="color:#222;">Total earnings: <strong>₱{{ number_format($courier->total_earnings, 2) }}</strong></p>
+            </div>
         </div>
 
-        @if ($courier->isPending())
-            <div class="card p-5">
-                <h3 class="font-semibold text-sm mb-3" style="color:#222222;">Approve Application</h3>
-                <form action="{{ route('admin.couriers.approve', $courier->id) }}" method="POST">
-                    @csrf @method('PATCH')
-                    <button class="btn-gold w-full" style="background:#fa4e1c;border-color:#fa4e1c;color:#FFFFFF;">✓ Approve Courier</button>
-                </form>
-            </div>
-            <div class="card p-5">
-                <h3 class="font-semibold text-sm mb-3" style="color:#DC2626;">Reject Application</h3>
-                <form action="{{ route('admin.couriers.reject', $courier->id) }}" method="POST" class="space-y-3">
-                    @csrf @method('PATCH')
-                    <textarea name="rejection_reason" rows="3" class="input text-sm"
-                              placeholder="Reason for rejection (optional)"></textarea>
-                    <button class="w-full rounded-full border-2 py-2 text-sm font-semibold"
-                            style="border-color:#DC2626;color:#DC2626;"
-                            onclick="return confirm('Reject this application?')">✕ Reject</button>
-                </form>
-            </div>
-        @elseif ($courier->isApproved())
-            <div class="card p-5">
-                <p class="text-xs mb-3" style="color:#555555;">Suspend this courier to prevent them from accepting deliveries.</p>
-                <form action="{{ route('admin.couriers.suspend', $courier->id) }}" method="POST"
-                      onsubmit="return confirm('Suspend this courier?')">
-                    @csrf @method('PATCH')
-                    <button class="w-full rounded-full border-2 py-2 text-sm font-semibold"
-                            style="border-color:#DC2626;color:#DC2626;">Suspend</button>
-                </form>
-            </div>
-        @endif
-
-        {{-- Delivery stats --}}
-        @if ($courier->isApproved())
-            <div class="card p-5">
-                <h3 class="font-semibold text-sm mb-2" style="color:#222222;">Delivery Stats</h3>
-                <p class="text-sm" style="color:#555555;">Completed: <strong>{{ $courier->completedDeliveries() }}</strong></p>
-                <p class="text-sm" style="color:#555555;">Total Earned: <strong style="color:#059669;">₱{{ number_format($courier->total_earnings, 2) }}</strong></p>
-            </div>
-        @endif
     </div>
 </div>
 

@@ -1,6 +1,6 @@
 @extends('sc.layout')
 @section('title', 'SC Transfers')
-@section('icon', '🔄')
+@section('icon', 'transfer')
 
 @section('content')
 <div class="page-header"><h1>Sorting Center Transfers</h1></div>
@@ -9,17 +9,17 @@
     {{-- ── Stats row ──────────────────────────────────────────── --}}
     <div class="stat-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:24px;">
         <div class="stat-card">
-            <div class="stat-icon">📤</div>
+            <div class="stat-icon">@include('sc.partials.icon', ['name' => 'upload', 'size' => 20])</div>
             <div class="stat-value">{{ $outgoing->count() }}</div>
             <div class="stat-label">Outgoing (Pending)</div>
         </div>
         <div class="stat-card">
-            <div class="stat-icon">📥</div>
+            <div class="stat-icon">@include('sc.partials.icon', ['name' => 'inbox', 'size' => 20])</div>
             <div class="stat-value">{{ $incoming->count() }}</div>
             <div class="stat-label">Incoming (Awaiting)</div>
         </div>
         <div class="stat-card">
-            <div class="stat-icon">📋</div>
+            <div class="stat-icon">@include('sc.partials.icon', ['name' => 'list', 'size' => 20])</div>
             <div class="stat-value">{{ $history->count() }}</div>
             <div class="stat-label">Completed / History</div>
         </div>
@@ -73,8 +73,8 @@
                                           style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;resize:vertical;"></textarea>
                             </div>
 
-                            <button type="submit" class="btn btn-primary" style="width:100%;">
-                                📤 Initiate Transfer
+                            <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;gap:6px;">
+                                @include('sc.partials.icon', ['name' => 'upload', 'size' => 15, 'sw' => 2]) Initiate Transfer
                             </button>
                         </form>
                     @endif
@@ -158,12 +158,12 @@
                                     <form action="{{ route('sc.transfers.accept', $t->id) }}" method="POST"
                                           onsubmit="return confirm('Accept this parcel from {{ $t->fromSortingCenter->name }}?')">
                                         @csrf
-                                        <button class="btn btn-sm btn-primary">✓ Accept</button>
+                                        <button class="btn btn-sm btn-primary" style="gap:4px;">@include('sc.partials.icon', ['name' => 'check', 'size' => 13, 'sw' => 2.2]) Accept</button>
                                     </form>
                                     <form action="{{ route('sc.transfers.reject', $t->id) }}" method="POST"
                                           onsubmit="return confirm('Reject this transfer?')">
                                         @csrf
-                                        <button class="btn btn-sm btn-ghost" style="color:#DC2626;border-color:#DC2626;">✕ Reject</button>
+                                        <button class="btn btn-sm btn-ghost" style="color:#DC2626;border-color:#DC2626;gap:4px;">@include('sc.partials.icon', ['name' => 'cross', 'size' => 13, 'sw' => 2.2]) Reject</button>
                                     </form>
                                 </td>
                             </tr>

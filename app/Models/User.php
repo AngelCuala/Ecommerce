@@ -22,7 +22,10 @@ class User extends Authenticatable
         'sex', 'contact_no', 'birthday', 'age',
         'province', 'municipality', 'barangay', 'street', 'house_number',
         'valid_id_path', 'approval_status', 'rejection_reason',
-        'valid_id_path', 'approval_status', 'rejection_reason',
+
+        // Sorting-center municipality assignment
+        'assigned_municipality', 'assigned_municipality_code',
+        'assigned_province', 'assigned_province_code',
 
         // Profile extras
         'phone', 'address', 'city', 'zip', 'country',
@@ -67,6 +70,11 @@ class User extends Authenticatable
     public function isDeactivated(): bool { return $this->role === 'deactivated'; }
     public function isActive(): bool      { return ! in_array($this->role, ['suspended', 'deactivated']); }
     public function isSortingCenter(): bool { return $this->role === 'sorting_center'; }
+
+    /** Approved courier (has portal access) */
+    public function isCourier(): bool        { return $this->role === 'courier'; }
+    /** Courier whose application is still awaiting review */
+    public function isCourierPending(): bool { return $this->role === 'courier_pending'; }
 
     // ── Full name accessor ────────────────────────────────────
     /** Returns first + middle + last if set, otherwise falls back to `name` */
@@ -124,5 +132,36 @@ class User extends Authenticatable
     public function receivedMessages(): HasMany
     {
         return $this->hasMany(Message::class, 'receiver_id');
+    }
+
+    public function notifications(): HasMany
+    {
+        return $this->hasMany(\App\Models\UserNotification::class);
+    }
+
+    /** Courier application/profile (one per user) */
+    public function courier(): HasOne
+    {
+        return $this->hasOne(\App\Models\Courier::class);
+    }
+
+    // ── Sorting-center scoping ────────────────────────────────
+
+    /** True when this SC account has been assigned a municipality. */
+    public function hasAssignedMunicipality(): bool
+    {
+        return ! empty($this->assigned_municipality) && ! empty($this->assigned_municipality_code);
+    }
+
+    /** Delivery areas (barangays/zones) managed by this sorting center. */
+    public function deliveryAreas(): HasMany
+    {
+        return $this->hasMany(\App\Models\DeliveryArea::class, 'sorting_center_id');
+    }
+
+    /** Riders managed by this sorting center. */
+    public function riders(): HasMany
+    {
+        return $this->hasMany(\App\Models\Rider::class, 'sorting_center_id');
     }
 }

@@ -32,7 +32,6 @@ class AccountController extends Controller
             'zip'       => 'nullable|string|max:20',
             'country'   => 'nullable|string|max:120',
             'avatar'    => 'nullable|image|mimes:jpg,jpeg,png,webp|max:2048',
-            'password'  => 'nullable|string|min:8|confirmed',
             'shop_name' => 'nullable|string|max:255',
         ]);
 
@@ -45,10 +44,6 @@ class AccountController extends Controller
                 Storage::disk('public')->delete($user->profile_photo_path);
             }
             $userData['profile_photo_path'] = $request->file('avatar')->store('avatars', 'public');
-        }
-
-        if ($request->filled('password')) {
-            $userData['password'] = Hash::make($request->password);
         }
 
         $user->update($userData);
@@ -84,5 +79,36 @@ class AccountController extends Controller
         }
 
         return back()->with('success', 'Account updated successfully.');
+    }
+
+    /**
+     * Security page — password change (+ 2FA / active sessions placeholders).
+     */
+    public function security()
+    {
+        return view('seller.security', [
+            'user' => auth()->user(),
+        ]);
+    }
+
+    /**
+     * Update the seller's password. The current password must be verified and
+     * the actual password / hash is never exposed to the UI.
+     */
+    public function updatePassword(Request $request)
+    {
+        $request->validate([
+            'current_password' => ['required', 'current_password'],
+            'password'         => ['required', 'confirmed', \Illuminate\Validation\Rules\Password::min(8)],
+        ], [
+            'current_password.current_password' => 'The current password you entered is incorrect.',
+        ]);
+
+        auth()->user()->update([
+            'password' => Hash::make($request->password),
+        ]);
+
+        return redirect()->route('seller.account.security')
+            ->with('success', 'Your password has been changed successfully.');
     }
 }

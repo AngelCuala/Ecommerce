@@ -40,7 +40,6 @@ class MessageController extends Controller
                     'last_name'  => $last?->sender->name ?? '',
                     'last_at'    => $last?->created_at,
                     'unread'     => $unread,
-                    'route'      => route('messages.show', $order->id),
                 ];
             });
 
@@ -83,48 +82,6 @@ class MessageController extends Controller
         $composeTargets = $this->getComposeTargets();
 
         return view('messages.inbox', compact('threads', 'unreadCount', 'composeTargets'));
-    }
-
-    // ══════════════════════════════════════════════════════════════
-    //  ORDER THREAD — show & send
-    // ══════════════════════════════════════════════════════════════
-    public function show(int $orderId)
-    {
-        $order = Order::with(['user', 'delivery.courier.user', 'items.book.seller'])
-            ->findOrFail($orderId);
-
-        $this->authorizeOrderAccess($order);
-
-        $participants = $this->getOrderParticipants($order);
-
-        $messages = Message::where('order_id', $orderId)->with('sender')->oldest()->get();
-
-        Message::where('order_id', $orderId)
-            ->where('receiver_id', auth()->id())
-            ->where('is_read', false)
-            ->update(['is_read' => true]);
-
-        return view('messages.show', compact('order', 'messages', 'participants'));
-    }
-
-    public function store(Request $request, int $orderId)
-    {
-        $order = Order::findOrFail($orderId);
-        $this->authorizeOrderAccess($order);
-
-        $request->validate([
-            'body'        => 'required|string|max:1000',
-            'receiver_id' => 'required|exists:users,id',
-        ]);
-
-        Message::create([
-            'order_id'    => $orderId,
-            'sender_id'   => auth()->id(),
-            'receiver_id' => $request->receiver_id,
-            'body'        => $request->body,
-        ]);
-
-        return back()->with('success', 'Message sent.');
     }
 
     // ══════════════════════════════════════════════════════════════
@@ -255,14 +212,14 @@ class MessageController extends Controller
         }
 
         // Admins and sellers see every account they can message, even with no
-        // conversation yet. Admin -> everyone; Seller -> admin + their buyers.
-        if ($me->isAdmin() || $me->isSeller()) {
+        // conversation yet. Admin -> everyone; others -> their allowed recipients.
+        if ($me->isAdmin() || $me->isSeller() || $me->isCourier() || $me->isSortingCenter()) {
             if ($me->isAdmin()) {
                 $contactIds = User::where('id', '!=', $userId)
                     ->whereIn('role', ['admin', 'seller', 'buyer', 'sorting_center', 'courier'])
                     ->pluck('id')->all();
             } else {
-                // Reuse the allowed-recipient rules (admin + this seller's buyers).
+                // Reuse the allowed-recipient rules for this role.
                 $contactIds = array_keys($this->getComposeTargets());
             }
 
@@ -430,7 +387,36 @@ class MessageController extends Controller
         // Sorting center ↔ Admin (already covered above, but be explicit)
         if ($me->isSortingCenter() && $other->isAdmin()) return;
 
+        // Courier ↔ (buyer/seller of an order they're assigned to deliver)
+        if ($me->isCourier() && in_array($other->id, $this->courierContactIds($me), true)) return;
+
         abort(403, 'You are not allowed to message this user.');
+    }
+
+    /**
+     * IDs of users a courier is allowed to message: the admin(s), plus the
+     * buyer and seller(s) of every order assigned to that courier's deliveries.
+     * Couriers can only reach people tied to their own assigned orders.
+     */
+    private function courierContactIds(User $courierUser): array
+    {
+        $courier = $courierUser->courier;
+        if (! $courier) return [];
+
+        $ids = User::where('role', 'admin')->pluck('id')->all();
+
+        $orderIds = \App\Models\Delivery::where('courier_id', $courier->id)->pluck('order_id');
+
+        // Buyers of those orders
+        $ids = array_merge($ids, Order::whereIn('id', $orderIds)->pluck('user_id')->all());
+
+        // Sellers of the books in those orders
+        $sellerIds = \App\Models\OrderItem::whereIn('order_id', $orderIds)
+            ->with('book')->get()
+            ->pluck('book.seller_id')->filter()->all();
+        $ids = array_merge($ids, $sellerIds);
+
+        return array_values(array_unique(array_filter($ids)));
     }
 
     private function getOrderParticipants(Order $order): array
@@ -503,6 +489,20 @@ class MessageController extends Controller
             // Sorting center can message admins
             User::where('role', 'admin')->get()
                 ->each(fn ($u) => $targets[$u->id] = $u->name . ' (Admin)');
+        } elseif ($me->isCourier()) {
+            // Courier can message admin + buyers/sellers of their assigned orders
+            $ids = $this->courierContactIds($me);
+            User::whereIn('id', $ids)->where('id', '!=', $me->id)
+                ->orderBy('role')->orderBy('name')
+                ->get()
+                ->each(function ($u) use (&$targets) {
+                    $label = match ($u->role) {
+                        'admin'  => ' (Admin)',
+                        'seller' => ' (Seller)',
+                        default  => ' (Buyer)',
+                    };
+                    $targets[$u->id] = $u->name . $label;
+                });
         }
 
         return $targets;

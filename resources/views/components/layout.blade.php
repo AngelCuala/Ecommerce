@@ -207,45 +207,27 @@
 
 @include('partials.nav')
 
-{{-- Active announcements banner --}}
-@php
-    $audienceKey = auth()->check()
-        ? (auth()->user()->isSeller() ? 'sellers' : 'buyers')
-        : 'buyers';
-    $bannerAnnouncements = \App\Models\Announcement::activeFor($audienceKey)->take(1);
-@endphp
-@foreach ($bannerAnnouncements as $ann)
-    @php $tc = $ann->typeColor(); @endphp
-    <div style="background:{{ $tc['bg'] }};border-bottom:2px solid {{ $tc['border'] }};" id="announcement-bar-{{ $ann->id }}">
-        <div class="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-2.5 sm:px-6 lg:px-8">
-            <div class="flex items-center gap-2 text-sm">
-                <span>{{ $tc['icon'] }}</span>
-                <strong style="color:{{ $tc['text'] }};">{{ $ann->title }}:</strong>
-                <span style="color:#1a4d6e;">{{ $ann->body }}</span>
+{{-- Toast notifications (pop-up, auto-dismiss) --}}
+@if (session('success') || $errors->any())
+    <div id="toast-stack" class="fixed right-4 top-20 z-[100] flex w-full max-w-sm flex-col gap-2 px-2 sm:px-0">
+        @if (session('success'))
+            <div class="toast flex items-start gap-3 rounded-xl border p-4 shadow-lg"
+                 style="background:#fff;border-color:rgba(5,150,105,.25);">
+                <svg class="mt-0.5 h-5 w-5 shrink-0" fill="none" stroke="#059669" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6 9 17l-5-5"/></svg>
+                <p class="flex-1 text-sm font-semibold" style="color:#065F46;">{{ session('success') }}</p>
+                <button type="button" onclick="this.closest('.toast').remove()" class="shrink-0 text-lg leading-none" style="color:#9CA3AF;" aria-label="Dismiss">&times;</button>
             </div>
-            <button type="button"
-                    onclick="document.getElementById('announcement-bar-{{ $ann->id }}').remove()"
-                    class="flex-shrink-0 rounded-full p-1 text-lg transition hover:opacity-70"
-                    style="color:{{ $tc['text'] }};" aria-label="Dismiss">×</button>
-        </div>
+        @endif
+        @if ($errors->any())
+            <div class="toast flex items-start gap-3 rounded-xl border p-4 shadow-lg"
+                 style="background:#fff;border-color:rgba(208,2,27,.25);">
+                <svg class="mt-0.5 h-5 w-5 shrink-0" fill="none" stroke="#D0021B" stroke-width="2.2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path stroke-linecap="round" d="M12 8v5M12 16h.01"/></svg>
+                <p class="flex-1 text-sm font-semibold" style="color:#B91C1C;">{{ $errors->first() }}</p>
+                <button type="button" onclick="this.closest('.toast').remove()" class="shrink-0 text-lg leading-none" style="color:#9CA3AF;" aria-label="Dismiss">&times;</button>
+            </div>
+        @endif
     </div>
-@endforeach
-
-@if (session('success'))
-    <div style="background:#fff1ee;border-bottom:1px solid #fdb49e;">
-        <div class="mx-auto flex max-w-7xl items-center gap-2 px-4 py-2.5 text-sm font-semibold sm:px-6 lg:px-8" style="color:#d93d0e;">
-            <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6 9 17l-5-5"/></svg>
-            {{ session('success') }}
-        </div>
-    </div>
-@endif
-@if ($errors->any())
-    <div style="background:rgba(208,2,27,.06);border-bottom:1px solid rgba(208,2,27,.2);">
-        <div class="mx-auto flex max-w-7xl items-center gap-2 px-4 py-2.5 text-sm font-semibold sm:px-6 lg:px-8" style="color:#D0021B;">
-            <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path stroke-linecap="round" d="M12 8v5M12 16h.01"/></svg>
-            {{ $errors->first() }}
-        </div>
-    </div>
+    <script src="{{ asset('js/toast.js') }}"></script>
 @endif
 
 <main class="flex-1">{{ $slot }}</main>

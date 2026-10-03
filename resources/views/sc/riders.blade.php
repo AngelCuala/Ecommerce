@@ -1,6 +1,6 @@
 @extends('sc.layout')
 @section('title', 'Rider Management')
-@section('icon', '🏍️')
+@section('icon', 'rider')
 @section('topbar-right')
     <input type="text" class="search-input" placeholder="Search name or ID..."
            onkeyup="filterTable(this.value,'riders-tbody')" />
@@ -9,6 +9,48 @@
 @section('content')
 <div class="page-header"><h1>Rider Management</h1></div>
 <div class="page-body">
+
+    {{-- Add rider (scoped to this SC's barangays) --}}
+    @if($areas->isEmpty())
+        <div class="card" style="padding:14px 18px;margin-bottom:16px;border-left:3px solid var(--accent-orange);">
+            <div style="font-weight:700;color:var(--accent-orange);">Add coverage first</div>
+            <div style="font-size:12.5px;color:var(--text-muted);margin-top:2px;">
+                Define your barangays under
+                <a href="{{ route('sc.areas') }}" style="color:var(--accent-blue);font-weight:600;">Coverage Areas</a>
+                before adding riders.
+            </div>
+        </div>
+    @else
+        <div class="card" style="padding:16px 18px;margin-bottom:16px;">
+            <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:12px;">Add Rider</div>
+            <form method="POST" action="{{ route('sc.riders.store') }}"
+                  style="display:grid;grid-template-columns:1.4fr 1fr 1fr 1.2fr auto;gap:10px;align-items:end;">
+                @csrf
+                <div>
+                    <label class="form-label">Full Name</label>
+                    <input type="text" name="full_name" class="form-input" required placeholder="Rider name">
+                </div>
+                <div>
+                    <label class="form-label">Phone</label>
+                    <input type="text" name="phone" class="form-input" placeholder="09xx…">
+                </div>
+                <div>
+                    <label class="form-label">Vehicle</label>
+                    <input type="text" name="vehicle_type" class="form-input" placeholder="Motorcycle">
+                </div>
+                <div>
+                    <label class="form-label">Barangay</label>
+                    <select name="area_id" class="form-select" required>
+                        <option value="">Select barangay…</option>
+                        @foreach($areas as $area)
+                            <option value="{{ $area->id }}">{{ $area->name }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <button type="submit" class="btn btn-blue" style="justify-content:center;">Add</button>
+            </form>
+        </div>
+    @endif
 
     <div class="flex-between mb-16">
         <div class="tab-bar" style="margin-bottom:0;">
@@ -105,12 +147,5 @@
 @endsection
 
 @push('scripts')
-<script>
-function filterTable(q, tbodyId) {
-    q = q.toLowerCase();
-    document.querySelectorAll('#' + tbodyId + ' tr').forEach(function(tr) {
-        tr.style.display = tr.textContent.toLowerCase().includes(q) ? '' : 'none';
-    });
-}
-</script>
+<script src="{{ asset('js/table-filter.js') }}"></script>
 @endpush

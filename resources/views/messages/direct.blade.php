@@ -84,8 +84,5 @@
     </div>
 </div>
 
-<script>
-    var box = document.getElementById('chat-box');
-    if (box) box.scrollTop = box.scrollHeight;
-</script>
+<script src="{{ asset('js/chat-scroll.js') }}"></script>
 </x-messages-layout>

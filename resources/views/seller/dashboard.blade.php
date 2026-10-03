@@ -13,11 +13,7 @@
             </p>
         </div>
 
-    @if (session('success'))
-        <div class="mt-5 rounded-xl border p-4 text-sm" style="background:rgba(250,78,28,.08);border-color:rgba(250,78,28,.3);color:#d93d0e;">
-            ✓ {{ session('success') }}
-        </div>
-    @endif
+
 
     {{-- Stat cards --}}
     <div class="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">

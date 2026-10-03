@@ -26,6 +26,25 @@ class Delivery extends Model
     public function order(): BelongsTo   { return $this->belongsTo(Order::class); }
     public function courier(): BelongsTo { return $this->belongsTo(Courier::class); }
 
+    /** The seller for this delivery (first item's book seller). */
+    public function seller(): ?\App\Models\User
+    {
+        return optional($this->order?->items->first()?->book)->seller;
+    }
+
+    /** Best-effort pickup label (seller shop / name). */
+    public function pickupName(): string
+    {
+        $seller = $this->seller();
+        return $seller->name ?? 'ALVY Seller';
+    }
+
+    /** Number of item units in this delivery's order. */
+    public function itemCount(): int
+    {
+        return (int) ($this->order?->items->sum('quantity') ?? 0);
+    }
+
     public function statusColor(): array
     {
         return match($this->status) {

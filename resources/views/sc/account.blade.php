@@ -1,6 +1,6 @@
 @extends('sc.layout')
 @section('title', 'Account Management')
-@section('icon', '👤')
+@section('icon', 'user')
 
 @section('content')
 <div class="page-header"><h1>Account Management</h1></div>
@@ -8,66 +8,48 @@
 
     <div class="acct-layout">
 
-        {{-- System Accounts table --}}
+        {{-- Sorting center details --}}
         <div>
-            <div class="flex-between mb-16">
-                <h2 style="font-size:15px;font-weight:600;">System Accounts</h2>
-                <button class="btn btn-blue" onclick="alert('Add account form coming soon.')">+ Add Account</button>
+            <div class="card" style="padding:18px 20px;margin-bottom:16px;">
+                <h2 style="font-size:15px;font-weight:700;margin-bottom:14px;">Sorting Center Details</h2>
+                <dl style="display:grid;grid-template-columns:repeat(2,1fr);gap:14px 24px;">
+                    <div>
+                        <dt class="form-label">Center Name</dt>
+                        <dd style="font-weight:600;">{{ $sc->name }}</dd>
+                    </div>
+                    <div>
+                        <dt class="form-label">Status</dt>
+                        <dd><span class="badge badge-green">Active</span></dd>
+                    </div>
+                    <div>
+                        <dt class="form-label">Assigned Municipality</dt>
+                        <dd style="font-weight:600;">{{ $sc->assigned_municipality ?? 'Not assigned' }}</dd>
+                    </div>
+                    <div>
+                        <dt class="form-label">Province</dt>
+                        <dd style="font-weight:600;">{{ $sc->assigned_province ?? '—' }}</dd>
+                    </div>
+                    <div>
+                        <dt class="form-label">Member Since</dt>
+                        <dd>{{ $sc->created_at->format('M d, Y') }}</dd>
+                    </div>
+                    <div>
+                        <dt class="form-label">Last Login</dt>
+                        <dd>{{ $sc->last_login_at?->format('M d, Y h:i A') ?? '—' }}</dd>
+                    </div>
+                </dl>
+                <p class="text-muted" style="font-size:12px;margin-top:14px;">
+                    The assigned municipality is set by the ALVY administrator. Contact them if it needs to change.
+                </p>
             </div>
 
-            <div class="card">
-                <table class="data-table">
-                    <thead>
-                        <tr>
-                            <th>Name / Email</th><th>Role</th><th>Status</th>
-                            <th>Created</th><th>Last Login</th><th>Action</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                    @foreach($accounts as $u)
-                        @php
-                            $roleColor = match($u->role) {
-                                'admin'   => 'badge-red',
-                                'courier' => 'badge-blue',
-                                default   => 'badge-purple',
-                            };
-                            $roleLabel = ucfirst($u->role);
-                            $active = !in_array($u->role,['suspended','deactivated']);
-                        @endphp
-                        <tr>
-                            <td>
-                                <div style="font-weight:600;">{{ $u->name }}</div>
-                                <div class="text-muted text-sm" style="color:var(--accent-blue)!important;">{{ $u->email }}</div>
-                            </td>
-                            <td><span class="badge {{ $roleColor }}">{{ $roleLabel }}</span></td>
-                            <td>
-                                @if($active)
-                                    <span class="badge badge-green">Active</span>
-                                @else
-                                    <span class="badge badge-gray">Inactive</span>
-                                @endif
-                            </td>
-                            <td style="color:var(--text-muted);font-size:12px;">{{ $u->created_at->format('Y-m-d') }}</td>
-                            <td style="color:var(--text-muted);font-size:12px;">{{ $u->updated_at->format('Y-m-d  H:i') }}</td>
-                            <td>
-                                @if($u->id !== auth()->id())
-                                    @if($active)
-                                        <form method="POST" action="{{ route('admin.users.suspend',$u->id) }}" style="display:inline">@csrf @method('PATCH')
-                                            <button class="btn btn-red btn-sm">Deactivate</button>
-                                        </form>
-                                    @else
-                                        <form method="POST" action="{{ route('admin.users.activate',$u->id) }}" style="display:inline">@csrf @method('PATCH')
-                                            <button class="btn btn-green btn-sm">Activate</button>
-                                        </form>
-                                    @endif
-                                @else
-                                    <span class="text-muted text-sm">—</span>
-                                @endif
-                            </td>
-                        </tr>
-                    @endforeach
-                    </tbody>
-                </table>
+            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;">
+                @foreach([['Coverage Barangays',$summary['areas'],route('sc.areas')],['Riders',$summary['riders'],route('sc.riders')],['Parcels Handled',$summary['handled'],route('sc.incoming-parcels')],['Delivered',$summary['delivered'],route('sc.delivery-monitoring',['status'=>'delivered'])]] as [$lbl,$val,$href])
+                    <a href="{{ $href }}" class="stat-card" style="padding:12px 16px;text-decoration:none;">
+                        <div class="stat-label" style="font-size:11px;margin-bottom:3px;">{{ $lbl }}</div>
+                        <div class="stat-value" style="font-size:22px;">{{ $val }}</div>
+                    </a>
+                @endforeach
             </div>
         </div>
 
@@ -101,7 +83,7 @@
                     <div style="position:relative;">
                         <input type="password" name="current_password" data-password class="form-input" placeholder="••••••••" style="padding-right:2.5rem;">
                         <button type="button" data-toggle-password aria-label="Show password"
-                                style="position:absolute;right:.75rem;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:1.1rem;line-height:1;">👁️</button>
+                                style="position:absolute;right:.75rem;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;line-height:1;">@include('sc.partials.icon', ['name' => 'eye', 'size' => 18])</button>
                     </div>
                 </div>
                 <div class="form-group">
@@ -109,7 +91,7 @@
                     <div style="position:relative;">
                         <input type="password" name="password" data-password class="form-input" placeholder="••••••••" style="padding-right:2.5rem;">
                         <button type="button" data-toggle-password aria-label="Show password"
-                                style="position:absolute;right:.75rem;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:1.1rem;line-height:1;">👁️</button>
+                                style="position:absolute;right:.75rem;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;line-height:1;">@include('sc.partials.icon', ['name' => 'eye', 'size' => 18])</button>
                     </div>
                 </div>
                 <div class="form-group">
@@ -117,7 +99,7 @@
                     <div style="position:relative;">
                         <input type="password" name="password_confirmation" data-password class="form-input" placeholder="••••••••" style="padding-right:2.5rem;">
                         <button type="button" data-toggle-password aria-label="Show password"
-                                style="position:absolute;right:.75rem;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:1.1rem;line-height:1;">👁️</button>
+                                style="position:absolute;right:.75rem;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;line-height:1;">@include('sc.partials.icon', ['name' => 'eye', 'size' => 18])</button>
                     </div>
                 </div>
 

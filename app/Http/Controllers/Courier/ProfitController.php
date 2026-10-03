@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Courier;
 
 use App\Http\Controllers\Controller;
 use App\Models\Delivery;
+use Illuminate\Support\Carbon;
 
 class ProfitController extends Controller
 {
@@ -11,20 +12,33 @@ class ProfitController extends Controller
     {
         $courier = auth()->user()->courier;
 
-        $totalEarnings  = $courier->total_earnings;
-        $totalDeliveries = Delivery::where('courier_id', $courier->id)->where('status', 'delivered')->count();
+        $base = fn () => Delivery::where('courier_id', $courier->id)->where('status', 'delivered');
 
-        $earningsByMonth = Delivery::where('courier_id', $courier->id)
-            ->where('status', 'delivered')
-            ->selectRaw("DATE_FORMAT(delivered_at, '%Y-%m') as ym, SUM(delivery_fee) as total")
+        $totalEarnings   = (float) $courier->total_earnings;
+        $totalDeliveries = $base()->count();
+
+        // Time-window earnings (based on delivered_at)
+        $todayEarnings = (float) $base()->whereDate('delivered_at', today())->sum('delivery_fee');
+        $weekEarnings  = (float) $base()->whereBetween('delivered_at', [now()->startOfWeek(), now()->endOfWeek()])->sum('delivery_fee');
+        $monthEarnings = (float) $base()->whereMonth('delivered_at', now()->month)
+            ->whereYear('delivered_at', now()->year)->sum('delivery_fee');
+
+        // Pending earnings = fees on deliveries in progress (not yet completed/failed)
+        $pendingEarnings = (float) Delivery::where('courier_id', $courier->id)
+            ->whereIn('status', ['accepted', 'picked_up', 'in_transit'])
+            ->sum('delivery_fee');
+
+        $avgPerDelivery = $totalDeliveries > 0 ? $totalEarnings / $totalDeliveries : 0.0;
+
+        // Earnings per month for the chart + table
+        $earningsByMonth = $base()
+            ->selectRaw("DATE_FORMAT(delivered_at, '%Y-%m') as ym, COUNT(*) as count, SUM(delivery_fee) as total")
             ->groupByRaw("DATE_FORMAT(delivered_at, '%Y-%m')")
             ->orderByRaw("DATE_FORMAT(delivered_at, '%Y-%m')")
             ->get()
             ->map(function ($row) {
-                $months = ['01'=>'Jan','02'=>'Feb','03'=>'Mar','04'=>'Apr','05'=>'May','06'=>'Jun',
-                           '07'=>'Jul','08'=>'Aug','09'=>'Sep','10'=>'Oct','11'=>'Nov','12'=>'Dec'];
                 [$year, $mon] = explode('-', $row->ym);
-                $row->month = ($months[$mon] ?? $mon) . ' ' . $year;
+                $row->month = Carbon::createFromDate($year, (int) $mon, 1)->format('M Y');
                 return $row;
             });
 
@@ -36,7 +50,8 @@ class ProfitController extends Controller
             ->get();
 
         return view('courier.profit', compact(
-            'courier', 'totalEarnings', 'totalDeliveries',
+            'courier', 'totalEarnings', 'totalDeliveries', 'avgPerDelivery',
+            'todayEarnings', 'weekEarnings', 'monthEarnings', 'pendingEarnings',
             'earningsByMonth', 'recentDeliveries'
         ));
     }

@@ -5,6 +5,9 @@
     $unreadMsgs  = auth()->check()
         ? \App\Models\Message::where('receiver_id', auth()->id())->where('is_read', false)->count()
         : 0;
+    $unreadNotifs = auth()->check()
+        ? \App\Models\UserNotification::where('user_id', auth()->id())->whereNull('read_at')->count()
+        : 0;
 @endphp
 
 {{-- Main header --}}
@@ -69,6 +72,10 @@
                     <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M18 8a6 6 0 00-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 01-3.4 0"/>
                     </svg>
+                    @if ($unreadNotifs > 0)
+                        <span class="absolute -right-1 -top-1 flex h-4 min-w-[1rem] items-center justify-center rounded-full px-1 text-[9px] font-bold"
+                              style="background:#fa4e1c;color:#fff;">{{ $unreadNotifs > 9 ? '9+' : $unreadNotifs }}</span>
+                    @endif
                 </a>
             @endauth
 
@@ -211,38 +218,4 @@
     </div>
 </header>
 
-<script>
-  (function(){
-    var btn = document.getElementById('mobile-nav-trigger');
-    var pnl = document.getElementById('mobile-nav-panel');
-    if (btn && pnl) {
-      btn.addEventListener('click', function(e){
-        e.stopPropagation();
-        pnl.hidden = !pnl.hidden;
-        btn.setAttribute('aria-expanded', String(!pnl.hidden));
-      });
-      document.addEventListener('click', function(e){
-        if (!pnl.hidden && !pnl.contains(e.target) && e.target !== btn) pnl.hidden = true;
-      });
-      document.addEventListener('keydown', function(e){
-        if (e.key === 'Escape' && !pnl.hidden) { pnl.hidden = true; btn.focus(); }
-      });
-    }
-
-    var uBtn = document.getElementById('user-menu-btn');
-    var uPnl = document.getElementById('user-menu-panel');
-    if (uBtn && uPnl) {
-      uBtn.addEventListener('click', function(e){
-        e.stopPropagation();
-        uPnl.hidden = !uPnl.hidden;
-        uBtn.setAttribute('aria-expanded', String(!uPnl.hidden));
-      });
-      document.addEventListener('click', function(e){
-        if (!uPnl.hidden && !uPnl.contains(e.target) && e.target !== uBtn) uPnl.hidden = true;
-      });
-      document.addEventListener('keydown', function(e){
-        if (e.key === 'Escape' && !uPnl.hidden) { uPnl.hidden = true; uBtn.focus(); }
-      });
-    }
-  })();
-</script>
+<script src="{{ asset('js/nav.js') }}"></script>

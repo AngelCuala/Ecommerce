@@ -1,6 +1,6 @@
 @extends('sc.layout')
 @section('title', 'Dashboard')
-@section('icon', '🏠')
+@section('icon', 'dashboard')
 @section('topbar-right')
     <span style="font-size:12px;color:var(--text-muted);">Today · {{ now()->format('M j, Y') }}</span>
 @endsection
@@ -9,41 +9,64 @@
 <div class="page-header"><h1>Dashboard</h1></div>
 <div class="page-body">
 
+    @php $me = auth()->user(); @endphp
+    @if(! $me->assigned_municipality)
+        <div class="card" style="padding:14px 18px;margin-bottom:18px;border-left:3px solid var(--accent-red);">
+            <div style="font-weight:700;color:var(--accent-red);">No municipality assigned</div>
+            <div style="font-size:12.5px;color:var(--text-muted);margin-top:2px;">
+                Your sorting center has not been assigned to a municipality yet. Sorting and delivery assignment are
+                disabled until an administrator assigns one.
+            </div>
+        </div>
+    @else
+        <div class="card" style="display:flex;align-items:center;gap:12px;padding:14px 18px;margin-bottom:18px;">
+            <span style="display:inline-flex;width:38px;height:38px;border-radius:10px;background:var(--sidebar-active-bg);color:var(--accent-blue);align-items:center;justify-content:center;">
+                @include('sc.partials.icon', ['name' => 'location', 'size' => 20])
+            </span>
+            <div>
+                <div style="font-size:11px;text-transform:uppercase;letter-spacing:.4px;font-weight:600;color:var(--text-muted);">Serving Municipality</div>
+                <div style="font-size:15px;font-weight:700;color:var(--text);">{{ $me->assigned_municipality }}</div>
+                <div style="font-size:12px;color:var(--text-muted);">{{ $me->assigned_province }}</div>
+            </div>
+            <a href="{{ route('sc.areas') }}" class="btn btn-ghost btn-sm" style="margin-left:auto;">Manage Coverage</a>
+        </div>
+    @endif
+
     {{-- Stat Cards --}}
     <div class="stat-grid">
         <div class="stat-card">
             <span class="stat-badge up">+17%</span>
-            <div class="stat-icon">📦</div>
+            <div class="stat-icon">@include('sc.partials.icon', ['name' => 'parcel', 'size' => 20])</div>
             <div class="stat-value">{{ number_format($stats['total_parcels_today']) }}</div>
             <div class="stat-label">Total Parcels Today</div>
         </div>
         <div class="stat-card">
             <span class="stat-badge up">+5%</span>
-            <div class="stat-icon">🚚</div>
+            <div class="stat-icon">@include('sc.partials.icon', ['name' => 'truck', 'size' => 20])</div>
             <div class="stat-value">{{ number_format($stats['in_transit']) }}</div>
             <div class="stat-label">In Transit</div>
         </div>
         <div class="stat-card">
             <span class="stat-badge up">+18%</span>
-            <div class="stat-icon">✅</div>
+            <div class="stat-icon">@include('sc.partials.icon', ['name' => 'check', 'size' => 20])</div>
             <div class="stat-value">{{ number_format($stats['delivered_today']) }}</div>
             <div class="stat-label">Delivered</div>
         </div>
         <div class="stat-card">
             <span class="stat-badge up">+2</span>
-            <div class="stat-icon">🏍️</div>
+            <div class="stat-icon">@include('sc.partials.icon', ['name' => 'rider', 'size' => 20])</div>
             <div class="stat-value">{{ number_format($stats['active_riders']) }}</div>
             <div class="stat-label">Active Riders</div>
         </div>
         <div class="stat-card">
             <span class="stat-badge down">-3%</span>
-            <div class="stat-icon">⏳</div>
+            <div class="stat-icon">@include('sc.partials.icon', ['name' => 'clock', 'size' => 20])</div>
             <div class="stat-value">{{ number_format($stats['pending_pickup']) }}</div>
             <div class="stat-label">Pending Pickup</div>
         </div>
         <div class="stat-card">
             <span class="stat-badge up">+8%</span>
-            <div class="stat-icon">🗂️</div>
+            <div class="stat-icon">@include('sc.partials.icon', ['name' => 'bins', 'size' => 20])</div>
             <div class="stat-value">{{ number_format($stats['sorting_queue']) }}</div>
             <div class="stat-label">Sorting Queue</div>
         </div>

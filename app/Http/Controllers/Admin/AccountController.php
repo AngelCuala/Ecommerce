@@ -89,6 +89,13 @@ class AccountController extends Controller
             'password' => Hash::make($request->password),
         ]);
 
+        // Record the event only — never the password itself.
+        \App\Models\ActivityLog::record(
+            'admin_password_changed',
+            'Password Changed',
+            'Admin account password was changed.'
+        );
+
         return redirect()->route('admin.account.security')
             ->with('success', 'Your password has been changed successfully.');
     }

@@ -132,31 +132,34 @@
                     // Dashboard
                     'dashboard'           => ['route'=>'admin.dashboard',                 'label'=>'Dashboard'],
 
-                    // Manage Account Registrations
-                    'customers'           => ['route'=>'admin.customers.index',           'label'=>'Buyer Registrations'],
+                    // Users (buyers + sellers)
+                    'customers'           => ['route'=>'admin.customers.index',           'label'=>'Buyers'],
+                    'sellers'             => ['route'=>'admin.sellers.index',             'label'=>'Sellers'],
+                    'users'               => ['route'=>'admin.users.index',               'label'=>'All User Accounts'],
+
+                    // Seller applications & verification
                     'seller-applications' => ['route'=>'admin.seller-applications.index', 'label'=>'Seller Applications'],
-                    'couriers'            => ['route'=>'admin.couriers.index',            'label'=>'Logistics Applications'],
 
-                    // Manage User Accounts
-                    'users'               => ['route'=>'admin.users.index',               'label'=>'User Accounts'],
+                    // Reports & Complaints (seller compliance / disputes)
+                    'compliance'          => ['route'=>'admin.compliance.index',          'label'=>'Reports & Complaints'],
 
-                    // Seller Compliance
-                    'compliance'          => ['route'=>'admin.compliance.index',          'label'=>'Seller Compliance'],
+                    // Analytics & Reports
+                    'analytics'           => ['route'=>'admin.analytics.index',           'label'=>'Analytics & Reports'],
 
-                    // Complaints & Disputes (uses orders as the dispute review page)
-                    'orders'              => ['route'=>'admin.orders.index',              'label'=>'Complaints & Disputes'],
+                    // Notifications
+                    'notifications'       => ['route'=>'admin.notifications.index',       'label'=>'Notifications'],
 
-                    // Commission & Reports
-                    'reports'             => ['route'=>'admin.reports.index',             'label'=>'Reports & Commission'],
+                    // Activity Logs
+                    'activity'            => ['route'=>'admin.activity.index',            'label'=>'Activity Logs'],
 
-                    // Platform Settings
-                    'settings'            => ['route'=>'admin.settings.index',            'label'=>'Platform Settings'],
+                    // System Settings
+                    'settings'            => ['route'=>'admin.settings.index',            'label'=>'System Settings'],
 
                     // Messages
                     'messages'            => ['route'=>'messages.inbox',                  'label'=>'Messages'],
 
-                    // Account Management
-                    'account'             => ['route'=>'admin.account.edit',              'label'=>'Account'],
+                    // Admin Profile (security)
+                    'account'             => ['route'=>'admin.account.edit',              'label'=>'Admin Profile'],
                 ];
             @endphp
             @foreach ($links as $key => $link)
@@ -172,18 +175,20 @@
                         <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
                     @elseif ($key === 'customers')
                         <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/><circle cx="12" cy="13" r="2"/></svg>
+                    @elseif ($key === 'sellers')
+                        <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17"/><circle cx="9" cy="20" r="1"/><circle cx="16" cy="20" r="1"/></svg>
                     @elseif ($key === 'seller-applications')
-                        <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline stroke-linecap="round" stroke-linejoin="round" points="9 22 9 12 15 12 15 22"/></svg>
-                    @elseif ($key === 'couriers')
-                        <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><rect x="1" y="3" width="15" height="13" rx="1"/><path stroke-linecap="round" stroke-linejoin="round" d="M16 8h4l3 5v3h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+                        <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
                     @elseif ($key === 'users')
                         <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><circle cx="9" cy="7" r="4"/><path stroke-linecap="round" stroke-linejoin="round" d="M3 21v-2a4 4 0 014-4h4a4 4 0 014 4v2"/><path stroke-linecap="round" stroke-linejoin="round" d="M16 3.13a4 4 0 010 7.75M21 21v-2a4 4 0 00-3-3.87"/></svg>
                     @elseif ($key === 'compliance')
-                        <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
-                    @elseif ($key === 'orders')
-                        <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
-                    @elseif ($key === 'reports')
+                        <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01M5 19h14a2 2 0 001.84-2.75L13.74 4a2 2 0 00-3.5 0L3.16 16.25A2 2 0 005 19z"/></svg>
+                    @elseif ($key === 'analytics')
                         <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+                    @elseif ($key === 'notifications')
+                        <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6 6 0 10-12 0v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
+                    @elseif ($key === 'activity')
+                        <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
                     @elseif ($key === 'settings')
                         <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><circle cx="12" cy="12" r="3"/></svg>
                     @elseif ($key === 'messages')
@@ -268,18 +273,20 @@
                             <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
                         @elseif ($key === 'customers')
                             <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/><circle cx="12" cy="13" r="2"/></svg>
+                        @elseif ($key === 'sellers')
+                            <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17"/><circle cx="9" cy="20" r="1"/><circle cx="16" cy="20" r="1"/></svg>
                         @elseif ($key === 'seller-applications')
-                            <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline stroke-linecap="round" stroke-linejoin="round" points="9 22 9 12 15 12 15 22"/></svg>
-                        @elseif ($key === 'couriers')
-                            <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><rect x="1" y="3" width="15" height="13" rx="1"/><path stroke-linecap="round" stroke-linejoin="round" d="M16 8h4l3 5v3h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+                            <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
                         @elseif ($key === 'users')
                             <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><circle cx="9" cy="7" r="4"/><path stroke-linecap="round" stroke-linejoin="round" d="M3 21v-2a4 4 0 014-4h4a4 4 0 014 4v2"/><path stroke-linecap="round" stroke-linejoin="round" d="M16 3.13a4 4 0 010 7.75M21 21v-2a4 4 0 00-3-3.87"/></svg>
                         @elseif ($key === 'compliance')
-                            <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
-                        @elseif ($key === 'orders')
-                            <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
-                        @elseif ($key === 'reports')
+                            <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01M5 19h14a2 2 0 001.84-2.75L13.74 4a2 2 0 00-3.5 0L3.16 16.25A2 2 0 005 19z"/></svg>
+                        @elseif ($key === 'analytics')
                             <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+                        @elseif ($key === 'notifications')
+                            <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6 6 0 10-12 0v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
+                        @elseif ($key === 'activity')
+                            <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
                         @elseif ($key === 'settings')
                             <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><circle cx="12" cy="12" r="3"/></svg>
                         @elseif ($key === 'messages')
@@ -322,47 +329,35 @@
             </div>
         </header>
 
-        @if (session('success'))
-            <div class="flex items-center gap-2 border-b px-6 py-2.5 text-sm font-semibold"
-                 style="background:#fff1ee;border-color:#fdb49e;color:#d93d0e;">
-                <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6 9 17l-5-5"/></svg>
-                {{ session('success') }}
-            </div>
-        @endif
-
         <main class="flex-1 p-5 lg:p-8">
             {{ $slot }}
         </main>
     </div>
 </div>
 
-<script>
-  (function(){
-    var backdrop = document.getElementById('sidebar-backdrop');
-    var drawer   = document.getElementById('mobile-sidebar');
-    var openBtn  = document.getElementById('open-sidebar-btn');
-    var closeBtn = document.getElementById('close-sidebar-btn');
-    function show(){
-      if(!drawer||!backdrop) return;
-      drawer.style.display='flex'; backdrop.style.display='block';
-      requestAnimationFrame(function(){
-        drawer.classList.remove('-translate-x-full');
-        backdrop.classList.remove('opacity-0');
-      });
-      document.body.style.overflow='hidden';
-    }
-    function hide(){
-      if(!drawer||!backdrop) return;
-      drawer.classList.add('-translate-x-full');
-      backdrop.classList.add('opacity-0');
-      setTimeout(function(){ drawer.style.display='none'; backdrop.style.display='none'; },250);
-      document.body.style.overflow='';
-    }
-    if(openBtn)  openBtn.addEventListener('click', show);
-    if(closeBtn) closeBtn.addEventListener('click', hide);
-    if(backdrop) backdrop.addEventListener('click', hide);
-    document.addEventListener('keydown',function(e){ if(e.key==='Escape') hide(); });
-  })();
-</script>
+{{-- Toast notifications (pop-up, auto-dismiss) --}}
+@if (session('success') || session('error'))
+    <div id="toast-stack" class="fixed right-4 top-6 z-[100] flex w-full max-w-sm flex-col gap-2 px-2 sm:px-0">
+        @if (session('success'))
+            <div class="toast flex items-start gap-3 rounded-xl border p-4 shadow-lg"
+                 style="background:#fff;border-color:rgba(250,78,28,.30);">
+                <svg class="mt-0.5 h-5 w-5 shrink-0" fill="none" stroke="#fa4e1c" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6 9 17l-5-5"/></svg>
+                <p class="flex-1 text-sm font-semibold" style="color:#d93d0e;">{{ session('success') }}</p>
+                <button type="button" onclick="this.closest('.toast').remove()" class="shrink-0 text-lg leading-none" style="color:#9CA3AF;" aria-label="Dismiss">&times;</button>
+            </div>
+        @endif
+        @if (session('error'))
+            <div class="toast flex items-start gap-3 rounded-xl border p-4 shadow-lg"
+                 style="background:#fff;border-color:rgba(220,38,38,.30);">
+                <svg class="mt-0.5 h-5 w-5 shrink-0" fill="none" stroke="#DC2626" stroke-width="2.2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path stroke-linecap="round" d="M12 8v5M12 16h.01"/></svg>
+                <p class="flex-1 text-sm font-semibold" style="color:#B91C1C;">{{ session('error') }}</p>
+                <button type="button" onclick="this.closest('.toast').remove()" class="shrink-0 text-lg leading-none" style="color:#9CA3AF;" aria-label="Dismiss">&times;</button>
+            </div>
+        @endif
+    </div>
+    <script src="{{ asset('js/toast.js') }}"></script>
+@endif
+
+<script src="{{ asset('js/sidebar-drawer.js') }}"></script>
 </body>
 </html>

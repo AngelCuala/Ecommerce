@@ -7,7 +7,15 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class DeliveryArea extends Model
 {
-    protected $fillable = ['name', 'code', 'description'];
+    protected $fillable = [
+        'name', 'code', 'description',
+        'sorting_center_id', 'municipality', 'municipality_code', 'barangay_code',
+    ];
+
+    public function sortingCenter(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(User::class, 'sorting_center_id');
+    }
 
     public function riders(): HasMany
     {

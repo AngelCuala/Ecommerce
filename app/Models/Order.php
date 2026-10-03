@@ -47,6 +47,12 @@ class Order extends Model
         return $this->hasOne(Delivery::class);
     }
 
+    /** Sorting-center parcels for this order (one per seller). */
+    public function parcels(): HasMany
+    {
+        return $this->hasMany(Parcel::class);
+    }
+
     public function messages(): HasMany
     {
         return $this->hasMany(Message::class);

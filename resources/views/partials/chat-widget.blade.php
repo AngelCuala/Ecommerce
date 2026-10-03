@@ -174,6 +174,14 @@
         var q = this.value.toLowerCase();
         renderThreads(allThreads.filter(function (t) { return t.label.toLowerCase().includes(q); }));
     });
+
+    // Allow other page elements (e.g. an order's "Chat" button) to open the
+    // widget on a specific conversation, e.g. openChatThread('order:12').
+    window.openChatThread = function (key) {
+        panel.classList.remove('hidden');
+        loadThreads();          // refresh the thread list in the background
+        openThread(key);        // open the requested conversation right away
+    };
 })();
 </script>
 @endauth

@@ -295,15 +295,5 @@
 </div>
 
 
-<script>
-    const otherRadio = document.getElementById('reason-other-radio');
-    const otherInput = document.getElementById('reason-other-input');
-
-    document.querySelectorAll('input[name="rejection_reason"]').forEach(radio => {
-        radio.addEventListener('change', () => {
-            otherInput.classList.toggle('hidden', !otherRadio.checked);
-            otherInput.required = otherRadio.checked;
-        });
-    });
-</script>
+<script src="{{ asset('js/customer-reject.js') }}"></script>
 </x-admin-layout>

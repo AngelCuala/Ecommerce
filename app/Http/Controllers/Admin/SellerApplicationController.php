@@ -34,6 +34,13 @@ class SellerApplicationController extends Controller
         // Upgrade the user's role to seller
         $sellerApplication->user->update(['role' => 'seller']);
 
+        \App\Models\ActivityLog::record(
+            'seller_application_approved',
+            'Seller Application Approved',
+            'Approved seller application for ' . $sellerApplication->user->name . ' (shop: ' . ($sellerApplication->shop_name ?? 'n/a') . ').',
+            $sellerApplication
+        );
+
         // Send approval email
         try {
             Mail::to($sellerApplication->user->email)
@@ -57,6 +64,13 @@ class SellerApplicationController extends Controller
             'status'           => 'rejected',
             'rejection_reason' => $request->rejection_reason,
         ]);
+
+        \App\Models\ActivityLog::record(
+            'seller_application_rejected',
+            'Seller Application Rejected',
+            'Rejected seller application for ' . $sellerApplication->user->name . '.',
+            $sellerApplication
+        );
 
         // Send rejection email
         try {

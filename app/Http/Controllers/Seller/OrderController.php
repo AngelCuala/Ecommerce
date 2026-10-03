@@ -53,7 +53,13 @@ class OrderController extends Controller
 
         $order->sellerItems = $order->items->whereIn('book_id', $bookIds->toArray())->values();
 
-        return view('seller.orders.show', compact('order'));
+        // This seller's sorting-center pickup request for the order (if any)
+        $parcel = \App\Models\Parcel::with('currentSortingCenter')
+            ->where('order_id', $order->id)
+            ->where('seller_id', auth()->id())
+            ->first();
+
+        return view('seller.orders.show', compact('order', 'parcel'));
     }
 
     public function update(Request $request, int $id)
@@ -110,7 +116,17 @@ class OrderController extends Controller
             $order->update(['status' => 'Processing']);
         }
 
-        return back()->with('success', 'Courier pickup scheduled for ' . \Carbon\Carbon::parse($request->pickup_scheduled_at)->format('M d, Y h:i A') . '.');
+        // Ready for pickup: send the pickup request to the sorting center.
+        $parcel = app(\App\Services\ParcelService::class)->createForSeller(
+            $order, auth()->user(), $request->pickup_scheduled_at, $request->notes
+        );
+
+        $msg = 'Courier pickup scheduled for ' . \Carbon\Carbon::parse($request->pickup_scheduled_at)->format('M d, Y h:i A') . '.';
+        $msg .= $parcel->current_sorting_center_id
+            ? " Pickup request {$parcel->tracking_number} sent to {$parcel->currentSortingCenter->name}."
+            : " Pickup request {$parcel->tracking_number} created; it will be picked up by the next available sorting center.";
+
+        return back()->with('success', $msg);
     }
 
     /** Mark as handed over to courier → status becomes Shipped */

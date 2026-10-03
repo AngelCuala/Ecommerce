@@ -11,11 +11,7 @@
            style="background:#002b4d;">+ Add Product</a>
     </div>
 
-    @if (session('success'))
-        <div class="mb-5 rounded-xl border p-4 text-sm" style="background:rgba(250,78,28,.08);border-color:rgba(250,78,28,.3);color:#d93d0e;">
-            ✓ {{ session('success') }}
-        </div>
-    @endif
+
     @if ($errors->any())
         <div class="mb-5 rounded-xl border p-4 text-sm" style="background:#FEF2F2;border-color:rgba(220,38,38,.2);color:#DC2626;">
             <ul class="list-inside list-disc">@foreach($errors->all() as $e)<li>{{ $e }}</li>@endforeach</ul>

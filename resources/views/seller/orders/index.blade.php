@@ -6,11 +6,7 @@
         <h1 class="mt-1 font-display text-2xl font-bold" style="color:#222222;">Orders for My Products</h1>
     </div>
 
-    @if (session('success'))
-        <div class="mb-5 rounded-xl border p-4 text-sm" style="background:rgba(250,78,28,.08);border-color:rgba(250,78,28,.3);color:#d93d0e;">
-            ✓ {{ session('success') }}
-        </div>
-    @endif
+
 
     {{-- Shopee-style status filter tabs (client-side, so it works with your existing controller) --}}
     <div class="mb-6 flex flex-wrap gap-2 border-b" style="border-color:#F0E4D8;" id="statusTabs">
@@ -140,27 +136,5 @@
     @endforelse
 </div>
 
-<script>
-    document.addEventListener('DOMContentLoaded', function () {
-        const tabs = document.querySelectorAll('.status-tab');
-        const cards = document.querySelectorAll('.order-card');
-
-        tabs.forEach(tab => {
-            tab.addEventListener('click', function () {
-                const status = this.dataset.status;
-
-                tabs.forEach(t => {
-                    t.style.borderColor = 'transparent';
-                    t.style.color = '#8A8A8A';
-                });
-                this.style.borderColor = '#fa4e1c';
-                this.style.color = '#fa4e1c';
-
-                cards.forEach(card => {
-                    card.style.display = (status === 'All' || card.dataset.status === status) ? '' : 'none';
-                });
-            });
-        });
-    });
-</script>
+<script src="{{ asset('js/seller-orders.js') }}"></script>
 </x-seller-layout>

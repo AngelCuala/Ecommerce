@@ -1,6 +1,6 @@
 @extends('sc.layout')
 @section('title', 'Reports')
-@section('icon', '📊')
+@section('icon', 'report')
 
 @section('topbar-right')
     <form method="GET" id="date-form" style="display:flex;align-items:center;gap:8px;">
@@ -52,7 +52,7 @@
             <div class="chart-legend">
                 <span><span class="legend-dot" style="background:var(--accent-green)"></span>Delivered</span>
                 <span><span class="legend-dot" style="background:var(--accent-red)"></span>Failed</span>
-                <span><span class="legend-dot" style="background:#002b4d"></span>Returned</span>
+                <span><span class="legend-dot" style="background:var(--accent-yellow)"></span>Returned</span>
             </div>
         </div>
 
@@ -85,10 +85,10 @@
                         <td>
                             <div style="display:flex;align-items:center;gap:8px;">
                                 <div style="flex:1;height:5px;background:var(--border);border-radius:3px;min-width:60px;">
-                                    <div style="height:100%;border-radius:3px;width:{{ $rate }}%;background:{{ $rate>=85 ? 'var(--accent-green)' : ($rate>=70 ? '#fa4e1c' : 'var(--accent-red)') }};"></div>
+                                    <div style="height:100%;border-radius:3px;width:{{ $rate }}%;background:{{ $rate>=85 ? 'var(--accent-green)' : ($rate>=70 ? 'var(--accent-orange)' : 'var(--accent-red)') }};"></div>
                                 </div>
                                 <span class="{{ $rate>=85 ? 'text-green' : ($rate>=70 ? 'text-orange' : 'text-red') }} font-bold"
-                                      style="{{ $rate>=70 && $rate<85 ? 'color:#fa4e1c;' : '' }}">
+                                      style="{{ $rate>=70 && $rate<85 ? 'color:var(--accent-orange);' : '' }}">
                                     {{ $rate }}%
                                 </span>
                             </div>
@@ -155,7 +155,7 @@
             </div>
             <div class="stat-card" style="padding:12px 16px;">
                 <div class="stat-label" style="font-size:11px;margin-bottom:3px;">Avg. Success Rate</div>
-                <div class="stat-value" style="font-size:22px;color:#fa4e1c;">{{ $avgRate }}%</div>
+                <div class="stat-value" style="font-size:22px;color:var(--accent-orange);">{{ $avgRate }}%</div>
             </div>
         </div>
 
@@ -185,7 +185,7 @@
                         <td>
                             <div style="font-weight:600;">{{ $r->name }}</div>
                         </td>
-                        <td><span style="color:#fa4e1c;font-weight:500;">{{ $r->area }}</span></td>
+                        <td><span style="color:var(--accent-orange);font-weight:500;">{{ $r->area }}</span></td>
                         <td>
                             @if($r->active)
                                 <span class="badge badge-green">Active</span>
@@ -201,10 +201,10 @@
                             <div style="display:flex;align-items:center;gap:8px;">
                                 <div style="width:80px;height:5px;background:var(--border);border-radius:3px;flex-shrink:0;">
                                     <div style="height:100%;border-radius:3px;width:{{ $r->rate }}%;
-                                         background:{{ $r->rate>=85 ? 'var(--accent-green)' : ($r->rate>=70 ? '#fa4e1c' : 'var(--accent-red)') }};"></div>
+                                         background:{{ $r->rate>=85 ? 'var(--accent-green)' : ($r->rate>=70 ? 'var(--accent-orange)' : 'var(--accent-red)') }};"></div>
                                 </div>
                                 <span style="font-weight:700;font-size:12.5px;
-                                      color:{{ $r->rate>=85 ? 'var(--accent-green)' : ($r->rate>=70 ? '#fa4e1c' : 'var(--accent-red)') }};">
+                                      color:{{ $r->rate>=85 ? 'var(--accent-green)' : ($r->rate>=70 ? 'var(--accent-orange)' : 'var(--accent-red)') }};">
                                     {{ $r->rate }}%
                                 </span>
                             </div>
@@ -230,18 +230,18 @@
                 <div class="stat-card" style="padding:14px 16px;">
                     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
                         <span style="font-size:13px;font-weight:600;">{{ $area->name }}</span>
-                        <span style="font-size:12px;font-weight:700;color:{{ $area->rate>=85 ? 'var(--accent-green)' : ($area->rate>=70 ? '#fa4e1c' : 'var(--accent-red)') }};">
+                        <span style="font-size:12px;font-weight:700;color:{{ $area->rate>=85 ? 'var(--accent-green)' : ($area->rate>=70 ? 'var(--accent-orange)' : 'var(--accent-red)') }};">
                             {{ $area->rate }}%
                         </span>
                     </div>
                     <div style="height:5px;background:var(--border);border-radius:3px;margin-bottom:6px;">
                         <div style="height:100%;border-radius:3px;width:{{ $area->rate }}%;
-                             background:{{ $area->rate>=85 ? 'var(--accent-green)' : ($area->rate>=70 ? '#fa4e1c' : 'var(--accent-red)') }};"></div>
+                             background:{{ $area->rate>=85 ? 'var(--accent-green)' : ($area->rate>=70 ? 'var(--accent-orange)' : 'var(--accent-red)') }};"></div>
                     </div>
                     <div style="font-size:11px;color:var(--text-muted);">
                         {{ $area->delivered }} delivered / {{ $area->total }}
                         @if($area->pending > 0)
-                            · <span style="color:#fa4e1c;">{{ $area->pending }} pending</span>
+                            · <span style="color:var(--accent-orange);">{{ $area->pending }} pending</span>
                         @endif
                     </div>
                 </div>
@@ -279,7 +279,7 @@
                         <td>{{ $area->returned }}</td>
                         <td>
                             @if($area->pending > 0)
-                                <span style="color:#fa4e1c;font-weight:600;">{{ $area->pending }}</span>
+                                <span style="color:var(--accent-orange);font-weight:600;">{{ $area->pending }}</span>
                             @else
                                 <span style="color:var(--text-muted);">0</span>
                             @endif
@@ -288,10 +288,10 @@
                             <div style="display:flex;align-items:center;gap:8px;">
                                 <div style="width:80px;height:5px;background:var(--border);border-radius:3px;flex-shrink:0;">
                                     <div style="height:100%;border-radius:3px;width:{{ $area->rate }}%;
-                                         background:{{ $area->rate>=85 ? 'var(--accent-green)' : ($area->rate>=70 ? '#fa4e1c' : 'var(--accent-red)') }};"></div>
+                                         background:{{ $area->rate>=85 ? 'var(--accent-green)' : ($area->rate>=70 ? 'var(--accent-orange)' : 'var(--accent-red)') }};"></div>
                                 </div>
                                 <span style="font-weight:700;font-size:12.5px;
-                                      color:{{ $area->rate>=85 ? 'var(--accent-green)' : ($area->rate>=70 ? '#fa4e1c' : 'var(--accent-red)') }};">
+                                      color:{{ $area->rate>=85 ? 'var(--accent-green)' : ($area->rate>=70 ? 'var(--accent-orange)' : 'var(--accent-red)') }};">
                                     {{ $area->rate }}%
                                 </span>
                             </div>
@@ -312,7 +312,7 @@
                         <td><span class="text-green font-bold">{{ $areaSummary->sum('delivered') }}</span></td>
                         <td><span class="text-red font-bold">{{ $areaSummary->sum('failed') }}</span></td>
                         <td class="font-bold">{{ $areaSummary->sum('returned') }}</td>
-                        <td style="color:#fa4e1c;font-weight:600;">{{ $areaSummary->sum('pending') }}</td>
+                        <td style="color:var(--accent-orange);font-weight:600;">{{ $areaSummary->sum('pending') }}</td>
                         <td>
                             @php
                                 $gt = $areaSummary->sum('total');

@@ -239,7 +239,8 @@
             <button onclick="document.getElementById('edit-address-modal').classList.add('hidden')"
                     class="text-2xl leading-none" style="color:#6b90aa;">&times;</button>
         </div>
-        <form id="edit-address-form" method="POST" class="p-6 grid gap-4 sm:grid-cols-2">
+        <form id="edit-address-form" method="POST" class="p-6 grid gap-4 sm:grid-cols-2"
+              data-addresses-base="{{ url('/profile/addresses') }}">
             @csrf @method('PATCH')
 
             <div>
@@ -340,33 +341,12 @@
     </div>
 </div>
 
-{{-- Close modals on backdrop click --}}
-<script>
-['add-address-modal','edit-address-modal'].forEach(function(id) {
-    document.getElementById(id).addEventListener('click', function(e) {
-        if (e.target === this) this.classList.add('hidden');
-    });
-});
-
-function openEditModal(id, addr) {
-    var base = '{{ url("/profile/addresses") }}/';
-    document.getElementById('edit-address-form').action = base + id;
-    document.getElementById('edit_label').value        = addr.label        || 'Home';
-    document.getElementById('edit_full_name').value    = addr.full_name    || '';
-    document.getElementById('edit_phone').value        = addr.phone        || '';
-    document.getElementById('edit_address_line').value = addr.address_line || '';
-    document.getElementById('edit_barangay').value     = addr.barangay     || '';
-    document.getElementById('edit_city').value         = addr.city         || '';
-    document.getElementById('edit_province').value     = addr.province     || '';
-    document.getElementById('edit_zip').value          = addr.zip          || '';
-    document.getElementById('edit_country').value      = addr.country      || 'Philippines';
-    document.getElementById('edit_is_default').checked = addr.is_default   == 1;
-    document.getElementById('edit-address-modal').classList.remove('hidden');
-}
-
-// Auto-open add modal if validation errors exist (user was adding)
+{{-- Address modal behaviour --}}
+<script src="{{ asset('js/profile-addresses.js') }}"></script>
 @if ($errors->any() && old('address_line'))
-    document.getElementById('add-address-modal').classList.remove('hidden');
+    <script>
+        // Auto-open add modal if validation errors exist (user was adding)
+        document.getElementById('add-address-modal').classList.remove('hidden');
+    </script>
 @endif
-</script>
 </x-layout>

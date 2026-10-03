@@ -104,7 +104,7 @@
                                 A
                             </div>
                             <span class="font-semibold text-sm" style="color:#222;">ALVY Books</span>
-                            <a href="{{ route('messages.show', $order->id) }}"
+                            <button type="button" onclick="openChatThread('order:{{ $order->id }}')"
                                class="flex items-center gap-1 rounded border px-2.5 py-1 text-xs font-semibold transition"
                                style="border-color:#cfdce8;color:#002b4d;"
                                onmouseover="this.style.background='#FFF6EE';" onmouseout="this.style.background='';">
@@ -113,7 +113,7 @@
                                           d="M8 10h.01M12 10h.01M16 10h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
                                 </svg>
                                 Chat
-                            </a>
+                            </button>
                         </div>
 
                         {{-- Status line + label --}}
@@ -206,12 +206,12 @@
                             @endif
 
                             {{-- Contact Seller --}}
-                            <a href="{{ route('messages.show', $order->id) }}"
+                            <button type="button" onclick="openChatThread('order:{{ $order->id }}')"
                                class="rounded border px-4 py-2 text-xs font-semibold transition"
                                style="border-color:#D1D5DB;color:#374151;background:#fff;"
                                onmouseover="this.style.background='#F9FAFB';" onmouseout="this.style.background='#fff';">
                                 Contact Seller
-                            </a>
+                            </button>
 
                             {{-- Buy Again (Delivered / Cancelled) --}}
                             @if ($isDelivered || $isCancelled)
@@ -271,7 +271,8 @@
         </div>
 
         {{-- Body --}}
-        <form id="cancel-order-form" method="POST" class="px-6 py-5 space-y-4">
+        <form id="cancel-order-form" method="POST" class="px-6 py-5 space-y-4"
+              data-orders-base="{{ url('/orders') }}">
             @csrf
             <p class="text-sm" style="color:#6B7280;">
                 Please tell us why you want to cancel this order. This helps our sellers improve.
@@ -326,45 +327,5 @@
     </div>
 </div>
 
-<script>
-function openCancelModal(orderId) {
-    var base = '{{ url("/orders") }}/';
-    document.getElementById('cancel-order-form').action = base + orderId + '/cancel';
-    // Reset state
-    document.querySelectorAll('#cancel-order-form input[type=radio]').forEach(function(r){ r.checked = false; });
-    document.getElementById('custom-reason-wrap').classList.add('hidden');
-    document.getElementById('custom-reason-text').value = '';
-    document.getElementById('cancel-order-modal').classList.remove('hidden');
-}
-
-function closeCancelModal() {
-    document.getElementById('cancel-order-modal').classList.add('hidden');
-}
-
-function toggleCustomReason(val) {
-    var wrap = document.getElementById('custom-reason-wrap');
-    var txt  = document.getElementById('custom-reason-text');
-    if (val === 'Other reason') {
-        wrap.classList.remove('hidden');
-        txt.name = 'cancellation_reason';
-    } else {
-        wrap.classList.add('hidden');
-        txt.name = 'cancellation_reason_custom'; // disable submission
-    }
-}
-
-// Close on backdrop click
-document.getElementById('cancel-order-modal').addEventListener('click', function(e) {
-    if (e.target === this) closeCancelModal();
-});
-
-// Handle form submit — ensure a reason is provided
-document.getElementById('cancel-order-form').addEventListener('submit', function(e) {
-    var chosen = this.querySelector('input[name="cancellation_reason"]:checked');
-    if (!chosen || !chosen.value.trim()) {
-        e.preventDefault();
-        alert('Please select a cancellation reason.');
-    }
-});
-</script>
+<script src="{{ asset('js/profile-orders.js') }}"></script>
 </x-layout>

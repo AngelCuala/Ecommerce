@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class Rider extends Model
 {
     protected $fillable = [
-        'user_id', 'full_name', 'phone',
+        'user_id', 'sorting_center_id', 'full_name', 'phone',
         'vehicle_type', 'license_number', 'id_document_path',
         'area_id',
         'application_status', 'rejection_reason', 'approved_at', 'approved_by',
@@ -21,9 +21,10 @@ class Rider extends Model
         'is_active'   => 'boolean',
     ];
 
-    public function user(): BelongsTo        { return $this->belongsTo(User::class); }
-    public function area(): BelongsTo        { return $this->belongsTo(DeliveryArea::class, 'area_id'); }
-    public function approvedBy(): BelongsTo  { return $this->belongsTo(User::class, 'approved_by'); }
+    public function user(): BelongsTo          { return $this->belongsTo(User::class); }
+    public function sortingCenter(): BelongsTo { return $this->belongsTo(User::class, 'sorting_center_id'); }
+    public function area(): BelongsTo          { return $this->belongsTo(DeliveryArea::class, 'area_id'); }
+    public function approvedBy(): BelongsTo    { return $this->belongsTo(User::class, 'approved_by'); }
 
     public function parcelDeliveries(): HasMany
     {

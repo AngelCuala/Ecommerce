@@ -40,10 +40,6 @@
             @if ($application->government_id_path)
                 @if (in_array($ext, ['jpg','jpeg','png','webp']))
                     {{-- Thumbnail — click to open lightbox --}}
-            @php $ext = strtolower(pathinfo($application->government_id_path, PATHINFO_EXTENSION)); @endphp
-            @if ($application->government_id_path)
-                @if (in_array($ext, ['jpg','jpeg','png','webp']))
-                    {{-- Thumbnail — click to open lightbox --}}
                     <img src="{{ asset('storage/'.$application->government_id_path) }}"
                          alt="Government ID"
                          class="max-h-48 w-full rounded-xl object-contain border cursor-pointer transition hover:opacity-90"
@@ -68,7 +64,8 @@
                                target="_blank"
                                class="mt-3 flex items-center justify-center gap-2 rounded-lg py-2 text-sm font-semibold text-white"
                                style="background:rgba(255,255,255,.15);">
-                                ↗ Open in new tab
+                                <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M14 5h5v5M19 5l-9 9M10 5H6a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-4"/></svg>
+                                Open in new tab
                             </a>
                         </div>
                     </div>
@@ -78,7 +75,8 @@
                        style="border-color:#fa4e1c;color:#fa4e1c;background:#fff;"
                        onmouseover="this.style.background='#fa4e1c';this.style.color='#fff';"
                        onmouseout="this.style.background='#fff';this.style.color='#fa4e1c';">
-                        📄 View / Download ID Document
+                        <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path stroke-linecap="round" stroke-linejoin="round" d="M14 2v6h6"/></svg>
+                        View / Download ID Document
                     </a>
                 @endif
             @else
@@ -119,7 +117,7 @@
                 @csrf @method('PATCH')
                 <button type="submit" class="btn-gold w-full" style="background:#fa4e1c;border-color:#fa4e1c;color:#FFFFFF;"
                         onclick="return confirm('Approve this seller application?')">
-                    ✓ Approve
+                    Approve
                 </button>
             </form>
         </div>
@@ -139,7 +137,7 @@
                         onmouseover="this.style.background='#FEF2F2';"
                         onmouseout="this.style.background='';"
                         onclick="return confirm('Reject this application?')">
-                    ✕ Reject
+                    Reject
                 </button>
             </form>
         </div>

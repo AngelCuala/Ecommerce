@@ -12,11 +12,16 @@ use App\Http\Controllers\Admin\ProductController as AdminProductController;
 use App\Http\Controllers\Admin\ReportController as AdminReportController;
 use App\Http\Controllers\Admin\ReviewController as AdminReviewController;
 use App\Http\Controllers\Admin\SellerApplicationController as AdminSellerApplicationController;
+use App\Http\Controllers\Admin\SellerController as AdminSellerController;
 use App\Http\Controllers\Admin\UserController as AdminUserController;
+use App\Http\Controllers\Admin\AnalyticsController as AdminAnalyticsController;
+use App\Http\Controllers\Admin\ActivityLogController as AdminActivityLogController;
+use App\Http\Controllers\Admin\NotificationController as AdminNotificationController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Auth\RegisteredUserController;
 use App\Http\Controllers\CartController;
 use App\Http\Controllers\CheckoutController;
+use App\Http\Controllers\Courier\AccountController as CourierAccountController;
 use App\Http\Controllers\Courier\DashboardController as CourierDashboardController;
 use App\Http\Controllers\Courier\DeliveryController as CourierDeliveryController;
 use App\Http\Controllers\Courier\ProfitController as CourierProfitController;
@@ -41,8 +46,14 @@ Route::post('/sc/login', [\App\Http\Controllers\SortingCenter\LoginController::c
 Route::middleware(['auth', 'is_sc'])->prefix('sc')->name('sc.')->group(function () {
     Route::get('/dashboard',            [\App\Http\Controllers\SortingCenterController::class, 'dashboard'])->name('dashboard');
 
+    // Coverage areas (barangays within the SC municipality)
+    Route::get('/areas',                [\App\Http\Controllers\SortingCenterController::class, 'areas'])->name('areas');
+    Route::post('/areas',               [\App\Http\Controllers\SortingCenterController::class, 'storeArea'])->name('areas.store');
+    Route::delete('/areas/{area}',      [\App\Http\Controllers\SortingCenterController::class, 'destroyArea'])->name('areas.destroy');
+
     // Riders
     Route::get('/riders',               [\App\Http\Controllers\SortingCenterController::class, 'riders'])->name('riders');
+    Route::post('/riders',              [\App\Http\Controllers\SortingCenterController::class, 'storeRider'])->name('riders.store');
     Route::post('/riders/{rider}/approve', [\App\Http\Controllers\SortingCenterController::class, 'approveRider'])->name('riders.approve');
     Route::post('/riders/{rider}/reject',  [\App\Http\Controllers\SortingCenterController::class, 'rejectRider'])->name('riders.reject');
     Route::post('/riders/{rider}/toggle',  [\App\Http\Controllers\SortingCenterController::class, 'toggleRider'])->name('riders.toggle');
@@ -54,6 +65,7 @@ Route::middleware(['auth', 'is_sc'])->prefix('sc')->name('sc.')->group(function 
 
     // Incoming parcels
     Route::get('/incoming-parcels',     [\App\Http\Controllers\SortingCenterController::class, 'incomingParcels'])->name('incoming-parcels');
+    Route::post('/parcels/scan',        [\App\Http\Controllers\SortingCenterController::class, 'scanParcel'])->name('parcels.scan');
     Route::post('/parcels/{parcel}/advance', [\App\Http\Controllers\SortingCenterController::class, 'advanceParcel'])->name('parcels.advance');
     Route::post('/parcels/{parcel}/sort',    [\App\Http\Controllers\SortingCenterController::class, 'sortParcel'])->name('parcels.sort');
     Route::post('/parcels/{parcel}/assign',  [\App\Http\Controllers\SortingCenterController::class, 'assignParcel'])->name('parcels.assign');
@@ -67,6 +79,8 @@ Route::middleware(['auth', 'is_sc'])->prefix('sc')->name('sc.')->group(function 
     // Delivery monitoring
     Route::get('/delivery-monitoring',  [\App\Http\Controllers\SortingCenterController::class, 'deliveryMonitoring'])->name('delivery-monitoring');
     Route::post('/deliveries/{delivery}/status', [\App\Http\Controllers\SortingCenterController::class, 'updateDeliveryStatus'])->name('deliveries.update-status');
+    Route::post('/deliveries/{delivery}/reschedule', [\App\Http\Controllers\SortingCenterController::class, 'rescheduleDelivery'])->name('deliveries.reschedule');
+    Route::post('/deliveries/{delivery}/return',     [\App\Http\Controllers\SortingCenterController::class, 'returnParcel'])->name('deliveries.return');
 
     // Reports
     Route::get('/reports',              [\App\Http\Controllers\SortingCenterController::class, 'reports'])->name('reports');
@@ -188,8 +202,6 @@ Route::middleware('auth')->group(function () {
     Route::get('/chat/threads',                    [MessageController::class, 'widgetThreads'])->name('chat.threads');
     Route::get('/chat/thread/{type}/{id}',         [MessageController::class, 'widgetThread'])->name('chat.thread')->where('id', '.*');
     Route::post('/chat/send/{type}/{id}',          [MessageController::class, 'widgetSend'])->name('chat.send')->where('id', '.*');
-    Route::get('/messages/order/{orderId}',        [MessageController::class, 'show'])->name('messages.show');
-    Route::post('/messages/order/{orderId}',       [MessageController::class, 'store'])->name('messages.store');
     Route::get('/messages/direct/{threadKey}',     [MessageController::class, 'directShow'])->name('messages.direct');
     Route::post('/messages/direct/{threadKey}',    [MessageController::class, 'directStore'])->name('messages.direct.store');
     Route::post('/messages/new',                   [MessageController::class, 'directNew'])->name('messages.new');
@@ -227,6 +239,8 @@ Route::middleware(['auth', 'role:seller,admin'])
     // Account management
     Route::get('/account',                   [SellerAccountController::class, 'index'])->name('account');
     Route::patch('/account',                 [SellerAccountController::class, 'update'])->name('account.update');
+    Route::get('/account/security',          [SellerAccountController::class, 'security'])->name('account.security');
+    Route::put('/account/security',          [SellerAccountController::class, 'updatePassword'])->name('account.password');
 });
 
 // ── Admin panel ──────────────────────────────────────────────
@@ -248,6 +262,8 @@ Route::middleware(['auth', 'role:admin'])
     Route::delete('/categories/{id}',    [AdminCategoryController::class, 'destroy'])->name('categories.destroy');
 
     Route::get('/orders',                [AdminOrderController::class, 'index'])->name('orders.index');
+    Route::get('/orders/{id}',           [AdminOrderController::class, 'show'])->name('orders.show');
+    Route::patch('/orders/{id}',         [AdminOrderController::class, 'update'])->name('orders.update');
 
     // Buyer management
     Route::get('/customers',                        [AdminCustomerController::class, 'index'])->name('customers.index');
@@ -274,6 +290,23 @@ Route::middleware(['auth', 'role:admin'])
     Route::patch('/users/{id}/suspend',       [AdminUserController::class, 'suspend'])->name('users.suspend');
     Route::patch('/users/{id}/restore',       [AdminUserController::class, 'restore'])->name('users.restore');
     Route::patch('/users/{id}/deactivate',    [AdminUserController::class, 'deactivate'])->name('users.deactivate');
+    Route::patch('/users/{id}/assign-municipality', [AdminUserController::class, 'assignMunicipality'])->name('users.assign-municipality');
+
+    // Seller management (platform view — no seller orders)
+    Route::get('/sellers',                    [AdminSellerController::class, 'index'])->name('sellers.index');
+    Route::get('/sellers/{id}',               [AdminSellerController::class, 'show'])->name('sellers.show');
+    Route::post('/sellers/{id}/suspend',      [AdminSellerController::class, 'suspend'])->name('sellers.suspend');
+    Route::post('/sellers/{id}/activate',     [AdminSellerController::class, 'activate'])->name('sellers.activate');
+
+    // Analytics & Reports (platform-level)
+    Route::get('/analytics',                  [AdminAnalyticsController::class, 'index'])->name('analytics.index');
+
+    // Activity logs
+    Route::get('/activity',                   [AdminActivityLogController::class, 'index'])->name('activity.index');
+
+    // Admin notifications
+    Route::get('/notifications',              [AdminNotificationController::class, 'index'])->name('notifications.index');
+    Route::post('/notifications/read-all',    [AdminNotificationController::class, 'markAllRead'])->name('notifications.read-all');
 
     Route::get('/seller-applications',                               [AdminSellerApplicationController::class, 'index'])->name('seller-applications.index');
     Route::get('/seller-applications/{sellerApplication}',           [AdminSellerApplicationController::class, 'show'])->name('seller-applications.show');
@@ -293,6 +326,7 @@ Route::middleware(['auth', 'role:admin'])
     Route::get('/settings',                              [AdminSettingsController::class, 'index'])->name('settings.index');
     Route::post('/settings/announcements',               [AdminSettingsController::class, 'storeAnnouncement'])->name('settings.announcements.store');
     Route::patch('/settings/announcements/{id}/toggle', [AdminSettingsController::class, 'toggleAnnouncement'])->name('settings.announcements.toggle');
+    Route::delete('/settings/announcements/{id}',       [AdminSettingsController::class, 'destroyAnnouncement'])->name('settings.announcements.destroy');
     Route::get('/settings/policies/{key}',              [AdminSettingsController::class, 'showPolicy'])->name('settings.policies.show');
     Route::put('/settings/policies/{key}',              [AdminSettingsController::class, 'updatePolicy'])->name('settings.policies.update');
 
@@ -346,6 +380,7 @@ Route::middleware(['auth', 'role:courier,admin'])
     ->prefix('courier')->name('courier.')->group(function () {
 
     Route::get('/',                            [CourierDashboardController::class, 'index'])->name('dashboard');
+    Route::get('/notifications',               [CourierDashboardController::class, 'notifications'])->name('notifications');
     Route::get('/history',                     [CourierDeliveryController::class, 'history'])->name('history');
     Route::get('/profit',                      [CourierProfitController::class, 'index'])->name('profit');
     Route::get('/deliveries/{id}',             [CourierDeliveryController::class, 'show'])->name('deliveries.show');
@@ -353,6 +388,12 @@ Route::middleware(['auth', 'role:courier,admin'])
     Route::post('/deliveries/{id}/pickup',     [CourierDeliveryController::class, 'pickup'])->name('deliveries.pickup');
     Route::post('/deliveries/{id}/in-transit', [CourierDeliveryController::class, 'inTransit'])->name('deliveries.in-transit');
     Route::post('/deliveries/{id}/complete',   [CourierDeliveryController::class, 'complete'])->name('deliveries.complete');
+
+    // Account + security
+    Route::get('/account',           [CourierAccountController::class, 'index'])->name('account');
+    Route::put('/account',           [CourierAccountController::class, 'update'])->name('account.update');
+    Route::get('/account/security',  [CourierAccountController::class, 'security'])->name('account.security');
+    Route::put('/account/security',  [CourierAccountController::class, 'updatePassword'])->name('account.password');
 });
 
 // ── Logistics / Sorting Center admin panel ───────────────────

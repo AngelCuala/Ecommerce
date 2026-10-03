@@ -13,12 +13,6 @@
         </h1>
     </div>
 
-    @if (session('success'))
-        <div class="mb-5 rounded-xl border p-4 text-sm" style="background:rgba(250,78,28,.08);border-color:rgba(250,78,28,.3);color:#d93d0e;">
-            ✓ {{ session('success') }}
-        </div>
-    @endif
-
     {{-- Delivery confirmed notification --}}
     @if ($order->status === 'Delivered')
         <div class="mb-5 flex items-start gap-3 rounded-xl border p-4"
@@ -164,10 +158,40 @@
             {{-- ══ COURIER HANDOVER SECTION ══ --}}
             @php $delivery = $order->delivery; @endphp
 
+            {{-- Sorting-center pickup request status --}}
+            @if ($parcel)
+                @php
+                    $pc = match($parcel->status) {
+                        'pending_pickup'                 => ['#FFFBEB','#B45309'],
+                        'pickup_approved'                => ['#EFF6FF','#2563EB'],
+                        'pickup_rejected', 'failed'      => ['#FEF2F2','#DC2626'],
+                        'delivered'                      => ['#ECFDF5','#059669'],
+                        'returned'                       => ['#F3F4F6','#4B5563'],
+                        default                          => ['#fff1ee','#d93d0e'],
+                    };
+                @endphp
+                <div class="card p-5">
+                    <h3 class="text-sm font-bold mb-3" style="color:#222222;">Sorting Center Pickup</h3>
+                    <div class="space-y-2 text-sm">
+                        <div class="flex justify-between gap-2"><span style="color:#6b90aa;">Tracking No.</span><strong style="color:#222;">{{ $parcel->tracking_number }}</strong></div>
+                        <div class="flex justify-between gap-2"><span style="color:#6b90aa;">Sorting Center</span><span style="color:#222;">{{ $parcel->currentSortingCenter->name ?? 'Awaiting assignment' }}</span></div>
+                        <div class="flex justify-between gap-2 items-center"><span style="color:#6b90aa;">Status</span>
+                            <span class="rounded-full px-2.5 py-0.5 text-xs font-bold" style="background:{{ $pc[0] }};color:{{ $pc[1] }};">{{ $parcel->statusLabel() }}</span>
+                        </div>
+                        @if ($parcel->failure_reason && in_array($parcel->status, ['pickup_rejected','failed','returned']))
+                            <p class="text-xs rounded-lg p-2.5" style="background:#FEF2F2;color:#B91C1C;">Reason: {{ $parcel->failure_reason }}</p>
+                        @endif
+                        @if ($parcel->status === 'pickup_rejected')
+                            <p class="text-xs" style="color:#6b90aa;">Update the schedule below to send a new pickup request.</p>
+                        @endif
+                    </div>
+                </div>
+            @endif
+
             @if (! in_array($order->status, ['Delivered','Cancelled']))
 
-                {{-- If no delivery scheduled yet — show schedule form --}}
-                @if (! $delivery || $delivery->status === 'available')
+                {{-- If no delivery scheduled yet (or the SC rejected the pickup) — show schedule form --}}
+                @if (! $delivery || $delivery->status === 'available' || ($parcel && $parcel->status === 'pickup_rejected'))
                     <div class="card p-5">
                         <h3 class="text-sm font-bold mb-1" style="color:#222222;">🚚 Schedule Courier Pickup</h3>
                         <p class="text-xs mb-4" style="color:#6b90aa;">Fill in the courier details and set a pickup date/time.</p>
@@ -282,7 +306,7 @@
             </div>
 
             {{-- Chat link --}}
-            <a href="{{ route('messages.show', $order->id) }}"
+            <a href="{{ route('messages.inbox', ['open' => 'order:' . $order->id]) }}"
                class="card flex items-center gap-3 p-4 transition hover:-translate-y-0.5">
                 <span class="text-2xl">💬</span>
                 <div>

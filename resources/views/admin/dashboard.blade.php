@@ -1,199 +1,184 @@
 <x-admin-layout title="Dashboard" active="dashboard">
 
-{{-- ══════════════════════════════
-     STAT CARDS
-══════════════════════════════ --}}
-<div class="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+<div class="mb-6">
+    <h1 class="font-display text-2xl font-bold" style="color:#222222;">Welcome, {{ auth()->user()->name }}</h1>
+    <p class="mt-1 text-sm" style="color:#6b90aa;">Platform overview and administrative activity.</p>
+</div>
 
-    {{-- Total Sales --}}
-    <div class="relative overflow-hidden rounded-2xl p-6 text-white"
-         style="background:linear-gradient(135deg,#002b4d 0%,#004a80 100%);">
-        <div class="absolute -right-4 -top-4 h-24 w-24 rounded-full" style="background:rgba(255,255,255,.12);"></div>
-        <div class="absolute -bottom-6 -left-4 h-20 w-20 rounded-full" style="background:rgba(255,255,255,.06);"></div>
-        <p class="relative text-xs font-semibold uppercase tracking-widest" style="color:rgba(255,255,255,.75);">Total Sales</p>
-        <p class="relative mt-2 font-display text-3xl font-bold text-white">${{ number_format($totalSales, 2) }}</p>
-        <p class="relative mt-2 flex items-center gap-1 text-xs font-medium" style="color:rgba(255,255,255,.7);">
-            <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 18L9 11.25l4.306 4.307a11.95 11.95 0 015.814-5.519l2.74-1.22m0 0l-5.94-2.28m5.94 2.28l-2.28 5.941"/></svg>
-            Revenue to date
-        </p>
+{{-- ══════════ SUMMARY CARDS ══════════ --}}
+<div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+
+    {{-- Total Users --}}
+    <div class="card p-5">
+        <p class="text-xs font-bold uppercase tracking-widest" style="color:#6b90aa;">Total Users</p>
+        <p class="mt-1 font-display text-3xl font-extrabold" style="color:#002b4d;">{{ number_format($totalUsers) }}</p>
+        <div class="mt-3 flex gap-4 text-xs">
+            <span style="color:#059669;">● {{ number_format($activeUsers) }} active</span>
+            <span style="color:#DC2626;">● {{ number_format($suspendedUsers) }} suspended</span>
+        </div>
     </div>
 
-    {{-- Total Orders --}}
-    <div class="relative overflow-hidden rounded-2xl p-6"
-         style="background:linear-gradient(135deg,#fa4e1c 0%,#fb7048 100%);">
-        <div class="absolute -right-4 -top-4 h-24 w-24 rounded-full" style="background:rgba(255,255,255,.12);"></div>
-        <p class="relative text-xs font-semibold uppercase tracking-widest" style="color:rgba(255,255,255,.75);">Total Orders</p>
-        <p class="relative mt-2 font-display text-3xl font-bold text-white">{{ $totalOrders }}</p>
-        <p class="relative mt-2 text-xs font-medium" style="color:rgba(255,255,255,.7);">All time orders</p>
+    {{-- Total Buyers --}}
+    <div class="card p-5">
+        <p class="text-xs font-bold uppercase tracking-widest" style="color:#6b90aa;">Total Buyers</p>
+        <p class="mt-1 font-display text-3xl font-extrabold" style="color:#002b4d;">{{ number_format($totalBuyers) }}</p>
+        <div class="mt-3 flex gap-4 text-xs">
+            <span style="color:#059669;">● {{ number_format($activeBuyers) }} active</span>
+            <span style="color:#6b90aa;">registered buyers</span>
+        </div>
     </div>
 
-    {{-- Customers --}}
-    <div class="relative overflow-hidden rounded-2xl p-6"
-         style="background:linear-gradient(135deg,#003d6b 0%,#005799 100%);">
-        <div class="absolute -right-4 -top-4 h-24 w-24 rounded-full" style="background:rgba(255,255,255,.12);"></div>
-        <p class="relative text-xs font-semibold uppercase tracking-widest" style="color:rgba(255,255,255,.75);">Customers</p>
-        <p class="relative mt-2 font-display text-3xl font-bold text-white">{{ $totalCustomers }}</p>
-        <p class="relative mt-2 text-xs font-medium" style="color:rgba(255,255,255,.7);">Registered accounts</p>
+    {{-- Total Sellers --}}
+    <div class="card p-5">
+        <p class="text-xs font-bold uppercase tracking-widest" style="color:#6b90aa;">Total Sellers</p>
+        <p class="mt-1 font-display text-3xl font-extrabold" style="color:#002b4d;">{{ number_format($totalSellers) }}</p>
+        <div class="mt-3 flex gap-4 text-xs">
+            <span style="color:#059669;">● {{ number_format($activeSellers) }} active</span>
+            <span style="color:#6b90aa;">approved sellers</span>
+        </div>
     </div>
 
-    {{-- Products --}}
-    <div class="relative overflow-hidden rounded-2xl p-6"
-         style="background:linear-gradient(135deg,#d93d0e 0%,#fa4e1c 100%);">
-        <div class="absolute -right-4 -top-4 h-24 w-24 rounded-full" style="background:rgba(255,255,255,.12);"></div>
-        <p class="relative text-xs font-semibold uppercase tracking-widest" style="color:rgba(255,255,255,.75);">Products Listed</p>
-        <p class="relative mt-2 font-display text-3xl font-bold text-white">{{ $totalProducts }}</p>
-        <p class="relative mt-2 flex items-center gap-1 text-xs font-medium" style="color:rgba(255,255,255,.7);">
-            @if ($lowStock->count())
-                <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M12 9v4m0 4h.01"/><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
-                {{ $lowStock->count() }} low stock
-            @else
-                All stock healthy
+    {{-- New Registrations --}}
+    <div class="card p-5">
+        <p class="text-xs font-bold uppercase tracking-widest" style="color:#6b90aa;">New Registrations</p>
+        <p class="mt-1 font-display text-3xl font-extrabold" style="color:#fa4e1c;">{{ number_format($newToday) }}</p>
+        <div class="mt-3 flex gap-4 text-xs" style="color:#6b90aa;">
+            <span>Today <strong style="color:#222;">{{ $newToday }}</strong></span>
+            <span>Week <strong style="color:#222;">{{ $newWeek }}</strong></span>
+            <span>Month <strong style="color:#222;">{{ $newMonth }}</strong></span>
+        </div>
+    </div>
+
+    {{-- Pending Requests --}}
+    <div class="card p-5">
+        <p class="text-xs font-bold uppercase tracking-widest" style="color:#6b90aa;">Pending Requests</p>
+        <p class="mt-1 font-display text-3xl font-extrabold" style="color:#B45309;">{{ number_format($pendingRequests) }}</p>
+        <div class="mt-3 flex gap-4 text-xs" style="color:#6b90aa;">
+            <span>{{ $pendingSellerApps }} seller app(s)</span>
+            <span>{{ $pendingBuyerVerif }} verification(s)</span>
+        </div>
+    </div>
+
+    {{-- System Status --}}
+    <div class="card p-5">
+        <p class="text-xs font-bold uppercase tracking-widest mb-2" style="color:#6b90aa;">System Status</p>
+        <div class="space-y-1.5">
+            @foreach ($systemStatus as $svc => $ok)
+                <div class="flex items-center justify-between text-xs">
+                    <span style="color:#374151;">{{ $svc }}</span>
+                    <span style="color:{{ $ok ? '#059669' : '#DC2626' }};">● {{ $ok ? 'Operational' : 'Unavailable' }}</span>
+                </div>
+            @endforeach
+        </div>
+        <p class="mt-2 text-[10px]" style="color:#9db3c4;">Configured status — not live health monitoring.</p>
+    </div>
+</div>
+
+{{-- ══════════ GROWTH CHART + PENDING LIST ══════════ --}}
+<div class="mt-6 grid gap-6 lg:grid-cols-[1fr_360px]">
+
+    {{-- User growth chart --}}
+    <div class="card p-6">
+        <h2 class="font-display text-base font-bold mb-1" style="color:#222;">User Growth</h2>
+        <p class="text-xs mb-4" style="color:#6b90aa;">New registrations over the last 6 months.</p>
+        @php
+            $W=1000;$H=220;$padL=44;$padR=20;$padT=16;$padB=30;
+            $plotW=$W-$padL-$padR;$plotH=$H-$padT-$padB;
+            $pts=$growth->values();$n=$pts->count();
+            $max=max(1,$pts->max('count'));
+            $xAt=fn($i)=>$n<=1?$padL+$plotW/2:$padL+($plotW*$i/($n-1));
+            $yAt=fn($v)=>$padT+$plotH-($v/$max)*$plotH;
+            $coords=[];foreach($pts as $i=>$r){$coords[]=['x'=>$xAt($i),'y'=>$yAt($r->count),'row'=>$r];}
+            $line=collect($coords)->map(fn($c)=>round($c['x'],1).','.round($c['y'],1))->implode(' ');
+        @endphp
+        <svg viewBox="0 0 {{ $W }} {{ $H }}" width="100%" style="display:block;overflow:visible;">
+            <defs><linearGradient id="ug" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#fa4e1c" stop-opacity="0.22"/><stop offset="100%" stop-color="#fa4e1c" stop-opacity="0"/>
+            </linearGradient></defs>
+            @for($g=0;$g<=4;$g++)
+                @php $gy=$padT+($plotH*$g/4);$gv=$max*(1-$g/4); @endphp
+                <line x1="{{ $padL }}" y1="{{ round($gy,1) }}" x2="{{ $W-$padR }}" y2="{{ round($gy,1) }}" stroke="#eef2f6" stroke-width="1"/>
+                <text x="{{ $padL-8 }}" y="{{ round($gy+4,1) }}" text-anchor="end" font-size="11" fill="#9db3c4">{{ round($gv) }}</text>
+            @endfor
+            @if($n>1)
+                <polygon points="{{ round($coords[0]['x'],1) }},{{ round($padT+$plotH,1) }} {{ $line }} {{ round($coords[$n-1]['x'],1) }},{{ round($padT+$plotH,1) }}" fill="url(#ug)"/>
+                <polyline points="{{ $line }}" fill="none" stroke="#fa4e1c" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
             @endif
-        </p>
+            @foreach($coords as $c)
+                <circle cx="{{ round($c['x'],1) }}" cy="{{ round($c['y'],1) }}" r="4" fill="#fff" stroke="#fa4e1c" stroke-width="2.5"/>
+                <circle cx="{{ round($c['x'],1) }}" cy="{{ round($c['y'],1) }}" r="13" fill="transparent"><title>{{ $c['row']->label }}: {{ $c['row']->count }} new users</title></circle>
+                <text x="{{ round($c['x'],1) }}" y="{{ $H-8 }}" text-anchor="middle" font-size="11" font-weight="600" fill="#6b90aa">{{ $c['row']->label }}</text>
+            @endforeach
+        </svg>
     </div>
-</div>
 
-{{-- ══════════════════════════════
-     RECENT ORDERS + LOW STOCK
-══════════════════════════════ --}}
-<div class="mt-8 grid gap-6 lg:grid-cols-3">
-
-    {{-- Recent Orders --}}
-    <div class="card overflow-hidden lg:col-span-2">
-        <div class="flex items-center justify-between px-6 py-4" style="border-bottom:1px solid #dce8f0;">
-            <div>
-                <h2 class="font-display text-base font-bold" style="color:#222222;">Recent Orders</h2>
-                <p class="text-xs" style="color:#6b90aa;">Latest customer transactions</p>
-            </div>
-            <a href="{{ route('admin.orders.index') }}"
-               class="rounded-full px-3 py-1.5 text-xs font-semibold transition"
-               style="background:rgba(250,78,28,.12);color:#fa4e1c;"
-               onmouseover="this.style.background='#fa4e1c';this.style.color='#FFFFFF';"
-               onmouseout="this.style.background='rgba(250,78,28,.12)';this.style.color='#fa4e1c';">
-                View all →
+    {{-- Pending requests list --}}
+    <div class="card p-6">
+        <div class="flex items-center justify-between mb-4">
+            <h2 class="font-display text-base font-bold" style="color:#222;">Pending Requests</h2>
+            <a href="{{ route('admin.seller-applications.index') }}" class="text-xs font-semibold" style="color:#fa4e1c;">View all</a>
+        </div>
+        @forelse ($pendingList as $app)
+            <a href="{{ route('admin.seller-applications.show', $app->id) }}"
+               class="flex items-center justify-between rounded-lg px-3 py-2.5 mb-1 transition"
+               onmouseover="this.style.background='#f6f9fc';" onmouseout="this.style.background='';">
+                <div class="min-w-0">
+                    <p class="text-sm font-semibold truncate" style="color:#222;">{{ $app->shop_name ?? $app->full_name }}</p>
+                    <p class="text-xs" style="color:#6b90aa;">Seller application · {{ $app->created_at->diffForHumans() }}</p>
+                </div>
+                <span class="rounded-full px-2 py-0.5 text-[10px] font-bold" style="background:#FFFBEB;color:#B45309;">Pending</span>
             </a>
-        </div>
-        <div class="overflow-x-auto">
-            <table class="w-full text-sm">
-                <thead>
-                    <tr style="background:#e8f0f6;">
-                        <th class="px-6 py-3 text-left text-[11px] font-bold uppercase tracking-widest" style="color:#6b90aa;">Order</th>
-                        <th class="px-3 py-3 text-left text-[11px] font-bold uppercase tracking-widest" style="color:#6b90aa;">Customer</th>
-                        <th class="px-3 py-3 text-left text-[11px] font-bold uppercase tracking-widest" style="color:#6b90aa;">Status</th>
-                        <th class="px-6 py-3 text-right text-[11px] font-bold uppercase tracking-widest" style="color:#6b90aa;">Total</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @forelse ($recentOrders as $order)
-                        @php
-                            // Handle both 'Pending' (DB) and 'pending' (legacy)
-                            $statusKey = strtolower($order->status);
-                            $sc = match($statusKey) {
-                                'delivered'  => ['bg'=>'#ECFDF5','text'=>'#059669'],
-                                'shipped'    => ['bg'=>'#FFF7ED','text'=>'#d93d0e'],
-                                'processing' => ['bg'=>'#FFEEDD','text'=>'#d93d0e'],
-                                'pending'    => ['bg'=>'#e8f0f6','text'=>'#fa4e1c'],
-                                'cancelled'  => ['bg'=>'#FEF2F2','text'=>'#B91C1C'],
-                                default      => ['bg'=>'#F5F5F5','text'=>'#666666'],
-                            };
-                        @endphp
-                        <tr style="border-bottom:1px solid #dce8f0;transition:background .15s;"
-                            onmouseover="this.style.background='#e8f0f6';"
-                            onmouseout="this.style.background='';">
-                            <td class="px-6 py-3.5">
-                                <a href="{{ route('admin.orders.show', $order->id) }}"
-                                   class="font-semibold transition"
-                                   style="color:#fa4e1c;"
-                                   onmouseover="this.style.color='#d93d0e';"
-                                   onmouseout="this.style.color='#fa4e1c';">#{{ str_pad($order->id, 5, '0', STR_PAD_LEFT) }}</a>
-                            </td>
-                            <td class="px-3 py-3.5" style="color:#555555;">{{ $order->user->name ?? 'Guest' }}</td>
-                            <td class="px-3 py-3.5">
-                                <span class="rounded-full px-2.5 py-1 text-xs font-semibold"
-                                      style="background:{{ $sc['bg'] }};color:{{ $sc['text'] }};">
-                                    {{ ucfirst($order->status) }}
-                                </span>
-                            </td>
-                            <td class="px-6 py-3.5 text-right font-bold" style="color:#222222;">${{ number_format($order->total_price, 2) }}</td>
-                        </tr>
-                    @empty
-                        <tr>
-                            <td colspan="4" class="px-6 py-10 text-center text-sm" style="color:#6b90aa;">No orders yet.</td>
-                        </tr>
-                    @endforelse
-                </tbody>
-            </table>
-        </div>
-    </div>
-
-    {{-- Low Stock --}}
-    <div class="card overflow-hidden">
-        <div class="flex items-center justify-between px-6 py-4" style="border-bottom:1px solid #dce8f0;">
-            <div>
-                <h2 class="font-display text-base font-bold" style="color:#222222;">Low Stock</h2>
-                <p class="text-xs" style="color:#6b90aa;">Items needing restock</p>
-            </div>
-            <span class="flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold"
-                  style="background:#FEF2F2;color:#DC2626;">
-                {{ $lowStock->count() }}
-            </span>
-        </div>
-        <div class="p-4 space-y-2">
-            @forelse ($lowStock as $product)
-                <div class="flex items-center justify-between rounded-xl p-3" style="background:#e8f0f6;">
-                    <div class="min-w-0">
-                        <p class="truncate text-sm font-semibold" style="color:#222222;">{{ Str::limit($product->title, 22) }}</p>
-                        <p class="text-xs" style="color:#6b90aa;">{{ $product->format ?? '' }}</p>
-                    </div>
-                    <span class="ml-3 shrink-0 rounded-full px-2.5 py-1 text-xs font-bold"
-                          style="background:{{ $product->stock <= 2 ? '#FEF2F2' : 'rgba(250,78,28,.12)' }};
-                                 color:{{ $product->stock <= 2 ? '#DC2626' : '#fa4e1c' }};">
-                        {{ $product->stock }} left
-                    </span>
-                </div>
-            @empty
-                <div class="flex flex-col items-center gap-2 py-8 text-center">
-                    <span class="text-2xl">✅</span>
-                    <p class="text-sm" style="color:#6b90aa;">All stock levels healthy</p>
-                </div>
-            @endforelse
-        </div>
+        @empty
+            <p class="py-8 text-center text-sm" style="color:#6b90aa;">No pending requests. All caught up.</p>
+        @endforelse
     </div>
 </div>
 
-{{-- ══════════════════════════════
-     SALES CHART
-══════════════════════════════ --}}
-<div class="card mt-8 overflow-hidden">
-    <div class="flex items-center justify-between px-6 py-4" style="border-bottom:1px solid #dce8f0;">
-        <div>
-            <h2 class="font-display text-base font-bold" style="color:#222222;">Sales by Month</h2>
-            <p class="text-xs" style="color:#6b90aa;">Monthly revenue overview</p>
+{{-- ══════════ RECENT ACTIVITY + NOTIFICATIONS ══════════ --}}
+<div class="mt-6 grid gap-6 lg:grid-cols-2">
+
+    {{-- Recent admin activity --}}
+    <div class="card p-6">
+        <div class="flex items-center justify-between mb-4">
+            <h2 class="font-display text-base font-bold" style="color:#222;">Recent Activity</h2>
+            <a href="{{ route('admin.activity.index') }}" class="text-xs font-semibold" style="color:#fa4e1c;">View log</a>
         </div>
-        <span class="rounded-full px-3 py-1 text-xs font-semibold"
-              style="background:rgba(250,78,28,.12);color:#fa4e1c;">
-            {{ date('Y') }}
-        </span>
-    </div>
-    <div class="px-6 py-6">
-        @php $max = $salesByMonth->max('total') ?: 1; @endphp
-        <div class="flex h-48 items-end gap-2">
-            @forelse ($salesByMonth as $row)
-                @php $h = max(8, ($row->total / $max) * 176); @endphp
-                <div class="group flex flex-1 flex-col items-center gap-1.5">
-                    <span class="mb-1 rounded px-1.5 py-0.5 text-[10px] font-semibold opacity-0 transition-opacity group-hover:opacity-100"
-                          style="background:#222222;color:#FFFFFF;">
-                        ${{ number_format($row->total, 0) }}
-                    </span>
-                    <div class="w-full rounded-t-xl transition-all duration-300"
-                         style="height:{{ $h }}px;background:linear-gradient(180deg,#fa4e1c 0%,#002b4d 100%);opacity:.9;">
-                    </div>
-                    <span class="text-[10px] font-medium" style="color:#6b90aa;">{{ $row->month }}</span>
+        @forelse ($recentActivity as $log)
+            <div class="flex items-start gap-3 py-2.5" style="border-bottom:1px solid #f0f4f8;">
+                <span class="mt-1 h-2 w-2 shrink-0 rounded-full" style="background:{{ $log->status === 'failed' ? '#DC2626' : '#fa4e1c' }};"></span>
+                <div class="min-w-0">
+                    <p class="text-sm" style="color:#222;">
+                        <strong>{{ $log->admin_name ?? 'System' }}</strong> — {{ $log->action_label ?? $log->action }}
+                    </p>
+                    @if ($log->description)
+                        <p class="text-xs" style="color:#6b90aa;">{{ $log->description }}</p>
+                    @endif
+                    <p class="text-[11px]" style="color:#c2d1dc;">{{ $log->created_at->format('M d, Y · g:i A') }}</p>
                 </div>
-            @empty
-                <p class="text-sm" style="color:#6b90aa;">No sales data yet.</p>
-            @endforelse
+            </div>
+        @empty
+            <p class="py-8 text-center text-sm" style="color:#6b90aa;">No administrative activity recorded yet.</p>
+        @endforelse
+    </div>
+
+    {{-- Notifications --}}
+    <div class="card p-6">
+        <div class="flex items-center justify-between mb-4">
+            <h2 class="font-display text-base font-bold" style="color:#222;">Notifications</h2>
+            <a href="{{ route('admin.notifications.index') }}" class="text-xs font-semibold" style="color:#fa4e1c;">View all</a>
         </div>
+        @forelse ($notifications as $n)
+            <a href="{{ $n['link'] }}" class="flex items-center gap-3 rounded-lg px-3 py-2.5 mb-1 transition"
+               onmouseover="this.style.background='#f6f9fc';" onmouseout="this.style.background='';">
+                <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full"
+                      style="background:{{ $n['type'] === 'warning' ? '#FEF2F2' : '#FFF1E6' }};">
+                    <svg class="h-4 w-4" fill="none" stroke="{{ $n['type'] === 'warning' ? '#DC2626' : '#fa4e1c' }}" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M18 8a6 6 0 00-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 01-3.4 0"/></svg>
+                </span>
+                <p class="text-sm" style="color:#222;">{{ $n['title'] }}</p>
+            </a>
+        @empty
+            <p class="py-8 text-center text-sm" style="color:#6b90aa;">Nothing needs your attention right now.</p>
+        @endforelse
     </div>
 </div>
 

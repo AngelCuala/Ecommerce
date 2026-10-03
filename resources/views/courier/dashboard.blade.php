@@ -1,120 +1,119 @@
-<x-layout title="Sorting Center Dashboard — ALVY">
-<x-courier-nav active="dashboard" />
-<div class="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
+<x-courier-layout title="Courier Dashboard" active="dashboard">
 
-    @if (session('success'))
-        <div class="mb-6 rounded-xl border p-3 text-sm"
-             style="background:rgba(250,78,28,.08);border-color:rgba(250,78,28,.3);color:#fa4e1c;">
-            ✓ {{ session('success') }}
+<div class="cx-page-head">
+    <h1 class="font-display">Courier Dashboard</h1>
+    <p>Welcome back, {{ $courier->first_name }}. Here are your active tasks.</p>
+</div>
+
+{{-- Stat cards --}}
+<div class="cx-grid cx-cols-4" style="margin-bottom:32px;">
+    @php
+        $stats = [
+            ['label'=>'Pending Pickup',   'value'=>$forPickup->count(),   'color'=>'var(--amber)'],
+            ['label'=>'Out for Delivery', 'value'=>$forDelivery->count(), 'color'=>'var(--blue)'],
+            ['label'=>'Completed Today',  'value'=>$todayDone,            'color'=>'var(--green)'],
+            ['label'=>'Total Earnings',   'value'=>'₱'.number_format($courier->total_earnings,2), 'color'=>'var(--accent)'],
+        ];
+    @endphp
+    @foreach($stats as $s)
+        <div class="card cx-stat">
+            <p class="cx-stat-value" style="color:{{ $s['color'] }};">{{ $s['value'] }}</p>
+            <p class="cx-stat-label">{{ $s['label'] }}</p>
         </div>
-    @endif
-    @if (session('error'))
-        <div class="mb-6 rounded-xl border p-3 text-sm"
-             style="background:#FEF2F2;border-color:rgba(220,38,38,.2);color:#DC2626;">
-            {{ session('error') }}
-        </div>
-    @endif
+    @endforeach
+</div>
 
-    {{-- Stats row --}}
-    <div class="grid grid-cols-2 gap-4 sm:grid-cols-3 mb-8">
-        @php
-            $stats = [
-                ['label'=>'Total Earnings',    'value'=>'₱'.number_format($courier->total_earnings,2), 'icon'=>'💰'],
-                ['label'=>'Today Completed',   'value'=>$todayDone,  'icon'=>'✅'],
-                ['label'=>'Active Deliveries', 'value'=>$myActive->count(), 'icon'=>'🚚'],
-            ];
-        @endphp
-        @foreach($stats as $s)
-            <div class="rounded-2xl p-5 text-center" style="background:#fff;border:1px solid #cfdce8;">
-                <p class="text-2xl">{{ $s['icon'] }}</p>
-                <p class="mt-1 font-display text-xl font-bold" style="color:#fa4e1c;">{{ $s['value'] }}</p>
-                <p class="text-xs mt-0.5" style="color:#6b90aa;">{{ $s['label'] }}</p>
-            </div>
-        @endforeach
-    </div>
-
-    {{-- My active deliveries --}}
-    @if ($myActive->count())
-        <h2 class="font-display text-lg font-bold mb-4" style="color:#222;">My Active Deliveries</h2>
-        <div class="space-y-3 mb-8">
-            @foreach($myActive as $delivery)
-                <div class="rounded-2xl p-5" style="background:#fff;border:1px solid #cfdce8;">
-                    <div class="flex flex-wrap items-center justify-between gap-3">
-                        <div>
-                            <p class="font-semibold text-sm" style="color:#222;">
-                                Order #{{ str_pad($delivery->order_id,6,'0',STR_PAD_LEFT) }}
-                            </p>
-                            <p class="text-xs mt-0.5" style="color:#6b90aa;">
-                                {{ ucfirst(str_replace('_',' ',$delivery->status)) }}
-                                · ₱{{ number_format($delivery->delivery_fee,2) }}
-                            </p>
-                        </div>
-                        <div class="flex gap-2">
-                            @if($delivery->status === 'accepted')
-                                <form action="{{ route('courier.deliveries.pickup',$delivery->id) }}" method="POST">
-                                    @csrf
-                                    <button class="rounded-xl px-4 py-2 text-xs font-semibold text-white" style="background:#002b4d;">
-                                        Confirm Pickup
-                                    </button>
-                                </form>
-                            @elseif($delivery->status === 'picked_up')
-                                <form action="{{ route('courier.deliveries.in-transit',$delivery->id) }}" method="POST">
-                                    @csrf
-                                    <button class="rounded-xl px-4 py-2 text-xs font-semibold text-white" style="background:#2563EB;">
-                                        Mark In Transit
-                                    </button>
-                                </form>
-                            @elseif($delivery->status === 'in_transit')
-                                <form action="{{ route('courier.deliveries.complete',$delivery->id) }}" method="POST">
-                                    @csrf
-                                    <button class="rounded-xl px-4 py-2 text-xs font-semibold text-white" style="background:#059669;">
-                                        Complete Delivery
-                                    </button>
-                                </form>
-                            @endif
-                            <a href="{{ route('courier.deliveries.show',$delivery->id) }}"
-                               class="rounded-xl border px-4 py-2 text-xs font-semibold"
-                               style="border-color:#cfdce8;color:#374151;">Details</a>
-                        </div>
-                    </div>
-                </div>
-            @endforeach
-        </div>
-    @endif
-
-    {{-- Available deliveries --}}
-    <h2 class="font-display text-lg font-bold mb-4" style="color:#222;">Available Deliveries</h2>
-    @forelse($available as $delivery)
-        <div class="rounded-2xl p-5 mb-3" style="background:#fff;border:1px solid #cfdce8;">
-            <div class="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                    <p class="font-semibold text-sm" style="color:#222;">
-                        Order #{{ str_pad($delivery->order_id,6,'0',STR_PAD_LEFT) }}
+{{-- Items for Pickup --}}
+<h2 class="cx-section-title">Items for Pickup</h2>
+<div style="margin-bottom:32px;">
+    @forelse($forPickup as $d)
+        <div class="card cx-item">
+            <div class="cx-item-row">
+                <div class="min-w-0">
+                    <p class="cx-item-title">
+                        Order #{{ str_pad($d->order_id,6,'0',STR_PAD_LEFT) }}
+                        <span class="cx-pill cx-pill-amber" style="margin-left:8px;">Ready for Pickup</span>
                     </p>
-                    <p class="text-xs mt-0.5" style="color:#6b90aa;">
-                        Delivery fee: ₱{{ number_format($delivery->delivery_fee,2) }}
-                    </p>
-                    @if($delivery->order)
-                        <p class="text-xs mt-0.5" style="color:#6b90aa;">
-                            To: {{ $delivery->order->full_name }} · {{ $delivery->order->city }}
-                        </p>
-                    @endif
+                    <p class="cx-item-meta">Seller: <strong style="color:#374151;">{{ $d->pickupName() }}</strong></p>
+                    <p class="cx-item-meta">Deliver to: {{ $d->order->full_name ?? '—' }} · {{ $d->order->city ?? '' }}</p>
+                    <p class="cx-item-meta">{{ $d->itemCount() }} item(s) · ₱{{ number_format($d->delivery_fee,2) }} fee</p>
                 </div>
-                <form action="{{ route('courier.deliveries.accept',$delivery->id) }}" method="POST">
-                    @csrf
-                    <button class="rounded-xl px-5 py-2.5 text-sm font-bold text-white transition hover:opacity-90"
-                            style="background:#002b4d;">
-                        Accept Delivery
-                    </button>
-                </form>
+                <div class="cx-actions">
+                    <form action="{{ route('courier.deliveries.pickup',$d->id) }}" method="POST"
+                          onsubmit="return confirm('Confirm you have picked up this package from the seller?')">
+                        @csrf
+                        <button class="cx-btn cx-btn-navy cx-btn-sm">Confirm Picked Up</button>
+                    </form>
+                    <a href="{{ route('courier.deliveries.show',$d->id) }}" class="cx-btn cx-btn-outline cx-btn-sm">View Pickup</a>
+                </div>
             </div>
         </div>
     @empty
-        <div class="rounded-2xl py-12 text-center" style="background:#fff;border:1px solid #cfdce8;">
-            <p class="text-3xl">📭</p>
-            <p class="mt-3 font-display font-bold" style="color:#222;">No deliveries available right now</p>
-            <p class="text-sm mt-1" style="color:#6b90aa;">Check back soon for new orders.</p>
+        <div class="card cx-empty">
+            <p class="cx-empty-sub">No packages waiting for pickup.</p>
         </div>
     @endforelse
 </div>
-</x-layout>
+
+{{-- Items for Delivery --}}
+<h2 class="cx-section-title">Items for Delivery</h2>
+<div style="margin-bottom:32px;">
+    @forelse($forDelivery as $d)
+        @php $isTransit = $d->status === 'in_transit'; @endphp
+        <div class="card cx-item">
+            <div class="cx-item-row">
+                <div class="min-w-0">
+                    <p class="cx-item-title">
+                        Order #{{ str_pad($d->order_id,6,'0',STR_PAD_LEFT) }}
+                        <span class="cx-pill {{ $isTransit ? 'cx-pill-blue' : 'cx-pill-navy' }}" style="margin-left:8px;">
+                            {{ $isTransit ? 'Out for Delivery' : 'Picked Up' }}
+                        </span>
+                    </p>
+                    <p class="cx-item-meta">Buyer: <strong style="color:#374151;">{{ $d->order->full_name ?? '—' }}</strong></p>
+                    <p class="cx-item-meta">{{ $d->order->fullAddress() ?? '' }}</p>
+                    <p class="cx-item-meta">{{ $d->itemCount() }} item(s) · ₱{{ number_format($d->delivery_fee,2) }} fee</p>
+                </div>
+                <div class="cx-actions">
+                    @if(! $isTransit)
+                        <form action="{{ route('courier.deliveries.in-transit',$d->id) }}" method="POST">
+                            @csrf
+                            <button class="cx-btn cx-btn-blue cx-btn-sm">Start Delivery</button>
+                        </form>
+                    @endif
+                    <a href="{{ route('courier.deliveries.show',$d->id) }}" class="cx-btn cx-btn-outline cx-btn-sm">View Delivery</a>
+                </div>
+            </div>
+        </div>
+    @empty
+        <div class="card cx-empty">
+            <p class="cx-empty-sub">No packages out for delivery.</p>
+        </div>
+    @endforelse
+</div>
+
+{{-- Available jobs --}}
+<h2 class="cx-section-title">Available Delivery Requests</h2>
+@forelse($available as $d)
+    <div class="card cx-item">
+        <div class="cx-item-row" style="align-items:center;">
+            <div>
+                <p class="cx-item-title">Order #{{ str_pad($d->order_id,6,'0',STR_PAD_LEFT) }}</p>
+                <p class="cx-item-meta">Pickup from: {{ $d->pickupName() }}</p>
+                <p class="cx-item-meta">Deliver to: {{ $d->order->full_name ?? '—' }} · {{ $d->order->city ?? '' }}</p>
+                <p class="cx-item-meta">{{ $d->itemCount() }} item(s) · Earn ₱{{ number_format($d->delivery_fee,2) }}</p>
+            </div>
+            <form action="{{ route('courier.deliveries.accept',$d->id) }}" method="POST"
+                  onsubmit="return confirm('Accept this delivery job?')">
+                @csrf
+                <button class="cx-btn cx-btn-navy">Accept Job</button>
+            </form>
+        </div>
+    </div>
+@empty
+    <div class="card cx-empty">
+        <p class="cx-empty-title">No delivery requests available right now</p>
+        <p class="cx-empty-sub">Check back soon for new orders.</p>
+    </div>
+@endforelse
+
+</x-courier-layout>

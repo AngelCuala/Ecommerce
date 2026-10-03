@@ -1,16 +1,5 @@
 <x-admin-layout title="User Management" active="users">
 
-@if (session('success'))
-    <div class="mb-5 rounded-xl border p-4 text-sm" style="background:rgba(250,78,28,.10);border-color:rgba(250,78,28,.35);color:#d93d0e;">
-        ✓ {{ session('success') }}
-    </div>
-@endif
-@if (session('error'))
-    <div class="mb-5 rounded-xl border p-4 text-sm" style="background:#FEF2F2;border-color:rgba(220,38,38,.2);color:#DC2626;">
-        ✕ {{ session('error') }}
-    </div>
-@endif
-
 {{-- Search + role tabs --}}
 <div class="mb-5 flex flex-wrap items-center justify-between gap-3">
     <div class="flex flex-wrap gap-2" id="roleTabs">
@@ -39,7 +28,8 @@
 </div>
 
 <div class="card overflow-hidden">
-    <table class="w-full text-sm">
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm" style="min-width:860px;">
         <thead style="background:#e8f0f6;">
             <tr>
                 <th class="px-5 py-3 text-left text-[11px] font-bold uppercase tracking-widest" style="color:#6b90aa;">User</th>
@@ -77,7 +67,7 @@
                                 <p class="font-semibold leading-snug" style="color:#222222;">{{ $u->name }}</p>
                                 <p class="text-xs" style="color:#6b90aa;">{{ $u->email }}</p>
                                 @if ($u->username)
-                                    <p class="text-xs" style="color:#BBBBBB;">@{{ $u->username }}</p>
+                                    <p class="text-xs" style="color:#BBBBBB;">{{ '@' . $u->username }}</p>
                                 @endif
                             </div>
                         </div>
@@ -94,28 +84,33 @@
 
                     <td class="px-5 py-3 text-right">
                         @if ($u->isAdmin())
-                            <span class="text-xs" style="color:#6b90aa;">Admin — protected</span>
+                            <span class="inline-flex items-center gap-1.5 text-xs font-medium" style="color:#6b90aa;">
+                                <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                                Protected
+                            </span>
                         @else
-                            <div class="flex items-center justify-end gap-2 flex-wrap">
+                            <div class="flex items-center justify-end gap-1.5 flex-nowrap">
 
                                 {{-- View Profile --}}
                                 <a href="{{ route('admin.users.show', $u->id) }}"
-                                   class="rounded-lg px-3 py-1 text-xs font-semibold transition"
-                                   style="background:#e8f0f6;color:#fa4e1c;border:1px solid #cfdce8;"
-                                   onmouseover="this.style.background='#fa4e1c';this.style.color='#fff';"
-                                   onmouseout="this.style.background='#e8f0f6';this.style.color='#fa4e1c';">
-                                    👤 View
+                                   class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 py-1.5 text-xs font-semibold transition"
+                                   style="background:#e8f0f6;color:#1a4d6e;border:1px solid #cfdce8;"
+                                   onmouseover="this.style.background='#1a4d6e';this.style.color='#fff';"
+                                   onmouseout="this.style.background='#e8f0f6';this.style.color='#1a4d6e';">
+                                    <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.5"/><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 20a7.5 7.5 0 0 1 15 0"/></svg>
+                                    View
                                 </a>
 
                                 {{-- Activate (for deactivated/suspended users) --}}
                                 @if (in_array($roleKey, ['deactivated','suspended']))
                                     <form action="{{ route('admin.users.activate', $u->id) }}" method="POST" class="inline">
                                         @csrf @method('PATCH')
-                                        <button class="rounded-lg px-3 py-1 text-xs font-semibold transition"
+                                        <button class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 py-1.5 text-xs font-semibold transition"
                                                 style="background:#ECFDF5;color:#059669;border:1px solid #A7F3D0;"
                                                 onmouseover="this.style.background='#059669';this.style.color='#fff';"
                                                 onmouseout="this.style.background='#ECFDF5';this.style.color='#059669';">
-                                            ✓ Activate
+                                            <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6 9 17l-5-5"/></svg>
+                                            Activate
                                         </button>
                                     </form>
                                 @endif
@@ -125,11 +120,12 @@
                                     <form action="{{ route('admin.users.suspend', $u->id) }}" method="POST" class="inline"
                                           onsubmit="return confirm('Suspend {{ addslashes($u->name) }}?')">
                                         @csrf @method('PATCH')
-                                        <button class="rounded-lg px-3 py-1 text-xs font-semibold transition"
+                                        <button class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 py-1.5 text-xs font-semibold transition"
                                                 style="background:#FFFBEB;color:#D97706;border:1px solid #FDE68A;"
                                                 onmouseover="this.style.background='#D97706';this.style.color='#fff';"
                                                 onmouseout="this.style.background='#FFFBEB';this.style.color='#D97706';">
-                                            ⏸ Suspend
+                                            <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>
+                                            Suspend
                                         </button>
                                     </form>
                                 @endif
@@ -139,11 +135,12 @@
                                     <form action="{{ route('admin.users.deactivate', $u->id) }}" method="POST" class="inline"
                                           onsubmit="return confirm('Permanently deactivate {{ addslashes($u->name) }}? They will not be able to log in.')">
                                         @csrf @method('PATCH')
-                                        <button class="rounded-lg px-3 py-1 text-xs font-semibold transition"
+                                        <button class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 py-1.5 text-xs font-semibold transition"
                                                 style="background:#FEF2F2;color:#DC2626;border:1px solid #FECACA;"
                                                 onmouseover="this.style.background='#DC2626';this.style.color='#fff';"
                                                 onmouseout="this.style.background='#FEF2F2';this.style.color='#DC2626';">
-                                            🚫 Deactivate
+                                            <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path stroke-linecap="round" d="m5.6 5.6 12.8 12.8"/></svg>
+                                            Deactivate
                                         </button>
                                     </form>
                                 @endif
@@ -159,36 +156,10 @@
             @endforelse
         </tbody>
     </table>
+  </div>
     <p id="noResults" class="hidden px-5 py-10 text-center text-sm" style="color:#6b90aa;">No users match your search.</p>
 </div>
 
-<script>
-document.addEventListener('DOMContentLoaded', function () {
-    const tabs   = document.querySelectorAll('.role-tab');
-    const rows   = document.querySelectorAll('.user-row');
-    const noRes  = document.getElementById('noResults');
-    let activeRole = 'all';
-
-    function applyFilters() {
-        let visible = 0;
-        rows.forEach(row => {
-            const show = activeRole === 'all' || row.dataset.role === activeRole;
-            row.style.display = show ? '' : 'none';
-            if (show) visible++;
-        });
-        noRes.classList.toggle('hidden', visible > 0 || rows.length === 0);
-    }
-
-    tabs.forEach(tab => {
-        tab.addEventListener('click', function () {
-            activeRole = this.dataset.role;
-            tabs.forEach(t => { t.style.background='#e8f0f6'; t.style.color='#fa4e1c'; });
-            this.style.background = '#fa4e1c';
-            this.style.color = '#FFFFFF';
-            applyFilters();
-        });
-    });
-});
-</script>
+<script src="{{ asset('js/admin-users.js') }}"></script>
 
 </x-admin-layout>

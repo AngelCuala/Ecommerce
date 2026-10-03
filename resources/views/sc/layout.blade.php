@@ -18,7 +18,7 @@
 
         <div class="sidebar-brand">
             <div class="sidebar-brand-name">LogiSort</div>
-            <div class="sidebar-brand-sub">Sorting Center</div>
+            <div class="sidebar-brand-sub">{{ auth()->user()->assigned_municipality ? auth()->user()->assigned_municipality.' Center' : 'Sorting Center' }}</div>
         </div>
 
         <div class="sidebar-user">
@@ -37,6 +37,10 @@
             <a href="{{ route('sc.riders') }}" class="nav-link {{ request()->routeIs('sc.riders') ? 'active' : '' }}">
                 <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
                 Rider Management
+            </a>
+            <a href="{{ route('sc.areas') }}" class="nav-link {{ request()->routeIs('sc.areas') ? 'active' : '' }}">
+                <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                Coverage Areas
             </a>
             <a href="{{ route('sc.pickup-requests') }}" class="nav-link {{ request()->routeIs('sc.pickup-requests') ? 'active' : '' }}">
                 <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M20 7H4a2 2 0 00-2 2v10a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2z"/><path d="M16 3l-4 4-4-4"/></svg>
@@ -67,7 +71,7 @@
                 <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>
                 SC Transfers
                 @if($pendingIncoming > 0)
-                    <span style="margin-left:auto;background:#fa4e1c;color:#fff;border-radius:999px;padding:1px 7px;font-size:10px;font-weight:700;">{{ $pendingIncoming }}</span>
+                    <span style="margin-left:auto;background:var(--accent-blue);color:#fff;border-radius:999px;padding:1px 7px;font-size:10px;font-weight:700;">{{ $pendingIncoming }}</span>
                 @endif
             </a>
             <a href="{{ route('sc.chat') }}" class="nav-link {{ request()->routeIs('sc.chat') ? 'active' : '' }}">
@@ -100,7 +104,7 @@
     <div class="main">
         <div class="topbar">
             <div class="topbar-left">
-                <span class="header-icon">@yield('icon', '🏠')</span>
+                <span class="header-icon">@include('sc.partials.icon', ['name' => trim($__env->yieldContent('icon', 'dashboard')), 'size' => 19])</span>
                 @yield('title', 'Dashboard')
             </div>
             <div class="topbar-right">@yield('topbar-right')</div>

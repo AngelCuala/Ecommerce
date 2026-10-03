@@ -6,11 +6,7 @@
         <h1 class="mt-1 font-display text-2xl font-bold" style="color:#222222;">Account Management</h1>
     </div>
 
-    @if (session('success'))
-        <div class="mb-5 rounded-xl border p-4 text-sm" style="background:rgba(250,78,28,.08);border-color:rgba(250,78,28,.3);color:#d93d0e;">
-            ✓ {{ session('success') }}
-        </div>
-    @endif
+
     @if ($errors->any())
         <div class="mb-5 rounded-xl border p-4 text-sm" style="background:#FEF2F2;border-color:rgba(220,38,38,.2);color:#DC2626;">
             <ul class="list-inside list-disc space-y-1">@foreach($errors->all() as $e)<li>{{ $e }}</li>@endforeach</ul>
@@ -255,28 +251,19 @@
         </div>
         @endif
 
-        {{-- ── Change password ─────────────────────────────── --}}
-        <div class="card p-6 space-y-4">
-            <h2 class="font-display text-base font-bold" style="color:#222222;">Change Password</h2>
-            <p class="text-xs" style="color:#6b90aa;">Leave blank to keep your current password.</p>
-            <div class="grid gap-4 sm:grid-cols-2">
-                <div>
-                    <label class="text-xs font-semibold" style="color:#6b90aa;">New Password</label>
-                    <div class="relative mt-1">
-                        <input type="password" name="password" data-password class="input pr-11"
-                               placeholder="Minimum 8 characters" minlength="8">
-                        <button type="button" data-toggle-password aria-label="Show password"
-                                class="absolute right-3 top-1/2 -translate-y-1/2 text-lg leading-none" style="color:#6b90aa;">👁️</button>
-                    </div>
+        {{-- ── Security ─────────────────────────────────────── --}}
+        <div class="card p-6">
+            <div class="flex items-center justify-between gap-4">
+                <div class="min-w-0">
+                    <h2 class="font-display text-base font-bold" style="color:#222222;">Security</h2>
+                    <p class="mt-1 text-sm" style="color:#6b90aa;">Change your password and manage authentication settings.</p>
                 </div>
-                <div>
-                    <label class="text-xs font-semibold" style="color:#6b90aa;">Confirm New Password</label>
-                    <div class="relative mt-1">
-                        <input type="password" name="password_confirmation" data-password class="input pr-11">
-                        <button type="button" data-toggle-password aria-label="Show password"
-                                class="absolute right-3 top-1/2 -translate-y-1/2 text-lg leading-none" style="color:#6b90aa;">👁️</button>
-                    </div>
-                </div>
+                <a href="{{ route('seller.account.security') }}"
+                   class="inline-flex shrink-0 items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold text-white transition hover:opacity-90"
+                   style="background:#002b4d;">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                    Security Settings
+                </a>
             </div>
         </div>
 
@@ -301,34 +288,6 @@
     </form>
 </div>
 
-<script>
-function previewAvatar(input) {
-    if (!input.files || !input.files[0]) return;
-    const file = input.files[0];
-
-    // Show filename
-    document.getElementById('avatar-filename').textContent = file.name;
-
-    // Live preview
-    const reader = new FileReader();
-    reader.onload = function (e) {
-        // Remove initial letter span if present
-        const initial = document.getElementById('avatar-initial');
-        if (initial) initial.remove();
-
-        // Update or create the img tag
-        let img = document.getElementById('avatar-preview');
-        if (!img) {
-            img = document.createElement('img');
-            img.id = 'avatar-preview';
-            img.className = 'h-24 w-24 rounded-full object-cover';
-            img.alt = 'Profile photo';
-            input.closest('form').querySelector('.rounded-full').appendChild(img);
-        }
-        img.src = e.target.result;
-    };
-    reader.readAsDataURL(file);
-}
-</script>
+<script src="{{ asset('js/seller-account.js') }}"></script>
 @include('partials.password-toggle')
 </x-seller-layout>

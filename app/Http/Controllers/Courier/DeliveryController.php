@@ -76,20 +76,37 @@ class DeliveryController extends Controller
         $courier = $this->myCourier();
         $courier->increment('total_earnings', $delivery->delivery_fee);
 
+        \App\Models\UserNotification::create([
+            'user_id' => auth()->id(),
+            'title'   => 'Delivery completed',
+            'body'    => 'Order #' . str_pad($delivery->order_id, 6, '0', STR_PAD_LEFT)
+                        . ' delivered. ₱' . number_format($delivery->delivery_fee, 2) . ' added to your earnings.',
+            'type'    => 'info',
+            'link'    => route('courier.profit'),
+        ]);
+
         return back()->with('success', 'Delivery completed! ₱' . number_format($delivery->delivery_fee, 2) . ' added to your earnings.');
     }
 
-    /** View delivery history */
-    public function history()
+    /** View delivery history with optional filters (status, order id, date) */
+    public function history(Request $request)
     {
         $courier = $this->myCourier();
 
+        $status  = $request->query('status');
+        $orderId = $request->query('order_id');
+        $date    = $request->query('date');
+
         $deliveries = Delivery::where('courier_id', $courier->id)
+            ->when($status,  fn ($q) => $q->where('status', $status))
+            ->when($orderId, fn ($q) => $q->where('order_id', (int) ltrim($orderId, '#0') ?: 0))
+            ->when($date,    fn ($q) => $q->whereDate('delivered_at', $date))
             ->with(['order.user', 'order.items.book'])
             ->latest()
-            ->paginate(15);
+            ->paginate(15)
+            ->withQueryString();
 
-        return view('courier.history', compact('deliveries', 'courier'));
+        return view('courier.history', compact('deliveries', 'courier', 'status', 'orderId', 'date'));
     }
 
     /** View a single delivery detail */

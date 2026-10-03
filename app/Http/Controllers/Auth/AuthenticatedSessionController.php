@@ -72,8 +72,28 @@ class AuthenticatedSessionController extends Controller
                 ->with('success', 'Welcome back, ' . $user->name . '!');
         }
 
+        // Approved couriers → courier portal (unless their courier record is suspended)
+        if ($user->isCourier()) {
+            $courier = $user->courier;
+            if ($courier && $courier->isSuspended()) {
+                Auth::guard('web')->logout();
+                throw ValidationException::withMessages([
+                    'email' => 'Your courier account has been suspended. Please contact the Logistics team.',
+                ]);
+            }
+            return redirect()->route('courier.dashboard')
+                ->with('success', 'Welcome back, ' . $user->name . '!');
+        }
+
+        // Courier applicants still awaiting review → status page with a clear message
+        if ($user->isCourierPending()) {
+            return redirect()->route('courier.status')
+                ->with('info', 'Your courier registration is still awaiting approval from the Logistics team.');
+        }
+
         // ALVY admins → ALVY admin panel
         if ($user->isAdmin()) {
+            \App\Models\ActivityLog::record('admin_login', 'Admin signed in', $user->name . ' signed in.');
             return redirect()->route('admin.dashboard')
                 ->with('success', 'Welcome back, ' . $user->name . '!');
         }
@@ -89,6 +109,11 @@ class AuthenticatedSessionController extends Controller
 
     public function destroy(Request $request)
     {
+        $user = Auth::user();
+        if ($user && $user->isAdmin()) {
+            \App\Models\ActivityLog::record('admin_logout', 'Admin signed out', $user->name . ' signed out.');
+        }
+
         Auth::guard('web')->logout();
 
         $request->session()->invalidate();

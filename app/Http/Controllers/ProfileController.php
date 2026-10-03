@@ -33,17 +33,37 @@ class ProfileController extends Controller
         return view('profile.orders', compact('orders'));
     }
 
-    /** Notifications page — order status updates for the buyer */
+    /** Notifications page — admin announcements + order status updates */
     public function notifications()
     {
-        $orders = auth()->user()
-            ->orders()
-            ->with('items.book')
-            ->latest('updated_at')
-            ->get();
+        $user = auth()->user();
 
-        // Build a notification feed from each order's current status
-        $notifications = $orders->map(function ($order) {
+        // ── Stored notifications (e.g. admin announcements) ──────
+        $stored = $user->notifications()->latest()->get()->map(function ($n) {
+            $icon = match ($n->type) {
+                'warning'     => 'x',
+                'maintenance' => 'bell',
+                'promo'       => 'bell',
+                default       => 'bell',
+            };
+
+            return (object) [
+                'kind'       => 'announcement',
+                'order_id'   => null,
+                'title'      => $n->title,
+                'body'       => $n->body,
+                'icon'       => $icon,
+                'is_unread'  => is_null($n->read_at),
+                'thumbnail'  => null,
+                'item_name'  => null,
+                'at'         => $n->created_at,
+            ];
+        });
+
+        // ── Order status updates ─────────────────────────────────
+        $orders = $user->orders()->with('items.book')->latest('updated_at')->get();
+
+        $orderNotes = $orders->map(function ($order) {
             $meta = match (strtolower($order->status)) {
                 'pending'    => ['title' => 'Order placed',      'body' => 'We have received your order and it is awaiting processing.',       'icon' => 'clock'],
                 'processing' => ['title' => 'Order confirmed',   'body' => 'Your order is being prepared by the seller.',                     'icon' => 'box'],
@@ -56,16 +76,25 @@ class ProfileController extends Controller
             $firstItem = $order->items->first();
 
             return (object) [
-                'order_id'  => $order->id,
-                'title'     => $meta['title'],
-                'body'      => $meta['body'],
-                'icon'      => $meta['icon'],
-                'status'    => $order->status,
-                'thumbnail' => $firstItem?->book?->image,
-                'item_name' => $firstItem?->book?->title,
-                'at'        => $order->updated_at,
+                'kind'       => 'order',
+                'order_id'   => $order->id,
+                'title'      => $meta['title'],
+                'body'       => $meta['body'],
+                'icon'       => $meta['icon'],
+                'is_unread'  => false,
+                'thumbnail'  => $firstItem?->book?->image,
+                'item_name'  => $firstItem?->book?->title,
+                'at'         => $order->updated_at,
             ];
         });
+
+        // Merge, newest first
+        $notifications = $stored->concat($orderNotes)
+            ->sortByDesc('at')
+            ->values();
+
+        // Mark stored notifications as read now that they've been viewed
+        $user->notifications()->whereNull('read_at')->update(['read_at' => now()]);
 
         return view('profile.notifications', compact('notifications'));
     }

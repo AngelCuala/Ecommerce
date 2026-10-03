@@ -260,49 +260,35 @@
             </div>
         </header>
 
-        @if (session('success'))
-            <div class="flex items-center gap-2 border-b px-6 py-2.5 text-sm font-semibold"
-                 style="background:#fff1ee;border-color:#fdb49e;color:#d93d0e;">
-                <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M20 6 9 17l-5-5"/>
-                </svg>
-                {{ session('success') }}
-            </div>
-        @endif
-
         <main class="flex-1 p-5 lg:p-8">
             {{ $slot }}
         </main>
     </div>
 </div>
 
-<script>
-  (function(){
-    var backdrop = document.getElementById('sidebar-backdrop');
-    var drawer   = document.getElementById('mobile-sidebar');
-    var openBtn  = document.getElementById('open-sidebar-btn');
-    var closeBtn = document.getElementById('close-sidebar-btn');
-    function show(){
-      if(!drawer||!backdrop) return;
-      drawer.style.display='flex'; backdrop.style.display='block';
-      requestAnimationFrame(function(){
-        drawer.classList.remove('-translate-x-full');
-        backdrop.classList.remove('opacity-0');
-      });
-      document.body.style.overflow='hidden';
-    }
-    function hide(){
-      if(!drawer||!backdrop) return;
-      drawer.classList.add('-translate-x-full');
-      backdrop.classList.add('opacity-0');
-      setTimeout(function(){ drawer.style.display='none'; backdrop.style.display='none'; },250);
-      document.body.style.overflow='';
-    }
-    if(openBtn)  openBtn.addEventListener('click', show);
-    if(closeBtn) closeBtn.addEventListener('click', hide);
-    if(backdrop) backdrop.addEventListener('click', hide);
-    document.addEventListener('keydown',function(e){ if(e.key==='Escape') hide(); });
-  })();
-</script>
+{{-- Toast notifications (single pop-up, auto-dismiss) --}}
+@if (session('success') || session('error'))
+    <div id="toast-stack" class="fixed right-4 top-6 z-[100] flex w-full max-w-sm flex-col gap-2 px-2 sm:px-0">
+        @if (session('success'))
+            <div class="toast flex items-start gap-3 rounded-xl border p-4 shadow-lg"
+                 style="background:#fff;border-color:rgba(250,78,28,.30);">
+                <svg class="mt-0.5 h-5 w-5 shrink-0" fill="none" stroke="#fa4e1c" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6 9 17l-5-5"/></svg>
+                <p class="flex-1 text-sm font-semibold" style="color:#d93d0e;">{{ session('success') }}</p>
+                <button type="button" onclick="this.closest('.toast').remove()" class="shrink-0 text-lg leading-none" style="color:#9CA3AF;" aria-label="Dismiss">&times;</button>
+            </div>
+        @endif
+        @if (session('error'))
+            <div class="toast flex items-start gap-3 rounded-xl border p-4 shadow-lg"
+                 style="background:#fff;border-color:rgba(220,38,38,.30);">
+                <svg class="mt-0.5 h-5 w-5 shrink-0" fill="none" stroke="#DC2626" stroke-width="2.2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path stroke-linecap="round" d="M12 8v5M12 16h.01"/></svg>
+                <p class="flex-1 text-sm font-semibold" style="color:#B91C1C;">{{ session('error') }}</p>
+                <button type="button" onclick="this.closest('.toast').remove()" class="shrink-0 text-lg leading-none" style="color:#9CA3AF;" aria-label="Dismiss">&times;</button>
+            </div>
+        @endif
+    </div>
+    <script src="{{ asset('js/toast.js') }}"></script>
+@endif
+
+<script src="{{ asset('js/sidebar-drawer.js') }}"></script>
 </body>
 </html>

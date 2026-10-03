@@ -1,6 +1,6 @@
 @extends('sc.layout')
 @section('title', 'Chat / Messaging')
-@section('icon', '💬')
+@section('icon', 'chat')
 
 @section('content')
 <div class="page-header"><h1>Chat / Messaging</h1></div>

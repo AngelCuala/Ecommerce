@@ -38,9 +38,11 @@
                 @endphp
 
                 @forelse ($notifications as $n)
-                    <a href="{{ route('profile.orders') }}"
+                    <a href="{{ $n->kind === 'order' ? route('profile.orders') : route('profile.notifications') }}"
                        class="flex items-start gap-4 rounded-xl p-3.5 transition"
-                       onmouseover="this.style.background='#f6f9fc';" onmouseout="this.style.background='';">
+                       style="{{ $n->is_unread ? 'background:#FFF9F5;' : '' }}"
+                       onmouseover="this.style.background='#f6f9fc';"
+                       onmouseout="this.style.background='{{ $n->is_unread ? '#FFF9F5' : '' }}';">
 
                         {{-- Icon --}}
                         <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full"
@@ -56,7 +58,15 @@
                         <div class="flex-1 min-w-0">
                             <div class="flex items-center gap-2">
                                 <p class="font-semibold text-sm" style="color:#002b4d;">{{ $n->title }}</p>
-                                <span class="text-[11px]" style="color:#9db3c4;">· Order #{{ str_pad($n->order_id, 6, '0', STR_PAD_LEFT) }}</span>
+                                @if ($n->kind === 'order')
+                                    <span class="text-[11px]" style="color:#9db3c4;">· Order #{{ str_pad($n->order_id, 6, '0', STR_PAD_LEFT) }}</span>
+                                @else
+                                    <span class="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide"
+                                          style="background:#FFF1E6;color:#fa4e1c;">Announcement</span>
+                                @endif
+                                @if ($n->is_unread)
+                                    <span class="ml-auto h-2 w-2 shrink-0 rounded-full" style="background:#fa4e1c;"></span>
+                                @endif
                             </div>
                             <p class="mt-0.5 text-sm leading-snug" style="color:#54728a;">{{ $n->body }}</p>
                             @if ($n->item_name)

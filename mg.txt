@@ -1,0 +1,6 @@
+
+   INFO  Running migrations.  
+
+  2026_09_23_032202_make_language_format_nullable_on_books_table  449.20ms DONE
+
+exit=0
