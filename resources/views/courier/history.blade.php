@@ -1,5 +1,10 @@
 <x-courier-layout title="Delivery History" active="history">
 
+<div class="cx-page-head">
+    <h1 class="font-display">Delivery History</h1>
+    <p>Search and review your past and in-progress deliveries.</p>
+</div>
+
 <form method="GET" action="{{ route('courier.history') }}" class="card cx-filters">
     <div class="cx-field">
         <label>Order ID</label>

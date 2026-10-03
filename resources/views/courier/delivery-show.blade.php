@@ -1,14 +1,19 @@
-<x-courier-layout title="Delivery Details" active="history">
+<x-courier-layout title="Delivery Details" active="dashboard">
 
 <a href="{{ route('courier.dashboard') }}" class="cx-link-back" style="margin-bottom:16px;">
     @include('courier.partials.icon', ['name' => 'back', 'size' => 16, 'sw' => 2.2]) Back to Dashboard
 </a>
 
+<div class="cx-page-head">
+    <h1 class="font-display">Delivery Details</h1>
+    <p>Pickup, delivery, and earnings details for this job.</p>
+</div>
+
 <div class="card" style="overflow:hidden;max-width:640px;">
 
     {{-- Header --}}
     <div style="padding:16px 24px;background:var(--accent-soft);border-bottom:1px solid var(--border);">
-        <div style="display:flex;align-items:center;justify-content:space-between;">
+        <div style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px;">
             <div>
                 <p class="font-display" style="font-weight:700;color:var(--text);">Order #{{ str_pad($delivery->order_id,6,'0',STR_PAD_LEFT) }}</p>
                 <p style="font-size:12px;margin-top:2px;color:var(--text-muted);">Accepted {{ $delivery->accepted_at?->format('M d, Y H:i') ?? '—' }}</p>

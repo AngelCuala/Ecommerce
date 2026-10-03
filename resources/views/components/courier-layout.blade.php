@@ -95,6 +95,15 @@
                 </a>
             @endforeach
         </nav>
+        <div class="cx-foot">
+            <form action="{{ route('logout') }}" method="POST">
+                @csrf
+                <button type="submit" class="cx-logout">
+                    @include('courier.partials.icon', ['name' => 'logout', 'size' => 14, 'sw' => 2])
+                    Sign Out
+                </button>
+            </form>
+        </div>
     </aside>
 
     {{-- ══════════ MAIN ══════════ --}}
@@ -105,7 +114,7 @@
             </button>
             <div>
                 <p class="cx-eyebrow-top">ALVY Courier</p>
-                <h1 class="cx-title">{{ $title }}</h1>
+                <p class="cx-title">{{ $title }}</p>
             </div>
             <div class="cx-topbar-right">{{ $topbar ?? '' }}</div>
         </header>

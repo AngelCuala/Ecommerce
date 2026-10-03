@@ -1,4 +1,4 @@
-<x-courier-layout title="Security" active="account">
+<x-courier-layout title="Security Settings" active="account">
 
 <a href="{{ route('courier.account') }}" class="cx-link-back" style="margin-bottom:16px;">
     @include('courier.partials.icon', ['name' => 'back', 'size' => 16, 'sw' => 2.2]) Back to Account
