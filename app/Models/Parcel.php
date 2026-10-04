@@ -40,7 +40,11 @@ class Parcel extends Model
         'delivered'       => 'Delivered',
         'failed'          => 'Delivery Failed',
         'returned'        => 'Returned to Seller',
+        'cancelled'       => 'Cancelled',
     ];
+
+    /** Statuses after which the sorting-center workflow is finished (no longer an active route). */
+    public const CLOSED_STATUSES = ['delivered', 'returned', 'cancelled'];
 
     public function order(): BelongsTo       { return $this->belongsTo(Order::class); }
     public function seller(): BelongsTo      { return $this->belongsTo(User::class, 'seller_id'); }

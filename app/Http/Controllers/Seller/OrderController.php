@@ -57,6 +57,7 @@ class OrderController extends Controller
         $parcel = \App\Models\Parcel::with('currentSortingCenter')
             ->where('order_id', $order->id)
             ->where('seller_id', auth()->id())
+            ->where('status', '!=', 'cancelled') // closed duplicates are kept for history, not shown
             ->first();
 
         return view('seller.orders.show', compact('order', 'parcel'));
@@ -97,7 +98,45 @@ class OrderController extends Controller
         $hasItems = OrderItem::where('order_id', $id)->whereIn('book_id', $bookIds)->exists();
         if (! $hasItems) abort(403);
 
-        $order = Order::findOrFail($id);
+        $order   = Order::findOrFail($id);
+        $routing = app(\App\Services\DeliveryRoutingService::class);
+
+        // Records created before the routing rule may have both workflows open — never add to that.
+        if ($routing->hasConflictingRoutes($order)) {
+            return back()->with('error', 'This order has both a courier delivery and a sorting-center request open. Please contact the admin to close the duplicate before rescheduling.');
+        }
+
+        // ONE route per order: keep an existing route; otherwise decide from the PSGC codes.
+        $route    = $routing->activeRoute($order);
+        $decision = null;
+        if (! $route) {
+            $decision = $routing->decide($order, auth()->user());
+            $route    = $decision['route'];
+            if (! $route) {
+                return back()->with('error', $decision['reason'] . ' The pickup was not scheduled.');
+            }
+        }
+
+        $msg = $route === \App\Services\DeliveryRoutingService::COURIER
+            ? $this->scheduleCourierRoute($request, $order)
+            : $this->scheduleSortingCenterRoute($request, $order, $decision);
+
+        // Advance order to Processing if still Pending
+        if ($order->status === 'Pending') {
+            $order->update(['status' => 'Processing']);
+        }
+
+        if ($decision) {
+            $msg = $decision['reason'] . ' ' . $msg;
+        }
+
+        return back()->with('success', $msg);
+    }
+
+    /** SAME municipality: an "available" courier delivery that an approved courier can claim. */
+    private function scheduleCourierRoute(Request $request, Order $order): string
+    {
+        $id = $order->id;
 
         // Ready for pickup: the delivery becomes "available" so an approved courier can claim it.
         // A job a courier already claimed keeps its courier and status; only the schedule changes.
@@ -134,22 +173,38 @@ class OrderController extends Controller
                 . \Carbon\Carbon::parse($request->pickup_scheduled_at)->format('M d, Y h:i A') . '.');
         }
 
-        // Advance order to Processing if still Pending
-        if ($order->status === 'Pending') {
-            $order->update(['status' => 'Processing']);
-        }
+        return 'Courier pickup scheduled for ' . \Carbon\Carbon::parse($request->pickup_scheduled_at)->format('M d, Y h:i A')
+            . '. The request is open to couriers.';
+    }
 
-        // Ready for pickup: send the pickup request to the sorting center.
+    /** DIFFERENT municipalities: a sorting-center pickup request (no courier delivery is created). */
+    private function scheduleSortingCenterRoute(Request $request, Order $order, ?array $decision): string
+    {
+        $isNew = ! \App\Models\Parcel::where('order_id', $order->id)->where('seller_id', auth()->id())->exists();
+
         $parcel = app(\App\Services\ParcelService::class)->createForSeller(
             $order, auth()->user(), $request->pickup_scheduled_at, $request->notes
         );
 
-        $msg = 'Courier pickup scheduled for ' . \Carbon\Carbon::parse($request->pickup_scheduled_at)->format('M d, Y h:i A') . '.';
-        $msg .= $parcel->current_sorting_center_id
-            ? " Pickup request {$parcel->tracking_number} sent to {$parcel->currentSortingCenter->name}."
-            : " Pickup request {$parcel->tracking_number} created; it will be picked up by the next available sorting center.";
+        if ($parcel->current_sorting_center_id) {
+            return "Pickup request {$parcel->tracking_number} sent to {$parcel->currentSortingCenter->name}.";
+        }
 
-        return back()->with('success', $msg);
+        // Needs a sorting center, but none is assigned to the seller's or buyer's municipality yet.
+        $where = $decision
+            ? "{$decision['origin']} or {$decision['destination']}"
+            : "the seller's or buyer's municipality";
+        if ($isNew) {
+            \Illuminate\Support\Facades\Log::warning("Order #{$order->id}: parcel {$parcel->tracking_number} needs sorting-center handling but no sorting center covers {$where}.");
+            $svc = app(\App\Services\ParcelService::class);
+            \App\Models\User::where('role', 'admin')->pluck('id')->each(fn ($adminId) => $svc->notify(
+                (int) $adminId, 'Unrouted sorting-center pickup',
+                "Order #" . str_pad($order->id, 6, '0', STR_PAD_LEFT) . " ({$parcel->tracking_number}) needs a sorting center, but none is assigned to {$where}.",
+                'warning'
+            ));
+        }
+
+        return "Pickup request {$parcel->tracking_number} created. No sorting center is assigned to {$where} yet, so the request is open to all sorting centers.";
     }
 
     /** Mark as handed over to courier → status becomes Shipped */

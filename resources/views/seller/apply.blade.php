@@ -150,6 +150,9 @@
                                     onchange="saLoadBarangays(this.options[this.selectedIndex].dataset.code)">
                                 <option value="">— Select Province first —</option>
                             </select>
+                            {{-- PSGC codes of the selected province/municipality (official pickup origin for routing) --}}
+                            <input type="hidden" name="province_code" id="sa_province_code">
+                            <input type="hidden" name="municipality_code" id="sa_municipality_code">
                         </div>
 
                         {{-- Barangay --}}
@@ -256,7 +259,25 @@ function saReset(id, placeholder) {
     const el = document.getElementById(id);
     el.innerHTML = `<option value="">${placeholder}</option>`;
     el.disabled = true;
+    saSyncPsgcCodes();
 }
+
+// Copy the selected options' PSGC codes into the hidden inputs.
+function saSyncPsgcCodes() {
+    const pick = id => {
+        const s = document.getElementById(id);
+        const o = s && s.options[s.selectedIndex];
+        return (o && o.value && o.dataset.code) ? o.dataset.code : '';
+    };
+    const p = document.getElementById('sa_province_code');
+    const m = document.getElementById('sa_municipality_code');
+    if (p) p.value = pick('sa_province');
+    if (m) m.value = pick('sa_municipality');
+}
+document.addEventListener('change', e => {
+    if (e.target && (e.target.id === 'sa_province' || e.target.id === 'sa_municipality')) saSyncPsgcCodes();
+});
+document.addEventListener('submit', saSyncPsgcCodes, true);
 
 // Load regions on page load
 window.addEventListener('DOMContentLoaded', async function () {

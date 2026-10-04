@@ -61,6 +61,9 @@ class CheckoutController extends Controller
             'street'         => 'nullable|string|max:255',
             'zip_code'       => 'required|string|max:20',
             'payment_method' => 'required|in:cod',
+            // Official PSGC codes from the address dropdowns (hidden inputs) — used for delivery routing.
+            'province_code'     => ['nullable', 'regex:/^\d{9,10}$/'],
+            'municipality_code' => ['nullable', 'regex:/^\d{9,10}$/'],
         ]);
 
         $items = $this->cartItems();
@@ -90,6 +93,8 @@ class CheckoutController extends Controller
             'address_line'     => $addressLine,
             'city'             => $request->city,
             'province'         => $request->province,
+            'municipality_code'=> $request->municipality_code ?: null,
+            'province_code'    => $request->province_code ?: null,
             'zip_code'         => $request->zip_code,
             'shipping_address' => $addressLine . ' ' . $request->zip_code,
             'subtotal'         => $subtotal,

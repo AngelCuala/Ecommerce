@@ -85,6 +85,9 @@
                                 onchange="loadBarangays(this.value, this.options[this.selectedIndex].text)">
                             <option value="">— Select City / Municipality —</option>
                         </select>
+                        {{-- PSGC codes of the selected province/city (used for delivery routing) --}}
+                        <input type="hidden" name="province_code" id="province-code">
+                        <input type="hidden" name="municipality_code" id="municipality-code">
                     </div>
 
                     {{-- Barangay --}}
@@ -218,10 +221,28 @@ function populate(selectEl, items, placeholder) {
         opt.textContent = item.name;
         selectEl.appendChild(opt);
     });
-    selectEl.disabled = false;
+function resetSelect(selectEl, placeholder) {
+    selectEl.innerHTML = `<option value="">${placeholder}</option>`;
+    selectEl.disabled = true;
+    syncPsgcCodes();
 }
 
-function resetSelect(selectEl, placeholder) {
+// Copy the selected options' PSGC codes into the hidden inputs.
+function syncPsgcCodes() {
+    const pick = id => {
+        const s = document.getElementById(id);
+        const o = s && s.options[s.selectedIndex];
+        return (o && o.value && o.dataset.code) ? o.dataset.code : '';
+    };
+    const p = document.getElementById('province-code');
+    const m = document.getElementById('municipality-code');
+    if (p) p.value = pick('sel-province');
+    if (m) m.value = pick('sel-city');
+}
+document.addEventListener('change', e => {
+    if (e.target && (e.target.id === 'sel-province' || e.target.id === 'sel-city')) syncPsgcCodes();
+});
+document.addEventListener('submit', syncPsgcCodes, true);unction resetSelect(selectEl, placeholder) {
     selectEl.innerHTML = `<option value="">${placeholder}</option>`;
     selectEl.disabled = true;
 }

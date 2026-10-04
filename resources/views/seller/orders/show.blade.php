@@ -191,7 +191,8 @@
             @if (! in_array($order->status, ['Delivered','Cancelled']))
 
                 {{-- If no delivery scheduled yet (or the SC rejected the pickup) — show schedule form --}}
-                @if (! $delivery || ($delivery->status === 'available' && ! $delivery->pickup_scheduled_at) || ($parcel && $parcel->status === 'pickup_rejected'))
+                {{-- One route per order: a sorting-center parcel replaces the courier cards below. --}}
+                @if ((! $delivery && ! $parcel) || ($delivery && $delivery->status === 'available' && ! $delivery->pickup_scheduled_at) || ($parcel && $parcel->status === 'pickup_rejected'))
                     <div class="card p-5">
                         <h3 class="text-sm font-bold mb-1" style="color:#222222;">🚚 Schedule Courier Pickup</h3>
                         <p class="text-xs mb-4" style="color:#6b90aa;">Fill in the courier details and set a pickup date/time.</p>
@@ -224,7 +225,7 @@
                     </div>
 
                 {{-- Pickup scheduled, waiting for a courier to accept the job --}}
-                @elseif ($delivery->status === 'available')
+                @elseif ($delivery?->status === 'available')
                     <div class="card p-5 space-y-3">
                         <h3 class="text-sm font-bold" style="color:#222222;">🚚 Waiting for a Courier</h3>
                         <div class="rounded-xl p-4 space-y-2 text-sm" style="background:#FFFBEB;border:1px solid #FDE68A;">
@@ -237,7 +238,7 @@
                     </div>
 
                 {{-- Courier assigned, not yet handed over --}}
-                @elseif (in_array($delivery->status, ['accepted']))
+                @elseif (in_array($delivery?->status, ['accepted']))
                     <div class="card p-5 space-y-3">
                         <h3 class="text-sm font-bold" style="color:#222222;">🚚 Courier Pickup Scheduled</h3>
                         <div class="rounded-xl p-4 space-y-2 text-sm" style="background:#F0FDF4;border:1px solid #BBF7D0;">
@@ -265,7 +266,7 @@
                     </div>
 
                 {{-- Handed over / in transit --}}
-                @elseif (in_array($delivery->status, ['picked_up','in_transit']))
+                @elseif (in_array($delivery?->status, ['picked_up','in_transit']))
                     <div class="card p-5 space-y-3">
                         <h3 class="text-sm font-bold" style="color:#222222;">📦 Shipment In Transit</h3>
                         <div class="rounded-xl p-4 space-y-2 text-sm" style="background:#EFF6FF;border:1px solid #BFDBFE;">

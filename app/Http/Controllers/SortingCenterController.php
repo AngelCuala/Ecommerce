@@ -300,6 +300,12 @@ class SortingCenterController extends Controller
             return back()->with('error', "{$parcel->tracking_number}: the order was cancelled, so the pickup was closed.");
         }
 
+        // One route per order: a direct courier is already handling it.
+        if ($parcel->order_id && \App\Models\Delivery::where('order_id', $parcel->order_id)
+                ->whereIn('status', \App\Models\Delivery::OPEN_STATUSES)->exists()) {
+            return back()->with('error', "{$parcel->tracking_number}: this order is already being delivered by a direct courier.");
+        }
+
         $parcel->update([
             'status'                    => 'pickup_approved',
             'verified_by'               => $me,

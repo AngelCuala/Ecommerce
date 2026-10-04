@@ -12,6 +12,7 @@ class SellerApplication extends Model
         'last_name', 'first_name', 'middle_initial', 'sex', 'birthday', 'age',
         'full_name', 'shop_name', 'business_name', 'line_of_business',
         'phone', 'address', 'province', 'municipality', 'barangay', 'street', 'house_number',
+        'municipality_code', 'province_code', // PSGC codes — the seller's official pickup/origin for routing
         'government_id_path', 'business_permit_path',
         'description', 'status', 'rejection_reason',
         'shop_name_changes_this_month', 'shop_name_last_changed_at',

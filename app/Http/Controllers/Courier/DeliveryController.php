@@ -35,6 +35,8 @@ class DeliveryController extends Controller
             ->where('status', 'available')
             ->whereNull('courier_id')
             ->whereHas('order', fn ($q) => $q->whereNotIn('status', ['Cancelled', 'Delivered']))
+            // One route per order: never claim an order the sorting center is handling.
+            ->whereDoesntHave('order.parcels', fn ($q) => $q->whereNotIn('status', \App\Models\Parcel::CLOSED_STATUSES))
             ->update([
                 'courier_id'   => $courier->id,
                 'courier_name' => $courier->fullName(),

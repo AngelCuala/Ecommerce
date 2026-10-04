@@ -14,6 +14,9 @@ class Delivery extends Model
         'accepted_at', 'picked_up_at', 'delivered_at', 'notes',
     ];
 
+    /** Statuses in which a direct-courier delivery is still an active route for its order. */
+    public const OPEN_STATUSES = ['available', 'accepted', 'picked_up', 'in_transit'];
+
     protected $casts = [
         'accepted_at'         => 'datetime',
         'picked_up_at'        => 'datetime',

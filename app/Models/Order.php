@@ -14,6 +14,7 @@ class Order extends Model
         'user_id',
         'full_name', 'phone', 'email',
         'address_line', 'city', 'province', 'zip_code',
+        'municipality_code', 'province_code', // PSGC codes of the delivery address (used for routing)
         'shipping_address',
         'subtotal', 'shipping_fee', 'total_price',
         'payment_method', 'payment_status',

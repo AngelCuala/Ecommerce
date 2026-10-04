@@ -32,7 +32,8 @@ class ParcelService
         $parcel = Parcel::firstOrNew(['order_id' => $order->id, 'seller_id' => $seller->id]);
 
         // Already moving through the pipeline — just keep schedule/notes current.
-        if ($parcel->exists && ! in_array($parcel->status, ['pending_pickup', 'pickup_rejected'], true)) {
+        // (A cancelled request can be re-opened once routing sends the order to the sorting center.)
+        if ($parcel->exists && ! in_array($parcel->status, ['pending_pickup', 'pickup_rejected', 'cancelled'], true)) {
             return $parcel;
         }
 
@@ -74,14 +75,22 @@ class ParcelService
         $centers = User::where('role', 'sorting_center')
             ->whereNotNull('assigned_municipality')->get();
 
-        $origin = $seller->sellerApplication->municipality ?? $seller->municipality;
+        // Origin = the seller's approved seller application (official pickup address).
+        // The profile address (users.municipality) is intentionally not used for routing.
+        $origin = app(DeliveryRoutingService::class)->sellerOrigin($seller);
 
-        return $this->matchCenter($centers, $origin)
-            ?? $this->matchCenter($centers, $order->city);
+        return $this->matchCenter($centers, $origin?->municipality_code, $origin?->municipality)
+            ?? $this->matchCenter($centers, $order->municipality_code, $order->city);
     }
 
-    private function matchCenter(Collection $centers, ?string $municipality): ?User
+    /** Match by PSGC code first; fall back to the normalized name for records without codes. */
+    private function matchCenter(Collection $centers, ?string $code, ?string $municipality): ?User
     {
+        if ($code) {
+            $byCode = $centers->first(fn ($sc) => $sc->assigned_municipality_code === $code);
+            if ($byCode) return $byCode;
+        }
+
         if (! $municipality) return null;
         $key = $this->normalizeMunicipality($municipality);
 
