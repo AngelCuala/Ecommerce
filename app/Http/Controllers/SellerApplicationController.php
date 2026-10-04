@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\SellerApplication;
+use App\Services\PsgcDirectory;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 
@@ -39,20 +40,26 @@ class SellerApplicationController extends Controller
             'business_name'   => 'nullable|string|max:255',
             'line_of_business'=> 'required|string|max:255',
             'phone'           => 'required|string|max:30',
-            'province'        => 'required|string|max:120',
+            'province'        => 'nullable|string|max:120', // not applicable for NCR / highly urbanized cities
             'municipality'    => 'required|string|max:120',
             'barangay'        => 'required|string|max:120',
             'street'          => 'required|string|max:255',
             'house_number'    => 'required|string|max:50',
             'region'          => 'nullable|string|max:120',
             'zip_code'        => 'nullable|string|max:20',
-            // Official PSGC codes from the address dropdowns (hidden inputs) — the routing origin.
-            'province_code'     => ['nullable', 'regex:/^\d{9,10}$/'],
-            'municipality_code' => ['nullable', 'regex:/^\d{9,10}$/'],
             'government_id'   => 'required|file|mimes:jpg,jpeg,png,pdf|max:5120',
             'business_permit' => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120',
             'description'     => 'required|string|max:1000',
-        ]);
+        ] + PsgcDirectory::codeRules()); // hidden PSGC codes — the seller's official pickup origin
+
+        // The address must be a real PSA location chain. Official names and the 9-digit
+        // Correspondence Codes (compared by delivery routing) come from the PSA dataset.
+        $addr = app(PsgcDirectory::class)->resolve($request->all(), true, $data['barangay']);
+        $data['province']          = $addr['province_display'];
+        $data['municipality']      = $addr['municipality'];
+        $data['barangay']          = $addr['barangay'];
+        $data['province_code']     = $addr['province_code'];
+        $data['municipality_code'] = $addr['municipality_code'];
 
         $data['age'] = \Carbon\Carbon::parse($data['birthday'])->age;
         $data['full_name'] = trim($data['first_name'] . ' ' . $data['last_name']);

@@ -128,8 +128,7 @@
                         {{-- Region --}}
                         <div class="sm:col-span-2">
                             <label class="text-xs font-semibold" style="color:#6b90aa;">Region *</label>
-                            <select id="sa_region" name="region" class="input mt-1" required
-                                    onchange="saLoadProvincesByRegion(this.value)">
+                            <select id="sa_region" name="region" class="input mt-1" required>
                                 <option value="">— Select Region —</option>
                             </select>
                         </div>
@@ -137,8 +136,7 @@
                         {{-- Province --}}
                         <div>
                             <label class="text-xs font-semibold" style="color:#6b90aa;">Province *</label>
-                            <select id="sa_province" name="province" class="input mt-1" required disabled
-                                    onchange="saLoadMunicipalities(this.options[this.selectedIndex].dataset.code, this.value)">
+                            <select id="sa_province" name="province" class="input mt-1" required disabled>
                                 <option value="">— Select Province —</option>
                             </select>
                         </div>
@@ -146,8 +144,7 @@
                         {{-- Municipality / City --}}
                         <div>
                             <label class="text-xs font-semibold" style="color:#6b90aa;">Municipality / City *</label>
-                            <select id="sa_municipality" name="municipality" class="input mt-1" required disabled
-                                    onchange="saLoadBarangays(this.options[this.selectedIndex].dataset.code)">
+                            <select id="sa_municipality" name="municipality" class="input mt-1" required disabled>
                                 <option value="">— Select Province first —</option>
                             </select>
                             {{-- PSGC codes of the selected province/municipality (official pickup origin for routing) --}}
@@ -221,6 +218,7 @@
 
 </div>
 
+<script src="{{ asset('js/psgc-address.js') }}"></script>
 <script>
 // Age auto-calc
 document.getElementById('birthday_apply')?.addEventListener('change', function () {
@@ -233,123 +231,19 @@ document.getElementById('birthday_apply')?.addEventListener('change', function (
     document.getElementById('age_apply').value = age >= 0 ? age : '';
 });
 
-// ── PSGC cascading address dropdowns (same as register page) ─────────
-const PSGC = '/api/psgc';
-
-function saSetLoading(id, msg) {
-    const el = document.getElementById(id);
-    el.innerHTML = `<option value="">${msg}</option>`;
-    el.disabled = true;
-}
-
-function saPopulate(id, items, placeholder) {
-    const el = document.getElementById(id);
-    el.innerHTML = `<option value="">${placeholder}</option>`;
-    items.forEach(item => {
-        const o = document.createElement('option');
-        o.value = item.name;
-        o.dataset.code = item.code;
-        o.textContent = item.name;
-        el.appendChild(o);
-    });
-    el.disabled = false;
-}
-
-function saReset(id, placeholder) {
-    const el = document.getElementById(id);
-    el.innerHTML = `<option value="">${placeholder}</option>`;
-    el.disabled = true;
-    saSyncPsgcCodes();
-}
-
-// Copy the selected options' PSGC codes into the hidden inputs.
-function saSyncPsgcCodes() {
-    const pick = id => {
-        const s = document.getElementById(id);
-        const o = s && s.options[s.selectedIndex];
-        return (o && o.value && o.dataset.code) ? o.dataset.code : '';
-    };
-    const p = document.getElementById('sa_province_code');
-    const m = document.getElementById('sa_municipality_code');
-    if (p) p.value = pick('sa_province');
-    if (m) m.value = pick('sa_municipality');
-}
-document.addEventListener('change', e => {
-    if (e.target && (e.target.id === 'sa_province' || e.target.id === 'sa_municipality')) saSyncPsgcCodes();
+// ── Region → Province → Municipality/City → Barangay (local PSA PSGC data) ──
+// Shared cascade in public/js/psgc-address.js; fills province_code / municipality_code.
+PsgcAddress.attach({
+    region:   '#sa_region',
+    province: '#sa_province',
+    city:     '#sa_municipality',
+    barangay: '#sa_barangay',
+    old: {
+        region:       @json(old('region')),
+        province:     @json(old('province_code') ?: old('province')),
+        municipality: @json(old('municipality_code') ?: old('municipality')),
+        barangay:     @json(old('barangay')),
+    },
 });
-document.addEventListener('submit', saSyncPsgcCodes, true);
-
-// Load regions on page load
-window.addEventListener('DOMContentLoaded', async function () {
-    saSetLoading('sa_region', 'Loading regions…');
-    try {
-        const res  = await fetch(`${PSGC}/regions`);
-        const data = await res.json();
-        saPopulate('sa_region', data, '— Select Region —');
-    } catch (e) {
-        document.getElementById('sa_region').innerHTML =
-            '<option value="">⚠ Could not load regions. Refresh to retry.</option>';
-    }
-});
-
-// Region → Province
-async function saLoadProvincesByRegion(regionName) {
-    saReset('sa_province',     '— Select Province —');
-    saReset('sa_municipality', '— Select Province first —');
-    saReset('sa_barangay',     '— Select Municipality first —');
-    if (!regionName) return;
-
-    const sel  = document.getElementById('sa_region');
-    const code = sel.options[sel.selectedIndex].dataset.code;
-
-    saSetLoading('sa_province', 'Loading provinces…');
-    try {
-        const res  = await fetch(`${PSGC}/regions/${code}/provinces`);
-        const data = await res.json();
-        if (data.length === 0) {
-            // NCR — no provinces, load cities directly
-            saPopulate('sa_province', [{ code: code, name: 'Metro Manila (NCR)' }], '— Select Province —');
-            await saLoadMunicipalities(code, 'Metro Manila (NCR)');
-        } else {
-            saPopulate('sa_province', data, '— Select Province —');
-        }
-    } catch (e) {
-        document.getElementById('sa_province').innerHTML =
-            '<option value="">⚠ Could not load provinces</option>';
-    }
-}
-
-// Province → Municipality
-async function saLoadMunicipalities(code, label) {
-    saReset('sa_municipality', '— Select Municipality / City —');
-    saReset('sa_barangay',     '— Select Municipality first —');
-    if (!code) return;
-
-    saSetLoading('sa_municipality', 'Loading cities…');
-    try {
-        const res  = await fetch(`${PSGC}/provinces/${code}/municipalities`);
-        const data = await res.json();
-        saPopulate('sa_municipality', data, '— Select Municipality / City —');
-    } catch (e) {
-        document.getElementById('sa_municipality').innerHTML =
-            '<option value="">⚠ Could not load municipalities</option>';
-    }
-}
-
-// Municipality → Barangay
-async function saLoadBarangays(code) {
-    saReset('sa_barangay', '— Select Barangay —');
-    if (!code) return;
-
-    saSetLoading('sa_barangay', 'Loading barangays…');
-    try {
-        const res  = await fetch(`${PSGC}/municipalities/${code}/barangays`);
-        const data = await res.json();
-        saPopulate('sa_barangay', data, '— Select Barangay —');
-    } catch (e) {
-        document.getElementById('sa_barangay').innerHTML =
-            '<option value="">⚠ Could not load barangays</option>';
-    }
-}
 </script>
 </x-layout>

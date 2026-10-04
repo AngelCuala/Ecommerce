@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\UserAddress;
+use App\Services\PsgcDirectory;
 use Illuminate\Http\Request;
 
 class AddressController extends Controller
@@ -20,7 +21,8 @@ class AddressController extends Controller
             'zip'          => 'nullable|string|max:20',
             'country'      => 'nullable|string|max:100',
             'is_default'   => 'boolean',
-        ]);
+        ] + PsgcDirectory::codeRules());
+        $data = $this->withOfficialLocation($request, $data);
 
         $user = auth()->user();
         $data['user_id'] = $user->id;
@@ -56,7 +58,8 @@ class AddressController extends Controller
             'zip'          => 'nullable|string|max:20',
             'country'      => 'nullable|string|max:100',
             'is_default'   => 'boolean',
-        ]);
+        ] + PsgcDirectory::codeRules());
+        $data = $this->withOfficialLocation($request, $data);
 
         $makeDefault = ! empty($data['is_default']);
 
@@ -71,6 +74,21 @@ class AddressController extends Controller
         $address->update($data);
 
         return back()->with('success', 'Address updated successfully.');
+    }
+
+    /**
+     * Province → city/municipality → barangay must be a real PSA location chain; the official
+     * names replace what was submitted. The hidden code inputs are only used for validation.
+     */
+    private function withOfficialLocation(Request $request, array $data): array
+    {
+        $addr = app(PsgcDirectory::class)->resolve($request->all(), false, $data['barangay'] ?? null, ['municipality' => 'city']);
+
+        $data['province'] = $addr['province_display'];
+        $data['city']     = $addr['municipality'];
+        $data['barangay'] = $addr['barangay'];
+
+        return array_diff_key($data, PsgcDirectory::codeRules());
     }
 
     public function destroy(UserAddress $address)

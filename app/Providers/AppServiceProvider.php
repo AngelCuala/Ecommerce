@@ -11,7 +11,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        // Local PSA PSGC dataset — load the JSON files once per request.
+        $this->app->singleton(\App\Services\PsgcDirectory::class, fn () => new \App\Services\PsgcDirectory());
     }
 
     /**

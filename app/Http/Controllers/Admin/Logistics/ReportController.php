@@ -32,7 +32,8 @@ class ReportController extends Controller
             ->paginate(20)
             ->withQueryString();
 
-        $view = request()->routeIs('admin.*') ? 'admin.reports.index' : 'logistics.reports.index';
+        // admin.reports.index is the marketplace sales report (different data) — use the parcel report view.
+        $view = request()->routeIs('admin.*') ? 'admin.parcels-reports.index' : 'logistics.reports.index';
         return view($view, compact('summary', 'deliveries', 'from', 'to'));
     }
 

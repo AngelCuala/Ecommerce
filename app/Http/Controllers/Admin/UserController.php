@@ -85,12 +85,24 @@ class UserController extends Controller
             return back()->with('error', 'Only sorting-center accounts can be assigned a municipality.');
         }
 
-        $data = $request->validate([
-            'province'          => 'required|string|max:120',
-            'province_code'     => 'nullable|string|max:40',
+        $request->validate([
+            'province'          => 'nullable|string|max:120',
             'municipality'      => 'required|string|max:120',
-            'municipality_code' => 'required|string|max:40',
-        ]);
+            'municipality_code' => 'required',
+        ] + \App\Services\PsgcDirectory::codeRules());
+
+        // Must be a real PSA city/municipality under the selected province, with a 9-digit
+        // Correspondence Code (that code is what delivery routing compares).
+        $addr = app(\App\Services\PsgcDirectory::class)->resolve($request->all(), false);
+        if (! $addr['municipality_code']) {
+            return back()->with('error', "{$addr['municipality']} has no PSA correspondence code yet, so it cannot be assigned.");
+        }
+        $data = [
+            'province'          => $addr['province_display'],
+            'province_code'     => $addr['province_code'],
+            'municipality'      => $addr['municipality'],
+            'municipality_code' => $addr['municipality_code'],
+        ];
 
         // If the municipality changed, detach delivery areas/riders tied to the old one
         $changed = $user->assigned_municipality_code !== $data['municipality_code'];

@@ -6,6 +6,7 @@ use App\Models\Book;
 use App\Models\CartItem;
 use App\Models\Order;
 use App\Models\OrderItem;
+use App\Services\PsgcDirectory;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Session;
 
@@ -54,17 +55,18 @@ class CheckoutController extends Controller
             'phone'          => 'required|string|max:30',
             'email'          => 'required|email|max:255',
             'region'         => 'required|string|max:120',
-            'province'       => 'required|string|max:120',
+            'province'       => 'nullable|string|max:120', // not applicable for NCR / highly urbanized cities
             'city'           => 'required|string|max:120',
             'barangay'       => 'required|string|max:120',
             'house_number'   => 'nullable|string|max:100',
             'street'         => 'nullable|string|max:255',
             'zip_code'       => 'required|string|max:20',
             'payment_method' => 'required|in:cod',
-            // Official PSGC codes from the address dropdowns (hidden inputs) — used for delivery routing.
-            'province_code'     => ['nullable', 'regex:/^\d{9,10}$/'],
-            'municipality_code' => ['nullable', 'regex:/^\d{9,10}$/'],
-        ]);
+        ] + PsgcDirectory::codeRules()); // hidden PSGC codes from the address dropdowns
+
+        // The region → province → city/municipality → barangay chain must exist in the PSA
+        // dataset; official names and the 9-digit codes (used for routing) come from it.
+        $addr = app(PsgcDirectory::class)->resolve($request->all(), true, $request->barangay, ['municipality' => 'city']);
 
         $items = $this->cartItems();
         if ($items->isEmpty()) {
@@ -79,10 +81,10 @@ class CheckoutController extends Controller
         $addressLine = trim(implode(', ', array_filter([
             $request->house_number,
             $request->street,
-            $request->barangay,
-            $request->city,
-            $request->province,
-            $request->region,
+            $addr['barangay'],
+            $addr['municipality'],
+            $addr['province'],
+            $addr['region'],
         ])));
 
         $order = Order::create([
@@ -91,10 +93,11 @@ class CheckoutController extends Controller
             'phone'            => $request->phone,
             'email'            => $request->email,
             'address_line'     => $addressLine,
-            'city'             => $request->city,
-            'province'         => $request->province,
-            'municipality_code'=> $request->municipality_code ?: null,
-            'province_code'    => $request->province_code ?: null,
+            'city'             => $addr['municipality'],
+            'province'         => $addr['province_display'],
+            // 9-digit Correspondence Codes from the PSA dataset (null if PSA publishes none)
+            'municipality_code'=> $addr['municipality_code'],
+            'province_code'    => $addr['province_code'],
             'zip_code'         => $request->zip_code,
             'shipping_address' => $addressLine . ' ' . $request->zip_code,
             'subtotal'         => $subtotal,

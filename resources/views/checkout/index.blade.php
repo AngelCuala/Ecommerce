@@ -62,8 +62,7 @@
                     {{-- Region --}}
                     <div class="sm:col-span-2">
                         <label class="text-xs font-semibold" style="color:#999999;">Region *</label>
-                        <select id="sel-region" name="region" class="input mt-1" required
-                                onchange="loadProvinces(this.value, this.options[this.selectedIndex].text)">
+                        <select id="sel-region" name="region" class="input mt-1" required>
                             <option value="">— Select Region —</option>
                         </select>
                         <p id="loading-region" class="mt-1 text-[11px] hidden" style="color:#fa4e1c;">Loading regions…</p>
@@ -72,8 +71,7 @@
                     {{-- Province --}}
                     <div>
                         <label class="text-xs font-semibold" style="color:#999999;">Province *</label>
-                        <select id="sel-province" name="province" class="input mt-1" required disabled
-                                onchange="loadMunicipalities(this.value, this.options[this.selectedIndex].text)">
+                        <select id="sel-province" name="province" class="input mt-1" required disabled>
                             <option value="">— Select Province —</option>
                         </select>
                     </div>
@@ -81,13 +79,17 @@
                     {{-- City / Municipality --}}
                     <div>
                         <label class="text-xs font-semibold" style="color:#999999;">City / Municipality *</label>
-                        <select id="sel-city" name="city" class="input mt-1" required disabled
-                                onchange="loadBarangays(this.value, this.options[this.selectedIndex].text)">
+                        <select id="sel-city" name="city" class="input mt-1" required disabled>
                             <option value="">— Select City / Municipality —</option>
                         </select>
-                        {{-- PSGC codes of the selected province/city (used for delivery routing) --}}
+                        {{-- 9-digit PSGC Correspondence Codes (stored; used for delivery routing) + 10-digit PSGC codes --}}
                         <input type="hidden" name="province_code" id="province-code">
                         <input type="hidden" name="municipality_code" id="municipality-code">
+                        <input type="hidden" name="barangay_code">
+                        <input type="hidden" name="region_psgc">
+                        <input type="hidden" name="province_psgc">
+                        <input type="hidden" name="municipality_psgc">
+                        <input type="hidden" name="barangay_psgc">
                     </div>
 
                     {{-- Barangay --}}
@@ -204,133 +206,20 @@
     </form>
 </div>
 
+<script src="{{ asset('js/psgc-address.js') }}"></script>
 <script>
-const BASE = '/api/psgc';
-
-function setLoading(selectEl, msg) {
-    selectEl.innerHTML = `<option value="">${msg}</option>`;
-    selectEl.disabled = true;
-}
-
-function populate(selectEl, items, placeholder) {
-    selectEl.innerHTML = `<option value="">${placeholder}</option>`;
-    items.forEach(item => {
-        const opt = document.createElement('option');
-        opt.value = item.name;
-        opt.dataset.code = item.code;
-        opt.textContent = item.name;
-        selectEl.appendChild(opt);
-    });
-function resetSelect(selectEl, placeholder) {
-    selectEl.innerHTML = `<option value="">${placeholder}</option>`;
-    selectEl.disabled = true;
-    syncPsgcCodes();
-}
-
-// Copy the selected options' PSGC codes into the hidden inputs.
-function syncPsgcCodes() {
-    const pick = id => {
-        const s = document.getElementById(id);
-        const o = s && s.options[s.selectedIndex];
-        return (o && o.value && o.dataset.code) ? o.dataset.code : '';
-    };
-    const p = document.getElementById('province-code');
-    const m = document.getElementById('municipality-code');
-    if (p) p.value = pick('sel-province');
-    if (m) m.value = pick('sel-city');
-}
-document.addEventListener('change', e => {
-    if (e.target && (e.target.id === 'sel-province' || e.target.id === 'sel-city')) syncPsgcCodes();
+// Delivery address dropdowns — local PSA PSGC data (see public/js/psgc-address.js).
+PsgcAddress.attach({
+    region:   '#sel-region',
+    province: '#sel-province',
+    city:     '#sel-city',
+    barangay: '#sel-barangay',
+    old: {
+        region:       @json(old('region')),
+        province:     @json(old('province')),
+        municipality: @json(old('municipality_code') ?: old('city')),
+        barangay:     @json(old('barangay')),
+    },
 });
-document.addEventListener('submit', syncPsgcCodes, true);unction resetSelect(selectEl, placeholder) {
-    selectEl.innerHTML = `<option value="">${placeholder}</option>`;
-    selectEl.disabled = true;
-}
-
-// ── Load regions on page load ──────────────────────────────────────
-window.addEventListener('DOMContentLoaded', function () {
-    const sel = document.getElementById('sel-region');
-    setLoading(sel, 'Loading regions…');
-    fetch(BASE + '/regions')
-        .then(r => r.json())
-        .then(data => populate(sel, data, '— Select Region —'))
-        .catch(() => {
-            sel.innerHTML = '<option value="">Failed to load — try refreshing</option>';
-        });
-});
-
-// ── Region → Province ──────────────────────────────────────────────
-function loadProvinces(regionCode, regionName) {
-    resetSelect(document.getElementById('sel-province'), '— Select Province —');
-    resetSelect(document.getElementById('sel-city'),    '— Select City / Municipality —');
-    resetSelect(document.getElementById('sel-barangay'), '— Select Barangay —');
-    if (!regionCode) return;
-
-    // Get the PSGC code from the selected option's data-code attribute
-    const sel = document.getElementById('sel-region');
-    const selected = sel.options[sel.selectedIndex];
-    const code = selected.dataset.code;
-
-    const provSel = document.getElementById('sel-province');
-    setLoading(provSel, 'Loading provinces…');
-
-    fetch(BASE + '/regions/' + code + '/provinces')
-        .then(r => r.json())
-        .then(data => {
-            if (data.length === 0) {
-                // NCR has no provinces — load municipalities directly
-                loadMunicipalitiesForRegion(code);
-            } else {
-                populate(provSel, data, '— Select Province —');
-            }
-        })
-        .catch(() => provSel.innerHTML = '<option value="">Failed to load</option>');
-}
-
-function loadMunicipalitiesForRegion(regionCode) {
-    // For NCR: skip province, load cities directly from region
-    const provSel = document.getElementById('sel-province');
-    provSel.innerHTML = '<option value="NCR">Metro Manila (NCR)</option>';
-    provSel.disabled = false;
-    // trigger municipality load with NCR code
-    loadMunicipalities(regionCode, 'Metro Manila');
-}
-
-// ── Province → City/Municipality ──────────────────────────────────
-function loadMunicipalities(provinceCode, provinceName) {
-    resetSelect(document.getElementById('sel-city'),     '— Select City / Municipality —');
-    resetSelect(document.getElementById('sel-barangay'), '— Select Barangay —');
-    if (!provinceCode) return;
-
-    const sel = document.getElementById('sel-province');
-    const selected = sel.options[sel.selectedIndex];
-    const code = selected.dataset.code || provinceCode;
-
-    const citySel = document.getElementById('sel-city');
-    setLoading(citySel, 'Loading cities…');
-
-    fetch(BASE + '/provinces/' + code + '/municipalities')
-        .then(r => r.json())
-        .then(data => populate(citySel, data, '— Select City / Municipality —'))
-        .catch(() => citySel.innerHTML = '<option value="">Failed to load</option>');
-}
-
-// ── City/Municipality → Barangay ───────────────────────────────────
-function loadBarangays(cityCode, cityName) {
-    resetSelect(document.getElementById('sel-barangay'), '— Select Barangay —');
-    if (!cityCode) return;
-
-    const sel = document.getElementById('sel-city');
-    const selected = sel.options[sel.selectedIndex];
-    const code = selected.dataset.code || cityCode;
-
-    const brgySel = document.getElementById('sel-barangay');
-    setLoading(brgySel, 'Loading barangays…');
-
-    fetch(BASE + '/municipalities/' + code + '/barangays')
-        .then(r => r.json())
-        .then(data => populate(brgySel, data, '— Select Barangay —'))
-        .catch(() => brgySel.innerHTML = '<option value="">Failed to load</option>');
-}
 </script>
 </x-layout>

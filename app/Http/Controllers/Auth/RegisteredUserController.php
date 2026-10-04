@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Services\PsgcDirectory;
 use Carbon\Carbon;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\Request;
@@ -32,7 +33,7 @@ class RegisteredUserController extends Controller
 
             'birthday'       => 'required|date|before:today',
 
-            'province'       => 'required|string|max:255',
+            'province'       => 'nullable|string|max:255', // not applicable for NCR / highly urbanized cities
             'municipality'   => 'required|string|max:255',
             'barangay'       => 'required|string|max:255',
             'street'         => 'required|string|max:255',
@@ -42,7 +43,10 @@ class RegisteredUserController extends Controller
             'valid_id'       => 'required|file|mimes:jpg,jpeg,png,pdf|max:5120', // 5MB
 
             'terms'          => 'accepted',
-        ]);
+        ] + PsgcDirectory::codeRules());
+
+        // Address must be a real PSA location chain; store the official names.
+        $addr = app(PsgcDirectory::class)->resolve($request->all(), true, $validated['barangay']);
 
         // Server-side age calculation — never trust the client's JS value.
         $age = Carbon::parse($validated['birthday'])->age;
@@ -64,9 +68,9 @@ class RegisteredUserController extends Controller
             'birthday'        => $validated['birthday'],
             'age'             => $age,
 
-            'province'        => $validated['province'],
-            'municipality'    => $validated['municipality'],
-            'barangay'        => $validated['barangay'],
+            'province'        => $addr['province_display'],
+            'municipality'    => $addr['municipality'],
+            'barangay'        => $addr['barangay'],
             'street'          => $validated['street'],
             'house_number'    => $validated['house_number'],
 

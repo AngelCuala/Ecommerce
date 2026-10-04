@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Courier;
 use App\Http\Controllers\Controller;
 use App\Models\Courier;
 use App\Models\UserNotification;
+use App\Services\PsgcDirectory;
 use Illuminate\Http\Request;
 
 class RegistrationController extends Controller
@@ -50,6 +51,13 @@ class RegistrationController extends Controller
             'or_cr.required'     => 'The OR/CR document is required.',
             'id_upload.required' => "A valid ID or driver's license is required.",
         ]);
+
+        $request->validate(PsgcDirectory::codeRules()); // hidden PSGC codes from the dropdowns
+        // Address must be a real PSA location chain; store the official names.
+        $addr = app(PsgcDirectory::class)->resolve($request->all(), true, $data['barangay']);
+        $data['province']     = $addr['province_display'];
+        $data['municipality'] = $addr['municipality'];
+        $data['barangay']     = $addr['barangay'];
 
         // Fold the extra "building/other" detail into the stored street value.
         $street = trim(implode(' ', array_filter([$data['street'] ?? null, $data['address_details'] ?? null])));

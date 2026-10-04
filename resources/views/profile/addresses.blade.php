@@ -172,30 +172,33 @@
             </div>
 
             <div>
-                <label class="block text-xs font-semibold mb-1" style="color:#6b90aa;">Barangay</label>
-                <input type="text" name="barangay"
-                       class="w-full rounded-xl border px-4 py-2.5 text-sm outline-none"
-                       style="border-color:#cfdce8;color:#002b4d;"
-                       onfocus="this.style.borderColor='#fa4e1c';" onblur="this.style.borderColor='#cfdce8';"
-                       placeholder="Barangay">
+                <label class="block text-xs font-semibold mb-1" style="color:#6b90aa;">Province</label>
+                <select name="province" id="add_province"
+                        class="w-full rounded-xl border px-4 py-2.5 text-sm outline-none"
+                        style="border-color:#cfdce8;color:#002b4d;"
+                        onfocus="this.style.borderColor='#fa4e1c';" onblur="this.style.borderColor='#cfdce8';">
+                    <option value="">— Select Province —</option>
+                </select>
             </div>
 
             <div>
                 <label class="block text-xs font-semibold mb-1" style="color:#6b90aa;">City / Municipality</label>
-                <input type="text" name="city"
-                       class="w-full rounded-xl border px-4 py-2.5 text-sm outline-none"
-                       style="border-color:#cfdce8;color:#002b4d;"
-                       onfocus="this.style.borderColor='#fa4e1c';" onblur="this.style.borderColor='#cfdce8';"
-                       required placeholder="Quezon City">
+                <select name="city" id="add_city"
+                        class="w-full rounded-xl border px-4 py-2.5 text-sm outline-none"
+                        style="border-color:#cfdce8;color:#002b4d;"
+                        onfocus="this.style.borderColor='#fa4e1c';" onblur="this.style.borderColor='#cfdce8';" required>
+                    <option value="">— Select City / Municipality —</option>
+                </select>
             </div>
 
             <div>
-                <label class="block text-xs font-semibold mb-1" style="color:#6b90aa;">Province</label>
-                <input type="text" name="province"
-                       class="w-full rounded-xl border px-4 py-2.5 text-sm outline-none"
-                       style="border-color:#cfdce8;color:#002b4d;"
-                       onfocus="this.style.borderColor='#fa4e1c';" onblur="this.style.borderColor='#cfdce8';"
-                       placeholder="Metro Manila">
+                <label class="block text-xs font-semibold mb-1" style="color:#6b90aa;">Barangay</label>
+                <select name="barangay" id="add_barangay"
+                        class="w-full rounded-xl border px-4 py-2.5 text-sm outline-none"
+                        style="border-color:#cfdce8;color:#002b4d;"
+                        onfocus="this.style.borderColor='#fa4e1c';" onblur="this.style.borderColor='#cfdce8';">
+                    <option value="">— Select Barangay —</option>
+                </select>
             </div>
 
             <div>
@@ -286,27 +289,33 @@
             </div>
 
             <div>
-                <label class="block text-xs font-semibold mb-1" style="color:#6b90aa;">Barangay</label>
-                <input type="text" name="barangay" id="edit_barangay"
-                       class="w-full rounded-xl border px-4 py-2.5 text-sm outline-none"
-                       style="border-color:#cfdce8;color:#002b4d;"
-                       onfocus="this.style.borderColor='#fa4e1c';" onblur="this.style.borderColor='#cfdce8';">
+                <label class="block text-xs font-semibold mb-1" style="color:#6b90aa;">Province</label>
+                <select name="province" id="edit_province"
+                        class="w-full rounded-xl border px-4 py-2.5 text-sm outline-none"
+                        style="border-color:#cfdce8;color:#002b4d;"
+                        onfocus="this.style.borderColor='#fa4e1c';" onblur="this.style.borderColor='#cfdce8';">
+                    <option value="">— Select Province —</option>
+                </select>
             </div>
 
             <div>
                 <label class="block text-xs font-semibold mb-1" style="color:#6b90aa;">City / Municipality</label>
-                <input type="text" name="city" id="edit_city"
-                       class="w-full rounded-xl border px-4 py-2.5 text-sm outline-none"
-                       style="border-color:#cfdce8;color:#002b4d;"
-                       onfocus="this.style.borderColor='#fa4e1c';" onblur="this.style.borderColor='#cfdce8';" required>
+                <select name="city" id="edit_city"
+                        class="w-full rounded-xl border px-4 py-2.5 text-sm outline-none"
+                        style="border-color:#cfdce8;color:#002b4d;"
+                        onfocus="this.style.borderColor='#fa4e1c';" onblur="this.style.borderColor='#cfdce8';" required>
+                    <option value="">— Select City / Municipality —</option>
+                </select>
             </div>
 
             <div>
-                <label class="block text-xs font-semibold mb-1" style="color:#6b90aa;">Province</label>
-                <input type="text" name="province" id="edit_province"
-                       class="w-full rounded-xl border px-4 py-2.5 text-sm outline-none"
-                       style="border-color:#cfdce8;color:#002b4d;"
-                       onfocus="this.style.borderColor='#fa4e1c';" onblur="this.style.borderColor='#cfdce8';">
+                <label class="block text-xs font-semibold mb-1" style="color:#6b90aa;">Barangay</label>
+                <select name="barangay" id="edit_barangay"
+                        class="w-full rounded-xl border px-4 py-2.5 text-sm outline-none"
+                        style="border-color:#cfdce8;color:#002b4d;"
+                        onfocus="this.style.borderColor='#fa4e1c';" onblur="this.style.borderColor='#cfdce8';">
+                    <option value="">— Select Barangay —</option>
+                </select>
             </div>
 
             <div>
@@ -341,7 +350,15 @@
     </div>
 </div>
 
-{{-- Address modal behaviour --}}
+{{-- Address modal behaviour + Philippine address dropdowns (local PSA PSGC data) --}}
+<script src="{{ asset('js/psgc-address.js') }}"></script>
+<script>
+    window.addAddressPsgc = PsgcAddress.attach({
+        province: '#add_province', city: '#add_city', barangay: '#add_barangay',
+        old: @json(old('address_line') && ! old('_edit') ? ['province' => old('province'), 'municipality' => old('city'), 'barangay' => old('barangay')] : []),
+    });
+    window.editAddressPsgc = PsgcAddress.attach({ province: '#edit_province', city: '#edit_city', barangay: '#edit_barangay' });
+</script>
 <script src="{{ asset('js/profile-addresses.js') }}"></script>
 @if ($errors->any() && old('address_line'))
     <script>

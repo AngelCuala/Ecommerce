@@ -142,7 +142,7 @@
                             <label class="block text-xs font-semibold mb-1" style="color:#6B7280;">Province *</label>
                             <select id="sc_province" name="province"
                                     class="w-full rounded-xl border px-4 py-2.5 text-sm outline-none" style="border-color:#cfdce8;"
-                                    onchange="scLoadMunicipalities(this.options[this.selectedIndex].dataset.code)" required disabled>
+                                    required disabled>
                                 <option value="">Loading provinces…</option>
                             </select>
                         </div>
@@ -151,7 +151,7 @@
                             <label class="block text-xs font-semibold mb-1" style="color:#6B7280;">Municipality / City *</label>
                             <select id="sc_municipality" name="municipality"
                                     class="w-full rounded-xl border px-4 py-2.5 text-sm outline-none" style="border-color:#cfdce8;"
-                                    onchange="scLoadBarangays(this.options[this.selectedIndex].dataset.code)" required disabled>
+                                    required disabled>
                                 <option value="">— Select Province first —</option>
                             </select>
                         </div>
@@ -292,5 +292,6 @@
         barangay:     @json(old('barangay')),
     };
 </script>
+<script src="{{ asset('js/psgc-address.js') }}"></script>
 <script src="{{ asset('js/courier-register.js') }}"></script>
 </x-layout>

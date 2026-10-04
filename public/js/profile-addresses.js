@@ -13,9 +13,10 @@ function openEditModal(id, addr) {
     document.getElementById('edit_full_name').value    = addr.full_name    || '';
     document.getElementById('edit_phone').value        = addr.phone        || '';
     document.getElementById('edit_address_line').value = addr.address_line || '';
-    document.getElementById('edit_barangay').value     = addr.barangay     || '';
-    document.getElementById('edit_city').value         = addr.city         || '';
-    document.getElementById('edit_province').value     = addr.province     || '';
+    // Province / city / barangay dropdowns (psgc-address.js) — preselect the saved names.
+    if (window.editAddressPsgc) {
+        window.editAddressPsgc.reload({ province: addr.province || '', municipality: addr.city || '', barangay: addr.barangay || '' });
+    }
     document.getElementById('edit_zip').value          = addr.zip          || '';
     document.getElementById('edit_country').value      = addr.country      || 'Philippines';
     document.getElementById('edit_is_default').checked = addr.is_default   == 1;

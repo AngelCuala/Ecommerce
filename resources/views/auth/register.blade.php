@@ -122,8 +122,7 @@
                     {{-- Region --}}
                     <div class="sm:col-span-2">
                         <label class="text-xs font-semibold" style="color:#6b90aa;">Region *</label>
-                        <select id="region_select" name="region" class="input mt-1" required style="border-color:#FFDCC2;"
-                                onchange="loadProvincesByRegion(this.value, this.options[this.selectedIndex].text)">
+                        <select id="region_select" name="region" class="input mt-1" required style="border-color:#FFDCC2;">
                             <option value="">— Select Region —</option>
                         </select>
                         <p id="loading-region" class="mt-1 text-[11px] hidden" style="color:#fa4e1c;">Loading regions…</p>
@@ -133,7 +132,7 @@
                     <div>
                         <label class="text-xs font-semibold" style="color:#6b90aa;">Province *</label>
                         <select id="province_select" name="province" class="input mt-1" required style="border-color:#FFDCC2;"
-                                disabled onchange="loadMunicipalities(this.value, this.options[this.selectedIndex].text)">
+                                disabled>
                             <option value="">— Select Province —</option>
                         </select>
                         <input type="hidden" name="province_code" id="province_code">
@@ -143,8 +142,7 @@
                     <div>
                         <label class="text-xs font-semibold" style="color:#6b90aa;">Municipality / City *</label>
                         <select id="municipality_select" name="municipality" class="input mt-1" required
-                                style="border-color:#FFDCC2;" disabled
-                                onchange="loadBarangays(this.value, this.options[this.selectedIndex].text)">
+                                style="border-color:#FFDCC2;" disabled>
                             <option value="">— Select Province first —</option>
                         </select>
                         <input type="hidden" name="municipality_code" id="municipality_code">
@@ -209,6 +207,15 @@
     </div>{{-- /split card --}}
 </div>{{-- /page wrapper --}}
 
+<script>
+    window.REGISTER_OLD = {
+        region:       @json(old('region')),
+        province:     @json(old('province_code') ?: old('province')),
+        municipality: @json(old('municipality_code') ?: old('municipality')),
+        barangay:     @json(old('barangay')),
+    };
+</script>
+<script src="{{ asset('js/psgc-address.js') }}"></script>
 <script src="{{ asset('js/register.js') }}"></script>
 
 @include('partials.password-toggle')

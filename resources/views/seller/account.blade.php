@@ -274,17 +274,19 @@
                     style="background:#002b4d;">
                 Save Changes
             </button>
-            <form action="{{ route('logout') }}" method="POST">
-                @csrf
-                <button type="submit"
-                        class="rounded-xl border px-6 py-3 text-sm font-semibold transition"
-                        style="border-color:#EF4444;color:#EF4444;"
-                        onmouseover="this.style.background='#FEF2F2';"
-                        onmouseout="this.style.background='';">
-                    Logout
-                </button>
-            </form>
+            {{-- Submits the separate logout form below (forms can't be nested inside the profile form). --}}
+            <button type="submit" form="seller-logout-form"
+                    class="rounded-xl border px-6 py-3 text-sm font-semibold transition"
+                    style="border-color:#EF4444;color:#EF4444;"
+                    onmouseover="this.style.background='#FEF2F2';"
+                    onmouseout="this.style.background='';">
+                Logout
+            </button>
         </div>
+    </form>
+
+    <form id="seller-logout-form" action="{{ route('logout') }}" method="POST" class="hidden">
+        @csrf
     </form>
 </div>
 

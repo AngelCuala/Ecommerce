@@ -158,19 +158,17 @@
                     @csrf @method('PATCH')
 
                     <label class="block text-[11px] font-bold uppercase tracking-wide mb-1" style="color:#6b90aa;">Province</label>
-                    <select id="sc_province" class="input w-full mb-3 py-2 text-sm" style="border-color:#dce8f0;">
+                    <select id="sc_province" name="province" class="input w-full mb-3 py-2 text-sm" style="border-color:#dce8f0;">
                         <option value="">Loading…</option>
                     </select>
 
                     <label class="block text-[11px] font-bold uppercase tracking-wide mb-1" style="color:#6b90aa;">Municipality / City</label>
-                    <select id="sc_municipality" class="input w-full mb-4 py-2 text-sm" style="border-color:#dce8f0;">
+                    <select id="sc_municipality" name="municipality" class="input w-full mb-4 py-2 text-sm" style="border-color:#dce8f0;">
                         <option value="">Select province first</option>
                     </select>
 
-                    {{-- Submitted values (names + PSGC codes) --}}
-                    <input type="hidden" name="province"          id="sc_province_name">
+                    {{-- 9-digit PSGC Correspondence Codes (filled by psgc-address.js) --}}
                     <input type="hidden" name="province_code"     id="sc_province_code">
-                    <input type="hidden" name="municipality"      id="sc_municipality_name">
                     <input type="hidden" name="municipality_code" id="sc_municipality_code">
 
                     <button type="submit" class="btn-gold w-full !py-2 text-sm"
@@ -180,79 +178,28 @@
                 </form>
             </div>
 
+            <script src="{{ asset('js/psgc-address.js') }}"></script>
             <script>
             (function () {
-                const PSGC = '/api/psgc';
-                const provSel = document.getElementById('sc_province');
-                const munSel  = document.getElementById('sc_municipality');
-                const provName = document.getElementById('sc_province_name');
-                const provCode = document.getElementById('sc_province_code');
-                const munName  = document.getElementById('sc_municipality_name');
-                const munCode  = document.getElementById('sc_municipality_code');
-
-                const current = {
-                    province: @json($user->assigned_province),
-                    provinceCode: @json($user->assigned_province_code),
-                    municipality: @json($user->assigned_municipality),
-                    municipalityCode: @json($user->assigned_municipality_code),
-                };
-
-                function opt(v, label, code) {
-                    const o = document.createElement('option');
-                    o.value = v; o.textContent = label; if (code) o.dataset.code = code;
-                    return o;
-                }
-
-                async function loadProvinces() {
-                    provSel.innerHTML = '';
-                    provSel.appendChild(opt('', 'Select province…'));
-                    try {
-                        const res = await fetch(`${PSGC}/provinces`);
-                        const list = await res.json();
-                        list.forEach(p => provSel.appendChild(opt(p.name, p.name, p.code)));
-                    } catch (e) { provSel.appendChild(opt('', 'Failed to load')); }
-                    if (current.province) {
-                        provSel.value = current.province;
-                        await loadMunicipalities(current.municipality);
-                    }
-                }
-
-                async function loadMunicipalities(preselect) {
-                    munSel.innerHTML = '';
-                    const sel = provSel.options[provSel.selectedIndex];
-                    const code = sel ? sel.dataset.code : '';
-                    provName.value = provSel.value;
-                    provCode.value = code || '';
-                    if (!code) { munSel.appendChild(opt('', 'Select province first')); return; }
-                    munSel.appendChild(opt('', 'Loading…'));
-                    try {
-                        const res = await fetch(`${PSGC}/provinces/${code}/municipalities`);
-                        const list = await res.json();
-                        munSel.innerHTML = '';
-                        munSel.appendChild(opt('', 'Select municipality…'));
-                        list.forEach(m => munSel.appendChild(opt(m.name, m.name, m.code)));
-                        if (preselect) munSel.value = preselect;
-                        syncMunicipality();
-                    } catch (e) { munSel.innerHTML = ''; munSel.appendChild(opt('', 'Failed to load')); }
-                }
-
-                function syncMunicipality() {
-                    const sel = munSel.options[munSel.selectedIndex];
-                    munName.value = munSel.value;
-                    munCode.value = sel ? (sel.dataset.code || '') : '';
-                }
-
-                provSel.addEventListener('change', () => loadMunicipalities());
-                munSel.addEventListener('change', syncMunicipality);
-
-                document.getElementById('sc-assign-form').addEventListener('submit', function (e) {
-                    if (!munName.value || !munCode.value) {
-                        e.preventDefault();
-                        alert('Please select a municipality.');
-                    }
+                // Province → Municipality/City from the local PSA PSGC data. The province list is
+                // nationwide and includes NCR and the highly urbanized cities (not under a province).
+                PsgcAddress.attach({
+                    province: '#sc_province',
+                    city:     '#sc_municipality',
+                    placeholders: { province: 'Select province…', city: 'Select province first' },
+                    old: {
+                        province:     @json($user->assigned_province_code ?: $user->assigned_province),
+                        municipality: @json($user->assigned_municipality_code ?: $user->assigned_municipality),
+                    },
                 });
 
-                loadProvinces();
+                document.getElementById('sc-assign-form').addEventListener('submit', function (e) {
+                    var code = this.querySelector('input[name="municipality_code"]');
+                    if (!document.getElementById('sc_municipality').value || !code || !code.value) {
+                        e.preventDefault();
+                        alert('Please select a municipality that has a PSA correspondence code.');
+                    }
+                });
             })();
             </script>
         @endif
