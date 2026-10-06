@@ -8,6 +8,8 @@ class DatabaseSeeder extends Seeder
 {
     public function run(): void
     {
-        // No database seeding needed — front-end design only.
+        $this->call([
+            LogisticsSeeder::class,
+        ]);
     }
 }

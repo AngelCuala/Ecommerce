@@ -94,6 +94,14 @@ class AuthenticatedSessionController extends Controller
         // ALVY admins → ALVY admin panel
         if ($user->isAdmin()) {
             \App\Models\ActivityLog::record('admin_login', 'Admin signed in', $user->name . ' signed in.');
+            
+            // Check if this admin should go to logistics dashboard
+            // You can modify this logic based on your user model or add a logistics role field
+            if ($request->input('logistics') || $user->hasLogisticsRole()) {
+                return redirect()->route('logistics.dashboard')
+                    ->with('success', 'Welcome to Logistics Dashboard, ' . $user->name . '!');
+            }
+            
             return redirect()->route('admin.dashboard')
                 ->with('success', 'Welcome back, ' . $user->name . '!');
         }

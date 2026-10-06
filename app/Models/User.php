@@ -71,6 +71,12 @@ class User extends Authenticatable
     public function isActive(): bool      { return ! in_array($this->role, ['suspended', 'deactivated']); }
     public function isSortingCenter(): bool { return $this->role === 'sorting_center'; }
 
+    /** Check if user has logistics management privileges */
+    public function hasLogisticsRole(): bool { 
+        return $this->isAdmin(); // For now, all admins can access logistics
+        // You can extend this to check for a specific logistics_role field if needed
+    }
+
     /** Approved courier (has portal access) */
     public function isCourier(): bool        { return $this->role === 'courier'; }
     /** Courier whose application is still awaiting review */

@@ -112,6 +112,11 @@ Route::get('/sorting-center',        [\App\Http\Controllers\SortingCenter\LoginC
 
 // ── Public ───────────────────────────────────────────────────
 Route::get('/', [HomeController::class, 'index'])->name('home');
+
+// ── Logistics Login ──────────────────────────────────────────
+Route::get('/logistics/login',  [\App\Http\Controllers\Admin\Logistics\LoginController::class, 'create'])->name('logistics.login')->middleware('guest');
+Route::post('/logistics/login', [\App\Http\Controllers\Admin\Logistics\LoginController::class, 'store'])->name('logistics.login.store')->middleware('guest');
+
 Route::get('/categories', [\App\Http\Controllers\CategoryPageController::class, 'index'])->name('categories.page');
 Route::get('/categories/{slug}', [\App\Http\Controllers\CategoryPageController::class, 'show'])->name('categories.show');
 Route::get('/categories/{slug}', [\App\Http\Controllers\CategoryPageController::class, 'show'])->name('categories.show');
@@ -345,34 +350,42 @@ Route::middleware(['auth', 'role:admin'])
     Route::patch('/couriers/{courier}/suspend', [AdminCourierController::class, 'suspend'])->name('couriers.suspend');
 
     // ── Logistics panel routes (under admin.* prefix) ─────────
-    Route::get('/logistics-dashboard',               [\App\Http\Controllers\Admin\Logistics\DashboardController::class, 'index'])->name('logistics-dashboard');
-    Route::get('/riders',                            [\App\Http\Controllers\Admin\Logistics\RiderController::class, 'index'])->name('riders.index');
-    Route::get('/riders/{rider}',                    [\App\Http\Controllers\Admin\Logistics\RiderController::class, 'show'])->name('riders.show');
-    Route::post('/riders/{rider}/approve',           [\App\Http\Controllers\Admin\Logistics\RiderController::class, 'approve'])->name('riders.approve');
-    Route::post('/riders/{rider}/disapprove',        [\App\Http\Controllers\Admin\Logistics\RiderController::class, 'disapprove'])->name('riders.disapprove');
-    Route::post('/riders/{rider}/toggle-active',     [\App\Http\Controllers\Admin\Logistics\RiderController::class, 'toggleActive'])->name('riders.toggle-active');
+    Route::prefix('logistics')->name('logistics.')->group(function () {
+        Route::get('/',                                  [\App\Http\Controllers\Admin\Logistics\DashboardController::class, 'index'])->name('dashboard');
+        
+        Route::get('/riders',                            [\App\Http\Controllers\Admin\Logistics\RiderController::class, 'index'])->name('riders.index');
+        Route::get('/riders/{rider}',                    [\App\Http\Controllers\Admin\Logistics\RiderController::class, 'show'])->name('riders.show');
+        Route::post('/riders/{rider}/approve',           [\App\Http\Controllers\Admin\Logistics\RiderController::class, 'approve'])->name('riders.approve');
+        Route::post('/riders/{rider}/disapprove',        [\App\Http\Controllers\Admin\Logistics\RiderController::class, 'disapprove'])->name('riders.disapprove');
+        Route::post('/riders/{rider}/toggle-active',     [\App\Http\Controllers\Admin\Logistics\RiderController::class, 'toggleActive'])->name('riders.toggle-active');
 
-    Route::get('/pickup-requests',                   [\App\Http\Controllers\Admin\Logistics\PickupRequestController::class, 'index'])->name('pickup-requests.index');
-    Route::post('/pickup-requests/{parcel}/approve', [\App\Http\Controllers\Admin\Logistics\PickupRequestController::class, 'approve'])->name('pickup-requests.approve');
-    Route::post('/pickup-requests/{parcel}/reject',  [\App\Http\Controllers\Admin\Logistics\PickupRequestController::class, 'reject'])->name('pickup-requests.reject');
+        Route::get('/pickup-requests',                   [\App\Http\Controllers\Admin\Logistics\PickupRequestController::class, 'index'])->name('pickup-requests.index');
+        Route::post('/pickup-requests/{parcel}/approve', [\App\Http\Controllers\Admin\Logistics\PickupRequestController::class, 'approve'])->name('pickup-requests.approve');
+        Route::post('/pickup-requests/{parcel}/reject',  [\App\Http\Controllers\Admin\Logistics\PickupRequestController::class, 'reject'])->name('pickup-requests.reject');
 
-    Route::get('/parcels',                           [\App\Http\Controllers\Admin\Logistics\ParcelController::class, 'index'])->name('parcels.index');
-    Route::get('/parcels/{parcel}',                  [\App\Http\Controllers\Admin\Logistics\ParcelController::class, 'show'])->name('parcels.show');
-    Route::post('/parcels/{parcel}/mark-picked-up',  [\App\Http\Controllers\Admin\Logistics\ParcelController::class, 'markPickedUp'])->name('parcels.mark-picked-up');
-    Route::post('/parcels/{parcel}/sort',            [\App\Http\Controllers\Admin\Logistics\ParcelController::class, 'sort'])->name('parcels.sort');
+        Route::get('/parcels',                           [\App\Http\Controllers\Admin\Logistics\ParcelController::class, 'index'])->name('parcels.index');
+        Route::get('/parcels/{parcel}',                  [\App\Http\Controllers\Admin\Logistics\ParcelController::class, 'show'])->name('parcels.show');
+        Route::post('/parcels/{parcel}/mark-picked-up',  [\App\Http\Controllers\Admin\Logistics\ParcelController::class, 'markPickedUp'])->name('parcels.mark-picked-up');
+        Route::post('/parcels/{parcel}/sort',            [\App\Http\Controllers\Admin\Logistics\ParcelController::class, 'sort'])->name('parcels.sort');
+        Route::get('/parcels/sorting',                   [\App\Http\Controllers\Admin\Logistics\ParcelController::class, 'sorting'])->name('parcels.sorting');
 
-    Route::get('/deliveries/assign',                 [\App\Http\Controllers\Admin\Logistics\DeliveryController::class, 'assignmentIndex'])->name('deliveries.assign-index');
-    Route::post('/deliveries/{parcel}/assign',       [\App\Http\Controllers\Admin\Logistics\DeliveryController::class, 'assign'])->name('deliveries.assign');
-    Route::get('/deliveries/monitor',                [\App\Http\Controllers\Admin\Logistics\DeliveryController::class, 'monitor'])->name('deliveries.monitor');
-    Route::post('/deliveries/{delivery}/status',     [\App\Http\Controllers\Admin\Logistics\DeliveryController::class, 'updateStatus'])->name('deliveries.update-status');
+        Route::get('/deliveries/assign',                 [\App\Http\Controllers\Admin\Logistics\DeliveryController::class, 'assignmentIndex'])->name('deliveries.assign-index');
+        Route::post('/deliveries/{parcel}/assign',       [\App\Http\Controllers\Admin\Logistics\DeliveryController::class, 'assign'])->name('deliveries.assign');
+        Route::get('/deliveries/monitor',                [\App\Http\Controllers\Admin\Logistics\DeliveryController::class, 'monitor'])->name('deliveries.monitor');
+        Route::post('/deliveries/{delivery}/status',     [\App\Http\Controllers\Admin\Logistics\DeliveryController::class, 'updateStatus'])->name('deliveries.update-status');
 
-    Route::get('/parcels-reports',                   [\App\Http\Controllers\Admin\Logistics\ReportController::class, 'index'])->name('parcels-reports.index');
-    Route::get('/parcels-reports/export',            [\App\Http\Controllers\Admin\Logistics\ReportController::class, 'export'])->name('parcels-reports.export');
-    Route::get('/parcels-sorting',                   [\App\Http\Controllers\Admin\Logistics\ParcelController::class, 'sorting'])->name('parcels.sorting');
+        Route::get('/reports',                           [\App\Http\Controllers\Admin\Logistics\ReportController::class, 'index'])->name('reports.index');
+        Route::get('/reports/export',                    [\App\Http\Controllers\Admin\Logistics\ReportController::class, 'export'])->name('reports.export');
 
-    Route::get('/chat',                              [\App\Http\Controllers\Admin\Logistics\ChatController::class, 'index'])->name('chat.index');
-    Route::post('/chat/send',                        [\App\Http\Controllers\Admin\Logistics\ChatController::class, 'send'])->name('chat.send');
-    Route::get('/chat/poll',                         [\App\Http\Controllers\Admin\Logistics\ChatController::class, 'poll'])->name('chat.poll');
+        Route::get('/chat',                              [\App\Http\Controllers\Admin\Logistics\ChatController::class, 'index'])->name('chat.index');
+        Route::post('/chat/send',                        [\App\Http\Controllers\Admin\Logistics\ChatController::class, 'send'])->name('chat.send');
+        Route::get('/chat/poll',                         [\App\Http\Controllers\Admin\Logistics\ChatController::class, 'poll'])->name('chat.poll');
+
+        Route::get('/account',                           [\App\Http\Controllers\Admin\Logistics\AccountController::class, 'edit'])->name('account.edit');
+        Route::put('/account',                           [\App\Http\Controllers\Admin\Logistics\AccountController::class, 'update'])->name('account.update');
+        Route::put('/account/password',                  [\App\Http\Controllers\Admin\Logistics\AccountController::class, 'updatePassword'])->name('account.password');
+        Route::post('/logout',                           [\App\Http\Controllers\Admin\Logistics\AccountController::class, 'logout'])->name('logout');
+    });
 });
 
 // ── Courier / Sorting Center panel ──────────────────────────
@@ -396,47 +409,3 @@ Route::middleware(['auth', 'role:courier,admin'])
     Route::put('/account/security',  [CourierAccountController::class, 'updatePassword'])->name('account.password');
 });
 
-// ── Logistics / Sorting Center admin panel ───────────────────
-Route::prefix('logistics')->name('logistics.')->middleware(['auth', 'is_admin'])->group(function () {
-
-    Route::get('/',  [\App\Http\Controllers\Admin\Logistics\DashboardController::class, 'index'])->name('dashboard');
-
-    // Riders
-    Route::get('/riders',                           [\App\Http\Controllers\Admin\Logistics\RiderController::class, 'index'])->name('riders.index');
-    Route::get('/riders/{rider}',                   [\App\Http\Controllers\Admin\Logistics\RiderController::class, 'show'])->name('riders.show');
-    Route::post('/riders/{rider}/approve',          [\App\Http\Controllers\Admin\Logistics\RiderController::class, 'approve'])->name('riders.approve');
-    Route::post('/riders/{rider}/disapprove',       [\App\Http\Controllers\Admin\Logistics\RiderController::class, 'disapprove'])->name('riders.disapprove');
-    Route::post('/riders/{rider}/toggle-active',    [\App\Http\Controllers\Admin\Logistics\RiderController::class, 'toggleActive'])->name('riders.toggle-active');
-
-    // Pickup requests
-    Route::get('/pickup-requests',                   [\App\Http\Controllers\Admin\Logistics\PickupRequestController::class, 'index'])->name('pickup-requests.index');
-    Route::post('/pickup-requests/{parcel}/approve', [\App\Http\Controllers\Admin\Logistics\PickupRequestController::class, 'approve'])->name('pickup-requests.approve');
-    Route::post('/pickup-requests/{parcel}/reject',  [\App\Http\Controllers\Admin\Logistics\PickupRequestController::class, 'reject'])->name('pickup-requests.reject');
-
-    // Parcels
-    Route::get('/parcels',                           [\App\Http\Controllers\Admin\Logistics\ParcelController::class, 'index'])->name('parcels.index');
-    Route::get('/parcels/{parcel}',                  [\App\Http\Controllers\Admin\Logistics\ParcelController::class, 'show'])->name('parcels.show');
-    Route::post('/parcels/{parcel}/mark-picked-up',  [\App\Http\Controllers\Admin\Logistics\ParcelController::class, 'markPickedUp'])->name('parcels.mark-picked-up');
-    Route::post('/parcels/{parcel}/sort',            [\App\Http\Controllers\Admin\Logistics\ParcelController::class, 'sort'])->name('parcels.sort');
-
-    // Deliveries
-    Route::get('/deliveries/assign',                 [\App\Http\Controllers\Admin\Logistics\DeliveryController::class, 'assignmentIndex'])->name('deliveries.assign-index');
-    Route::post('/deliveries/{parcel}/assign',       [\App\Http\Controllers\Admin\Logistics\DeliveryController::class, 'assign'])->name('deliveries.assign');
-    Route::get('/deliveries/monitor',                [\App\Http\Controllers\Admin\Logistics\DeliveryController::class, 'monitor'])->name('deliveries.monitor');
-    Route::post('/deliveries/{delivery}/status',     [\App\Http\Controllers\Admin\Logistics\DeliveryController::class, 'updateStatus'])->name('deliveries.update-status');
-
-    // Reports
-    Route::get('/reports',                           [\App\Http\Controllers\Admin\Logistics\ReportController::class, 'index'])->name('reports.index');
-    Route::get('/reports/export',                    [\App\Http\Controllers\Admin\Logistics\ReportController::class, 'export'])->name('reports.export');
-
-    // Chat
-    Route::get('/chat',                              [\App\Http\Controllers\Admin\Logistics\ChatController::class, 'index'])->name('chat.index');
-    Route::post('/chat/send',                        [\App\Http\Controllers\Admin\Logistics\ChatController::class, 'send'])->name('chat.send');
-    Route::get('/chat/poll',                         [\App\Http\Controllers\Admin\Logistics\ChatController::class, 'poll'])->name('chat.poll');
-
-    // Account
-    Route::get('/account',                           [\App\Http\Controllers\Admin\Logistics\AccountController::class, 'edit'])->name('account.edit');
-    Route::put('/account',                           [\App\Http\Controllers\Admin\Logistics\AccountController::class, 'update'])->name('account.update');
-    Route::put('/account/password',                  [\App\Http\Controllers\Admin\Logistics\AccountController::class, 'updatePassword'])->name('account.password');
-    Route::post('/logout',                           [\App\Http\Controllers\Admin\Logistics\AccountController::class, 'logout'])->name('logout');
-});
