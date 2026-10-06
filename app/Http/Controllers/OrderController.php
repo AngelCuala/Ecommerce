@@ -40,6 +40,20 @@ class OrderController extends Controller
                 'Order #' . str_pad($order->id, 6, '0', STR_PAD_LEFT) . ' was cancelled by the buyer. No pickup needed.', 'warning');
         }
 
+        // A sorting-center pickup that hasn't reached the sorting center yet is closed too.
+        $parcelSvc = app(\App\Services\ParcelService::class);
+        $parcels = \App\Models\Parcel::where('order_id', $order->id)
+            ->whereIn('status', ['pending_pickup', 'pickup_approved'])->get();
+        foreach ($parcels as $parcel) {
+            $parcel->update(['status' => 'cancelled', 'failure_reason' => 'Order was cancelled by the buyer.']);
+            $msg = "{$parcelSvc->orderRef($parcel)} was cancelled by the buyer. Pickup {$parcel->tracking_number} is no longer needed.";
+            if ($parcel->current_sorting_center_id) {
+                $parcelSvc->notify((int) $parcel->current_sorting_center_id, 'Pickup cancelled', $msg, 'warning',
+                    route('sc.pickup-requests'));
+            }
+            $parcelSvc->notifySeller($parcel, 'Pickup cancelled', $msg, 'warning');
+        }
+
         return back()->with('success', 'Your order has been cancelled.');
     }
 

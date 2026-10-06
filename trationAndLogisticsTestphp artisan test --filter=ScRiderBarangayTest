@@ -1,0 +1,15 @@
+warning: in the working copy of 'app/Services/PsgcDirectory.php', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'resources/views/sc/areas.blade.php', LF will be replaced by CRLF the next time Git touches it
+ app/Http/Controllers/OrderController.php           |  14 [32m++[m
+ .../Controllers/SortingCenter/LoginController.php  |  11 [32m+[m
+ app/Http/Controllers/SortingCenterController.php   | 267 [32m+++++++++++++++[m[31m------[m
+ app/Models/DeliveryArea.php                        |   4 [32m+[m[31m-[m
+ app/Models/Rider.php                               |   2 [32m+[m
+ app/Models/User.php                                |   6 [32m+[m
+ app/Services/PsgcDirectory.php                     |  40 [32m+++[m
+ resources/views/components/admin-layout.blade.php  |   7 [32m+[m[31m-[m
+ resources/views/sc/areas.blade.php                 |  83 [32m++[m[31m-----[m
+ resources/views/sc/riders.blade.php                |  71 [32m++++[m[31m--[m
+ resources/views/sorting-center/login.blade.php     |   4 [32m+[m[31m-[m
+ routes/web.php                                     |  17 [32m+[m[31m-[m
+ 12 files changed, 369 insertions(+), 157 deletions(-)

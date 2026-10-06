@@ -12,6 +12,8 @@ class Rider extends Model
         'user_id', 'sorting_center_id', 'full_name', 'phone',
         'vehicle_type', 'license_number', 'id_document_path',
         'area_id',
+        // PSA PSGC 9-digit Correspondence Codes of the rider's barangay chain
+        'region_code', 'province_code', 'municipality_code', 'barangay_code',
         'application_status', 'rejection_reason', 'approved_at', 'approved_by',
         'is_active',
     ];

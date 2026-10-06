@@ -154,6 +154,12 @@ class User extends Authenticatable
     }
 
     /** Delivery areas (barangays/zones) managed by this sorting center. */
+    /** Latest Logistics / Sorting Center registration of this account. */
+    public function sortingCenterApplication(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(\App\Models\SortingCenterApplication::class)->latestOfMany();
+    }
+
     public function deliveryAreas(): HasMany
     {
         return $this->hasMany(\App\Models\DeliveryArea::class, 'sorting_center_id');

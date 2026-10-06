@@ -156,6 +156,46 @@ class PsgcDirectory
         return $list;
     }
 
+    /**
+     * Every barangay of one city/municipality (9-digit code or 10-digit PSGC), sorted.
+     * Null when the city/municipality is not in the PSA dataset.
+     */
+    public function barangaysByMunicipality(?string $municipality): ?array
+    {
+        $loc = $this->locality($municipality);
+        return $loc ? $this->barangayItems($loc) : null;
+    }
+
+    /**
+     * Validate a submitted barangay against a city/municipality fixed by the server (e.g. a
+     * sorting center's assigned municipality) — never one taken from the request. The barangay
+     * is looked up only among that municipality's PSGC children, so a barangay from another
+     * municipality or province, or a tampered code, throws a ValidationException.
+     *
+     * @param array $in  barangay_psgc (10-digit) and/or barangay_code (9-digit)
+     * @return array     the resolve() chain: region/province/municipality/barangay names + codes
+     */
+    public function resolveBarangayIn(?string $municipality, array $in, string $field = 'barangay'): array
+    {
+        $loc = $this->locality($municipality);
+        if (! $loc) {
+            throw ValidationException::withMessages([$field => 'The assigned municipality was not found in the PSA PSGC dataset.']);
+        }
+        if (trim((string) ($in['barangay_psgc'] ?? '')) === '' && trim((string) ($in['barangay_code'] ?? '')) === '') {
+            throw ValidationException::withMessages([$field => 'Please select a barangay.']);
+        }
+
+        try {
+            return $this->resolve([
+                'municipality_psgc' => $loc['psgc'],
+                'barangay_psgc'     => (string) ($in['barangay_psgc'] ?? ''),
+                'barangay_code'     => (string) ($in['barangay_code'] ?? ''),
+            ], true, null, ['province' => $field, 'municipality' => $field, 'barangay' => $field]);
+        } catch (ValidationException) {
+            throw ValidationException::withMessages([$field => "The selected barangay is not a barangay of {$loc['name']}."]);
+        }
+    }
+
     // ── Hierarchy validation ──────────────────────────────────
 
     /** Format rules for the hidden code inputs every address form submits. */

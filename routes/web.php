@@ -42,6 +42,8 @@ use Illuminate\Support\Facades\Route;
 // ── Sorting Center Portal ────────────────────────────────────
 Route::get('/sc/login',  [\App\Http\Controllers\SortingCenter\LoginController::class, 'create'])->name('sc.login')->middleware('guest');
 Route::post('/sc/login', [\App\Http\Controllers\SortingCenter\LoginController::class, 'store'])->name('sc.login.store')->middleware('guest');
+Route::get('/sc/register',  [\App\Http\Controllers\SortingCenter\RegistrationController::class, 'create'])->name('sc.register')->middleware('guest');
+Route::post('/sc/register', [\App\Http\Controllers\SortingCenter\RegistrationController::class, 'store'])->name('sc.register.store')->middleware('guest');
 
 Route::middleware(['auth', 'is_sc'])->prefix('sc')->name('sc.')->group(function () {
     Route::get('/dashboard',            [\App\Http\Controllers\SortingCenterController::class, 'dashboard'])->name('dashboard');
@@ -106,9 +108,10 @@ Route::middleware(['auth', 'is_sc'])->prefix('sc')->name('sc.')->group(function 
 });
 
 // ── Sorting Center Portal ────────────────────────────────────
-Route::get('/sorting-center/login',  [\App\Http\Controllers\SortingCenter\LoginController::class, 'create'])->name('sorting-center.login')->middleware('guest');
-Route::post('/sorting-center/login', [\App\Http\Controllers\SortingCenter\LoginController::class, 'store'])->name('sorting-center.login.store')->middleware('guest');
-Route::get('/sorting-center',        [\App\Http\Controllers\SortingCenter\LoginController::class, 'hub'])->name('sorting-center.hub')->middleware(['auth', 'is_admin']);
+// Old entry points: one login (/sc/login). The former /sorting-center "hub" pointed at a
+// controller method that never existed, so it now redirects too.
+Route::redirect('/sorting-center/login', '/sc/login')->name('sorting-center.login');
+Route::redirect('/sorting-center', '/sc/login');
 
 // ── Public ───────────────────────────────────────────────────
 Route::get('/', [HomeController::class, 'index'])->name('home');
@@ -312,6 +315,14 @@ Route::middleware(['auth', 'role:admin'])
     Route::get('/seller-applications/{sellerApplication}',           [AdminSellerApplicationController::class, 'show'])->name('seller-applications.show');
     Route::patch('/seller-applications/{sellerApplication}/approve', [AdminSellerApplicationController::class, 'approve'])->name('seller-applications.approve');
     Route::patch('/seller-applications/{sellerApplication}/reject',  [AdminSellerApplicationController::class, 'reject'])->name('seller-applications.reject');
+
+    // Logistics / Sorting Center registrations
+    Route::get('/sc-applications',                            [\App\Http\Controllers\Admin\SortingCenterApplicationController::class, 'index'])->name('sc-applications.index');
+    Route::get('/sc-applications/{application}',              [\App\Http\Controllers\Admin\SortingCenterApplicationController::class, 'show'])->name('sc-applications.show');
+    Route::get('/sc-applications/{application}/document/{type}', [\App\Http\Controllers\Admin\SortingCenterApplicationController::class, 'document'])
+        ->whereIn('type', ['id', 'permit'])->name('sc-applications.document');
+    Route::patch('/sc-applications/{application}/approve',    [\App\Http\Controllers\Admin\SortingCenterApplicationController::class, 'approve'])->name('sc-applications.approve');
+    Route::patch('/sc-applications/{application}/reject',     [\App\Http\Controllers\Admin\SortingCenterApplicationController::class, 'reject'])->name('sc-applications.reject');
 
     Route::get('/reviews',               [AdminReviewController::class, 'index'])->name('reviews.index');
     Route::delete('/reviews/{id}',       [AdminReviewController::class, 'destroy'])->name('reviews.destroy');

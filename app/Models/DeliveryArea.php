@@ -9,7 +9,9 @@ class DeliveryArea extends Model
 {
     protected $fillable = [
         'name', 'code', 'description',
-        'sorting_center_id', 'municipality', 'municipality_code', 'barangay_code',
+        'sorting_center_id', 'municipality',
+        // PSA PSGC 9-digit Correspondence Codes
+        'region_code', 'province_code', 'municipality_code', 'barangay_code',
     ];
 
     public function sortingCenter(): \Illuminate\Database\Eloquent\Relations\BelongsTo

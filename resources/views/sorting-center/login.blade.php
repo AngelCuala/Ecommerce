@@ -195,7 +195,7 @@
     <div class="card">
         <div class="card__title">Sign in to your account</div>
 
-        <form action="{{ route('sorting-center.login.store') }}" method="POST">
+        <form action="{{ route('sc.login.store') }}" method="POST">
             @csrf
 
             <div class="field">
@@ -227,6 +227,8 @@
     </div>
 
     <div class="login-footer">
+        New logistics / sorting center? <a href="{{ route('sc.register') }}">Register here</a>
+        <br><br>
         <a href="{{ route('home') }}">← Back to store</a>
     </div>
 
