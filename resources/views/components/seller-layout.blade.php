@@ -292,5 +292,6 @@
 
 <script src="{{ asset('js/sidebar-drawer.js') }}"></script>
 <script src="{{ asset('js/Seller.js') }}"></script>
+<script src="{{ asset('js/prevent-back.js') }}"></script>
 </body>
 </html>

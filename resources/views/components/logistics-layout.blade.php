@@ -17,18 +17,18 @@
     <aside class="sidebar">
         <div class="sidebar__brand">Parcel<span>Ops</span></div>
         <nav>
-            <a href="{{ route('logistics.dashboard') }}"            class="nav-item {{ request()->routeIs('logistics.dashboard')         ? 'active' : '' }}">📊 Dashboard</a>
-            <a href="{{ route('logistics.riders.index') }}"         class="nav-item {{ request()->routeIs('logistics.riders.*')          ? 'active' : '' }}">🛵 Rider Management</a>
-            <a href="{{ route('logistics.pickup-requests.index') }}" class="nav-item {{ request()->routeIs('logistics.pickup-requests.*') ? 'active' : '' }}">📥 Pickup Requests</a>
-            <a href="{{ route('logistics.parcels.index') }}"        class="nav-item {{ request()->routeIs('logistics.parcels.*')         ? 'active' : '' }}">📦 Parcels &amp; Sorting</a>
-            <a href="{{ route('logistics.deliveries.assign-index') }}" class="nav-item {{ request()->routeIs('logistics.deliveries.assign-index') ? 'active' : '' }}">🗺 Delivery Assignment</a>
-            <a href="{{ route('logistics.deliveries.monitor') }}"   class="nav-item {{ request()->routeIs('logistics.deliveries.monitor') ? 'active' : '' }}">🔍 Monitoring</a>
-            <a href="{{ route('logistics.reports.index') }}"        class="nav-item {{ request()->routeIs('logistics.reports.*')         ? 'active' : '' }}">📈 Reports</a>
-            <a href="{{ route('logistics.chat.index') }}"           class="nav-item {{ request()->routeIs('logistics.chat.*')            ? 'active' : '' }}">💬 Chat</a>
-            <a href="{{ route('logistics.account.edit') }}"         class="nav-item {{ request()->routeIs('logistics.account.*')         ? 'active' : '' }}">👤 Account</a>
+            <a href="{{ route('admin.logistics.dashboard') }}"            class="nav-item {{ request()->routeIs('admin.logistics.dashboard')         ? 'active' : '' }}">📊 Dashboard</a>
+            <a href="{{ route('admin.logistics.riders.index') }}"         class="nav-item {{ request()->routeIs('admin.logistics.riders.*')          ? 'active' : '' }}">🛵 Rider Management</a>
+            <a href="{{ route('admin.logistics.pickup-requests.index') }}" class="nav-item {{ request()->routeIs('admin.logistics.pickup-requests.*') ? 'active' : '' }}">📥 Pickup Requests</a>
+            <a href="{{ route('admin.logistics.parcels.index') }}"        class="nav-item {{ request()->routeIs('admin.logistics.parcels.*')         ? 'active' : '' }}">📦 Parcels &amp; Sorting</a>
+            <a href="{{ route('admin.logistics.deliveries.assign-index') }}" class="nav-item {{ request()->routeIs('admin.logistics.deliveries.assign-index') ? 'active' : '' }}">🗺 Delivery Assignment</a>
+            <a href="{{ route('admin.logistics.deliveries.monitor') }}"   class="nav-item {{ request()->routeIs('admin.logistics.deliveries.monitor') ? 'active' : '' }}">🔍 Monitoring</a>
+            <a href="{{ route('admin.logistics.reports.index') }}"        class="nav-item {{ request()->routeIs('admin.logistics.reports.*')         ? 'active' : '' }}">📈 Reports</a>
+            <a href="{{ route('admin.logistics.chat.index') }}"           class="nav-item {{ request()->routeIs('admin.logistics.chat.*')            ? 'active' : '' }}">💬 Chat</a>
+            <a href="{{ route('admin.logistics.account.edit') }}"         class="nav-item {{ request()->routeIs('admin.logistics.account.*')         ? 'active' : '' }}">👤 Account</a>
         </nav>
         <div class="sidebar__footer">
-            <form method="POST" action="{{ route('logistics.logout') }}">
+            <form method="POST" action="{{ route('admin.logistics.logout') }}">
                 @csrf
                 <button type="submit">Log out</button>
             </form>
@@ -53,8 +53,7 @@
     </div>
 </div>
 {{ $scripts ?? '' }}
-</body>
-</html>
 <script src="{{ asset('js/Logistics.js') }}"></script>
+<script src="{{ asset('js/prevent-back.js') }}"></script>
 </body>
 </html>

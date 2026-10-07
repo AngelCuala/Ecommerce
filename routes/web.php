@@ -43,7 +43,7 @@ use Illuminate\Support\Facades\Route;
 Route::get('/sc/login',  [\App\Http\Controllers\SortingCenter\LoginController::class, 'create'])->name('sc.login')->middleware('guest');
 Route::post('/sc/login', [\App\Http\Controllers\SortingCenter\LoginController::class, 'store'])->name('sc.login.store')->middleware('guest');
 
-Route::middleware(['auth', 'is_sc'])->prefix('sc')->name('sc.')->group(function () {
+Route::middleware(['auth', 'is_sc', 'prevent.back'])->prefix('sc')->name('sc.')->group(function () {
     Route::get('/dashboard',            [\App\Http\Controllers\SortingCenterController::class, 'dashboard'])->name('dashboard');
 
     // Coverage areas (barangays within the SC municipality)
@@ -141,7 +141,7 @@ Route::post('/logout', [AuthenticatedSessionController::class, 'destroy'])
     ->middleware('auth')->name('logout');
 
 // ── Authenticated (buyer-only) ────────────────────────────────
-Route::middleware(['auth', 'buyer_only'])->group(function () {
+Route::middleware(['auth', 'buyer_only', 'prevent.back'])->group(function () {
 
     // Cart
     Route::get('/cart',                      [CartController::class, 'index'])->name('cart.index');
@@ -218,7 +218,7 @@ Route::middleware('auth')->group(function () {
 });
 
 // ── Seller panel ─────────────────────────────────────────────
-Route::middleware(['auth', 'role:seller,admin'])
+Route::middleware(['auth', 'role:seller,admin', 'prevent.back'])
     ->prefix('seller')->name('seller.')->group(function () {
 
     Route::get('/',                          [SellerDashboardController::class, 'index'])->name('dashboard');
@@ -249,7 +249,7 @@ Route::middleware(['auth', 'role:seller,admin'])
 });
 
 // ── Admin panel ──────────────────────────────────────────────
-Route::middleware(['auth', 'role:admin'])
+Route::middleware(['auth', 'role:admin', 'prevent.back'])
     ->prefix('admin')->name('admin.')->group(function () {
 
     Route::get('/', [AdminDashboardController::class, 'index'])->name('dashboard');
@@ -389,7 +389,7 @@ Route::middleware(['auth', 'role:admin'])
 });
 
 // ── Courier / Sorting Center panel ──────────────────────────
-Route::middleware(['auth', 'role:courier,admin'])
+Route::middleware(['auth', 'role:courier,admin', 'prevent.back'])
     ->prefix('courier')->name('courier.')->group(function () {
 
     Route::get('/',                            [CourierDashboardController::class, 'index'])->name('dashboard');

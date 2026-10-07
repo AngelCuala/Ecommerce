@@ -93,5 +93,6 @@
 </div>
 
 @include('partials.password-toggle')
+<script src="{{ asset('js/prevent-back.js') }}"></script>
 </body>
 </html>

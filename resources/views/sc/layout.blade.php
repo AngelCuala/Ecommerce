@@ -127,5 +127,6 @@
 
 </div>
 @stack('scripts')
+<script src="{{ asset('js/prevent-back.js') }}"></script>
 </body>
 </html>

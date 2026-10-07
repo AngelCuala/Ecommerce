@@ -11,7 +11,37 @@ class AuthenticatedSessionController extends Controller
 {
     public function create()
     {
-        return view('auth.login');
+        // If user is already authenticated, redirect to appropriate dashboard
+        if (auth()->check()) {
+            $user = auth()->user();
+            return $this->redirectToUserDashboard($user);
+        }
+
+        // Add cache control headers to prevent browser back button issues
+        return response()
+            ->view('auth.login')
+            ->header('Cache-Control', 'no-cache, no-store, max-age=0, must-revalidate')
+            ->header('Pragma', 'no-cache')
+            ->header('Expires', 'Fri, 01 Jan 1990 00:00:00 GMT');
+    }
+
+    /**
+     * Redirect user to their appropriate dashboard based on role
+     */
+    private function redirectToUserDashboard($user)
+    {
+        switch ($user->role) {
+            case 'admin':
+                return redirect()->route('admin.dashboard');
+            case 'seller':
+                return redirect()->route('seller.dashboard');
+            case 'courier':
+                return redirect()->route('courier.dashboard');
+            case 'sorting_center':
+                return redirect()->route('sc.dashboard');
+            default:
+                return redirect()->route('home');
+        }
     }
 
     public function store(Request $request)
@@ -98,7 +128,7 @@ class AuthenticatedSessionController extends Controller
             // Check if this admin should go to logistics dashboard
             // You can modify this logic based on your user model or add a logistics role field
             if ($request->input('logistics') || $user->hasLogisticsRole()) {
-                return redirect()->route('logistics.dashboard')
+                return redirect()->route('admin.logistics.dashboard')
                     ->with('success', 'Welcome to Logistics Dashboard, ' . $user->name . '!');
             }
             
@@ -127,6 +157,12 @@ class AuthenticatedSessionController extends Controller
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 
-        return redirect('/')->with('success', 'You have been signed out.');
+        // Add cache control headers to prevent accessing cached dashboard pages
+        return response()
+            ->redirectTo('/')
+            ->with('success', 'You have been signed out.')
+            ->header('Cache-Control', 'no-cache, no-store, max-age=0, must-revalidate')
+            ->header('Pragma', 'no-cache')
+            ->header('Expires', 'Fri, 01 Jan 1990 00:00:00 GMT');
     }
 }

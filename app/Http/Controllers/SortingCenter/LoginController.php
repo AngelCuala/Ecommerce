@@ -11,17 +11,44 @@ class LoginController extends Controller
 {
     public function create()
     {
-        // Already logged-in sorting center staff go straight to dashboard
-        if (auth()->check() && auth()->user()->role === 'sorting_center') {
-            return redirect()->route('sc.dashboard');
+        // If user is already authenticated, redirect to appropriate dashboard
+        if (auth()->check()) {
+            $user = auth()->user();
+            if ($user->role === 'sorting_center') {
+                return redirect()->route('sc.dashboard');
+            }
+            if ($user->role === 'admin') {
+                return redirect()->route('admin.dashboard');
+            }
+            // Redirect other roles to their dashboards
+            return $this->redirectToUserDashboard($user);
         }
 
-        // Admins have their own panel
-        if (auth()->check() && auth()->user()->role === 'admin') {
-            return redirect()->route('admin.dashboard');
-        }
+        // Add cache control headers to prevent browser back button issues
+        return response()
+            ->view('sorting-center.login')
+            ->header('Cache-Control', 'no-cache, no-store, max-age=0, must-revalidate')
+            ->header('Pragma', 'no-cache')
+            ->header('Expires', 'Fri, 01 Jan 1990 00:00:00 GMT');
+    }
 
-        return view('sorting-center.login');
+    /**
+     * Redirect user to their appropriate dashboard based on role
+     */
+    private function redirectToUserDashboard($user)
+    {
+        switch ($user->role) {
+            case 'admin':
+                return redirect()->route('admin.dashboard');
+            case 'seller':
+                return redirect()->route('seller.dashboard');
+            case 'courier':
+                return redirect()->route('courier.dashboard');
+            case 'sorting_center':
+                return redirect()->route('sc.dashboard');
+            default:
+                return redirect()->route('home');
+        }
     }
 
     public function store(Request $request)

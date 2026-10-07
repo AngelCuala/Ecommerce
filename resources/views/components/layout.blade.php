@@ -237,5 +237,6 @@
 
 @include('partials.footer')
 @include('partials.chat-widget')
+<script src="{{ asset('js/prevent-back.js') }}"></script>
 </body>
 </html>
