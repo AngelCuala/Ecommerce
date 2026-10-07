@@ -9,6 +9,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ asset('css/admin.css') }}">
+    <link rel="stylesheet" href="{{ asset('css/hover-effects.css') }}">
     {{ $styles ?? '' }}
 </head>
 <body>
@@ -52,5 +53,8 @@
     </div>
 </div>
 {{ $scripts ?? '' }}
+</body>
+</html>
+<script src="{{ asset('js/Logistics.js') }}"></script>
 </body>
 </html>

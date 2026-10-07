@@ -136,7 +136,7 @@
                         <tr style="border-top:1px solid #dce8f0;"
                             onmouseover="this.style.background='#f0f6fa';"
                             onmouseout="this.style.background='';">
-                            <td class="px-5 py-3 font-semibold" style="color:#222222;">{{ $item->book->title }}</td>
+                            <td class="px-5 py-3 font-semibold" style="color:#222222;">{{ $item->product->title }}</td>
                             <td class="px-3 py-3" style="color:#7A7A7A;">{{ $item->order->user->name ?? 'Guest' }}</td>
                             <td class="px-3 py-3" style="color:#7A7A7A;">{{ $item->quantity }}</td>
                             <td class="px-3 py-3" style="color:#7A7A7A;">${{ number_format($item->price * $item->quantity, 2) }}</td>

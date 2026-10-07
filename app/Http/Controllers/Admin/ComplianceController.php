@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Models\Book;
+use App\Models\Product;
 use App\Models\SellerViolation;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -29,7 +29,7 @@ class ComplianceController extends Controller
             ->get();
 
         // Flagged products: products whose category doesn't match seller's registered line of business
-        $flagged = Book::with(['seller.sellerApplication', 'category'])
+        $flagged = Product::with(['seller.sellerApplication', 'category'])
             ->whereHas('seller', fn($q) => $q->where('role', 'seller'))
             ->get()
             ->filter(fn($book) => $this->isCategoryMismatch($book));
@@ -41,7 +41,7 @@ class ComplianceController extends Controller
     public function show(int $sellerId)
     {
         $seller = User::where('role', 'seller')
-            ->with(['sellerApplication', 'books.category'])
+            ->with(['sellerApplication', 'products.category'])
             ->findOrFail($sellerId);
 
         $violations = SellerViolation::where('seller_id', $sellerId)
@@ -59,7 +59,7 @@ class ComplianceController extends Controller
     {
         $data = $request->validate([
             'seller_id' => 'required|exists:users,id',
-            'book_id'   => 'nullable|exists:books,id',
+            'product_id'   => 'nullable|exists:books,id',
             'type'      => 'required|in:wrong_category,prohibited_product,inappropriate_content,misleading_info,other',
             'action'    => 'required|in:warning,product_removed,account_suspended,account_deactivated',
             'note'      => 'required|string|max:1000',
@@ -73,8 +73,8 @@ class ComplianceController extends Controller
 
         // Execute the action
         match ($data['action']) {
-            'product_removed'     => $data['book_id']
-                ? Book::findOrFail($data['book_id'])->delete()
+            'product_removed'     => $data['product_id']
+                ? Product::findOrFail($data['product_id'])->delete()
                 : null,
             'account_suspended'   => $seller->update(['role' => 'suspended']),
             'account_deactivated' => $seller->update(['role' => 'deactivated']),

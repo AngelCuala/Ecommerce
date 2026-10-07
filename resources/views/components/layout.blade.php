@@ -200,6 +200,7 @@
         *, *::before, *::after { transition-duration:.001ms!important; animation-duration:.001ms!important; }
       }
     </style>
+    <link rel="stylesheet" href="{{ asset('css/hover-effects.css') }}">
 </head>
 <body class="min-h-screen flex flex-col" style="background:#F5F5F5;color:#002b4d;">
 
@@ -215,7 +216,7 @@
                  style="background:#fff;border-color:rgba(5,150,105,.25);">
                 <svg class="mt-0.5 h-5 w-5 shrink-0" fill="none" stroke="#059669" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6 9 17l-5-5"/></svg>
                 <p class="flex-1 text-sm font-semibold" style="color:#065F46;">{{ session('success') }}</p>
-                <button type="button" onclick="this.closest('.toast').remove()" class="shrink-0 text-lg leading-none" style="color:#9CA3AF;" aria-label="Dismiss">&times;</button>
+                <button type="button" data-toast-close class="shrink-0 text-lg leading-none btn-hover-danger" style="color:#9CA3AF;" aria-label="Dismiss">&times;</button>
             </div>
         @endif
         @if ($errors->any())
@@ -223,12 +224,14 @@
                  style="background:#fff;border-color:rgba(208,2,27,.25);">
                 <svg class="mt-0.5 h-5 w-5 shrink-0" fill="none" stroke="#D0021B" stroke-width="2.2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path stroke-linecap="round" d="M12 8v5M12 16h.01"/></svg>
                 <p class="flex-1 text-sm font-semibold" style="color:#B91C1C;">{{ $errors->first() }}</p>
-                <button type="button" onclick="this.closest('.toast').remove()" class="shrink-0 text-lg leading-none" style="color:#9CA3AF;" aria-label="Dismiss">&times;</button>
+                <button type="button" data-toast-close class="shrink-0 text-lg leading-none btn-hover-danger" style="color:#9CA3AF;" aria-label="Dismiss">&times;</button>
             </div>
         @endif
     </div>
     <script src="{{ asset('js/toast.js') }}"></script>
 @endif
+
+<script src="{{ asset('js/Buyer.js') }}"></script>
 
 <main class="flex-1">{{ $slot }}</main>
 

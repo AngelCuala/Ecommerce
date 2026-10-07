@@ -85,8 +85,8 @@
                         <p class="text-xs mt-0.5" style="color:#F87171;">Permanently delete your account and all data.</p>
                     </div>
                     <button type="button"
-                            onclick="alert('Please contact support to delete your account.')"
-                            class="shrink-0 rounded-full border-2 px-4 py-2 text-xs font-semibold transition hover:bg-red-50"
+                            data-delete-account
+                            class="shrink-0 rounded-full border-2 px-4 py-2 text-xs font-semibold transition hover:bg-red-50 btn-hover-danger"
                             style="border-color:#F87171;color:#DC2626;">
                         Delete Account
                     </button>

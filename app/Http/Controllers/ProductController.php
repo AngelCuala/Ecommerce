@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Book;
+use App\Models\Product;
 use Illuminate\Support\Str;
 
 class ProductController extends Controller
@@ -12,10 +12,10 @@ class ProductController extends Controller
         // Slug format: {title-slug}-{id}
         $id = (int) last(explode('-', $slug));
 
-        $product = Book::with(['category', 'seller', 'images', 'variations'])
+        $product = Product::with(['category', 'seller', 'images', 'variations'])
             ->findOrFail($id);
 
-        $related = Book::with(['category', 'images'])
+        $related = Product::with(['category', 'images'])
             ->published()
             ->where('category_id', $product->category_id)
             ->where('id', '!=', $product->id)

@@ -50,10 +50,12 @@ class LogisticsActivityLogsSeeder extends Seeder
 
         foreach ($activities as $activityData) {
             ActivityLog::create([
-                'type' => $activityData['type'],
-                'description' => $activityData['description'],
-                'details' => $activityData['details'],
-                'user_id' => $logisticsUsers->random()->id,
+                'action' => $activityData['type'],
+                'action_label' => $activityData['description'], 
+                'description' => $activityData['details'],
+                'admin_id' => $logisticsUsers->random()->id,
+                'admin_name' => $logisticsUsers->random()->name,
+                'status' => 'success',
                 'created_at' => now()->subDays(rand(0, 30))->subHours(rand(0, 23)),
                 'updated_at' => now()->subDays(rand(0, 30))->subHours(rand(0, 23)),
             ]);

@@ -109,9 +109,9 @@ class User extends Authenticatable
         return $this->hasOne(SellerApplication::class);
     }
 
-    public function books(): HasMany
+    public function products(): HasMany
     {
-        return $this->hasMany(Book::class, 'seller_id');
+        return $this->hasMany(Product::class, 'seller_id');
     }
 
     public function addresses(): HasMany

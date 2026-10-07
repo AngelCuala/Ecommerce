@@ -12,6 +12,7 @@
          courier.css (loaded after) owns the portal's own sidebar/page styling. --}}
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="{{ asset('css/courier.css') }}">
+    <link rel="stylesheet" href="{{ asset('css/hover-effects.css') }}">
     @stack('styles')
 </head>
 <body>
@@ -132,14 +133,14 @@
             <div class="cx-toast is-success toast">
                 <span style="color:#fa4e1c;">@include('courier.partials.icon', ['name' => 'check', 'size' => 20])</span>
                 <p>{{ session('success') }}</p>
-                <button type="button" class="cx-toast-x" onclick="this.closest('.cx-toast').remove()" aria-label="Dismiss">&times;</button>
+                <button type="button" class="cx-toast-x btn-hover-danger" data-toast-close aria-label="Dismiss">&times;</button>
             </div>
         @endif
         @if (session('error'))
             <div class="cx-toast is-error toast">
                 <span style="color:#dc2626;">@include('courier.partials.icon', ['name' => 'cross', 'size' => 20])</span>
                 <p>{{ session('error') }}</p>
-                <button type="button" class="cx-toast-x" onclick="this.closest('.cx-toast').remove()" aria-label="Dismiss">&times;</button>
+                <button type="button" class="cx-toast-x btn-hover-danger" data-toast-close aria-label="Dismiss">&times;</button>
             </div>
         @endif
     </div>
@@ -147,6 +148,7 @@
 @endif
 
 <script src="{{ asset('js/courier-drawer.js') }}"></script>
+<script src="{{ asset('js/Courier.js') }}"></script>
 
 {{-- Floating chat popup (same widget the other portals use) --}}
 @include('partials.chat-widget')

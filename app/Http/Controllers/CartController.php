@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Book;
+use App\Models\Product;
 use App\Models\CartItem;
 use Illuminate\Http\Request;
 
@@ -21,7 +21,7 @@ class CartController extends Controller
 
     public function store(Request $request, int $bookId)
     {
-        $book = Book::findOrFail($bookId);
+        $book = Product::findOrFail($bookId);
 
         if (! $book->inStock()) {
             return back()->with('error', 'This item is out of stock.');
@@ -32,7 +32,7 @@ class CartController extends Controller
 
         $item = CartItem::firstOrNew([
             'user_id' => auth()->id(),
-            'book_id' => $book->id,
+            'product_id' => $book->id,
         ]);
 
         // Increment if already in cart, otherwise set the requested qty

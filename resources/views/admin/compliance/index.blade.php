@@ -138,8 +138,8 @@
                         <div class="min-w-0">
                             <p class="font-semibold text-sm truncate" style="color:#222222;">{{ $v->seller->name }}</p>
                             <p class="text-xs mt-0.5" style="color:#6b90aa;">{{ $v->typeLabel() }}</p>
-                            @if ($v->book)
-                                <p class="text-xs" style="color:#6b90aa;">re: {{ $v->book->title }}</p>
+                            @if ($v->product)
+                                <p class="text-xs" style="color:#6b90aa;">re: {{ $v->product->title }}</p>
                             @endif
                         </div>
                         <div class="flex flex-col items-end gap-1 flex-shrink-0">

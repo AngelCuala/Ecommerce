@@ -80,12 +80,12 @@
                     <p class="text-xs font-bold uppercase tracking-widest mb-3" style="color:#B0B0B0;">Items</p>
                     @foreach ($order->sellerItems as $item)
                         <div class="flex items-center gap-3 rounded-lg p-2 transition hover:bg-[#f0f6fa]">
-                            <img src="{{ $item->book && $item->book->image ? asset('storage/'.$item->book->image) : 'https://placehold.co/48x64/FF6300/FFFFFF?text=B' }}"
+                            <img src="{{ $item->product && $item->product->image ? asset('storage/'.$item->product->image) : 'https://placehold.co/48x64/FF6300/FFFFFF?text=B' }}"
                                  class="h-14 w-11 rounded-md object-cover flex-shrink-0 border" style="border-color:#F0E4D8;"
-                                 alt="{{ $item->book->title ?? '' }}">
+                                 alt="{{ $item->product->title ?? '' }}">
                             <div class="flex flex-1 items-center justify-between">
                                 <div>
-                                    <p class="text-sm font-semibold" style="color:#222222;">{{ $item->book->title ?? '—' }}</p>
+                                    <p class="text-sm font-semibold" style="color:#222222;">{{ $item->product->title ?? '—' }}</p>
                                     <p class="text-xs" style="color:#6b90aa;">Qty: {{ $item->quantity }}</p>
                                 </div>
                                 <div class="text-right">

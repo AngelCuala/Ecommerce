@@ -12,7 +12,7 @@ return new class extends Migration
             $table->id();
             $table->foreignId('seller_id')->constrained('users')->cascadeOnDelete();
             $table->foreignId('admin_id')->constrained('users')->cascadeOnDelete();
-            $table->foreignId('book_id')->nullable()->constrained('books')->nullOnDelete();
+            $table->foreignId('product_id')->nullable()->constrained('books')->nullOnDelete();
 
             $table->enum('type', [
                 'wrong_category',       // Product in wrong category

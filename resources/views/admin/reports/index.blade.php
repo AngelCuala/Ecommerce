@@ -131,10 +131,10 @@
                     <tr style="border-bottom:1px solid #F5F0EB;">
                         <td class="py-2.5 text-xs" style="color:#6b90aa;">{{ $i + 1 }}</td>
                         <td class="py-2.5 font-medium" style="color:#002b4d;">
-                            {{ $item->book->title ?? '—' }}
+                            {{ $item->product->title ?? '—' }}
                         </td>
                         <td class="py-2.5 text-xs" style="color:#6b90aa;">
-                            {{ $item->book->seller->name ?? '—' }}
+                            {{ $item->product->seller->name ?? '—' }}
                         </td>
                         <td class="py-2.5 text-right" style="color:#002b4d;">{{ $item->units_sold }}</td>
                         <td class="py-2.5 text-right font-semibold" style="color:#fa4e1c;">

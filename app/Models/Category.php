@@ -10,9 +10,9 @@ class Category extends Model
 {
     protected $fillable = ['name', 'description'];
 
-    public function books(): HasMany
+    public function products(): HasMany
     {
-        return $this->hasMany(Book::class);
+        return $this->hasMany(Product::class);
     }
 
     /** Generate a slug from the name on the fly */

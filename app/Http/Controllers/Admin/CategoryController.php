@@ -10,7 +10,7 @@ class CategoryController extends Controller
 {
     public function index()
     {
-        $categories = Category::withCount('books')->orderBy('name')->get();
+        $categories = Category::withCount('products')->orderBy('name')->get();
         return view('admin.categories.index', compact('categories'));
     }
 
@@ -44,8 +44,8 @@ class CategoryController extends Controller
     {
         $cat = Category::findOrFail($id);
 
-        if ($cat->books()->count() > 0) {
-            return back()->with('error', 'Cannot delete — this category has books assigned to it.');
+        if ($cat->products()->count() > 0) {
+            return back()->with('error', 'Cannot delete — this category has products assigned to it.');
         }
 
         $cat->delete();

@@ -163,9 +163,9 @@
 {{-- Mobile category sidebar toggle --}}
 <div class="fixed bottom-4 right-4 z-40 lg:hidden">
     <button id="mob-cat-btn"
-            class="flex h-12 w-12 items-center justify-center rounded-full shadow-lg text-xl"
+            class="flex h-12 w-12 items-center justify-center rounded-full shadow-lg text-xl btn-hover-primary"
             style="background:#fa4e1c;color:#fff;"
-            onclick="document.getElementById('mob-cat-drawer').classList.toggle('translate-x-full')">
+            data-mobile-cat-toggle>
         📂
     </button>
 </div>
@@ -174,8 +174,8 @@
      style="background:#fff;">
     <div class="flex items-center justify-between px-4 py-4 text-white" style="background:#002b4d;">
         <p class="text-sm font-bold">All Categories</p>
-        <button onclick="document.getElementById('mob-cat-drawer').classList.add('translate-x-full')"
-                class="text-white opacity-80 hover:opacity-100 text-xl">✕</button>
+        <button data-mobile-cat-close
+                class="text-white opacity-80 hover:opacity-100 text-xl btn-hover-danger">✕</button>
     </div>
     <nav class="py-2">
         @foreach ($catalog as $cat)

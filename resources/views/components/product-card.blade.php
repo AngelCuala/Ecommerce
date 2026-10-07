@@ -37,8 +37,7 @@
 
     {{-- Wishlist button (top-right) --}}
     <button type="button"
-            onclick="this.classList.toggle('is-wished')"
-            class="wishlist-btn absolute right-2 top-2 z-20 flex h-8 w-8 items-center justify-center rounded-full bg-white/90 shadow-sm transition hover:bg-white"
+            class="wishlist-btn absolute right-2 top-2 z-20 flex h-8 w-8 items-center justify-center rounded-full bg-white/90 shadow-sm transition hover:bg-white btn-hover-info"
             title="Add to wishlist" aria-label="Add {{ $product->title }} to wishlist">
         <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" style="color:#fa4e1c;">
             <path stroke-linecap="round" stroke-linejoin="round"

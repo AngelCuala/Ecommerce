@@ -105,7 +105,7 @@
                             </div>
                             <span class="font-semibold text-sm" style="color:#222;">ALVY Books</span>
                             <button type="button" onclick="openChatThread('order:{{ $order->id }}')"
-                               class="flex items-center gap-1 rounded border px-2.5 py-1 text-xs font-semibold transition"
+                               class="flex items-center gap-1 rounded border px-2.5 py-1 text-xs font-semibold transition btn-hover-info"
                                style="border-color:#cfdce8;color:#002b4d;"
                                onmouseover="this.style.background='#FFF6EE';" onmouseout="this.style.background='';">
                                 <svg class="h-3 w-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -136,17 +136,17 @@
                     <div class="px-5 py-4 space-y-4">
                         @foreach ($order->items as $item)
                             <div class="flex items-start gap-4">
-                                <img src="{{ $item->book && $item->book->image ? asset('storage/'.$item->book->image) : 'https://placehold.co/64x86/F5F0EB/4A2C17?text=📖' }}"
+                                <img src="{{ $item->product && $item->product->image ? asset('storage/'.$item->product->image) : 'https://placehold.co/64x86/F5F0EB/4A2C17?text=📖' }}"
                                      class="h-20 w-14 rounded-lg object-cover flex-shrink-0"
                                      style="border:1px solid #cfdce8;"
-                                     alt="{{ $item->book->title ?? '' }}">
+                                     alt="{{ $item->product->title ?? '' }}">
                                 <div class="flex flex-1 items-start justify-between gap-2">
                                     <div>
                                         <p class="text-sm font-medium leading-snug" style="color:#222;">
-                                            {{ $item->book->title ?? '—' }}
+                                            {{ $item->product->title ?? '—' }}
                                         </p>
-                                        @if ($item->book && $item->book->author)
-                                            <p class="text-xs mt-0.5" style="color:#6b90aa;">by {{ $item->book->author }}</p>
+                                        @if ($item->product && $item->product->author)
+                                            <p class="text-xs mt-0.5" style="color:#6b90aa;">by {{ $item->product->author }}</p>
                                         @endif
                                         <p class="text-xs mt-1" style="color:#6b90aa;">x{{ $item->quantity }}</p>
                                     </div>
@@ -184,7 +184,7 @@
                             @if ($order->isCancellableByBuyer())
                                 <button type="button"
                                         onclick="openCancelModal({{ $order->id }})"
-                                        class="rounded border px-4 py-2 text-xs font-semibold transition"
+                                        class="rounded border px-4 py-2 text-xs font-semibold transition btn-hover-danger"
                                         style="border-color:#FCA5A5;color:#DC2626;background:#fff;"
                                         onmouseover="this.style.background='#FEF2F2';" onmouseout="this.style.background='#fff';">
                                     Cancel Order
@@ -207,7 +207,7 @@
 
                             {{-- Contact Seller --}}
                             <button type="button" onclick="openChatThread('order:{{ $order->id }}')"
-                               class="rounded border px-4 py-2 text-xs font-semibold transition"
+                               class="rounded border px-4 py-2 text-xs font-semibold transition btn-hover-info"
                                style="border-color:#D1D5DB;color:#374151;background:#fff;"
                                onmouseover="this.style.background='#F9FAFB';" onmouseout="this.style.background='#fff';">
                                 Contact Seller

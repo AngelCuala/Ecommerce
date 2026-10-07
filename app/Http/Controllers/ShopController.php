@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Book;
+use App\Models\Product;
 use App\Models\Category;
 use Illuminate\Http\Request;
 
@@ -12,7 +12,7 @@ class ShopController extends Controller
     {
         // If there's a search query, keep the shop page for search results
         if ($request->filled('search')) {
-            $query = Book::with(['category', 'images'])
+            $query = Product::with(['category', 'images'])
                 ->active()
                 ->where('stock', '>', 0)
                 ->where(function ($q) use ($request) {

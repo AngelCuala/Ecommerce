@@ -7,11 +7,11 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class CartItem extends Model
 {
-    protected $fillable = ['user_id', 'book_id', 'quantity'];
+    protected $fillable = ['user_id', 'product_id', 'quantity'];
 
-    public function book(): BelongsTo
+    public function product(): BelongsTo
     {
-        return $this->belongsTo(Book::class);
+        return $this->belongsTo(Product::class, 'product_id');
     }
 
     public function user(): BelongsTo

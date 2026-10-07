@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Models\Book;
+use App\Models\Product;
 use App\Models\Category;
 use Illuminate\Http\Request;
 
@@ -11,7 +11,7 @@ class ProductController extends Controller
 {
     public function index(Request $request)
     {
-        $query = Book::with(['category', 'seller'])->latest();
+        $query = Product::with(['category', 'seller'])->latest();
 
         if ($request->filled('search')) {
             $query->where(function ($q) use ($request) {
@@ -47,21 +47,21 @@ class ProductController extends Controller
 
         $data['availability'] = $data['stock'] > 0 ? 'in_stock' : 'out_of_stock';
 
-        Book::create($data);
+        Product::create($data);
 
         return redirect()->route('admin.products.index')->with('success', 'Book added successfully.');
     }
 
     public function edit(int $id)
     {
-        $product    = Book::with('category')->findOrFail($id);
+        $product    = Product::with('category')->findOrFail($id);
         $categories = Category::orderBy('name')->get();
         return view('admin.products.form', compact('product', 'categories'));
     }
 
     public function update(Request $request, int $id)
     {
-        $book = Book::findOrFail($id);
+        $book = Product::findOrFail($id);
         $data = $this->validateBook($request, $id);
 
         if ($request->hasFile('cover_image')) {
@@ -76,7 +76,7 @@ class ProductController extends Controller
 
     public function destroy(int $id)
     {
-        Book::findOrFail($id)->delete();
+        Product::findOrFail($id)->delete();
         return back()->with('success', 'Book deleted.');
     }
 

@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\Seller;
 
 use App\Http\Controllers\Controller;
-use App\Models\Book;
+use App\Models\Product;
 use App\Models\Order;
 use App\Models\OrderItem;
 use Illuminate\Http\Request;
@@ -13,22 +13,22 @@ class OrderController extends Controller
     public function index()
     {
         // Get all order IDs that contain this seller's books
-        $bookIds = Book::where('seller_id', auth()->id())->pluck('id');
+        $bookIds = Product::where('seller_id', auth()->id())->pluck('id');
 
-        $orderIds = OrderItem::whereIn('book_id', $bookIds)
+        $orderIds = OrderItem::whereIn('product_id', $bookIds)
             ->pluck('order_id')
             ->unique();
 
         $orders = Order::whereIn('id', $orderIds)
             ->with(['items' => function ($q) use ($bookIds) {
-                $q->whereIn('book_id', $bookIds)->with('book');
+                $q->whereIn('product_id', $bookIds)->with('book');
             }])
             ->latest()
             ->get();
 
         // Attach only this seller's items as a virtual property
         $orders->each(function ($order) use ($bookIds) {
-            $order->sellerItems = $order->items->whereIn('book_id', $bookIds->toArray())->values();
+            $order->sellerItems = $order->items->whereIn('product_id', $bookIds->toArray())->values();
         });
 
         return view('seller.orders.index', compact('orders'));
@@ -36,11 +36,11 @@ class OrderController extends Controller
 
     public function show(int $id)
     {
-        $bookIds = Book::where('seller_id', auth()->id())->pluck('id');
+        $bookIds = Product::where('seller_id', auth()->id())->pluck('id');
 
         // Make sure this seller actually has items in the order
         $hasItems = OrderItem::where('order_id', $id)
-            ->whereIn('book_id', $bookIds)
+            ->whereIn('product_id', $bookIds)
             ->exists();
 
         if (! $hasItems) {
@@ -48,10 +48,10 @@ class OrderController extends Controller
         }
 
         $order = Order::with(['items' => function ($q) use ($bookIds) {
-            $q->whereIn('book_id', $bookIds)->with('book');
+            $q->whereIn('product_id', $bookIds)->with('book');
         }, 'delivery'])->findOrFail($id);
 
-        $order->sellerItems = $order->items->whereIn('book_id', $bookIds->toArray())->values();
+        $order->sellerItems = $order->items->whereIn('product_id', $bookIds->toArray())->values();
 
         // This seller's sorting-center pickup request for the order (if any)
         $parcel = \App\Models\Parcel::with('currentSortingCenter')
@@ -70,9 +70,9 @@ class OrderController extends Controller
         ]);
 
         // Only update if this seller owns at least one book in the order
-        $bookIds  = Book::where('seller_id', auth()->id())->pluck('id');
+        $bookIds  = Product::where('seller_id', auth()->id())->pluck('id');
         $hasItems = OrderItem::where('order_id', $id)
-            ->whereIn('book_id', $bookIds)
+            ->whereIn('product_id', $bookIds)
             ->exists();
 
         if (! $hasItems) {
@@ -94,8 +94,8 @@ class OrderController extends Controller
             'notes'               => 'nullable|string|max:500',
         ]);
 
-        $bookIds  = Book::where('seller_id', auth()->id())->pluck('id');
-        $hasItems = OrderItem::where('order_id', $id)->whereIn('book_id', $bookIds)->exists();
+        $bookIds  = Product::where('seller_id', auth()->id())->pluck('id');
+        $hasItems = OrderItem::where('order_id', $id)->whereIn('product_id', $bookIds)->exists();
         if (! $hasItems) abort(403);
 
         $order   = Order::findOrFail($id);
@@ -210,8 +210,8 @@ class OrderController extends Controller
     /** Mark as handed over to courier → status becomes Shipped */
     public function markHandedOver(int $id)
     {
-        $bookIds  = Book::where('seller_id', auth()->id())->pluck('id');
-        $hasItems = OrderItem::where('order_id', $id)->whereIn('book_id', $bookIds)->exists();
+        $bookIds  = Product::where('seller_id', auth()->id())->pluck('id');
+        $hasItems = OrderItem::where('order_id', $id)->whereIn('product_id', $bookIds)->exists();
         if (! $hasItems) abort(403);
 
         $order = Order::findOrFail($id);

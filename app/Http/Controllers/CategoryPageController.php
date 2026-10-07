@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Book;
+use App\Models\Product;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 
@@ -118,7 +118,7 @@ class CategoryPageController extends Controller
         }
 
         // Fetch matching products from the books table
-        $query = Book::with(['category', 'images'])
+        $query = Product::with(['category', 'images'])
             ->active()
             ->where('stock', '>', 0);
 

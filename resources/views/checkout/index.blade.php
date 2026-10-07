@@ -157,16 +157,16 @@
                     <div class="space-y-3 max-h-64 overflow-y-auto">
                         @foreach ($items as $item)
                             <div class="flex items-center gap-3">
-                                <img src="{{ $item->book->image ? asset('storage/'.$item->book->image) : 'https://placehold.co/48x64/FF6300/FFFFFF?text=P' }}"
+                                <img src="{{ $item->product->image ? asset('storage/'.$item->product->image) : 'https://placehold.co/48x64/FF6300/FFFFFF?text=P' }}"
                                      class="h-12 w-9 rounded object-cover flex-shrink-0"
-                                     alt="{{ $item->book->title }}">
+                                     alt="{{ $item->product->title }}">
                                 <div class="flex flex-1 items-start justify-between gap-2">
                                     <div>
-                                        <p class="text-sm font-semibold leading-snug" style="color:#222222;">{{ $item->book->title }}</p>
+                                        <p class="text-sm font-semibold leading-snug" style="color:#222222;">{{ $item->product->title }}</p>
                                         <p class="text-xs" style="color:#999999;">Qty: {{ $item->quantity }}</p>
                                     </div>
                                     <span class="text-sm font-semibold flex-shrink-0" style="color:#fa4e1c;">
-                                        ₱{{ number_format($item->quantity * $item->book->price, 2) }}
+                                        ₱{{ number_format($item->quantity * $item->product->price, 2) }}
                                     </span>
                                 </div>
                             </div>

@@ -29,8 +29,8 @@ class ReportController extends Controller
             ->get();
 
         $topProducts = OrderItem::whereBetween('created_at', $dateFilter)
-            ->selectRaw('book_id, SUM(quantity) as units_sold, SUM(quantity * price) as revenue')
-            ->groupBy('book_id')
+            ->selectRaw('product_id, SUM(quantity) as units_sold, SUM(quantity * price) as revenue')
+            ->groupBy('product_id')
             ->with('book')
             ->orderByDesc('revenue')
             ->take(10)
@@ -55,12 +55,12 @@ class ReportController extends Controller
         $commissionRate  = config('marketplace.commission_rate', 10);
 
         $bySellerCommission = OrderItem::whereBetween('created_at', $dateFilter)
-            ->selectRaw('book_id,
+            ->selectRaw('product_id,
                 SUM(quantity * price) as gross,
                 SUM(commission_amount) as commission,
                 SUM(seller_earning) as payout,
                 SUM(quantity) as units')
-            ->groupBy('book_id')
+            ->groupBy('product_id')
             ->with('book.seller')
             ->orderByDesc('commission')
             ->take(20)

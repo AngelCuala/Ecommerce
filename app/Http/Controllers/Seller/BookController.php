@@ -4,8 +4,8 @@ namespace App\Http\Controllers\Seller;
 
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\CategoryPageController;
-use App\Models\Book;
-use App\Models\BookImage;
+use App\Models\Product;
+use App\Models\ProductImage;
 use App\Models\Category;
 use App\Models\ProductVariation;
 use App\Models\UserAddress;
@@ -63,7 +63,7 @@ class BookController extends Controller
 
     public function index(Request $request)
     {
-        $query = Book::where('seller_id', auth()->id())
+        $query = Product::where('seller_id', auth()->id())
             ->with(['category', 'images']);
 
         $status = $request->input('status', 'active');
@@ -88,7 +88,7 @@ class BookController extends Controller
         }
 
         $books    = $query->latest()->get();
-        $allBooks = Book::where('seller_id', auth()->id());
+        $allBooks = Product::where('seller_id', auth()->id());
         $counts   = [
             'active'       => (clone $allBooks)->active()->count(),
             'draft'        => (clone $allBooks)->active()->status('draft')->count(),
@@ -114,13 +114,13 @@ class BookController extends Controller
             $payload['seller_id'] = auth()->id();
 
             if ($request->hasFile('cover_image')) {
-                $payload['image'] = $request->file('cover_image')->store('books', 'public');
+                $payload['image'] = $request->file('cover_image')->store('products', 'public');
             }
             if ($request->hasFile('video')) {
-                $payload['video_path'] = $request->file('video')->store('books/videos', 'public');
+                $payload['video_path'] = $request->file('video')->store('products/videos', 'public');
             }
 
-            $book = Book::create($payload);
+            $book = Product::create($payload);
 
             // Auto product code once we have an id.
             $book->product_code = 'ALVY-' . str_pad((string) $book->id, 6, '0', STR_PAD_LEFT);
@@ -136,14 +136,14 @@ class BookController extends Controller
             ->with('success', $this->successMessage($book, $request));
     }
 
-    public function edit(Book $book)
+    public function edit(Product $book)
     {
         $this->authorizeBook($book);
         $book->load(['images', 'variations']);
         return view('seller.books.form', array_merge($this->formData(), ['book' => $book]));
     }
 
-    public function update(Request $request, Book $book)
+    public function update(Request $request, Product $book)
     {
         $this->authorizeBook($book);
         $data = $this->validateProduct($request, $book->id);
@@ -152,10 +152,10 @@ class BookController extends Controller
             $payload = $this->buildPayload($request, $data);
 
             if ($request->hasFile('cover_image')) {
-                $payload['image'] = $request->file('cover_image')->store('books', 'public');
+                $payload['image'] = $request->file('cover_image')->store('products', 'public');
             }
             if ($request->hasFile('video')) {
-                $payload['video_path'] = $request->file('video')->store('books/videos', 'public');
+                $payload['video_path'] = $request->file('video')->store('products/videos', 'public');
             }
 
             $book->update($payload);
@@ -173,28 +173,28 @@ class BookController extends Controller
             ->with('success', $this->successMessage($book->fresh(), $request));
     }
 
-    public function destroy(Book $book)
+    public function destroy(Product $book)
     {
         $this->authorizeBook($book);
         $book->delete();
         return back()->with('success', 'Product deleted.');
     }
 
-    public function archive(Book $book)
+    public function archive(Product $book)
     {
         $this->authorizeBook($book);
         $book->update(['is_archived' => true, 'archived_at' => now()]);
         return back()->with('success', '"' . $book->title . '" archived.');
     }
 
-    public function unarchive(Book $book)
+    public function unarchive(Product $book)
     {
         $this->authorizeBook($book);
         $book->update(['is_archived' => false, 'archived_at' => null]);
         return back()->with('success', '"' . $book->title . '" restored to active listings.');
     }
 
-    public function updateStock(Request $request, Book $book)
+    public function updateStock(Request $request, Product $book)
     {
         $this->authorizeBook($book);
         $request->validate(['stock' => 'required|integer|min:0']);
@@ -243,12 +243,12 @@ class BookController extends Controller
             'discount_percent' => 'nullable|numeric|min:0|max:99',
             'voucher_code'     => 'nullable|string|max:50',
             'stock'            => ($draft ? 'nullable' : 'required') . '|integer|min:0',
-            'sku'              => ['nullable', 'string', 'max:100', Rule::unique('books', 'sku')->ignore($bookId)],
+            'sku'              => ['nullable', 'string', 'max:100', Rule::unique('products', 'sku')->ignore($bookId)],
             'status'           => ['nullable', Rule::in(self::STATUSES)],
 
             // Optional book-specific fields (ALVY is a general shop now).
             'author'           => 'nullable|string|max:255',
-            'isbn'             => ['nullable', 'string', 'max:20', Rule::unique('books', 'isbn')->ignore($bookId)],
+            'isbn'             => ['nullable', 'string', 'max:20', Rule::unique('products', 'isbn')->ignore($bookId)],
             'publisher'        => 'nullable|string|max:255',
             'publication_year' => 'nullable|integer|min:1000|max:' . (date('Y') + 1),
             'edition'          => 'nullable|string|max:50',
@@ -297,7 +297,7 @@ class BookController extends Controller
         return $request->validate($rules, $messages);
     }
 
-    /** Build the books-table payload from validated data. */
+    /** Build the products-table payload from validated data. */
     private function buildPayload(Request $request, array $data): array
     {
         $status = $data['status'] ?? 'active';
@@ -359,7 +359,7 @@ class BookController extends Controller
      * Sync product images: remove flagged existing images, re-order the rest,
      * append new uploads. The image with the lowest sort_order is the main image.
      */
-    private function syncImages(Request $request, Book $book): void
+    private function syncImages(Request $request, Product $book): void
     {
         // 1. Remove images the seller deleted.
         $removed = array_filter((array) $request->input('removed_images', []));
@@ -386,9 +386,9 @@ class BookController extends Controller
         if ($request->hasFile('images')) {
             foreach ($request->file('images') as $file) {
                 if (! $file || ! $file->isValid()) continue;
-                $path = $file->store('books/gallery', 'public');
-                BookImage::create([
-                    'book_id'    => $book->id,
+                $path = $file->store('products/gallery', 'public');
+                ProductImage::create([
+                    'product_id'    => $book->id,
                     'path'       => $path,
                     'label'      => $position === 0 ? 'Main' : 'Photo ' . ($position + 1),
                     'sort_order' => $position,
@@ -406,7 +406,7 @@ class BookController extends Controller
     }
 
     /** Replace variations with the submitted set (per-variation inventory). */
-    private function syncVariations(Request $request, Book $book): void
+    private function syncVariations(Request $request, Product $book): void
     {
         $variations = (array) $request->input('variations', []);
         $book->variations()->delete();
@@ -416,7 +416,7 @@ class BookController extends Controller
             $name = trim($v['name'] ?? '');
             if ($name === '') continue;
             ProductVariation::create([
-                'book_id'    => $book->id,
+                'product_id'    => $book->id,
                 'name'       => $name,
                 'price'      => ($v['price'] ?? '') !== '' ? $v['price'] : null,
                 'stock'      => (int) ($v['stock'] ?? 0),
@@ -435,7 +435,7 @@ class BookController extends Controller
         }
     }
 
-    private function successMessage(Book $book, Request $request): string
+    private function successMessage(Product $book, Request $request): string
     {
         $code = $book->product_code ?: ('ALVY-' . str_pad((string) $book->id, 6, '0', STR_PAD_LEFT));
 
@@ -445,7 +445,7 @@ class BookController extends Controller
         return 'Product published successfully. Product ID: ' . $code;
     }
 
-    private function authorizeBook(Book $book): void
+    private function authorizeBook(Product $book): void
     {
         if ($book->seller_id !== auth()->id()) {
             abort(403, 'You can only manage your own products.');

@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class ProductVariation extends Model
 {
     protected $fillable = [
-        'book_id', 'name', 'price', 'stock', 'sku', 'sort_order',
+        'product_id', 'name', 'price', 'stock', 'sku', 'sort_order',
     ];
 
     protected $casts = [
@@ -17,9 +17,9 @@ class ProductVariation extends Model
         'sort_order' => 'integer',
     ];
 
-    public function book(): BelongsTo
+    public function product(): BelongsTo
     {
-        return $this->belongsTo(Book::class);
+        return $this->belongsTo(Product::class, 'product_id');
     }
 
     public function inStock(): bool

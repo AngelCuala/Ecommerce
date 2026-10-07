@@ -10,7 +10,7 @@ return new class extends Migration
     {
         Schema::create('book_images', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('book_id')->constrained()->cascadeOnDelete();
+            $table->foreignId('product_id')->constrained()->cascadeOnDelete();
             $table->string('path');                         // storage path
             $table->string('label')->nullable();            // e.g. "Front Cover", "Back Cover"
             $table->unsignedTinyInteger('sort_order')->default(0);

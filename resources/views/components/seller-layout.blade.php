@@ -81,6 +81,7 @@
 
       @media(prefers-reduced-motion:reduce){ *{ transition-duration:.001ms!important; } }
     </style>
+    <link rel="stylesheet" href="{{ asset('css/hover-effects.css') }}">
 </head>
 <body class="min-h-screen" style="background:#F5F5F5;">
 
@@ -274,7 +275,7 @@
                  style="background:#fff;border-color:rgba(250,78,28,.30);">
                 <svg class="mt-0.5 h-5 w-5 shrink-0" fill="none" stroke="#fa4e1c" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6 9 17l-5-5"/></svg>
                 <p class="flex-1 text-sm font-semibold" style="color:#d93d0e;">{{ session('success') }}</p>
-                <button type="button" onclick="this.closest('.toast').remove()" class="shrink-0 text-lg leading-none" style="color:#9CA3AF;" aria-label="Dismiss">&times;</button>
+                <button type="button" data-toast-close class="shrink-0 text-lg leading-none btn-hover-danger" style="color:#9CA3AF;" aria-label="Dismiss">&times;</button>
             </div>
         @endif
         @if (session('error'))
@@ -282,7 +283,7 @@
                  style="background:#fff;border-color:rgba(220,38,38,.30);">
                 <svg class="mt-0.5 h-5 w-5 shrink-0" fill="none" stroke="#DC2626" stroke-width="2.2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path stroke-linecap="round" d="M12 8v5M12 16h.01"/></svg>
                 <p class="flex-1 text-sm font-semibold" style="color:#B91C1C;">{{ session('error') }}</p>
-                <button type="button" onclick="this.closest('.toast').remove()" class="shrink-0 text-lg leading-none" style="color:#9CA3AF;" aria-label="Dismiss">&times;</button>
+                <button type="button" data-toast-close class="shrink-0 text-lg leading-none btn-hover-danger" style="color:#9CA3AF;" aria-label="Dismiss">&times;</button>
             </div>
         @endif
     </div>
@@ -290,5 +291,6 @@
 @endif
 
 <script src="{{ asset('js/sidebar-drawer.js') }}"></script>
+<script src="{{ asset('js/Seller.js') }}"></script>
 </body>
 </html>

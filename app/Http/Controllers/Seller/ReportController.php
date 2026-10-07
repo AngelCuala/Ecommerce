@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\Seller;
 
 use App\Http\Controllers\Controller;
-use App\Models\Book;
+use App\Models\Product;
 use App\Models\Order;
 use App\Models\OrderItem;
 use Illuminate\Http\Request;
@@ -15,12 +15,12 @@ class ReportController extends Controller
         $from = $request->input('from', now()->startOfMonth()->toDateString());
         $to   = $request->input('to',   now()->toDateString());
 
-        $bookIds = Book::where('seller_id', auth()->id())->pluck('id');
+        $productIds = Product::where('seller_id', auth()->id())->pluck('id');
 
         // Order items in date range
-        $items = OrderItem::whereIn('book_id', $bookIds)
+        $items = OrderItem::whereIn('product_id', $productIds)
             ->whereBetween('created_at', [$from . ' 00:00:00', $to . ' 23:59:59'])
-            ->with('book', 'order')
+            ->with('product', 'order')
             ->get();
 
         $totalRevenue    = $items->sum(fn($i) => $i->quantity * $i->price);
@@ -29,9 +29,9 @@ class ReportController extends Controller
         $totalOrders     = $items->pluck('order_id')->unique()->count();
 
         // By product
-        $byProduct = $items->groupBy('book_id')->map(function ($group) {
+        $byProduct = $items->groupBy('product_id')->map(function ($group) {
             return [
-                'title'    => $group->first()->book->title ?? '—',
+                'title'    => $group->first()->product->title ?? '—',
                 'qty'      => $group->sum('quantity'),
                 'revenue'  => $group->sum(fn($i) => $i->quantity * $i->price),
                 'earnings' => $group->sum('seller_earning'),

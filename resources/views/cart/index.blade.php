@@ -52,27 +52,27 @@
             {{-- Items --}}
             <div class="space-y-4">
                 @foreach ($items as $item)
-                    @php $lineTotal = $item->quantity * $item->book->price; @endphp
+                    @php $lineTotal = $item->quantity * $item->product->price; @endphp
                     <div class="card flex gap-5 p-5">
                         {{-- Cover --}}
-                        <a href="{{ route('products.show', $item->book->slug) }}" class="shrink-0">
-                            <img src="{{ $item->book->image ? asset('storage/' . $item->book->image) : 'https://placehold.co/100x130/FF6300/FFFFFF?text=Book' }}"
+                        <a href="{{ route('products.show', $item->product->slug) }}" class="shrink-0">
+                            <img src="{{ $item->product->image ? asset('storage/' . $item->product->image) : 'https://placehold.co/100x130/FF6300/FFFFFF?text=Book' }}"
                                  class="h-32 w-24 rounded-xl object-cover"
-                                 alt="{{ $item->book->title }}">
+                                 alt="{{ $item->product->title }}">
                         </a>
 
                         <div class="flex flex-1 flex-col">
                             <div class="flex items-start justify-between gap-2">
                                 <div>
-                                    <a href="{{ route('products.show', $item->book->slug) }}"
+                                    <a href="{{ route('products.show', $item->product->slug) }}"
                                        class="font-display font-semibold leading-snug transition-colors"
                                        style="color:#222222;"
                                        onmouseover="this.style.color='#fa4e1c';"
                                        onmouseout="this.style.color='#222222';">
-                                        {{ $item->book->title }}
+                                        {{ $item->product->title }}
                                     </a>
-                                    <p class="mt-0.5 text-xs" style="color:#6b90aa;">by {{ $item->book->author }}</p>
-                                    <p class="mt-1 text-sm font-semibold" style="color:#fa4e1c;">${{ number_format($item->book->price, 2) }}</p>
+                                    <p class="mt-0.5 text-xs" style="color:#6b90aa;">by {{ $item->product->author }}</p>
+                                    <p class="mt-1 text-sm font-semibold" style="color:#fa4e1c;">${{ number_format($item->product->price, 2) }}</p>
                                 </div>
 
                                 {{-- Remove --}}
@@ -83,7 +83,7 @@
                                             style="border-color:rgba(220,38,38,.2);color:#DC2626;"
                                             onmouseover="this.style.background='#DC2626';this.style.color='#fff';"
                                             onmouseout="this.style.background='';this.style.color='#DC2626';"
-                                            title="Remove" aria-label="Remove {{ $item->book->title }}">
+                                            title="Remove" aria-label="Remove {{ $item->product->title }}">
                                         <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" d="M18 6 6 18M6 6l12 12"/>
                                         </svg>
@@ -97,8 +97,8 @@
                                     @csrf @method('PATCH')
                                     <div class="flex items-center overflow-hidden rounded-full border" style="border-color:#FFDCC2;background:#e8f0f6;">
                                         <button type="button" aria-label="Decrease"
-                                                onclick="const i=this.nextElementSibling;if(+i.value>1){i.value=+i.value-1;this.form.submit();}"
-                                                class="w-9 py-1.5 text-center transition"
+                                                data-quantity-decrease
+                                                class="w-9 py-1.5 text-center transition btn-hover-primary"
                                                 style="color:#555555;"
                                                 onmouseover="this.style.background='#FFE4CC';"
                                                 onmouseout="this.style.background='';">−</button>
@@ -107,8 +107,8 @@
                                                class="w-10 border-0 bg-transparent text-center text-sm font-medium focus:outline-none"
                                                style="color:#222222;">
                                         <button type="button" aria-label="Increase"
-                                                onclick="const i=this.previousElementSibling;i.value=+i.value+1;this.form.submit()"
-                                                class="w-9 py-1.5 text-center transition"
+                                                data-quantity-increase
+                                                class="w-9 py-1.5 text-center transition btn-hover-primary"
                                                 style="color:#555555;"
                                                 onmouseover="this.style.background='#FFE4CC';"
                                                 onmouseout="this.style.background='';">+</button>

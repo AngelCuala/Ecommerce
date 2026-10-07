@@ -71,10 +71,10 @@
             <div style="display:flex;flex-direction:column;gap:12px;">
                 @foreach($delivery->order->items as $item)
                     <div style="display:flex;align-items:center;gap:12px;">
-                        <img src="{{ $item->book && $item->book->image ? asset('storage/'.$item->book->image) : 'https://placehold.co/40x54/F5F0EB/4A2C17' }}"
-                             style="height:48px;width:36px;border-radius:4px;object-fit:cover;flex-shrink:0;" alt="{{ $item->book->title ?? '' }}">
+                        <img src="{{ $item->product && $item->product->image ? asset('storage/'.$item->product->image) : 'https://placehold.co/40x54/F5F0EB/4A2C17' }}"
+                             style="height:48px;width:36px;border-radius:4px;object-fit:cover;flex-shrink:0;" alt="{{ $item->product->title ?? '' }}">
                         <div>
-                            <p style="font-size:14px;font-weight:500;color:var(--text);">{{ $item->book->title ?? '—' }}</p>
+                            <p style="font-size:14px;font-weight:500;color:var(--text);">{{ $item->product->title ?? '—' }}</p>
                             <p style="font-size:12px;color:var(--text-muted);">x{{ $item->quantity }} · ₱{{ number_format($item->price,2) }}</p>
                         </div>
                     </div>

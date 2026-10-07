@@ -48,12 +48,12 @@
             <div class="space-y-3">
                 @foreach ($order->items as $item)
                     <div class="flex items-center gap-3">
-                        <img src="{{ $item->book && $item->book->image ? asset('storage/'.$item->book->image) : 'https://placehold.co/48x64/FF6300/FFFFFF?text=P' }}"
+                        <img src="{{ $item->product && $item->product->image ? asset('storage/'.$item->product->image) : 'https://placehold.co/48x64/FF6300/FFFFFF?text=P' }}"
                              class="h-12 w-9 rounded object-cover flex-shrink-0"
-                             alt="{{ $item->book->title ?? '' }}">
+                             alt="{{ $item->product->title ?? '' }}">
                         <div class="flex flex-1 items-center justify-between">
                             <div>
-                                <p class="text-sm font-semibold" style="color:#222222;">{{ $item->book->title ?? '—' }}</p>
+                                <p class="text-sm font-semibold" style="color:#222222;">{{ $item->product->title ?? '—' }}</p>
                                 <p class="text-xs" style="color:#6b90aa;">
                                     Qty: {{ $item->quantity }} × ₱{{ number_format($item->price, 2) }}
                                 </p>

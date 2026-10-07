@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class OrderItem extends Model
 {
     protected $fillable = [
-        'order_id', 'book_id', 'quantity', 'price',
+        'order_id', 'product_id', 'quantity', 'price',
         'commission_rate', 'commission_amount', 'seller_earning',
     ];
 
@@ -24,9 +24,9 @@ class OrderItem extends Model
         return $this->belongsTo(Order::class);
     }
 
-    public function book(): BelongsTo
+    public function product(): BelongsTo
     {
-        return $this->belongsTo(Book::class);
+        return $this->belongsTo(Product::class, 'product_id');
     }
 
     /** Line total the buyer paid */

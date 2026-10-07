@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Book;
+use App\Models\Product;
 use App\Models\Category;
 
 class HomeController extends Controller
@@ -14,10 +14,10 @@ class HomeController extends Controller
             return redirect()->route('sc.dashboard');
         }
 
-        $categories  = Category::withCount('books')->orderBy('name')->get();
-        $featured    = Book::with('category')->latest()->take(8)->get();
-        $bestSellers = Book::with('category')->inRandomOrder()->take(8)->get();
-        $newReleases = Book::with('category')->latest()->skip(4)->take(8)->get();
+        $categories  = Category::withCount('products')->orderBy('name')->get();
+        $featured    = Product::with('category')->latest()->take(8)->get();
+        $bestSellers = Product::with('category')->inRandomOrder()->take(8)->get();
+        $newReleases = Product::with('category')->latest()->skip(4)->take(8)->get();
 
         // Static reviews (no reviews table yet)
         $reviews = collect([

@@ -208,12 +208,12 @@
     </div>
 
     @php
-        $bestSellerIds = \App\Models\OrderItem::select('book_id')
+        $bestSellerIds = \App\Models\OrderItem::select('product_id')
             ->selectRaw('SUM(quantity) as total_sold')
-            ->groupBy('book_id')
+            ->groupBy('product_id')
             ->orderByDesc('total_sold')
             ->take(5)
-            ->pluck('book_id')
+            ->pluck('product_id')
             ->toArray();
     @endphp
 

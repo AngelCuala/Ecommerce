@@ -72,7 +72,7 @@
                         <form action="{{ route('admin.compliance.store') }}" method="POST">
                             @csrf
                             <input type="hidden" name="seller_id" value="{{ $seller->id }}">
-                            <input type="hidden" name="book_id" value="{{ $book->id }}">
+                            <input type="hidden" name="product_id" value="{{ $book->id }}">
                             <input type="hidden" name="type" value="wrong_category">
                             <input type="hidden" name="action" value="product_removed">
                             <input type="hidden" name="note" value="Product removed: category '{{ $book->category->name }}' does not match seller's registered line of business '{{ $seller->sellerApplication?->line_of_business }}'.">
@@ -131,7 +131,7 @@
 
                 <div>
                     <label class="text-xs font-semibold" style="color:#6b90aa;">Product (optional)</label>
-                    <select name="book_id" class="input mt-1 text-sm">
+                    <select name="product_id" class="input mt-1 text-sm">
                         <option value="">— No specific product —</option>
                         @foreach ($seller->books as $book)
                             <option value="{{ $book->id }}">{{ $book->title }}</option>
@@ -194,8 +194,8 @@
                         <div class="flex items-start justify-between gap-2">
                             <div>
                                 <span class="text-xs font-bold" style="color:#555555;">{{ $v->typeLabel() }}</span>
-                                @if ($v->book)
-                                    <span class="text-xs" style="color:#6b90aa;"> · {{ $v->book->title }}</span>
+                                @if ($v->product)
+                                    <span class="text-xs" style="color:#6b90aa;"> · {{ $v->product->title }}</span>
                                 @endif
                             </div>
                             <span class="rounded-full px-2.5 py-1 text-[10px] font-bold flex-shrink-0"

@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Book;
+use App\Models\Product;
 use App\Models\CartItem;
 use App\Models\Order;
 use App\Models\OrderItem;
@@ -112,7 +112,7 @@ class CheckoutController extends Controller
 
             OrderItem::create([
                 'order_id'          => $order->id,
-                'book_id'           => $item->book_id,
+                'product_id'           => $item->product_id,
                 'quantity'          => $item->quantity,
                 'price'             => $item->book->price,
                 'commission_rate'   => $commissionRate,
@@ -121,7 +121,7 @@ class CheckoutController extends Controller
             ]);
 
             // Reduce stock
-            Book::where('id', $item->book_id)->decrement('stock', $item->quantity);
+            Product::where('id', $item->product_id)->decrement('stock', $item->quantity);
         }
 
         // Clear cart

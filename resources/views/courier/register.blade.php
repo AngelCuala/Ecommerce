@@ -223,8 +223,8 @@
                             <label class="block text-xs font-semibold mb-2" style="color:#6B7280;">OR / CR *</label>
                             <input type="file" name="or_cr" accept=".jpg,.jpeg,.png,.pdf" class="hidden" required
                                    data-file-input onchange="courierFileChosen(this)">
-                            <button type="button" onclick="this.closest('[data-upload]').querySelector('[data-file-input]').click()"
-                                    class="w-full rounded-lg border-2 border-dashed py-3 text-xs font-semibold transition"
+                            <button type="button" data-file-upload-trigger
+                                    class="w-full rounded-lg border-2 border-dashed py-3 text-xs font-semibold transition btn-hover-primary"
                                     style="border-color:#cfdce8;color:#6b90aa;"
                                     onmouseover="this.style.borderColor='#fa4e1c';this.style.color='#fa4e1c';"
                                     onmouseout="this.style.borderColor='#cfdce8';this.style.color='#6b90aa';">
@@ -232,7 +232,7 @@
                             </button>
                             <div data-file-meta class="mt-2 hidden items-center justify-between gap-2 rounded-lg px-3 py-2 text-xs" style="background:#F9FAFB;">
                                 <span data-file-name class="truncate" style="color:#1a4d6e;"></span>
-                                <button type="button" onclick="courierFileRemove(this)" class="shrink-0 font-bold" style="color:#DC2626;">Remove</button>
+                                <button type="button" data-file-remove class="shrink-0 font-bold btn-hover-danger" style="color:#DC2626;">Remove</button>
                             </div>
                             <img data-file-preview class="mt-3 hidden h-24 w-full rounded-lg object-cover" alt="OR/CR preview">
                         </div>
@@ -241,8 +241,8 @@
                             <label class="block text-xs font-semibold mb-2" style="color:#6B7280;">Valid ID / Driver's License *</label>
                             <input type="file" name="id_upload" accept=".jpg,.jpeg,.png,.pdf" class="hidden" required
                                    data-file-input onchange="courierFileChosen(this)">
-                            <button type="button" onclick="this.closest('[data-upload]').querySelector('[data-file-input]').click()"
-                                    class="w-full rounded-lg border-2 border-dashed py-3 text-xs font-semibold transition"
+                            <button type="button" data-file-upload-trigger
+                                    class="w-full rounded-lg border-2 border-dashed py-3 text-xs font-semibold transition btn-hover-primary"
                                     style="border-color:#cfdce8;color:#6b90aa;"
                                     onmouseover="this.style.borderColor='#fa4e1c';this.style.color='#fa4e1c';"
                                     onmouseout="this.style.borderColor='#cfdce8';this.style.color='#6b90aa';">
@@ -250,7 +250,7 @@
                             </button>
                             <div data-file-meta class="mt-2 hidden items-center justify-between gap-2 rounded-lg px-3 py-2 text-xs" style="background:#F9FAFB;">
                                 <span data-file-name class="truncate" style="color:#1a4d6e;"></span>
-                                <button type="button" onclick="courierFileRemove(this)" class="shrink-0 font-bold" style="color:#DC2626;">Remove</button>
+                                <button type="button" data-file-remove class="shrink-0 font-bold btn-hover-danger" style="color:#DC2626;">Remove</button>
                             </div>
                             <img data-file-preview class="mt-3 hidden h-24 w-full rounded-lg object-cover" alt="ID preview">
                         </div>

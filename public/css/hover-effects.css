@@ -1,0 +1,87 @@
+/* Hover Effects for replacing inline JavaScript mouse events */
+
+/* Product card hover effects */
+.product-card-hover:hover {
+    transform: scale(1.05);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    transition: all 0.3s ease;
+}
+
+/* Button hover effects */
+.btn-hover-primary:hover {
+    background-color: #0056b3;
+    transform: translateY(-2px);
+    transition: all 0.2s ease;
+}
+
+.btn-hover-success:hover {
+    background-color: #218838;
+    transform: translateY(-2px);
+    transition: all 0.2s ease;
+}
+
+.btn-hover-danger:hover {
+    background-color: #c82333;
+    transform: translateY(-2px);
+    transition: all 0.2s ease;
+}
+
+.btn-hover-warning:hover {
+    background-color: #e0a800;
+    transform: translateY(-2px);
+    transition: all 0.2s ease;
+}
+
+.btn-hover-info:hover {
+    background-color: #138496;
+    transform: translateY(-2px);
+    transition: all 0.2s ease;
+}
+
+/* Card hover effects */
+.card-hover:hover {
+    box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+    transform: translateY(-3px);
+    transition: all 0.3s ease;
+}
+
+/* Link hover effects */
+.link-hover:hover {
+    color: #007bff;
+    text-decoration: underline;
+    transition: all 0.2s ease;
+}
+
+/* Image hover effects */
+.img-hover:hover {
+    opacity: 0.8;
+    transform: scale(1.02);
+    transition: all 0.3s ease;
+}
+
+/* Form input focus effects */
+.form-focus:focus {
+    border-color: #007bff;
+    box-shadow: 0 0 0 0.2rem rgba(0,123,255,0.25);
+    transition: all 0.2s ease;
+}
+
+/* Table row hover effects */
+.table-row-hover:hover {
+    background-color: #f8f9fa;
+    transition: background-color 0.2s ease;
+}
+
+/* Navigation item hover effects */
+.nav-item-hover:hover {
+    background-color: rgba(255,255,255,0.1);
+    border-radius: 4px;
+    transition: all 0.2s ease;
+}
+
+/* Icon hover effects */
+.icon-hover:hover {
+    color: #007bff;
+    transform: scale(1.1);
+    transition: all 0.2s ease;
+}

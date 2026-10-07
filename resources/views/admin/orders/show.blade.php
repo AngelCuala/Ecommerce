@@ -27,16 +27,16 @@
             <div class="p-6 space-y-4">
                 @foreach ($order->items as $item)
                     <div class="flex items-center gap-4">
-                        <img src="{{ $item->book && $item->book->image ? asset('storage/'.$item->book->image) : 'https://placehold.co/48x64/FF6300/FFFFFF?text=B' }}"
+                        <img src="{{ $item->product && $item->product->image ? asset('storage/'.$item->product->image) : 'https://placehold.co/48x64/FF6300/FFFFFF?text=B' }}"
                              class="h-14 w-10 rounded object-cover flex-shrink-0"
-                             alt="{{ $item->book->title ?? '' }}">
+                             alt="{{ $item->product->title ?? '' }}">
                         <div class="flex flex-1 items-start justify-between gap-3">
                             <div>
-                                <p class="font-semibold" style="color:#222222;">{{ $item->book->title ?? '—' }}</p>
+                                <p class="font-semibold" style="color:#222222;">{{ $item->product->title ?? '—' }}</p>
                                 <p class="text-xs mt-0.5" style="color:#6b90aa;">
-                                    by {{ $item->book->author ?? '—' }}
-                                    @if ($item->book && $item->book->seller)
-                                        · Seller: <span style="color:#fa4e1c;">{{ $item->book->seller->name }}</span>
+                                    by {{ $item->product->author ?? '—' }}
+                                    @if ($item->product && $item->product->seller)
+                                        · Seller: <span style="color:#fa4e1c;">{{ $item->product->seller->name }}</span>
                                     @endif
                                 </p>
                                 <p class="text-xs mt-1" style="color:#555555;">

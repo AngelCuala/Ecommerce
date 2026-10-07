@@ -53,10 +53,10 @@
                 <div class="divide-y" style="--tw-divide-color:#fff1ee;">
                     @foreach ($order->sellerItems as $item)
                         <div class="flex items-center gap-4 px-5 py-4" style="border-color:#fff1ee;">
-                            <img src="{{ $item->book && $item->book->image ? asset('storage/'.$item->book->image) : 'https://placehold.co/48x64/FF6300/fff?text=P' }}"
+                            <img src="{{ $item->product && $item->product->image ? asset('storage/'.$item->product->image) : 'https://placehold.co/48x64/FF6300/fff?text=P' }}"
                                  class="h-16 w-12 rounded-lg object-cover flex-shrink-0 shadow-sm" alt="">
                             <div class="flex-1 min-w-0">
-                                <p class="font-bold text-sm" style="color:#222222;">{{ $item->book->title ?? '—' }}</p>
+                                <p class="font-bold text-sm" style="color:#222222;">{{ $item->product->title ?? '—' }}</p>
                                 <p class="text-xs mt-0.5" style="color:#6b90aa;">Qty: {{ $item->quantity }} × ₱{{ number_format($item->price, 2) }}</p>
                             </div>
                             <div class="text-right flex-shrink-0">

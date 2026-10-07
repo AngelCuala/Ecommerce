@@ -135,15 +135,13 @@ class LogisticsParcelsSeeder extends Seeder
                     'parcel_id' => $parcel->id,
                     'rider_id' => $rider->id,
                     'area_id' => $parcel->area_id,
-                    'assigned_at' => now()->subHours(rand(1, 6)),
                     'status' => match($parcel->status) {
                         'assigned' => 'assigned',
-                        'in_transit' => 'picked_up',
+                        'in_transit' => 'out_for_delivery',
                         'delivered' => 'delivered',
                         default => 'assigned',
                     },
-                    'estimated_delivery_at' => now()->addHours(rand(2, 8)),
-                    'delivery_notes' => 'Assigned via logistics seeder',
+                    'remarks' => 'Assigned via logistics seeder',
                 ]);
             }
         }

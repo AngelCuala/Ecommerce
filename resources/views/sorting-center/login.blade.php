@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>Logistics Login — ALVY</title>
+    <title>Sorting Center Login — ALVY</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
@@ -36,8 +36,8 @@
                     <a href="{{ route('home') }}" class="mx-auto mb-4 inline-flex h-12 w-12 items-center justify-center overflow-hidden rounded-xl">
                         <img src="{{ asset('images/logo.png') }}" alt="ALVY" class="h-full w-full object-cover" style="transform:scale(1.4);">
                     </a>
-                    <h1 class="font-display text-3xl font-extrabold" style="color:#222;">Logistics Login</h1>
-                    <p class="mt-1 text-sm" style="color:#8a7a70;">Access the logistics management panel</p>
+                    <h1 class="font-display text-3xl font-extrabold" style="color:#222;">Sorting Center Login</h1>
+                    <p class="mt-1 text-sm" style="color:#8a7a70;">Access the sorting center management panel</p>
                 </div>
 
                 @if ($errors->any())
@@ -51,7 +51,7 @@
                     </div>
                 @endif
 
-                <form action="{{ route('logistics.login.store') }}" method="POST" class="mt-8 space-y-5">
+                <form action="{{ route('sorting-center.login.store') }}" method="POST" class="mt-8 space-y-5">
                     @csrf
 
                     <div>
@@ -73,22 +73,19 @@
                         <label class="flex items-center gap-2" style="color:#5a4d45;">
                             <input type="checkbox" name="remember" style="accent-color:#fa4e1c;"> Remember Me
                         </label>
-                        <a href="#" class="font-semibold" style="color:#fa4e1c;"
-                           onmouseover="this.style.textDecoration='underline';" onmouseout="this.style.textDecoration='none';">Forgot Your Password?</a>
+                        <a href="#" class="font-semibold hover:underline" style="color:#fa4e1c;">Forgot Your Password?</a>
                     </div>
 
                     <button type="submit"
-                            class="flex w-full items-center justify-center gap-2 rounded-lg py-3 text-sm font-bold text-white transition"
-                            style="background:#fa4e1c;"
-                            onmouseover="this.style.background='#E14F00';" onmouseout="this.style.background='#fa4e1c';">
-                        Access Logistics Panel
+                            class="flex w-full items-center justify-center gap-2 rounded-lg py-3 text-sm font-bold text-white transition btn-hover-primary"
+                            style="background:#fa4e1c;">
+                        Access Sorting Center Panel
                         <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M13 6l6 6-6 6"/></svg>
                     </button>
                 </form>
 
                 <p class="mt-8 text-center text-sm" style="color:#8a7a70;">
-                    <a href="{{ route('login') }}" class="font-bold" style="color:#222;"
-                       onmouseover="this.style.color='#fa4e1c';" onmouseout="this.style.color='#222';">← Back to Main Login</a>
+                    <a href="{{ route('login') }}" class="font-bold hover:text-orange-500" style="color:#222;">← Back to Main Login</a>
                 </p>
             </div>
         </div>

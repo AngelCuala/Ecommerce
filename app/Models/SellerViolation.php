@@ -8,13 +8,13 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class SellerViolation extends Model
 {
     protected $fillable = [
-        'seller_id', 'admin_id', 'book_id',
+        'seller_id', 'admin_id', 'product_id',
         'type', 'action', 'note', 'acknowledged',
     ];
 
     public function seller(): BelongsTo { return $this->belongsTo(User::class,  'seller_id'); }
     public function admin(): BelongsTo  { return $this->belongsTo(User::class,  'admin_id'); }
-    public function book(): BelongsTo   { return $this->belongsTo(Book::class,  'book_id'); }
+    public function product(): BelongsTo   { return $this->belongsTo(Product::class,  'product_id'); }
 
     public static function typeLabels(): array
     {
