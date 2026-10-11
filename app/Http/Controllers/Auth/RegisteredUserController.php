@@ -109,7 +109,7 @@ class RegisteredUserController extends Controller
             $rules['id_image'] = 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120';
             $rules['business_permit'] = 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120';
         } elseif ($role === 'courier') {
-            $rules['vehicle_type'] = 'required|in:motorcycle,tricycle,car';
+            $rules['vehicle_type'] = 'required|in:motorcycle,tricycle,car,truck';
             $rules['plate_number'] = 'required|string|max:50';
             $rules['or_cr_image'] = ['bail', 'nullable', 'file', 'mimes:jpg,jpeg,png,pdf', 'max:5120', new GovernmentId]; // driver's license
             $rules['vehicle_reg_image'] = 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120';
