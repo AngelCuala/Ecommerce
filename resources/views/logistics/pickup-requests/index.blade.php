@@ -21,10 +21,10 @@
                 <td>{{ $parcel->dropoff_address }}</td>
                 <td class="text-muted">{{ $parcel->created_at->format('M d, Y') }}</td>
                 <td style="display:flex;gap:6px;">
-                    <form method="POST" action="{{ route('logistics.pickup-requests.approve', $parcel) }}">@csrf
+                    <form method="POST" action="{{ route('admin.logistics.pickup-requests.approve', $parcel) }}">@csrf
                         <button class="btn btn--primary btn--sm">Approve</button>
                     </form>
-                    <form method="POST" action="{{ route('logistics.pickup-requests.reject', $parcel) }}">@csrf
+                    <form method="POST" action="{{ route('admin.logistics.pickup-requests.reject', $parcel) }}">@csrf
                         <input type="hidden" name="reason" value="Rejected by admin">
                         <button class="btn btn--danger btn--sm" onclick="return confirm('Reject this pickup request?')">Reject</button>
                     </form>

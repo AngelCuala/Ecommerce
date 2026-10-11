@@ -25,7 +25,11 @@ class RegisteredUserController extends Controller
 
         // Add cache control headers to prevent browser back button issues
         return response()
-            ->view('auth.register')
+            ->view('auth.register', [
+                // Seller fields live on this same form (shown when "Seller" is picked).
+                'categories'  => \App\Support\SellerApplicationRules::categories(),
+                'sellerTypes' => \App\Models\SellerApplication::SELLER_TYPES,
+            ])
             ->header('Cache-Control', 'no-cache, no-store, max-age=0, must-revalidate')
             ->header('Pragma', 'no-cache')
             ->header('Expires', 'Fri, 01 Jan 1990 00:00:00 GMT');
@@ -55,6 +59,17 @@ class RegisteredUserController extends Controller
         // Get the role from the request
         $role = $request->input('role', 'buyer');
 
+        // Sellers use the same form but go through the seller sign-up (shop details,
+        // TIN, business documents, email OTP). Map this form's field names to it.
+        if ($role === 'seller') {
+            $request->merge([
+                'phone'  => $request->input('contact_no'),
+                'street' => trim($request->input('house_number', '') . ' ' . $request->input('street', '')),
+            ]);
+
+            return app(\App\Http\Controllers\Seller\RegistrationController::class)->store($request);
+        }
+
         // Emails are compared case-insensitively for duplicates.
         if (is_string($request->input('email'))) {
             $request->merge(['email' => mb_strtolower(trim($request->input('email')))]);
@@ -74,7 +89,7 @@ class RegisteredUserController extends Controller
             'middle_initial' => ['nullable', 'string', 'max:3', 'regex:/^\pL{1,2}\.?$/u'],
             'email'          => ['required', 'string', 'max:255', 'email:rfc', 'regex:/^[^@\s]+@[^@\s]+\.[A-Za-z]{2,}$/', 'unique:users,email'],
             'password'       => 'required|string|min:8',
-            'sex'            => 'required|in:male,female,other',
+            'sex'            => 'required|in:male,female', // users.sex is enum('Male','Female')
             'terms'          => 'accepted',
             // Fields now required for all roles
             'contact_no'   => ['required', 'string', 'regex:/^09\d{9}$/', 'unique:users,contact_no'],

@@ -249,10 +249,10 @@
 
                     <div class="mt-3">
                         <label class="fld-label">Sex*</label>
-                        <div class="grid grid-cols-3 gap-2">
+                        {{-- users.sex is enum('Male','Female') --}}
+                        <div class="grid grid-cols-2 gap-2">
                             <div class="gender-chip active px-3 py-2.5 text-center text-sm font-semibold" data-gender="male">Male</div>
                             <div class="gender-chip px-3 py-2.5 text-center text-sm font-semibold" data-gender="female">Female</div>
-                            <div class="gender-chip px-3 py-2.5 text-center text-sm font-semibold" data-gender="other">Other</div>
                         </div>
                         <input type="hidden" name="sex" id="genderInput" value="male">
                     </div>
@@ -262,7 +262,7 @@
                             <label class="fld-label" for="contactNo">Contact No.*</label>
                             <input type="tel" name="contact_no" id="contactNo" class="form-input" placeholder="09171234567"
                                    inputmode="numeric" value="{{ old('contact_no') }}" required>
-                            <p class="field-error" data-error-for="contactNo">@error('contact_no'){{ $message }}@enderror</p>
+                            <p class="field-error" data-error-for="contactNo">@error('contact_no'){{ $message }}@enderror @error('phone'){{ $message }}@enderror</p>
                         </div>
                         <div class="sm:col-span-2">
                             <label class="fld-label" for="birthday">Birthday*</label>
@@ -366,37 +366,83 @@
 
                 {{-- SELLER FIELDS --}}
                 <section id="sellerSection" class="hidden-section form-card">
-                    <h2 class="card-title"><span class="card-num">5</span> Seller Documents</h2>
+                    <h2 class="card-title"><span class="card-num">5</span> Shop Information</h2>
 
-                    <div class="mb-3">
-                        <label class="fld-label">Valid Government ID</label>
-                        <div class="file-upload-box" onclick="document.getElementById('sellerIdUpload').click()">
-                            <span class="upload-icon">
-                                <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
-                            </span>
-                            <p class="text-sm font-semibold" style="color:#3a2f29;">Click to upload Valid ID</p>
+                    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                        <div class="sm:col-span-2">
+                            <label class="fld-label" for="shopName">Shop Name* <span class="font-normal" style="color:#8a7a70;">(3–30 characters)</span></label>
+                            <input type="text" name="shop_name" id="shopName" class="form-input @error('shop_name') is-invalid @enderror"
+                                   placeholder="e.g. Maria Clara Handicrafts" value="{{ old('shop_name') }}" maxlength="30">
+                            @error('shop_name')<p class="field-error">{{ $message }}</p>@enderror
                         </div>
-                        <input type="file" id="sellerIdUpload" name="id_image" accept="image/*,.pdf" class="hidden">
-                        <img id="sellerIdPreview" class="file-preview hidden">
+                        <div>
+                            <label class="fld-label" for="lineOfBusiness">Shop Category*</label>
+                            <select name="line_of_business" id="lineOfBusiness" class="form-input @error('line_of_business') is-invalid @enderror">
+                                <option value="">Select category</option>
+                                @foreach ($categories as $cat)
+                                    <option value="{{ $cat }}" @selected(old('line_of_business') === $cat)>{{ $cat }}</option>
+                                @endforeach
+                            </select>
+                            @error('line_of_business')<p class="field-error">{{ $message }}</p>@enderror
+                        </div>
+                        <div>
+                            <label class="fld-label" for="sellerType">Seller Type*</label>
+                            <select name="seller_type" id="sellerType" class="form-input @error('seller_type') is-invalid @enderror">
+                                <option value="">Select seller type</option>
+                                @foreach ($sellerTypes as $type)
+                                    <option value="{{ $type }}" @selected(old('seller_type') === $type)>{{ $type }}</option>
+                                @endforeach
+                            </select>
+                            @error('seller_type')<p class="field-error">{{ $message }}</p>@enderror
+                        </div>
+                        <div class="sm:col-span-2">
+                            <label class="fld-label" for="tin">TIN*</label>
+                            <input type="text" name="tin" id="tin" class="form-input @error('tin') is-invalid @enderror"
+                                   placeholder="000-000-000-000" inputmode="numeric" maxlength="15" value="{{ old('tin') }}">
+                            @error('tin')
+                                <p class="field-error">{{ $message }}</p>
+                            @else
+                                <p class="mt-1 text-[11px]" style="color:#8a7a70;">12 digits, including your 3-digit branch code (000 for the main office).</p>
+                            @enderror
+                        </div>
                     </div>
 
-                    <div class="mb-3">
-                        <label class="fld-label">Business / DTI Permit</label>
-                        <div class="file-upload-box" onclick="document.getElementById('sellerPermitUpload').click()">
-                            <span class="upload-icon">
-                                <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
-                            </span>
-                            <p class="text-sm font-semibold" style="color:#3a2f29;">Click to upload Business Permit</p>
-                        </div>
-                        <input type="file" id="sellerPermitUpload" name="business_permit" accept="image/*,.pdf" class="hidden">
-                        <img id="sellerPermitPreview" class="file-preview hidden">
+                    <div class="section-divider">
+                        <div class="section-bar"></div>
+                        <h3 class="text-sm font-bold" style="color:#3a2f29;">Business Documents</h3>
+                    </div>
+                    <p class="mb-3 text-xs" style="color:#8a7a70;">JPG, PNG or PDF · max 5 MB each. Only the admin team can see these.</p>
+
+                    <div class="space-y-3">
+                        @foreach ([
+                            ['government_id',   'Government-issued ID*', 'Passport, driver\'s license, UMID, PhilID, etc.', ''],
+                            ['dti_certificate', 'DTI Certificate*',      'Business name registration certificate.',        'dti'],
+                            ['sec_certificate', 'SEC Certificate*',      'Required for corporations.',                     'sec'],
+                            ['bir_2303',        'BIR Form 2303*',        'Certificate of Registration from the BIR.',      ''],
+                        ] as [$field, $label, $hint, $group])
+                            <div @if ($group) data-doc-group="{{ $group }}" @endif>
+                                <label class="fld-label">{{ $label }}</label>
+                                <div class="file-upload-box" onclick="document.getElementById('seller_{{ $field }}').click()">
+                                    <span class="upload-icon">
+                                        <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+                                    </span>
+                                    <div class="min-w-0">
+                                        <p class="truncate text-sm font-semibold" style="color:#3a2f29;" id="seller_{{ $field }}_label">Click to upload</p>
+                                        <p class="truncate text-xs" style="color:#9a8b81;">{{ $hint }}</p>
+                                    </div>
+                                </div>
+                                <input type="file" id="seller_{{ $field }}" name="{{ $field }}" accept="image/jpeg,image/png,.pdf" class="hidden">
+                                <img id="seller_{{ $field }}_preview" class="file-preview hidden">
+                                @error($field)<p class="field-error">{{ $message }}</p>@enderror
+                            </div>
+                        @endforeach
                     </div>
 
-                    <div class="flex gap-2 rounded-lg border p-3 text-sm" style="background:#fff5f3;border-color:#fdd5c8;">
+                    <div class="mt-3 flex gap-2 rounded-lg border p-3 text-sm" style="background:#fff5f3;border-color:#fdd5c8;">
                         <svg class="mt-0.5 h-4 w-4 flex-shrink-0" style="color:#fa4e1c;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
                         </svg>
-                        <p style="color:#b4380f;">Both your valid ID and business permit are required for verification.</p>
+                        <p style="color:#b4380f;">Sellers need a 4-digit ZIP code and a stronger password (uppercase, lowercase, number and symbol). We'll review your shop in 1–3 business days after you verify your email.</p>
                     </div>
                 </section>
 
@@ -615,11 +661,6 @@ document.addEventListener('DOMContentLoaded', function() {
     // Role Selection
     roleChips.forEach(chip => {
         chip.addEventListener('click', function() {
-            // Sellers sign up on their own page (shop details, TIN, business documents).
-            if (this.dataset.role === 'seller') {
-                window.location.href = @json(route('seller.register'));
-                return;
-            }
             roleChips.forEach(c => c.classList.remove('active'));
             this.classList.add('active');
             const role = this.dataset.role;
@@ -670,8 +711,9 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     
     // File Upload Previews
-    setupFilePreview('sellerIdUpload', 'sellerIdPreview');
-    setupFilePreview('sellerPermitUpload', 'sellerPermitPreview');
+    ['government_id', 'dti_certificate', 'sec_certificate', 'bir_2303'].forEach(function (f) {
+        setupFilePreview('seller_' + f, 'seller_' + f + '_preview', 'seller_' + f + '_label');
+    });
     setupFilePreview('driverLicenseUpload', 'driverLicensePreview');
     setupFilePreview('vehicleRegUpload', 'vehicleRegPreview');
     setupFilePreview('logisticsPermitUpload', 'logisticsPermitPreview');
@@ -707,6 +749,21 @@ document.addEventListener('DOMContentLoaded', function() {
             syncBuyerIdVisibility(this.dataset.role);
         });
     });
+
+    // Sellers: corporations upload an SEC certificate, everyone else a DTI certificate.
+    const sellerType = document.getElementById('sellerType');
+    function syncSellerDocs() {
+        const corp = sellerType.value === 'Corporation';
+        document.querySelector('[data-doc-group="dti"]').style.display = corp ? 'none' : '';
+        document.querySelector('[data-doc-group="sec"]').style.display = corp ? '' : 'none';
+    }
+    sellerType.addEventListener('change', syncSellerDocs);
+    syncSellerDocs();
+
+    // Re-open the role from a failed submit, or from links like /register?role=seller.
+    const initialRole = @json(old('role', request('role', 'buyer')));
+    const initialChip = document.querySelector('.role-chip[data-role="' + initialRole + '"]');
+    if (initialChip && initialRole !== 'buyer') initialChip.click();
     
     // Terms checkbox toggles the submit button
     const agreeCheckbox = document.getElementById('agreeTerms');

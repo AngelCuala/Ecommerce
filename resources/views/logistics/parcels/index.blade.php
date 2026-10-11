@@ -28,14 +28,14 @@
                 <td>{{ $parcel->area->name ?? '—' }}</td>
                 <td><span class="badge badge--neutral">{{ ucfirst(str_replace('_',' ',$parcel->status)) }}</span></td>
                 <td style="display:flex;gap:6px;flex-wrap:wrap;">
-                    <a href="{{ route('logistics.parcels.show', $parcel) }}" class="btn btn--sm">View</a>
+                    <a href="{{ route('admin.logistics.parcels.show', $parcel) }}" class="btn btn--sm">View</a>
                     @if($parcel->status === 'pickup_approved')
-                        <form method="POST" action="{{ route('logistics.parcels.mark-picked-up', $parcel) }}">@csrf
+                        <form method="POST" action="{{ route('admin.logistics.parcels.mark-picked-up', $parcel) }}">@csrf
                             <button class="btn btn--primary btn--sm">Mark Picked Up</button>
                         </form>
                     @endif
                     @if($parcel->status === 'picked_up')
-                        <form method="POST" action="{{ route('logistics.parcels.sort', $parcel) }}" style="display:flex;gap:6px;">
+                        <form method="POST" action="{{ route('admin.logistics.parcels.sort', $parcel) }}" style="display:flex;gap:6px;">
                             @csrf
                             <select name="area_id" required style="width:auto;">
                                 <option value="">— Area —</option>

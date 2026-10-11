@@ -25,12 +25,8 @@ class RegistrationController extends Controller
             return redirect()->route(auth()->user()->isBuyer() ? 'seller.apply' : 'home');
         }
 
-        return response()
-            ->view('seller.register', [
-                'categories'  => SellerApplicationRules::categories(),
-                'sellerTypes' => SellerApplication::SELLER_TYPES,
-            ])
-            ->header('Cache-Control', 'no-cache, no-store, max-age=0, must-revalidate');
+        // Seller sign-up now lives on the main registration form.
+        return redirect()->route('register', ['role' => 'seller']);
     }
 
     public function store(Request $request)

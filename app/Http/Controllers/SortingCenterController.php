@@ -776,7 +776,12 @@ class SortingCenterController extends Controller
     public function sendMessage(Request $request)
     {
         $request->validate(['receiver_id' => 'required|exists:users,id', 'body' => 'required|string|max:2000']);
-        Message::create(['sender_id' => auth()->id(), 'receiver_id' => $request->receiver_id, 'body' => $request->body]);
+        Message::create([
+            'thread_key'  => Message::threadKey(auth()->id(), (int) $request->receiver_id),
+            'sender_id'   => auth()->id(),
+            'receiver_id' => $request->receiver_id,
+            'body'        => $request->body,
+        ]);
         return back()->with('success', 'Message sent.');
     }
 
