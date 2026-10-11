@@ -1,24 +1,25 @@
 <x-layout title="Notifications — ALVY">
-<div class="mx-auto max-w-5xl px-4 py-10 sm:px-6 lg:px-8">
+<div class="pf-page">
+<div class="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
 
-    <h1 class="font-display text-2xl font-bold mb-8" style="color:#002b4d;">My Account</h1>
+    @include('profile._page-header', ['title' => 'Notifications', 'subtitle' => 'Order updates and important account activity.'])
 
     <div class="flex flex-col gap-6 lg:flex-row lg:items-start">
 
         @include('profile._sidebar')
 
-        <div class="flex-1">
+        <div class="min-w-0 flex-1 space-y-5">
 
-            <div class="rounded-2xl p-6 sm:p-7" style="background:#fff;border:1px solid #eef2f6;box-shadow:0 1px 3px rgba(0,0,0,.04);">
+            <div class="pf-card p-6 sm:p-7">
                 <div class="mb-5 flex items-center gap-3">
-                    <span class="flex h-10 w-10 items-center justify-center rounded-full" style="background:#FFF1E6;">
-                        <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" style="color:#fa4e1c;">
+                    <span class="pf-icon">
+                        <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
                             <path d="M18 8a6 6 0 00-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 01-3.4 0"/>
                         </svg>
                     </span>
                     <div>
-                        <h2 class="font-display text-lg font-bold" style="color:#002b4d;">Notifications</h2>
-                        <p class="text-xs" style="color:#6b90aa;">Order updates and important account activity.</p>
+                        <h2 class="pf-card-title">Notifications</h2>
+                        <p class="text-xs pf-muted">Order updates and important account activity.</p>
                     </div>
                 </div>
 
@@ -33,71 +34,82 @@
                     ];
                     $iconColors = [
                         'clock' => '#B45309', 'box' => '#6B4C3B', 'truck' => '#C2410C',
-                        'check' => '#059669', 'x' => '#DC2626', 'bell' => '#6b90aa',
+                        'check' => '#059669', 'x' => '#DC2626', 'bell' => '#8a7a70',
+                    ];
+                    $iconBgs = [
+                        'clock' => '#FFFBEB', 'box' => '#F7F1ED', 'truck' => '#fff1ee',
+                        'check' => '#ECFDF5', 'x' => '#FEF2F2', 'bell' => '#F7F1ED',
                     ];
                 @endphp
 
+                <div class="space-y-2">
                 @forelse ($notifications as $n)
                     <a href="{{ $n->kind === 'order' ? route('profile.orders') : route('profile.notifications') }}"
-                       class="flex items-start gap-4 rounded-xl p-3.5 transition"
-                       style="{{ $n->is_unread ? 'background:#FFF9F5;' : '' }}"
-                       onmouseover="this.style.background='#f6f9fc';"
-                       onmouseout="this.style.background='{{ $n->is_unread ? '#FFF9F5' : '' }}';">
+                       class="relative flex items-start gap-4 rounded-xl border p-3.5 transition hover:border-[#F0E4DC] hover:bg-[#FDF8F5] {{ $n->is_unread ? 'border-[rgba(250,78,28,.18)] bg-[#fff5f3]' : 'border-transparent' }}">
+
+                        @if ($n->is_unread)
+                            <span class="absolute bottom-3 left-0 top-3 w-1 rounded-r-full" style="background:#fa4e1c;"></span>
+                        @endif
 
                         {{-- Icon --}}
-                        <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full"
-                              style="background:rgba(0,0,0,.04);">
+                        <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
+                              style="background:{{ $iconBgs[$n->icon] ?? '#F7F1ED' }};">
                             <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.7"
                                  stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"
-                                 style="color:{{ $iconColors[$n->icon] ?? '#6b90aa' }};">
+                                 style="color:{{ $iconColors[$n->icon] ?? '#8a7a70' }};">
                                 {!! $icons[$n->icon] ?? $icons['bell'] !!}
                             </svg>
                         </span>
 
                         {{-- Text --}}
-                        <div class="flex-1 min-w-0">
-                            <div class="flex items-center gap-2">
-                                <p class="font-semibold text-sm" style="color:#002b4d;">{{ $n->title }}</p>
+                        <div class="min-w-0 flex-1">
+                            <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
+                                <p class="text-sm {{ $n->is_unread ? 'font-extrabold' : 'font-bold' }}" style="color:#222;">{{ $n->title }}</p>
                                 @if ($n->kind === 'order')
-                                    <span class="text-[11px]" style="color:#9db3c4;">· Order #{{ str_pad($n->order_id, 6, '0', STR_PAD_LEFT) }}</span>
+                                    <span class="pf-badge pf-badge-gray">Order #{{ str_pad($n->order_id, 6, '0', STR_PAD_LEFT) }}</span>
                                 @else
-                                    <span class="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide"
-                                          style="background:#FFF1E6;color:#fa4e1c;">Announcement</span>
+                                    <span class="pf-badge uppercase">Announcement</span>
                                 @endif
                                 @if ($n->is_unread)
-                                    <span class="ml-auto h-2 w-2 shrink-0 rounded-full" style="background:#fa4e1c;"></span>
+                                    <span class="ml-auto h-2 w-2 shrink-0 rounded-full" style="background:#fa4e1c;box-shadow:0 0 0 3px rgba(250,78,28,.15);"></span>
                                 @endif
                             </div>
-                            <p class="mt-0.5 text-sm leading-snug" style="color:#54728a;">{{ $n->body }}</p>
+                            <p class="mt-1 text-sm leading-snug pf-text">{{ $n->body }}</p>
                             @if ($n->item_name)
-                                <p class="mt-1 text-xs truncate" style="color:#9db3c4;">{{ $n->item_name }}</p>
+                                <p class="mt-1 truncate text-xs pf-muted">{{ $n->item_name }}</p>
                             @endif
-                            <p class="mt-1 text-[11px]" style="color:#c2d1dc;">{{ $n->at->diffForHumans() }}</p>
+                            <p class="mt-1.5 inline-flex items-center gap-1 text-[11px] pf-muted">
+                                <svg class="h-3 w-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path stroke-linecap="round" d="M12 7v5l3 2"/></svg>
+                                {{ $n->at->diffForHumans() }}
+                            </p>
                         </div>
 
                         {{-- Thumbnail --}}
                         @if ($n->thumbnail)
                             <img src="{{ asset('storage/'.$n->thumbnail) }}" alt=""
-                                 class="h-12 w-12 shrink-0 rounded-lg object-cover" style="border:1px solid #eef2f6;">
+                                 class="h-12 w-12 shrink-0 rounded-lg object-cover" style="border:1px solid #F0E4DC;">
                         @endif
                     </a>
-                    @if (! $loop->last)
-                        <div style="height:1px;background:#f0f4f8;margin:0 .5rem;"></div>
-                    @endif
                 @empty
-                    <div class="flex flex-col items-center gap-3 py-16 text-center">
-                        <span class="flex h-14 w-14 items-center justify-center rounded-full" style="background:#f6f9fc;">
-                            <svg class="h-7 w-7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" style="color:#9db3c4;">
+                    <div class="flex flex-col items-center gap-3 py-14 text-center">
+                        <span class="pf-icon h-16 w-16 rounded-2xl">
+                            <svg class="h-8 w-8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
                                 <path d="M18 8a6 6 0 00-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 01-3.4 0"/>
                             </svg>
                         </span>
-                        <p class="font-semibold text-sm" style="color:#002b4d;">No notifications yet</p>
-                        <p class="text-sm" style="color:#6b90aa;">Order updates will appear here once you make a purchase.</p>
+                        <p class="pf-card-title mt-1">No notifications yet</p>
+                        <p class="max-w-sm text-sm pf-muted">Order updates will appear here once you make a purchase.</p>
+                        <a href="{{ route('home') }}" class="pf-btn mt-2">
+                            Start Shopping
+                            <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M13 6l6 6-6 6"/></svg>
+                        </a>
                     </div>
                 @endforelse
+                </div>
             </div>
 
         </div>
     </div>
+</div>
 </div>
 </x-layout>

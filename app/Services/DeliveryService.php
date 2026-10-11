@@ -65,8 +65,8 @@ class DeliveryService
         $order = $delivery->order;
         if (! $order) return;
 
-        $order->loadMissing('items.book');
-        $order->items->pluck('book.seller_id')->filter()->unique()
+        $order->loadMissing('items.product');
+        $order->items->pluck('product.seller_id')->filter()->unique()
             ->each(fn ($sellerId) => $this->notify((int) $sellerId, $title, $body, $type, route('seller.orders.show', $order->id)));
     }
 

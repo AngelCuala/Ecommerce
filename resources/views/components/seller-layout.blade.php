@@ -8,7 +8,7 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="{{ asset('js/vendor/tailwindcss.js') }}"></script>
     <script>
       tailwind.config = {
         theme: {
@@ -92,95 +92,36 @@
     {{-- ══════════════════════════
          DESKTOP SIDEBAR
     ══════════════════════════ --}}
+    @php
+$navSections = [
+            'Store' => [
+                'dashboard' => ['route' => 'seller.dashboard',    'label' => 'Dashboard',        'icon' => 'grid'],
+                'orders'    => ['route' => 'seller.orders.index', 'label' => 'Order Management', 'icon' => 'orders'],
+                'products'  => ['route' => 'seller.books.index',  'label' => 'Inventory',        'icon' => 'box'],
+                'reports'   => ['route' => 'seller.reports',      'label' => 'Reports',          'icon' => 'chart'],
+            ],
+            'General' => [
+                'messages'  => ['route' => 'messages.inbox',      'label' => 'Messages',         'icon' => 'chat'],
+                'account'   => ['route' => 'seller.account',      'label' => 'Account',          'icon' => 'user'],
+            ],
+        ];
+    @endphp
     <aside class="hidden w-64 shrink-0 flex-col border-r lg:flex"
            style="background:#FFFFFF;border-color:#EFEFEF;">
 
         {{-- Logo --}}
         <a href="{{ route('seller.dashboard') }}" class="flex items-center gap-2.5 px-6 py-6">
             <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg font-display text-base font-black"
-                  style="background:transparent;overflow:hidden;padding:0;"><img src="{{ asset('images/logo.png') }}" alt="ALVY" style="width:140%;height:140%;object-fit:cover;display:block;margin:-20%;transform:scale(1.5);transform-origin:center;"></span>
+                  style="background:transparent;overflow:hidden;padding:0;"><img src="{{ asset('images/logo-mark.png') }}" alt="ALVY" style="width:100%;height:100%;object-fit:contain;display:block;"></span>
             <div class="leading-tight">
                 <span class="font-display text-lg font-extrabold tracking-tight" style="color:#222222;">ALVY</span>
                 <span class="block text-[10px] font-semibold uppercase tracking-widest" style="color:#fa4e1c;">Seller Centre</span>
             </div>
         </a>
 
-        <div style="height:1px;background:#EFEFEF;margin:0 1.5rem;"></div>
-        <p class="px-6 pt-4 pb-1 text-[10px] font-bold uppercase tracking-widest" style="color:#B0B0B0;">Navigation</p>
 
-        <nav class="mt-1 flex-1 space-y-0.5 overflow-y-auto px-3 pb-4">
-            @php
-                $links = [
-                    'dashboard' => ['route' => 'seller.dashboard',    'label' => 'Dashboard'],
-                    'orders'    => ['route' => 'seller.orders.index', 'label' => 'Order Management'],
-                    'products'  => ['route' => 'seller.books.index',  'label' => 'Inventory'],
-                    'reports'   => ['route' => 'seller.reports',      'label' => 'Reports'],
-                    'messages'  => ['route' => 'messages.inbox',      'label' => 'Messages'],
-                    'account'   => ['route' => 'seller.account',      'label' => 'Account'],
-                ];
-            @endphp
-            @foreach ($links as $key => $link)
-                @php $isActive = $active === $key; @endphp
-                <a href="{{ route($link['route']) }}"
-                   class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition {{ $isActive ? 'nav-active' : '' }}"
-                   style="{{ $isActive ? '' : 'color:#555555;' }}"
-                   onmouseover="{{ $isActive ? '' : "this.style.background='#fff5f3';this.style.color='#fa4e1c';" }}"
-                   onmouseout="{{ $isActive ? '' : "this.style.background='';this.style.color='#555555';" }}">
+        @include('partials.panel.sidebar-nav', ['sections' => $navSections, 'active' => $active])
 
-                    {{-- SVG icon per item --}}
-                    @if ($key === 'dashboard')
-                        <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
-                    @elseif ($key === 'orders')
-                        <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
-                    @elseif ($key === 'products')
-                        <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M20 7H4a1 1 0 00-1 1v10a1 1 0 001 1h16a1 1 0 001-1V8a1 1 0 00-1-1z"/><path stroke-linecap="round" stroke-linejoin="round" d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"/></svg>
-                    @elseif ($key === 'reports')
-                        <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
-                    @elseif ($key === 'messages')
-                        @php $sellerUnread = \App\Models\Message::where('receiver_id', auth()->id())->where('is_read', false)->count(); @endphp
-                        <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6 6 0 10-12 0v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
-                    @elseif ($key === 'account')
-                        <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path stroke-linecap="round" stroke-linejoin="round" d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
-                    @endif
-
-                    {{ $link['label'] }}
-
-                    @if ($key === 'messages' && $sellerUnread > 0)
-                        <span class="ml-auto flex h-5 min-w-[1.25rem] items-center justify-center rounded-full px-1 text-[9px] font-bold"
-                              style="background:#fa4e1c;color:#fff;">
-                            {{ $sellerUnread > 9 ? '9+' : $sellerUnread }}
-                        </span>
-                    @endif
-                </a>
-            @endforeach
-        </nav>
-
-        <div style="height:1px;background:#EFEFEF;margin:0 1.5rem;"></div>
-
-        {{-- User footer --}}
-        <div class="p-4">
-            <div class="flex items-center gap-3 rounded-lg px-2 py-2">
-                <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg font-bold text-sm"
-                      style="background:#fff1ee;color:#fa4e1c;">
-                    {{ strtoupper(substr(auth()->user()->name ?? 'S', 0, 1)) }}
-                </span>
-                <div class="min-w-0">
-                    <p class="truncate text-sm font-semibold" style="color:#222222;">{{ auth()->user()->name ?? 'Seller' }}</p>
-                    <p class="truncate text-xs" style="color:#999999;">{{ auth()->user()->email ?? '' }}</p>
-                </div>
-            </div>
-            <div class="mt-3 flex gap-2">
-                <form action="{{ route('logout') }}" method="POST" class="flex-1">
-                    @csrf
-                    <button class="w-full rounded-lg px-3 py-1.5 text-xs font-semibold transition"
-                            style="background:#F5F5F5;color:#555555;"
-                            onmouseover="this.style.background='rgba(208,2,27,.08)';this.style.color='#D0021B';"
-                            onmouseout="this.style.background='#F5F5F5';this.style.color='#555555';">
-                        Sign Out
-                    </button>
-                </form>
-            </div>
-        </div>
     </aside>
 
     {{-- ══════════════════════════
@@ -195,7 +136,7 @@
             <div class="flex items-center justify-between px-6 py-6">
                 <a href="{{ route('seller.dashboard') }}" class="flex items-center gap-2.5">
                     <span class="flex h-9 w-9 items-center justify-center rounded-lg font-display text-base font-black"
-                          style="background:transparent;overflow:hidden;padding:0;"><img src="{{ asset('images/logo.png') }}" alt="ALVY" style="width:140%;height:140%;object-fit:cover;display:block;margin:-20%;transform:scale(1.5);transform-origin:center;"></span>
+                          style="background:transparent;overflow:hidden;padding:0;"><img src="{{ asset('images/logo-mark.png') }}" alt="ALVY" style="width:100%;height:100%;object-fit:contain;display:block;"></span>
                     <div>
                         <span class="font-display text-lg font-extrabold" style="color:#222222;">ALVY</span>
                         <span class="block text-[10px] font-semibold uppercase tracking-widest" style="color:#fa4e1c;">Seller Centre</span>
@@ -207,36 +148,7 @@
                     </svg>
                 </button>
             </div>
-            <nav class="flex-1 space-y-0.5 overflow-y-auto px-3 pb-4">
-                @foreach ($links as $key => $link)
-                    @php $isActive = $active === $key; @endphp
-                    <a href="{{ route($link['route']) }}"
-                       class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm {{ $isActive ? 'nav-active' : '' }}"
-                       style="{{ $isActive ? '' : 'color:#555555;' }}">
-                        @if ($key === 'dashboard')
-                            <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
-                        @elseif ($key === 'orders')
-                            <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
-                        @elseif ($key === 'products')
-                            <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M20 7H4a1 1 0 00-1 1v10a1 1 0 001 1h16a1 1 0 001-1V8a1 1 0 00-1-1z"/><path stroke-linecap="round" stroke-linejoin="round" d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"/></svg>
-                        @elseif ($key === 'reports')
-                            <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
-                        @elseif ($key === 'messages')
-                            @php $sellerUnread = \App\Models\Message::where('receiver_id', auth()->id())->where('is_read', false)->count(); @endphp
-                            <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6 6 0 10-12 0v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
-                        @elseif ($key === 'account')
-                            <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path stroke-linecap="round" stroke-linejoin="round" d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
-                        @endif
-                        {{ $link['label'] }}
-                        @if ($key === 'messages' && $sellerUnread > 0)
-                            <span class="ml-auto flex h-5 min-w-[1.25rem] items-center justify-center rounded-full px-1 text-[9px] font-bold"
-                                  style="background:#fa4e1c;color:#fff;">
-                                {{ $sellerUnread > 9 ? '9+' : $sellerUnread }}
-                            </span>
-                        @endif
-                    </a>
-                @endforeach
-            </nav>
+            @include('partials.panel.sidebar-nav', ['sections' => $navSections, 'active' => $active])
         </aside>
     </div>
 
@@ -246,19 +158,16 @@
     <div class="flex min-w-0 flex-1 flex-col">
 
         {{-- Topbar --}}
-        <header class="sticky top-0 z-30 flex items-center gap-4 border-b px-5 py-3.5 lg:px-8"
-                style="background:rgba(255,255,255,.94);border-color:#EFEFEF;backdrop-filter:blur(12px);">
-            <button id="open-sidebar-btn" class="rounded-lg p-2 lg:hidden" style="color:#555555;" aria-label="Menu">
+        {{-- Phone-only bar with the menu button; on desktop the sidebar is always visible
+             and each page has its own heading. --}}
+        <header class="sticky top-0 z-30 flex items-center gap-3 border-b px-4 py-2.5 lg:hidden"
+                style="background:rgba(255,255,255,.96);border-color:#EFEFEF;backdrop-filter:blur(12px);">
+            <button id="open-sidebar-btn" class="rounded-md p-1.5" style="color:#555555;" aria-label="Menu">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="h-5 w-5">
                     <path d="M4 6h16M4 12h16M4 18h16"/>
                 </svg>
             </button>
-            <div>
-                <p class="section-eyebrow leading-none">ALVY Seller Centre</p>
-                <h1 class="font-display text-xl font-extrabold leading-tight" style="color:#222222;">{{ $title }}</h1>
-            </div>
-            <div class="ml-auto flex items-center gap-3">
-            </div>
+            <span class="text-sm font-semibold" style="color:#222;">ALVY Seller Centre</span>
         </header>
 
         <main class="flex-1 p-5 lg:p-8">

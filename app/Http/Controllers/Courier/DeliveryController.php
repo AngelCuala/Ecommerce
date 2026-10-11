@@ -49,7 +49,7 @@ class DeliveryController extends Controller
             return back()->with('error', 'This delivery request is no longer available.');
         }
 
-        $delivery = Delivery::with('order.items.book', 'courier')->findOrFail($deliveryId);
+        $delivery = Delivery::with('order.items.product', 'courier')->findOrFail($deliveryId);
         $this->deliveries->advanceOrder($delivery->order, 'Processing');
 
         $ref = $this->deliveries->ref($delivery);
@@ -137,7 +137,7 @@ class DeliveryController extends Controller
             ->when($status,  fn ($q) => $q->where('status', $status))
             ->when($orderId, fn ($q) => $q->where('order_id', (int) ltrim($orderId, '#0') ?: 0))
             ->when($date,    fn ($q) => $q->whereDate('delivered_at', $date))
-            ->with(['order.user', 'order.items.book'])
+            ->with(['order.user', 'order.items.product'])
             ->latest()
             ->paginate(15)
             ->withQueryString();
@@ -151,7 +151,7 @@ class DeliveryController extends Controller
         $courier  = $this->myCourier();
         $delivery = Delivery::where('id', $deliveryId)
             ->where('courier_id', $courier->id)
-            ->with(['order.user', 'order.items.book'])
+            ->with(['order.user', 'order.items.product'])
             ->firstOrFail();
 
         return view('courier.delivery-show', compact('delivery'));
@@ -163,7 +163,7 @@ class DeliveryController extends Controller
         return Delivery::where('id', $id)
             ->where('courier_id', $this->myCourier()->id)
             ->where('status', $expectedStatus)
-            ->with(['order.items.book', 'courier'])
+            ->with(['order.items.product', 'courier'])
             ->firstOrFail();
     }
 }

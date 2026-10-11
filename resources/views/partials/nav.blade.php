@@ -29,10 +29,10 @@
 
         {{-- Logo --}}
         <a href="{{ route('home') }}" class="flex shrink-0 items-center gap-2">
-            <span class="flex h-9 w-9 items-center justify-center rounded-xl overflow-hidden"
-                  style="background:transparent;">
-                <img src="{{ asset('images/logo.png') }}" alt="ALVY"
-                     style="width:100%;height:100%;object-fit:cover;transform:scale(1.5);transform-origin:center;">
+            <span class="flex h-9 w-9 items-center justify-center rounded-lg"
+                  style="background:#fff;padding:4px;">
+                <img src="{{ asset('images/logo-mark.png') }}" alt="ALVY"
+                     style="width:100%;height:100%;object-fit:contain;display:block;">
             </span>
             <span class="hidden font-display text-xl font-bold tracking-tight sm:inline" style="color:#fff;">
                 ALVY

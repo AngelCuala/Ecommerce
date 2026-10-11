@@ -11,7 +11,7 @@ class DashboardController extends Controller
     {
         $courier = DeliveryController::currentCourier();
 
-        $with = ['order.user', 'order.items.book.seller'];
+        $with = ['order.user', 'order.items.product.seller'];
 
         // Available deliveries (not yet accepted by anyone, order still live)
         $available = Delivery::where('status', 'available')

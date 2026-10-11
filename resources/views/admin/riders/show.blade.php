@@ -5,7 +5,7 @@
 <div class="panel">
     <div class="panel__header">
         <h2>{{ $rider->full_name }}</h2>
-        <a href="{{ route('admin.riders.index') }}" class="btn btn--ghost btn--sm">Back</a>
+        <a href="{{ route('admin.logistics.riders.index') }}" class="btn btn--ghost btn--sm">Back</a>
     </div>
     <table>
         <tbody>
@@ -36,16 +36,16 @@
 
     <div style="padding:14px 18px;display:flex;gap:10px;flex-wrap:wrap;">
         @if($rider->application_status === 'pending')
-            <form method="POST" action="{{ route('admin.riders.approve', $rider) }}">@csrf
+            <form method="POST" action="{{ route('admin.logistics.riders.approve', $rider) }}">@csrf
                 <button class="btn btn--primary">Approve</button>
             </form>
-            <form method="POST" action="{{ route('admin.riders.disapprove', $rider) }}" style="display:flex;gap:8px;">
+            <form method="POST" action="{{ route('admin.logistics.riders.disapprove', $rider) }}" style="display:flex;gap:8px;">
                 @csrf
                 <input type="text" name="rejection_reason" placeholder="Rejection reason (optional)" style="width:240px;">
                 <button class="btn btn--danger" onclick="return confirm('Disapprove this application?')">Disapprove</button>
             </form>
         @elseif($rider->application_status === 'approved')
-            <form method="POST" action="{{ route('admin.riders.toggle-active', $rider) }}">@csrf
+            <form method="POST" action="{{ route('admin.logistics.riders.toggle-active', $rider) }}">@csrf
                 <button class="btn {{ $rider->is_active ? 'btn--danger' : 'btn--primary' }}">
                     {{ $rider->is_active ? 'Deactivate' : 'Activate' }}
                 </button>

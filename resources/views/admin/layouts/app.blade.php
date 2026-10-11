@@ -33,50 +33,50 @@
 
         {{-- Navigation --}}
         <nav>
-            <a href="{{ route('admin.logistics-dashboard') }}"
-               class="nav-item {{ request()->routeIs('admin.logistics-dashboard') ? 'active' : '' }}">
+            <a href="{{ route('admin.logistics.dashboard') }}"
+               class="nav-item {{ request()->routeIs('admin.logistics.dashboard') ? 'active' : '' }}">
                 <svg class="nav-item__icon" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
                 Dashboard
             </a>
 
-            <a href="{{ route('admin.riders.index') }}"
-               class="nav-item {{ request()->routeIs('admin.riders.*') ? 'active' : '' }}">
+            <a href="{{ route('admin.logistics.riders.index') }}"
+               class="nav-item {{ request()->routeIs('admin.logistics.riders.*') ? 'active' : '' }}">
                 <svg class="nav-item__icon" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
                 Rider Management
             </a>
 
-            <a href="{{ route('admin.pickup-requests.index') }}"
-               class="nav-item {{ request()->routeIs('admin.pickup-requests.*') ? 'active' : '' }}">
+            <a href="{{ route('admin.logistics.pickup-requests.index') }}"
+               class="nav-item {{ request()->routeIs('admin.logistics.pickup-requests.*') ? 'active' : '' }}">
                 <svg class="nav-item__icon" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M20 7H4a2 2 0 00-2 2v10a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2z"/><path d="M16 3l-4 4-4-4"/></svg>
                 Pickup Requests
             </a>
 
-            <a href="{{ route('admin.parcels.index') }}"
-               class="nav-item {{ request()->routeIs('admin.parcels.index') || request()->routeIs('admin.parcels.show') ? 'active' : '' }}">
+            <a href="{{ route('admin.logistics.parcels.index') }}"
+               class="nav-item {{ request()->routeIs('admin.logistics.parcels.index') || request()->routeIs('admin.logistics.parcels.show') ? 'active' : '' }}">
                 <svg class="nav-item__icon" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
                 Incoming Parcels
             </a>
 
-            <a href="{{ route('admin.parcels.sorting') }}"
-               class="nav-item {{ request()->routeIs('admin.parcels.sorting') ? 'active' : '' }}">
+            <a href="{{ route('admin.logistics.parcels.sorting') }}"
+               class="nav-item {{ request()->routeIs('admin.logistics.parcels.sorting') ? 'active' : '' }}">
                 <svg class="nav-item__icon" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M3 6h18M7 12h10M11 18h2"/></svg>
                 Parcel Sorting
             </a>
 
-            <a href="{{ route('admin.deliveries.assign-index') }}"
-               class="nav-item {{ request()->routeIs('admin.deliveries.assign-index') ? 'active' : '' }}">
+            <a href="{{ route('admin.logistics.deliveries.assign-index') }}"
+               class="nav-item {{ request()->routeIs('admin.logistics.deliveries.assign-index') ? 'active' : '' }}">
                 <svg class="nav-item__icon" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
                 Delivery Assignment
             </a>
 
-            <a href="{{ route('admin.deliveries.monitor') }}"
-               class="nav-item {{ request()->routeIs('admin.deliveries.monitor') ? 'active' : '' }}">
+            <a href="{{ route('admin.logistics.deliveries.monitor') }}"
+               class="nav-item {{ request()->routeIs('admin.logistics.deliveries.monitor') ? 'active' : '' }}">
                 <svg class="nav-item__icon" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
                 Delivery Monitoring
             </a>
 
-            <a href="{{ route('admin.parcels-reports.index') }}"
-               class="nav-item {{ request()->routeIs('admin.parcels-reports.*') ? 'active' : '' }}">
+            <a href="{{ route('admin.logistics.reports.index') }}"
+               class="nav-item {{ request()->routeIs('admin.logistics.reports.*') ? 'active' : '' }}">
                 <svg class="nav-item__icon" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
                 Reports
             </a>

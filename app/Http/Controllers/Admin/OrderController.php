@@ -32,7 +32,7 @@ class OrderController extends Controller
 
     public function show(int $id)
     {
-        $order = Order::with(['user', 'items.book.seller'])->findOrFail($id);
+        $order = Order::with(['user', 'items.product.seller'])->findOrFail($id);
 
         $totalCommission = $order->items->sum('commission_amount');
         $totalEarnings   = $order->items->sum('seller_earning');

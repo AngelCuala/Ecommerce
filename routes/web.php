@@ -42,6 +42,11 @@ use Illuminate\Support\Facades\Route;
 // ── Sorting Center Portal ────────────────────────────────────
 Route::get('/sc/login',  [\App\Http\Controllers\SortingCenter\LoginController::class, 'create'])->name('sc.login')->middleware('guest');
 Route::post('/sc/login', [\App\Http\Controllers\SortingCenter\LoginController::class, 'store'])->name('sc.login.store')->middleware('guest');
+Route::get('/sc/register',  [\App\Http\Controllers\SortingCenter\RegistrationController::class, 'create'])->name('sc.register')->middleware('guest');
+Route::post('/sc/register', [\App\Http\Controllers\SortingCenter\RegistrationController::class, 'store'])->name('sc.register.store')->middleware('guest');
+
+// Old entry points now redirect to the canonical login.
+Route::redirect('/sorting-center/login', '/sc/login')->name('sorting-center.login');
 
 Route::middleware(['auth', 'is_sc', 'prevent.back'])->prefix('sc')->name('sc.')->group(function () {
     Route::get('/dashboard',            [\App\Http\Controllers\SortingCenterController::class, 'dashboard'])->name('dashboard');
@@ -106,20 +111,25 @@ Route::middleware(['auth', 'is_sc', 'prevent.back'])->prefix('sc')->name('sc.')-
 });
 
 // ── Sorting Center Portal ────────────────────────────────────
-Route::get('/sorting-center/login',  [\App\Http\Controllers\SortingCenter\LoginController::class, 'create'])->name('sorting-center.login')->middleware('guest');
-Route::post('/sorting-center/login', [\App\Http\Controllers\SortingCenter\LoginController::class, 'store'])->name('sorting-center.login.store')->middleware('guest');
-Route::get('/sorting-center',        [\App\Http\Controllers\SortingCenter\LoginController::class, 'hub'])->name('sorting-center.hub')->middleware(['auth', 'is_admin']);
+Route::get('/sorting-center/login',  [\App\Http\Controllers\SortingCenter\LoginController::class, 'create'])->name('sorting-center.login.old')->middleware('guest');
+Route::post('/sorting-center/login', [\App\Http\Controllers\SortingCenter\LoginController::class, 'store'])->name('sorting-center.login.store.old')->middleware('guest');
+// The old hub route pointed at a method that never existed; redirect it instead.
+Route::redirect('/sorting-center', '/sc/login');
 
 // ── Public ───────────────────────────────────────────────────
-Route::get('/', [HomeController::class, 'index'])->name('home');
+// Storefront: guests and buyers only (sellers/admins are sent to their own panels).
+Route::get('/', [HomeController::class, 'index'])->middleware('buyer_only')->name('home');
 
 // ── Logistics Login ──────────────────────────────────────────
 Route::get('/logistics/login',  [\App\Http\Controllers\Admin\Logistics\LoginController::class, 'create'])->name('logistics.login')->middleware('guest');
 Route::post('/logistics/login', [\App\Http\Controllers\Admin\Logistics\LoginController::class, 'store'])->name('logistics.login.store')->middleware('guest');
 
-Route::get('/categories', [\App\Http\Controllers\CategoryPageController::class, 'index'])->name('categories.page');
-Route::get('/categories/{slug}', [\App\Http\Controllers\CategoryPageController::class, 'show'])->name('categories.show');
-Route::get('/categories/{slug}', [\App\Http\Controllers\CategoryPageController::class, 'show'])->name('categories.show');
+Route::middleware('buyer_only')->group(function () {
+    Route::get('/categories', [\App\Http\Controllers\CategoryPageController::class, 'index'])->name('categories.page');
+    Route::get('/categories/{slug}', [\App\Http\Controllers\CategoryPageController::class, 'show'])->name('categories.show');
+    Route::get('/shop', [ShopController::class, 'index'])->name('shop.index');
+    Route::get('/products/{slug}', [ProductController::class, 'show'])->name('products.show');
+});
 Route::get('/dbconn', fn() => view('dbconn'));
 Route::get('/policies/{key}', [\App\Http\Controllers\PolicyController::class, 'show'])->name('policies.show');
 
@@ -129,11 +139,16 @@ Route::get('/api/psgc/regions/{code}/provinces',         [\App\Http\Controllers\
 Route::get('/api/psgc/provinces',                        [\App\Http\Controllers\PsgcController::class, 'provinces']);
 Route::get('/api/psgc/provinces/{code}/municipalities',  [\App\Http\Controllers\PsgcController::class, 'municipalities']);
 Route::get('/api/psgc/municipalities/{code}/barangays',  [\App\Http\Controllers\PsgcController::class, 'barangays']);
-Route::get('/shop', [ShopController::class, 'index'])->name('shop.index');
-Route::get('/products/{slug}', [ProductController::class, 'show'])->name('products.show');
-
 Route::get('/login',    [AuthenticatedSessionController::class, 'create'])->name('login');
 Route::post('/login',   [AuthenticatedSessionController::class, 'store']);
+Route::middleware('guest')->group(function () {
+    Route::get('/login/verify',         [AuthenticatedSessionController::class, 'showOtp'])->name('otp.show');
+    Route::post('/login/verify',        [AuthenticatedSessionController::class, 'verifyOtp'])->middleware('throttle:10,1')->name('otp.verify');
+    Route::post('/login/verify/resend', [AuthenticatedSessionController::class, 'resendOtp'])->middleware('throttle:5,1')->name('otp.resend');
+});
+// Sign in with Google
+Route::get('/auth/google', [\App\Http\Controllers\Auth\GoogleAuthController::class, 'redirect'])->middleware('guest')->name('auth.google');
+Route::get('/auth/google/callback', [\App\Http\Controllers\Auth\GoogleAuthController::class, 'callback'])->middleware('guest')->name('auth.google.callback');
 Route::get('/register', [RegisteredUserController::class, 'create'])->name('register');
 Route::post('/register',[RegisteredUserController::class, 'store']);
 
@@ -185,20 +200,9 @@ Route::middleware(['auth', 'buyer_only', 'prevent.back'])->group(function () {
 // ── Authenticated (all roles) ─────────────────────────────────
 Route::middleware('auth')->group(function () {
 
-    // Seller application (buyers only, but keeping under auth for now)
-    // Buyer confirm delivery
-    Route::post('/orders/{id}/confirm-delivery', [\App\Http\Controllers\OrderController::class, 'confirmDelivery'])->name('orders.confirm-delivery');
-
-    // Buyer cancel order
-    Route::post('/orders/{id}/cancel', [\App\Http\Controllers\OrderController::class, 'cancelByBuyer'])->name('orders.cancel');
-});
-
-// ── Authenticated (all roles) ─────────────────────────────────
-Route::middleware('auth')->group(function () {
-
-    // Seller application (buyers only, but keeping under auth for now)
-    Route::get('/become-seller',  [SellerApplicationController::class, 'create'])->name('seller.apply');
-    Route::post('/become-seller', [SellerApplicationController::class, 'store'])->name('seller.apply.store');
+    // Seller application — a buyer upgrading to a shop
+    Route::get('/become-seller',  [SellerApplicationController::class, 'create'])->middleware('buyer_only')->name('seller.apply');
+    Route::post('/become-seller', [SellerApplicationController::class, 'store'])->middleware('buyer_only')->name('seller.apply.store');
 
     // Messaging
     Route::get('/messages',                        [MessageController::class, 'inbox'])->name('messages.inbox');
@@ -217,8 +221,16 @@ Route::middleware('auth')->group(function () {
     Route::get('/courier/status',  [CourierRegistrationController::class, 'status'])->name('courier.status');
 });
 
+// ── Seller sign-up & application status ─────────────────────
+Route::get('/seller/register',  [\App\Http\Controllers\Seller\RegistrationController::class, 'create'])->name('seller.register');
+Route::post('/seller/register', [\App\Http\Controllers\Seller\RegistrationController::class, 'store'])->middleware('guest')->name('seller.register.store');
+Route::middleware(['auth', 'role:seller'])->group(function () {
+    Route::get('/seller/status',           [\App\Http\Controllers\Seller\StatusController::class, 'show'])->name('seller.status');
+    Route::post('/seller/status/resubmit', [\App\Http\Controllers\Seller\StatusController::class, 'resubmit'])->name('seller.status.resubmit');
+});
+
 // ── Seller panel ─────────────────────────────────────────────
-Route::middleware(['auth', 'role:seller,admin', 'prevent.back'])
+Route::middleware(['auth', 'role:seller,admin', 'seller.approved', 'prevent.back'])
     ->prefix('seller')->name('seller.')->group(function () {
 
     Route::get('/',                          [SellerDashboardController::class, 'index'])->name('dashboard');
@@ -318,6 +330,14 @@ Route::middleware(['auth', 'role:admin', 'prevent.back'])
     Route::patch('/seller-applications/{sellerApplication}/approve', [AdminSellerApplicationController::class, 'approve'])->name('seller-applications.approve');
     Route::patch('/seller-applications/{sellerApplication}/reject',  [AdminSellerApplicationController::class, 'reject'])->name('seller-applications.reject');
 
+    // Sorting Center registrations
+    Route::get('/sc-applications',                                  [\App\Http\Controllers\Admin\SortingCenterApplicationController::class, 'index'])->name('sc-applications.index');
+    Route::get('/sc-applications/{application}',                    [\App\Http\Controllers\Admin\SortingCenterApplicationController::class, 'show'])->name('sc-applications.show');
+    Route::get('/sc-applications/{application}/document/{type}',    [\App\Http\Controllers\Admin\SortingCenterApplicationController::class, 'document'])
+        ->whereIn('type', ['id', 'permit'])->name('sc-applications.document');
+    Route::patch('/sc-applications/{application}/approve',          [\App\Http\Controllers\Admin\SortingCenterApplicationController::class, 'approve'])->name('sc-applications.approve');
+    Route::patch('/sc-applications/{application}/reject',           [\App\Http\Controllers\Admin\SortingCenterApplicationController::class, 'reject'])->name('sc-applications.reject');
+
     Route::get('/reviews',               [AdminReviewController::class, 'index'])->name('reviews.index');
     Route::delete('/reviews/{id}',       [AdminReviewController::class, 'destroy'])->name('reviews.destroy');
     Route::get('/reports',               [AdminReportController::class, 'index'])->name('reports.index');
@@ -364,10 +384,11 @@ Route::middleware(['auth', 'role:admin', 'prevent.back'])
         Route::post('/pickup-requests/{parcel}/reject',  [\App\Http\Controllers\Admin\Logistics\PickupRequestController::class, 'reject'])->name('pickup-requests.reject');
 
         Route::get('/parcels',                           [\App\Http\Controllers\Admin\Logistics\ParcelController::class, 'index'])->name('parcels.index');
-        Route::get('/parcels/{parcel}',                  [\App\Http\Controllers\Admin\Logistics\ParcelController::class, 'show'])->name('parcels.show');
+        // Must come before /parcels/{parcel}, or "sorting" is treated as a parcel ID.
+        Route::get('/parcels/sorting',                   [\App\Http\Controllers\Admin\Logistics\ParcelController::class, 'sorting'])->name('parcels.sorting');
+        Route::get('/parcels/{parcel}',                 [\App\Http\Controllers\Admin\Logistics\ParcelController::class, 'show'])->name('parcels.show');
         Route::post('/parcels/{parcel}/mark-picked-up',  [\App\Http\Controllers\Admin\Logistics\ParcelController::class, 'markPickedUp'])->name('parcels.mark-picked-up');
         Route::post('/parcels/{parcel}/sort',            [\App\Http\Controllers\Admin\Logistics\ParcelController::class, 'sort'])->name('parcels.sort');
-        Route::get('/parcels/sorting',                   [\App\Http\Controllers\Admin\Logistics\ParcelController::class, 'sorting'])->name('parcels.sorting');
 
         Route::get('/deliveries/assign',                 [\App\Http\Controllers\Admin\Logistics\DeliveryController::class, 'assignmentIndex'])->name('deliveries.assign-index');
         Route::post('/deliveries/{parcel}/assign',       [\App\Http\Controllers\Admin\Logistics\DeliveryController::class, 'assign'])->name('deliveries.assign');

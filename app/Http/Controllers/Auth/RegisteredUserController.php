@@ -4,7 +4,10 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Rules\GovernmentId;
+use App\Services\LoginOtp;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -52,25 +55,48 @@ class RegisteredUserController extends Controller
         // Get the role from the request
         $role = $request->input('role', 'buyer');
 
+        // Emails are compared case-insensitively for duplicates.
+        if (is_string($request->input('email'))) {
+            $request->merge(['email' => mb_strtolower(trim($request->input('email')))]);
+        }
+
+        $psgcAvailable = class_exists(\App\Services\PsgcDirectory::class);
+
+        // Letters (any language, e.g. ñ) and single spaces between words only — no numbers or symbols.
+        $nameRule = ['required', 'string', 'min:2', 'max:50', 'regex:/^\pL+( \pL+)*$/u'];
+
         // Base validation rules
         $rules = [
-            'role'           => 'required|in:buyer,seller,courier,logistics',
-            'first_name'     => 'required|string|max:255',
-            'last_name'      => 'required|string|max:255',
-            'middle_initial' => 'nullable|string|max:5',
-            'email'          => 'required|string|email|max:255|unique:users,email',
+            // Sellers sign up through /seller/register (shop details + email verification).
+            'role'           => 'required|in:buyer,courier,logistics',
+            'first_name'     => $nameRule,
+            'last_name'      => $nameRule,
+            'middle_initial' => ['nullable', 'string', 'max:3', 'regex:/^\pL{1,2}\.?$/u'],
+            'email'          => ['required', 'string', 'max:255', 'email:rfc', 'regex:/^[^@\s]+@[^@\s]+\.[A-Za-z]{2,}$/', 'unique:users,email'],
             'password'       => 'required|string|min:8',
             'sex'            => 'required|in:male,female,other',
-        ];
+            'terms'          => 'accepted',
+            // Fields now required for all roles
+            'contact_no'   => ['required', 'string', 'regex:/^09\d{9}$/', 'unique:users,contact_no'],
+            'birthday'     => 'required|date|before:today',
+            'province'     => 'nullable|string|max:120',
+            'municipality' => 'required|string|max:120',
+            'barangay'     => 'required|string|max:120',
+            'house_number' => 'required|string|max:50',
+            'street'       => 'required|string|max:255',
+            'zip_code'     => 'nullable|string|max:20',
+        ] + ($psgcAvailable ? \App\Services\PsgcDirectory::codeRules() : []);
 
         // Role-specific validation rules
-        if ($role === 'seller') {
+        if ($role === 'buyer') {
+            $rules['valid_id'] = ['bail', 'required', 'file', 'mimes:jpg,jpeg,png,pdf', 'max:5120', new GovernmentId];
+        } elseif ($role === 'seller') {
             $rules['id_image'] = 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120';
             $rules['business_permit'] = 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120';
         } elseif ($role === 'courier') {
             $rules['vehicle_type'] = 'required|in:motorcycle,tricycle,car';
             $rules['plate_number'] = 'required|string|max:50';
-            $rules['or_cr_image'] = 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120';
+            $rules['or_cr_image'] = ['bail', 'nullable', 'file', 'mimes:jpg,jpeg,png,pdf', 'max:5120', new GovernmentId]; // driver's license
             $rules['vehicle_reg_image'] = 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120';
             $rules['logistics_id'] = 'nullable|exists:users,id';
         } elseif ($role === 'logistics') {
@@ -83,7 +109,45 @@ class RegisteredUserController extends Controller
             $rules['dti_permit'] = 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120';
         }
 
-        $validated = $request->validate($rules);
+        $validated = $request->validate($rules, [
+            'terms.accepted'       => 'You must agree to the Terms and Conditions and Privacy Policy to create an account.',
+            'valid_id.required'    => 'Please upload a photo of a valid government-issued ID.',
+            'valid_id.mimes'       => 'Your ID must be a JPG, PNG or PDF file.',
+            'valid_id.max'         => 'Your ID file must be 5 MB or smaller.',
+
+            'first_name.regex'     => 'First name may only contain letters and spaces — no numbers or symbols.',
+            'first_name.min'       => 'First name must be at least 2 characters.',
+            'first_name.max'       => 'First name must not be longer than 50 characters.',
+            'last_name.regex'      => 'Last name may only contain letters and spaces — no numbers or symbols.',
+            'last_name.min'        => 'Last name must be at least 2 characters.',
+            'last_name.max'        => 'Last name must not be longer than 50 characters.',
+            'middle_initial.regex' => 'Middle initial may only contain letters (e.g. "M" or "M.").',
+            'middle_initial.max'   => 'Middle initial may only contain letters (e.g. "M" or "M.").',
+
+            'email.email'          => 'Please enter a valid email address (e.g. juan@gmail.com).',
+            'email.regex'          => 'Please enter a valid email address (e.g. juan@gmail.com).',
+            'email.unique'         => 'This email address is already registered. Please log in or use a different email.',
+
+            'contact_no.regex'     => 'Please enter a valid mobile number: 11 digits starting with 09 (e.g. 09171234567).',
+            'contact_no.unique'    => 'This mobile number is already in use by another account.',
+
+            'password.min'         => 'Password must be at least 8 characters.',
+        ]);
+
+        // Resolve the address against the PSA PSGC dataset (official names + codes)
+        // when that service is installed; otherwise use the submitted names as-is.
+        if ($psgcAvailable) {
+            $addr = app(\App\Services\PsgcDirectory::class)->resolve($request->all(), true, $validated['barangay']);
+        } else {
+            $addr = [
+                'province_display' => $validated['province'] ?? null,
+                'municipality'     => $validated['municipality'],
+                'barangay'         => $validated['barangay'],
+            ];
+        }
+
+        // Server-side age calculation — never trust the client value.
+        $age = \Carbon\Carbon::parse($validated['birthday'])->age;
 
         // Create the user with basic info
         $userData = [
@@ -94,27 +158,30 @@ class RegisteredUserController extends Controller
             'email'           => $validated['email'],
             'password'        => Hash::make($validated['password']),
             'role'            => $role,
-            'sex'             => ucfirst($validated['sex']), // Capitalize first letter
-            'approval_status' => 'pending',
-            'birthday'        => '2000-01-01', // Default birthday
-            'contact_no'      => '', // Default empty
-            'province'        => '',
-            'municipality'    => '',
-            'barangay'        => '',
+            'sex'             => ucfirst($validated['sex']),
+            'contact_no'      => $validated['contact_no'],
+            'birthday'        => $validated['birthday'],
+            'age'             => $age,
+            'province'        => $addr['province_display'],
+            'municipality'    => $addr['municipality'],
+            'barangay'        => $addr['barangay'],
+            'street'          => $validated['street'],
+            'house_number'    => $validated['house_number'],
+            'approval_status' => 'unverified', // → 'pending' once the email code is entered
         ];
 
-        // Handle file uploads for sellers
-        if ($role === 'seller' && $request->hasFile('id_image')) {
-            $userData['valid_id_path'] = $request->file('id_image')->store('seller-ids', 'public');
+        // Buyer: save the uploaded ID to the private disk.
+        if ($role === 'buyer' && $request->hasFile('valid_id')) {
+            $userData['valid_id_path'] = $request->file('valid_id')->store('valid-ids', 'local');
+            $userData += GovernmentId::columnsFor('valid_id');
+        }
+        if ($role === 'courier') {
+            $userData += GovernmentId::columnsFor('or_cr_image');
         }
 
-        // Handle logistics-specific data
-        if ($role === 'logistics') {
-            $userData['province'] = $validated['province'];
-            $userData['municipality'] = $validated['municipality'];
-            $userData['barangay'] = $validated['barangay'];
-            $userData['street'] = $validated['street'] ?? '';
-            $userData['house_number'] = $validated['house_number'] ?? '';
+        // Seller: save the uploaded ID
+        if ($role === 'seller' && $request->hasFile('id_image')) {
+            $userData['valid_id_path'] = $request->file('id_image')->store('seller-ids', 'public');
         }
 
         $user = User::create($userData);
@@ -177,11 +244,18 @@ class RegisteredUserController extends Controller
 
         event(new Registered($user));
 
-        // Success message based on role
-        $message = $role === 'courier'
-            ? 'Thank you for registering. Please wait for the Logistics/Sorting Center\'s approval — you will be notified via email once your account is approved.'
-            : 'Thank you for registering. Please wait for admin approval — you will be notified via email once your account is approved.';
+        // Verify the email with a one-time code before the account goes for approval.
+        try {
+            app(LoginOtp::class)->send($user);
+        } catch (\Throwable $e) {
+            // The account exists; the user can press "Resend code" on the next page.
+            Log::warning('Sign-up OTP email failed: ' . $e->getMessage());
+        }
 
-        return redirect()->route('login')->with('success', $message);
+        $request->session()->put('otp.user_id', $user->id);
+        $request->session()->put('otp.remember', false);
+
+        return redirect()->route('otp.show')->with('success',
+            'Almost done! We sent a 6-digit verification code to ' . LoginOtp::maskEmail($user->email) . '.');
     }
 }

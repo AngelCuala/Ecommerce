@@ -51,7 +51,7 @@ class OrderController extends Controller
      */
     public function confirmDelivery(int $id)
     {
-        $order = Order::with(['items.book.seller', 'delivery'])
+        $order = Order::with(['items.product.seller', 'delivery'])
             ->where('user_id', auth()->id())
             ->findOrFail($id);
 
@@ -84,7 +84,7 @@ class OrderController extends Controller
 
         // Notify each unique seller via the messaging system
         $sellerIds = $order->items
-            ->pluck('book.seller_id')
+            ->pluck('product.seller_id')
             ->filter()
             ->unique();
 

@@ -66,6 +66,18 @@ class LoginController extends Controller
 
         $user = Auth::user();
 
+        // Registered but not yet approved (or was disapproved).
+        if ($user->role === 'sorting_center_pending') {
+            $app = \App\Models\SortingCenterApplication::where('user_id', $user->id)->latest()->first();
+            Auth::logout();
+            throw ValidationException::withMessages([
+                'email' => $app?->isRejected()
+                    ? 'Your sorting center registration was not approved.'
+                      . ($app->rejection_reason ? ' Reason: ' . $app->rejection_reason : '')
+                    : 'Your sorting center registration is pending administrator approval. You will be notified by email.',
+            ]);
+        }
+
         // Only sorting_center role may access this portal
         if ($user->role !== 'sorting_center') {
             Auth::logout();

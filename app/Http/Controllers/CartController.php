@@ -11,10 +11,10 @@ class CartController extends Controller
     public function index()
     {
         $items = CartItem::where('user_id', auth()->id())
-            ->with('book.category')
+            ->with('product.category')
             ->get();
 
-        $subtotal = $items->sum(fn ($i) => $i->quantity * $i->book->price);
+        $subtotal = $items->sum(fn ($i) => $i->quantity * $i->product->price);
 
         return view('cart.index', compact('items', 'subtotal'));
     }

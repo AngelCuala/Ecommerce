@@ -7,7 +7,7 @@
     <title>Logistics Login — ALVY</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="{{ asset('js/vendor/tailwindcss.js') }}"></script>
     <style>
         body { font-family:'Inter',ui-sans-serif,system-ui; }
         .font-display { font-family:'Nunito',ui-sans-serif,system-ui; }
@@ -34,7 +34,7 @@
             <div class="mx-auto w-full max-w-sm">
                 <div class="text-center">
                     <a href="{{ route('home') }}" class="mx-auto mb-4 inline-flex h-12 w-12 items-center justify-center overflow-hidden rounded-xl">
-                        <img src="{{ asset('images/logo.png') }}" alt="ALVY" class="h-full w-full object-cover" style="transform:scale(1.4);">
+                        <img src="{{ asset('images/logo-mark.png') }}" alt="ALVY" class="h-full w-full object-contain">
                     </a>
                     <h1 class="font-display text-3xl font-extrabold" style="color:#222;">Logistics Login</h1>
                     <p class="mt-1 text-sm" style="color:#8a7a70;">Access the logistics management panel</p>

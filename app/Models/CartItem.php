@@ -21,6 +21,6 @@ class CartItem extends Model
 
     public function subtotal(): float
     {
-        return $this->quantity * $this->book->price;
+        return $this->quantity * $this->product->price;
     }
 }

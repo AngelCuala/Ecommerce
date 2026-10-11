@@ -21,7 +21,7 @@ class OrderController extends Controller
 
         $orders = Order::whereIn('id', $orderIds)
             ->with(['items' => function ($q) use ($bookIds) {
-                $q->whereIn('product_id', $bookIds)->with('book');
+                $q->whereIn('product_id', $bookIds)->with('product');
             }])
             ->latest()
             ->get();
@@ -48,7 +48,7 @@ class OrderController extends Controller
         }
 
         $order = Order::with(['items' => function ($q) use ($bookIds) {
-            $q->whereIn('product_id', $bookIds)->with('book');
+            $q->whereIn('product_id', $bookIds)->with('product');
         }, 'delivery'])->findOrFail($id);
 
         $order->sellerItems = $order->items->whereIn('product_id', $bookIds->toArray())->values();

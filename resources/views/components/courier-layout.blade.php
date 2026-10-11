@@ -10,7 +10,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     {{-- Tailwind CDN powers the shared floating chat widget's utility classes;
          courier.css (loaded after) owns the portal's own sidebar/page styling. --}}
-    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="{{ asset('js/vendor/tailwindcss.js') }}"></script>
     <link rel="stylesheet" href="{{ asset('css/courier.css') }}">
     <link rel="stylesheet" href="{{ asset('css/hover-effects.css') }}">
     @stack('styles')
@@ -39,7 +39,7 @@
     {{-- ══════════ DESKTOP SIDEBAR ══════════ --}}
     <aside class="cx-sidebar">
         <a href="{{ route('courier.dashboard') }}" class="cx-brand">
-            <span class="cx-brand-logo"><img src="{{ asset('images/logo.png') }}" alt="ALVY"></span>
+            <span class="cx-brand-logo"><img src="{{ asset('images/logo-mark.png') }}" alt="ALVY"></span>
             <span class="cx-brand-name">ALVY</span>
         </a>
         <div class="cx-divider"></div>
@@ -79,7 +79,7 @@
     <div id="cx-backdrop" class="cx-backdrop"></div>
     <aside id="cx-drawer" class="cx-drawer">
         <div class="cx-drawer-head">
-            <span class="cx-brand-logo"><img src="{{ asset('images/logo.png') }}" alt="ALVY"></span>
+            <span class="cx-brand-logo"><img src="{{ asset('images/logo-mark.png') }}" alt="ALVY"></span>
             <span class="cx-brand-name">ALVY</span>
             <button id="cx-close-sidebar" class="cx-drawer-close" aria-label="Close menu">
                 @include('courier.partials.icon', ['name' => 'cross', 'size' => 20, 'sw' => 2])

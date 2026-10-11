@@ -10,7 +10,7 @@ class UserController extends Controller
 {
     public function index(Request $request)
     {
-        $query = User::withCount(['orders', 'books'])->latest();
+        $query = User::withCount(['orders', 'products as books_count'])->latest();
 
         if ($request->filled('search')) {
             $query->where(function ($q) use ($request) {
@@ -26,7 +26,7 @@ class UserController extends Controller
 
     public function show(int $id)
     {
-        $user = User::withCount(['orders','books'])
+        $user = User::withCount(['orders', 'products as books_count'])
             ->with(['orders' => fn($q) => $q->latest()->take(5),
                     'sellerApplication'])
             ->findOrFail($id);

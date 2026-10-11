@@ -39,7 +39,7 @@ class ReportController extends Controller
         })->sortByDesc('revenue')->values();
 
         // Monthly trend (within selected range, grouped by date)
-        $byDate = $items->groupBy(fn($i) => $i->created_at->format('M d'))
+        $byDate = $items->sortBy('created_at')->groupBy(fn($i) => $i->created_at->format('M d'))
             ->map(fn($g) => $g->sum('seller_earning'))
             ->take(30);
 

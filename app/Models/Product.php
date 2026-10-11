@@ -9,6 +9,9 @@ use Illuminate\Support\Str;
 
 class Product extends Model
 {
+    /** Most photos a single listing can have. */
+    public const MAX_IMAGES = 15;
+
     protected $fillable = [
         'category_id', 'subcategory', 'seller_id',
         'product_code', 'brand',
@@ -70,6 +73,12 @@ class Product extends Model
     public function violations(): HasMany
     {
         return $this->hasMany(\App\Models\SellerViolation::class);
+    }
+
+    /** Gallery photos (up to 9), in display order. */
+    public function images(): HasMany
+    {
+        return $this->hasMany(ProductImage::class, 'product_id')->orderBy('sort_order')->orderBy('id');
     }
 
     // ── Accessors ─────────────────────────────────────────────

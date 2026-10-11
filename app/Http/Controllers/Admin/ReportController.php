@@ -31,7 +31,7 @@ class ReportController extends Controller
         $topProducts = OrderItem::whereBetween('created_at', $dateFilter)
             ->selectRaw('product_id, SUM(quantity) as units_sold, SUM(quantity * price) as revenue')
             ->groupBy('product_id')
-            ->with('book')
+            ->with('product')
             ->orderByDesc('revenue')
             ->take(10)
             ->get();
@@ -61,13 +61,13 @@ class ReportController extends Controller
                 SUM(seller_earning) as payout,
                 SUM(quantity) as units')
             ->groupBy('product_id')
-            ->with('book.seller')
+            ->with('product.seller')
             ->orderByDesc('commission')
             ->take(20)
             ->get()
-            ->groupBy(fn($i) => $i->book?->seller?->name ?? 'Unknown Seller')
+            ->groupBy(fn($i) => $i->product?->seller?->name ?? 'Unknown Seller')
             ->map(fn($items) => [
-                'name'       => $items->first()->book?->seller?->name ?? 'Unknown',
+                'name'       => $items->first()->product?->seller?->name ?? 'Unknown',
                 'gross'      => $items->sum('gross'),
                 'commission' => $items->sum('commission'),
                 'payout'     => $items->sum('payout'),

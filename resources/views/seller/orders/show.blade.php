@@ -1,334 +1,221 @@
 <x-seller-layout title="Order Detail" active="orders">
-<div>
+@include('partials.panel.plain')
+@php
+    $delivery  = $order->delivery;
+    $tagClass  = strtolower($order->status);
+    $gross     = $order->sellerItems->sum(fn ($i) => $i->price * $i->quantity);
+    $fees      = $order->sellerItems->sum('commission_amount');
+    $earned    = $order->sellerItems->sum('seller_earning');
+    $steps     = ['Pending', 'Processing', 'Shipped', 'Delivered'];
+    $currIdx   = array_search($order->status, $steps);
+@endphp
 
-    <div class="mb-5 flex items-center gap-4">
-        <a href="{{ route('seller.orders.index') }}"
-           class="text-sm font-semibold transition" style="color:#fa4e1c;"
-           onmouseover="this.style.color='#d93d0e';" onmouseout="this.style.color='#fa4e1c';">
-            ← My Orders
-        </a>
-        <span style="color:#E0E0E0;">|</span>
-        <h1 class="font-display text-xl font-bold" style="color:#222222;">
-            Order #{{ str_pad($order->id, 6, '0', STR_PAD_LEFT) }}
-        </h1>
+<div class="mx-auto max-w-5xl">
+
+    {{-- Header --}}
+    <div class="mb-5">
+        <a href="{{ route('seller.orders.index') }}" class="text-sm hover:underline pl-muted">&larr; Orders</a>
+        <div class="mt-1 flex flex-wrap items-center gap-3">
+            <h1 class="font-display text-2xl font-bold" style="color:#222;">Order #{{ str_pad($order->id, 6, '0', STR_PAD_LEFT) }}</h1>
+            <span class="pl-tag {{ $tagClass }}">{{ $order->status }}</span>
+        </div>
+        <p class="mt-0.5 text-sm pl-muted">Placed {{ $order->created_at->format('M j, Y · g:i A') }}</p>
     </div>
 
-    {{-- Delivery confirmed notification --}}
     @if ($order->status === 'Delivered')
-        <div class="mb-5 flex items-start gap-3 rounded-xl border p-4"
-             style="background:#F0FDF4;border-color:#BBF7D0;">
-            <span class="text-2xl">✅</span>
-            <div>
-                <p class="font-bold text-sm" style="color:#059669;">Buyer has confirmed delivery!</p>
-                <p class="text-xs mt-0.5" style="color:#6B7280;">
-                    {{ $order->full_name }} confirmed receipt of this order.
-                    Payment status: <strong style="color:#059669;">{{ $order->payment_status }}</strong>.
-                    Your earnings have been credited.
-                </p>
-            </div>
+        <div class="mb-5 rounded-md border px-4 py-3 text-sm" style="background:#F0FDF4;border-color:#BBF7D0;color:#166534;">
+            {{ $order->full_name }} confirmed they received this order. Payment: {{ $order->payment_status }}. Your earnings have been credited.
         </div>
     @endif
 
-    @php
-        $statusMap = [
-            'Pending'    => ['bg'=>'#e8f0f6','text'=>'#fa4e1c'],
-            'Processing' => ['bg'=>'#e8f0f6','text'=>'#fa4e1c'],
-            'Shipped'    => ['bg'=>'#EFF6FF','text'=>'#2563EB'],
-            'Delivered'  => ['bg'=>'#F0FDF4','text'=>'#059669'],
-            'Cancelled'  => ['bg'=>'#FEF2F2','text'=>'#DC2626'],
-        ];
-        $sc = $statusMap[$order->status] ?? ['bg'=>'#F5F5F5','text'=>'#555'];
-    @endphp
+    <div class="grid gap-5 lg:grid-cols-[1fr_19rem]">
 
-    <div class="grid gap-6 lg:grid-cols-[1fr_300px]">
-
-        {{-- Left: items + buyer --}}
+        {{-- ═══ Left ═══ --}}
         <div class="space-y-5">
 
-            {{-- Items --}}
-            <div class="card overflow-hidden">
-                <div class="px-5 py-4" style="background:#e8f0f6;border-bottom:1px solid #cfdce8;">
-                    <h2 class="font-display text-base font-bold" style="color:#222222;">Items in This Order</h2>
-                </div>
-                <div class="divide-y" style="--tw-divide-color:#fff1ee;">
-                    @foreach ($order->sellerItems as $item)
-                        <div class="flex items-center gap-4 px-5 py-4" style="border-color:#fff1ee;">
-                            <img src="{{ $item->product && $item->product->image ? asset('storage/'.$item->product->image) : 'https://placehold.co/48x64/FF6300/fff?text=P' }}"
-                                 class="h-16 w-12 rounded-lg object-cover flex-shrink-0 shadow-sm" alt="">
-                            <div class="flex-1 min-w-0">
-                                <p class="font-bold text-sm" style="color:#222222;">{{ $item->product->title ?? '—' }}</p>
-                                <p class="text-xs mt-0.5" style="color:#6b90aa;">Qty: {{ $item->quantity }} × ₱{{ number_format($item->price, 2) }}</p>
-                            </div>
-                            <div class="text-right flex-shrink-0">
-                                <p class="font-bold" style="color:#fa4e1c;">₱{{ number_format($item->price * $item->quantity, 2) }}</p>
-                                <p class="text-xs" style="color:#059669;">You earn: ₱{{ number_format($item->seller_earning, 2) }}</p>
-                                <p class="text-[10px]" style="color:#B0B0B0;">-₱{{ number_format($item->commission_amount, 2) }} comm.</p>
-                            </div>
-                        </div>
-                    @endforeach
-                </div>
-            </div>
-
-            {{-- Buyer info --}}
-            <div class="card p-6">
-                <h2 class="font-display text-base font-bold mb-4" style="color:#222222;">📍 Ship To</h2>
-                <div class="grid gap-y-2 text-sm">
-                    <div class="flex gap-3"><span style="color:#6b90aa;width:80px;flex-shrink:0;">Name</span><strong style="color:#222;">{{ $order->full_name }}</strong></div>
-                    <div class="flex gap-3"><span style="color:#6b90aa;width:80px;flex-shrink:0;">Phone</span><span style="color:#555;">{{ $order->phone }}</span></div>
-                    <div class="flex gap-3"><span style="color:#6b90aa;width:80px;flex-shrink:0;">Email</span><span style="color:#555;">{{ $order->email }}</span></div>
-                    <div class="flex gap-3"><span style="color:#6b90aa;width:80px;flex-shrink:0;">Address</span><span style="color:#555;">{{ $order->fullAddress() }}</span></div>
-                </div>
-
-                {{-- Payment --}}
-                <div class="mt-5 pt-5 border-t" style="border-color:#fff1ee;">
-                    <h3 class="text-xs font-bold uppercase tracking-widest mb-3" style="color:#6b90aa;">Payment</h3>
-                    <div class="flex flex-wrap gap-3">
-                        <span class="rounded-full px-3 py-1 text-xs font-bold"
-                              style="background:#F5F5F5;color:#555;">{{ $order->payment_method }}</span>
-                        <span class="rounded-full px-3 py-1 text-xs font-bold"
-                              style="background:{{ $order->payment_status==='Paid'?'#ECFDF5':'#FFFBEB' }};
-                                     color:{{ $order->payment_status==='Paid'?'#059669':'#D97706' }};">
-                            {{ $order->payment_status }}
-                        </span>
-                        @if ($order->payment_method === 'COD')
-                            <span class="text-xs" style="color:#D97706;">Collect ₱{{ number_format($order->total_price, 2) }} on delivery</span>
-                        @endif
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        {{-- Right: status + actions --}}
-        <div class="space-y-5">
-
-            {{-- Current status --}}
-            <div class="card p-5">
-                <h2 class="font-display text-base font-bold mb-3" style="color:#222222;">Order Status</h2>
-
-                {{-- Progress tracker --}}
-                @php
-                    $steps   = ['Pending','Processing','Shipped','Delivered'];
-                    $currIdx = array_search($order->status, $steps);
-                @endphp
-                @if ($order->status !== 'Cancelled')
-                    <div class="flex items-center mb-4">
+            {{-- Progress --}}
+            <section class="pl-card pl-body">
+                @if ($order->status === 'Cancelled')
+                    <p class="text-sm" style="color:#57534E;">This order was cancelled{{ $order->cancellation_reason ? ': ' . $order->cancellation_reason : '.' }}</p>
+                @else
+                    <ol class="flex items-center">
                         @foreach ($steps as $i => $step)
                             @php $done = $currIdx !== false && $i <= $currIdx; @endphp
                             @if ($i > 0)
-                                <div class="h-0.5 flex-1 mx-0.5" style="background:{{ $done ? '#fa4e1c' : '#E0E0E0' }};"></div>
+                                <li aria-hidden="true" class="mx-2 h-px flex-1" style="background:{{ $done ? '#fa4e1c' : '#E7E5E4' }};"></li>
                             @endif
-                            <div class="flex flex-col items-center gap-1 flex-shrink-0">
-                                <div class="flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-bold"
-                                     style="background:{{ $done ? '#fa4e1c' : '#E0E0E0' }};color:{{ $done ? '#fff' : '#999' }};">
-                                    {{ $done && $i < $currIdx ? '✓' : ($i+1) }}
-                                </div>
-                                <span class="text-[9px]" style="color:{{ $done ? '#fa4e1c' : '#6b90aa' }};">{{ $step }}</span>
-                            </div>
+                            <li class="flex items-center gap-2 text-sm" style="color:{{ $done ? '#222' : '#a39890' }};">
+                                <span class="flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-semibold"
+                                      style="{{ $done ? 'background:#fa4e1c;color:#fff;' : 'border:1px solid #D6D3D1;color:#a39890;' }}">{{ $i + 1 }}</span>
+                                <span class="hidden sm:inline">{{ $step }}</span>
+                            </li>
                         @endforeach
-                    </div>
-                @else
-                    <div class="mb-4 rounded-lg p-3 text-sm text-center" style="background:#FEF2F2;color:#DC2626;">✕ Cancelled</div>
+                    </ol>
                 @endif
+            </section>
 
-                <span class="inline-block rounded-full px-3 py-1 text-sm font-bold"
-                      style="background:{{ $sc['bg'] }};color:{{ $sc['text'] }};">
-                    {{ $order->status }}
-                </span>
-                <p class="text-xs mt-2" style="color:#6b90aa;">Placed {{ $order->created_at->format('M d, Y H:i') }}</p>
-            </div>
+            {{-- Items --}}
+            <section class="pl-card">
+                <div class="pl-head"><h2>Items</h2></div>
+                @foreach ($order->sellerItems as $item)
+                    <div class="flex items-center gap-3 border-b px-5 py-3 last:border-b-0" style="border-color:#F2EEEA;">
+                        @if ($item->product?->image)
+                            <img src="{{ asset('storage/' . $item->product->image) }}" alt="" class="h-14 w-14 shrink-0 rounded-md border object-cover" style="border-color:#ECE7E3;">
+                        @else
+                            <span class="h-14 w-14 shrink-0 rounded-md" style="background:#F5F2EF;"></span>
+                        @endif
+                        <div class="min-w-0 flex-1">
+                            <p class="truncate text-sm font-medium" style="color:#222;">{{ $item->product->title ?? 'Removed product' }}</p>
+                            <p class="text-xs pl-muted">₱{{ number_format($item->price, 2) }} × {{ $item->quantity }}</p>
+                        </div>
+                        <p class="text-sm font-medium" style="color:#222;">₱{{ number_format($item->price * $item->quantity, 2) }}</p>
+                    </div>
+                @endforeach
+                <dl class="pl-dl border-t px-5 py-3" style="border-color:#F2EEEA;background:#FCFBFA;border-radius:0 0 .75rem .75rem;">
+                    <div><dt>Subtotal</dt><dd>₱{{ number_format($gross, 2) }}</dd></div>
+                    <div><dt>Platform fee</dt><dd>−₱{{ number_format($fees, 2) }}</dd></div>
+                    <div class="font-semibold"><dt style="color:#222;">You earn</dt><dd style="color:#047857;">₱{{ number_format($earned, 2) }}</dd></div>
+                </dl>
+            </section>
+
+            {{-- Ship to + payment --}}
+            <section class="pl-card">
+                <div class="pl-head">
+                    <h2>Ship to</h2>
+                    <a href="{{ route('messages.inbox', ['open' => 'order:' . $order->id]) }}" class="pl-link">Message buyer</a>
+                </div>
+                <dl class="pl-dl pl-body !py-3">
+                    <div><dt>Name</dt><dd>{{ $order->full_name }}</dd></div>
+                    <div><dt>Phone</dt><dd>{{ $order->phone }}</dd></div>
+                    <div><dt>Email</dt><dd class="break-all">{{ $order->email }}</dd></div>
+                    <div><dt>Address</dt><dd class="max-w-[24rem]">{{ $order->fullAddress() }}</dd></div>
+                    <div><dt>Payment</dt><dd>{{ $order->payment_method }} · {{ $order->payment_status }}</dd></div>
+                    @if ($order->payment_method === 'COD' && $order->payment_status !== 'Paid')
+                        <div><dt>Collect on delivery</dt><dd class="font-semibold">₱{{ number_format($order->total_price, 2) }}</dd></div>
+                    @endif
+                </dl>
+            </section>
+        </div>
+
+        {{-- ═══ Right ═══ --}}
+        <div class="space-y-5">
 
             {{-- Update status --}}
-            @if (! in_array($order->status, ['Delivered','Cancelled']))
-                <div class="card p-5">
-                    <h3 class="text-sm font-bold mb-3" style="color:#222222;">Update Status</h3>
-                    <form action="{{ route('seller.orders.update', $order->id) }}" method="POST" class="space-y-3">
+            @if (! in_array($order->status, ['Delivered', 'Cancelled']))
+                <section class="pl-card pl-body">
+                    <form action="{{ route('seller.orders.update', $order->id) }}" method="POST">
                         @csrf @method('PATCH')
-                        <select name="status" class="input text-sm" style="border-color:#cfdce8;">
-                            @foreach (['Pending','Processing','Shipped','Delivered'] as $s)
-                                <option value="{{ $s }}" {{ $order->status === $s ? 'selected' : '' }}>{{ $s }}</option>
-                            @endforeach
-                        </select>
-                        <button type="submit"
-                                class="w-full rounded-xl py-2.5 text-sm font-bold text-white transition hover:opacity-90"
-                                style="background:#002b4d;">Save Status</button>
-                    </form>
-                </div>
-            @endif
-
-            {{-- ══ COURIER HANDOVER SECTION ══ --}}
-            @php $delivery = $order->delivery; @endphp
-
-            {{-- Sorting-center pickup request status --}}
-            @if ($parcel)
-                @php
-                    $pc = match($parcel->status) {
-                        'pending_pickup'                 => ['#FFFBEB','#B45309'],
-                        'pickup_approved'                => ['#EFF6FF','#2563EB'],
-                        'pickup_rejected', 'failed'      => ['#FEF2F2','#DC2626'],
-                        'delivered'                      => ['#ECFDF5','#059669'],
-                        'returned'                       => ['#F3F4F6','#4B5563'],
-                        default                          => ['#fff1ee','#d93d0e'],
-                    };
-                @endphp
-                <div class="card p-5">
-                    <h3 class="text-sm font-bold mb-3" style="color:#222222;">Sorting Center Pickup</h3>
-                    <div class="space-y-2 text-sm">
-                        <div class="flex justify-between gap-2"><span style="color:#6b90aa;">Tracking No.</span><strong style="color:#222;">{{ $parcel->tracking_number }}</strong></div>
-                        <div class="flex justify-between gap-2"><span style="color:#6b90aa;">Sorting Center</span><span style="color:#222;">{{ $parcel->currentSortingCenter->name ?? 'Awaiting assignment' }}</span></div>
-                        <div class="flex justify-between gap-2 items-center"><span style="color:#6b90aa;">Status</span>
-                            <span class="rounded-full px-2.5 py-0.5 text-xs font-bold" style="background:{{ $pc[0] }};color:{{ $pc[1] }};">{{ $parcel->statusLabel() }}</span>
+                        <label for="status" class="pl-label">Order status</label>
+                        <div class="flex gap-2">
+                            <select id="status" name="status" class="input flex-1 !py-1.5 text-sm">
+                                @foreach ($steps as $s)
+                                    <option value="{{ $s }}" @selected($order->status === $s)>{{ $s }}</option>
+                                @endforeach
+                            </select>
+                            <button type="submit" class="pl-btn !px-3">Save</button>
                         </div>
-                        @if ($parcel->failure_reason && in_array($parcel->status, ['pickup_rejected','failed','returned']))
-                            <p class="text-xs rounded-lg p-2.5" style="background:#FEF2F2;color:#B91C1C;">Reason: {{ $parcel->failure_reason }}</p>
-                        @endif
-                        @if ($parcel->status === 'pickup_rejected')
-                            <p class="text-xs" style="color:#6b90aa;">Update the schedule below to send a new pickup request.</p>
-                        @endif
-                    </div>
-                </div>
+                    </form>
+                </section>
             @endif
 
-            @if (! in_array($order->status, ['Delivered','Cancelled']))
+            {{-- Sorting-center pickup --}}
+            @if ($parcel)
+                <section class="pl-card">
+                    <div class="pl-head"><h2>Sorting center pickup</h2></div>
+                    <dl class="pl-dl pl-body !py-3">
+                        <div><dt>Tracking no.</dt><dd class="font-medium">{{ $parcel->tracking_number }}</dd></div>
+                        <div><dt>Sorting center</dt><dd>{{ $parcel->currentSortingCenter->name ?? 'Awaiting assignment' }}</dd></div>
+                        <div><dt>Status</dt><dd>{{ $parcel->statusLabel() }}</dd></div>
+                    </dl>
+                    @if ($parcel->failure_reason && in_array($parcel->status, ['pickup_rejected', 'failed', 'returned']))
+                        <p class="mx-5 mb-3 rounded-md px-3 py-2 text-xs" style="background:#FEF2F2;color:#B91C1C;">Reason: {{ $parcel->failure_reason }}</p>
+                    @endif
+                    @if ($parcel->status === 'pickup_rejected')
+                        <p class="px-5 pb-4 text-xs pl-muted">Schedule a new pickup below to send another request.</p>
+                    @endif
+                </section>
+            @endif
 
-                {{-- If no delivery scheduled yet (or the SC rejected the pickup) — show schedule form --}}
+            {{-- Courier handover --}}
+            @if (! in_array($order->status, ['Delivered', 'Cancelled']))
+
                 {{-- One route per order: a sorting-center parcel replaces the courier cards below. --}}
                 @if ((! $delivery && ! $parcel) || ($delivery && $delivery->status === 'available' && ! $delivery->pickup_scheduled_at) || ($parcel && $parcel->status === 'pickup_rejected'))
-                    <div class="card p-5">
-                        <h3 class="text-sm font-bold mb-1" style="color:#222222;">🚚 Schedule Courier Pickup</h3>
-                        <p class="text-xs mb-4" style="color:#6b90aa;">Fill in the courier details and set a pickup date/time.</p>
-                        <form action="{{ route('seller.orders.handover', $order->id) }}" method="POST" class="space-y-3">
+                    <section class="pl-card">
+                        <div class="pl-head"><h2>Schedule courier pickup</h2></div>
+                        <form action="{{ route('seller.orders.handover', $order->id) }}" method="POST" class="pl-body space-y-3">
                             @csrf
                             <div>
-                                <label class="text-xs font-semibold" style="color:#6b90aa;">Courier / Rider Name *</label>
-                                <input type="text" name="courier_name" class="input mt-1 text-sm" required
-                                       placeholder="e.g. LBC, J&T Express, or rider name">
+                                <label for="courier_name" class="pl-label">Courier or rider</label>
+                                <input type="text" id="courier_name" name="courier_name" class="input text-sm" required placeholder="e.g. J&T Express or rider's name">
                             </div>
                             <div>
-                                <label class="text-xs font-semibold" style="color:#6b90aa;">Tracking Number</label>
-                                <input type="text" name="tracking_number" class="input mt-1 text-sm"
-                                       placeholder="e.g. JT12345678 (optional)">
+                                <label for="tracking_number" class="pl-label">Tracking number <span style="color:#a39890;font-weight:400;">— optional</span></label>
+                                <input type="text" id="tracking_number" name="tracking_number" class="input text-sm" placeholder="e.g. JT12345678">
                             </div>
                             <div>
-                                <label class="text-xs font-semibold" style="color:#6b90aa;">Pickup Schedule *</label>
-                                <input type="datetime-local" name="pickup_scheduled_at" class="input mt-1 text-sm" required
-                                       min="{{ now()->format('Y-m-d\TH:i') }}">
+                                <label for="pickup_scheduled_at" class="pl-label">Pickup date and time</label>
+                                <input type="datetime-local" id="pickup_scheduled_at" name="pickup_scheduled_at" class="input text-sm" required min="{{ now()->format('Y-m-d\TH:i') }}">
                             </div>
                             <div>
-                                <label class="text-xs font-semibold" style="color:#6b90aa;">Notes</label>
-                                <textarea name="notes" rows="2" class="input mt-1 text-sm"
-                                          placeholder="Any special instructions for the courier…"></textarea>
+                                <label for="notes" class="pl-label">Notes <span style="color:#a39890;font-weight:400;">— optional</span></label>
+                                <textarea id="notes" name="notes" rows="2" class="input text-sm" placeholder="Instructions for the courier"></textarea>
                             </div>
-                            <button type="submit"
-                                    class="w-full rounded-xl py-2.5 text-sm font-bold text-white transition hover:opacity-90"
-                                    style="background:#002b4d;">📅 Schedule Pickup</button>
+                            <button type="submit" class="pl-btn w-full">Schedule pickup</button>
                         </form>
-                    </div>
+                    </section>
 
-                {{-- Pickup scheduled, waiting for a courier to accept the job --}}
                 @elseif ($delivery?->status === 'available')
-                    <div class="card p-5 space-y-3">
-                        <h3 class="text-sm font-bold" style="color:#222222;">🚚 Waiting for a Courier</h3>
-                        <div class="rounded-xl p-4 space-y-2 text-sm" style="background:#FFFBEB;border:1px solid #FDE68A;">
-                            <div class="flex gap-2"><span style="color:#6B7280;width:120px;flex-shrink:0;">Pickup Time</span><strong style="color:#222;">{{ $delivery->pickup_scheduled_at?->format('M d, Y h:i A') }}</strong></div>
-                            @if ($delivery->notes)
-                            <div class="flex gap-2"><span style="color:#6B7280;width:120px;flex-shrink:0;">Notes</span><span style="color:#555;">{{ $delivery->notes }}</span></div>
-                            @endif
-                        </div>
-                        <p class="text-xs" style="color:#6b90aa;">The delivery request is open to couriers. You'll be notified when one accepts it.</p>
-                    </div>
+                    <section class="pl-card">
+                        <div class="pl-head"><h2>Waiting for a courier</h2></div>
+                        <dl class="pl-dl pl-body !py-3">
+                            <div><dt>Pickup</dt><dd>{{ $delivery->pickup_scheduled_at?->format('M j, Y · g:i A') }}</dd></div>
+                            @if ($delivery->notes)<div><dt>Notes</dt><dd>{{ $delivery->notes }}</dd></div>@endif
+                        </dl>
+                        <p class="px-5 pb-4 text-xs pl-muted">The job is open to couriers. You'll be notified when one accepts it.</p>
+                    </section>
 
-                {{-- Courier assigned, not yet handed over --}}
-                @elseif (in_array($delivery?->status, ['accepted']))
-                    <div class="card p-5 space-y-3">
-                        <h3 class="text-sm font-bold" style="color:#222222;">🚚 Courier Pickup Scheduled</h3>
-                        <div class="rounded-xl p-4 space-y-2 text-sm" style="background:#F0FDF4;border:1px solid #BBF7D0;">
-                            <div class="flex gap-2"><span style="color:#6B7280;width:120px;flex-shrink:0;">Courier</span><strong style="color:#222;">{{ $delivery->courier_name }}</strong></div>
-                            @if ($delivery->tracking_number)
-                            <div class="flex gap-2"><span style="color:#6B7280;width:120px;flex-shrink:0;">Tracking No.</span><strong style="color:#222;">{{ $delivery->tracking_number }}</strong></div>
-                            @endif
-                            <div class="flex gap-2"><span style="color:#6B7280;width:120px;flex-shrink:0;">Pickup Time</span><strong style="color:#222;">{{ $delivery->pickup_scheduled_at?->format('M d, Y h:i A') }}</strong></div>
-                            @if ($delivery->notes)
-                            <div class="flex gap-2"><span style="color:#6B7280;width:120px;flex-shrink:0;">Notes</span><span style="color:#555;">{{ $delivery->notes }}</span></div>
-                            @endif
-                        </div>
-                        <div class="rounded-lg p-3 text-xs" style="background:#FFFBEB;border:1px solid #FDE68A;color:#92400E;">
-                            ⏳ Waiting for courier pickup. Click below once you've handed the parcel to the courier.
-                        </div>
-                        <form action="{{ route('seller.orders.handed-over', $order->id) }}" method="POST">
+                @elseif ($delivery?->status === 'accepted')
+                    <section class="pl-card">
+                        <div class="pl-head"><h2>Courier pickup</h2></div>
+                        <dl class="pl-dl pl-body !py-3">
+                            <div><dt>Courier</dt><dd class="font-medium">{{ $delivery->courier_name }}</dd></div>
+                            @if ($delivery->tracking_number)<div><dt>Tracking no.</dt><dd>{{ $delivery->tracking_number }}</dd></div>@endif
+                            <div><dt>Pickup</dt><dd>{{ $delivery->pickup_scheduled_at?->format('M j, Y · g:i A') }}</dd></div>
+                            @if ($delivery->notes)<div><dt>Notes</dt><dd>{{ $delivery->notes }}</dd></div>@endif
+                        </dl>
+                        <form action="{{ route('seller.orders.handed-over', $order->id) }}" method="POST" class="px-5 pb-4">
                             @csrf
-                            <button type="submit"
-                                    class="w-full rounded-xl py-2.5 text-sm font-bold text-white transition hover:opacity-90"
-                                    style="background:#059669;"
-                                    onclick="return confirm('Confirm that you have handed this order to the courier?')">
-                                ✅ Mark as Handed Over to Courier
-                            </button>
+                            <p class="mb-2 text-xs pl-muted">Once you've given the parcel to the courier, mark it as handed over.</p>
+                            <button type="submit" class="pl-btn w-full"
+                                    onclick="return confirm('Confirm that you handed this order to the courier?')">Mark as handed over</button>
                         </form>
-                    </div>
+                    </section>
 
-                {{-- Handed over / in transit --}}
-                @elseif (in_array($delivery?->status, ['picked_up','in_transit']))
-                    <div class="card p-5 space-y-3">
-                        <h3 class="text-sm font-bold" style="color:#222222;">📦 Shipment In Transit</h3>
-                        <div class="rounded-xl p-4 space-y-2 text-sm" style="background:#EFF6FF;border:1px solid #BFDBFE;">
-                            <div class="flex gap-2"><span style="color:#6B7280;width:120px;flex-shrink:0;">Courier</span><strong style="color:#222;">{{ $delivery->courier_name }}</strong></div>
-                            @if ($delivery->tracking_number)
-                            <div class="flex gap-2"><span style="color:#6B7280;width:120px;flex-shrink:0;">Tracking No.</span>
-                                <strong style="color:#2563EB;">{{ $delivery->tracking_number }}</strong>
-                            </div>
-                            @endif
-                            <div class="flex gap-2"><span style="color:#6B7280;width:120px;flex-shrink:0;">Handed Over</span><span style="color:#555;">{{ $delivery->handed_over_at?->format('M d, Y h:i A') }}</span></div>
-                        </div>
-                        <div class="flex items-center gap-2 rounded-lg p-3 text-xs font-semibold"
-                             style="background:#EFF6FF;color:#2563EB;">
-                            🚚 Parcel is on its way to the buyer.
-                        </div>
-                    </div>
+                @elseif (in_array($delivery?->status, ['picked_up', 'in_transit']))
+                    <section class="pl-card">
+                        <div class="pl-head"><h2>In transit</h2></div>
+                        <dl class="pl-dl pl-body !py-3">
+                            <div><dt>Courier</dt><dd class="font-medium">{{ $delivery->courier_name }}</dd></div>
+                            @if ($delivery->tracking_number)<div><dt>Tracking no.</dt><dd>{{ $delivery->tracking_number }}</dd></div>@endif
+                            <div><dt>Handed over</dt><dd>{{ $delivery->handed_over_at?->format('M j, Y · g:i A') }}</dd></div>
+                        </dl>
+                        <p class="px-5 pb-4 text-xs pl-muted">The parcel is on its way to the buyer.</p>
+                    </section>
                 @endif
             @endif
 
-            {{-- Delivered state --}}
+            {{-- Delivered --}}
             @if ($order->status === 'Delivered' && $delivery)
-                <div class="card p-5">
-                    <h3 class="text-sm font-bold mb-3" style="color:#222222;">✅ Delivery Complete</h3>
-                    <div class="rounded-xl p-4 space-y-2 text-sm" style="background:#F0FDF4;border:1px solid #BBF7D0;">
-                        <div class="flex gap-2"><span style="color:#6B7280;width:120px;flex-shrink:0;">Courier</span><strong style="color:#222;">{{ $delivery->courier_name }}</strong></div>
-                        @if ($delivery->tracking_number)
-                        <div class="flex gap-2"><span style="color:#6B7280;width:120px;flex-shrink:0;">Tracking No.</span><strong style="color:#059669;">{{ $delivery->tracking_number }}</strong></div>
-                        @endif
-                        <div class="flex gap-2"><span style="color:#6B7280;width:120px;flex-shrink:0;">Delivered At</span><span style="color:#555;">{{ $delivery->delivered_at?->format('M d, Y h:i A') ?? '—' }}</span></div>
-                    </div>
-                </div>
+                <section class="pl-card">
+                    <div class="pl-head"><h2>Delivery</h2></div>
+                    <dl class="pl-dl pl-body !py-3">
+                        <div><dt>Courier</dt><dd class="font-medium">{{ $delivery->courier_name }}</dd></div>
+                        @if ($delivery->tracking_number)<div><dt>Tracking no.</dt><dd>{{ $delivery->tracking_number }}</dd></div>@endif
+                        <div><dt>Delivered</dt><dd>{{ $delivery->delivered_at?->format('M j, Y · g:i A') ?? '—' }}</dd></div>
+                    </dl>
+                </section>
             @endif
-
-            {{-- Earnings summary --}}
-            <div class="card p-5">
-                <h3 class="text-sm font-bold mb-3" style="color:#222222;">Earnings Summary</h3>
-                <div class="space-y-2 text-sm">
-                    <div class="flex justify-between" style="color:#777;">
-                        <span>Gross</span>
-                        <span>₱{{ number_format($order->sellerItems->sum(fn($i) => $i->price * $i->quantity), 2) }}</span>
-                    </div>
-                    <div class="flex justify-between" style="color:#fa4e1c;">
-                        <span>Commission</span>
-                        <span>-₱{{ number_format($order->sellerItems->sum('commission_amount'), 2) }}</span>
-                    </div>
-                    <div class="flex justify-between border-t pt-2 font-bold text-base" style="border-color:#fff1ee;color:#059669;">
-                        <span>Your Earnings</span>
-                        <span>₱{{ number_format($order->sellerItems->sum('seller_earning'), 2) }}</span>
-                    </div>
-                </div>
-            </div>
-
-            {{-- Chat link --}}
-            <a href="{{ route('messages.inbox', ['open' => 'order:' . $order->id]) }}"
-               class="card flex items-center gap-3 p-4 transition hover:-translate-y-0.5">
-                <span class="text-2xl">💬</span>
-                <div>
-                    <p class="font-bold text-sm" style="color:#222222;">Chat with Buyer</p>
-                    <p class="text-xs" style="color:#6b90aa;">{{ $order->full_name }}</p>
-                </div>
-                <span class="ml-auto text-sm" style="color:#fa4e1c;">→</span>
-            </a>
         </div>
     </div>
 </div>

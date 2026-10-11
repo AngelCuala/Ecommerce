@@ -28,15 +28,15 @@
 
 <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px;">
     <div class="tab-bar">
-        <a href="{{ route('admin.riders.index') }}"
+        <a href="{{ route('admin.logistics.riders.index') }}"
            class="tab {{ $currentStatus==='' ? 'active' : '' }}">All <span class="tab-count">{{ $allCount }}</span></a>
-        <a href="{{ route('admin.riders.index', ['status'=>'pending']) }}"
+        <a href="{{ route('admin.logistics.riders.index', ['status'=>'pending']) }}"
            class="tab {{ $currentStatus==='pending' ? 'active' : '' }}">Pending <span class="tab-count">{{ $pendingCount }}</span></a>
-        <a href="{{ route('admin.riders.index', ['status'=>'active']) }}"
+        <a href="{{ route('admin.logistics.riders.index', ['status'=>'active']) }}"
            class="tab {{ $currentStatus==='active' ? 'active' : '' }}">Active <span class="tab-count">{{ $activeCount }}</span></a>
-        <a href="{{ route('admin.riders.index', ['status'=>'inactive']) }}"
+        <a href="{{ route('admin.logistics.riders.index', ['status'=>'inactive']) }}"
            class="tab {{ $currentStatus==='inactive' ? 'active' : '' }}">Inactive <span class="tab-count">{{ $inactiveCount }}</span></a>
-        <a href="{{ route('admin.riders.index', ['status'=>'rejected']) }}"
+        <a href="{{ route('admin.logistics.riders.index', ['status'=>'rejected']) }}"
            class="tab {{ $currentStatus==='rejected' ? 'active' : '' }}">Rejected <span class="tab-count">{{ $rejectedCount }}</span></a>
     </div>
 </div>
@@ -73,7 +73,7 @@
             <tr>
                 <td><span class="tracking-no">RDR-{{ str_pad($rider->id,3,'0',STR_PAD_LEFT) }}</span></td>
                 <td>
-                    <a href="{{ route('admin.riders.show', $rider) }}" style="font-weight:600;color:var(--text-primary);">{{ $rider->full_name }}</a>
+                    <a href="{{ route('admin.logistics.riders.show', $rider) }}" style="font-weight:600;color:var(--text-primary);">{{ $rider->full_name }}</a>
                     <div class="td-sub">{{ $rider->user->email ?? '' }}</div>
                 </td>
                 <td class="text-secondary">{{ $rider->phone ?? '—' }}</td>
@@ -84,22 +84,22 @@
                 <td>
                     <div style="display:flex;gap:6px;flex-wrap:wrap;">
                         @if($isPending)
-                            <form method="POST" action="{{ route('admin.riders.approve',$rider) }}">@csrf
+                            <form method="POST" action="{{ route('admin.logistics.riders.approve',$rider) }}">@csrf
                                 <button class="btn btn--primary btn--sm">Approve</button>
                             </form>
-                            <form method="POST" action="{{ route('admin.riders.disapprove',$rider) }}">@csrf
+                            <form method="POST" action="{{ route('admin.logistics.riders.disapprove',$rider) }}">@csrf
                                 <button class="btn btn--danger btn--sm">Reject</button>
                             </form>
                         @elseif($isActive)
-                            <form method="POST" action="{{ route('admin.riders.toggle-active',$rider) }}">@csrf
+                            <form method="POST" action="{{ route('admin.logistics.riders.toggle-active',$rider) }}">@csrf
                                 <button class="btn btn--danger btn--sm">Deactivate</button>
                             </form>
                         @elseif($isInactive)
-                            <form method="POST" action="{{ route('admin.riders.toggle-active',$rider) }}">@csrf
+                            <form method="POST" action="{{ route('admin.logistics.riders.toggle-active',$rider) }}">@csrf
                                 <button class="btn btn--primary btn--sm">Activate</button>
                             </form>
                         @elseif($isReject)
-                            <form method="POST" action="{{ route('admin.riders.approve',$rider) }}">@csrf
+                            <form method="POST" action="{{ route('admin.logistics.riders.approve',$rider) }}">@csrf
                                 <button class="btn btn--amber btn--sm">Re-review</button>
                             </form>
                         @endif

@@ -1,43 +1,40 @@
 <x-admin-layout title="Edit Policy" active="settings">
+@include('partials.panel.plain')
 
 @if (session('success'))
-    <div class="mb-5 rounded-xl border p-4 text-sm" style="background:rgba(250,78,28,.10);border-color:rgba(250,78,28,.35);color:#d93d0e;">
-        ✓ {{ session('success') }}
+    <div class="mb-5 rounded-md border px-4 py-3 text-sm" style="background:#ECFDF5;border-color:#A7F3D0;color:#047857;">
+        {{ session('success') }}
     </div>
 @endif
 
-<div class="mb-5 flex items-center justify-between">
-    <a href="{{ route('admin.settings.index') }}#policies"
-       class="text-sm font-semibold transition" style="color:#fa4e1c;"
-       onmouseover="this.style.color='#d93d0e';" onmouseout="this.style.color='#fa4e1c';">
-        ← Back to Settings
-    </a>
+<div class="mb-4 flex flex-wrap items-center justify-between gap-2">
+    <a href="{{ route('admin.settings.index') }}#policies" class="text-sm hover:underline pl-muted">&larr; Settings</a>
     @if ($policy)
-        <div class="text-xs" style="color:#6b90aa;">
+        <p class="text-xs pl-muted">
             Last updated {{ $policy->updated_at->format('M d, Y H:i') }}
             by {{ $policy->editor->name ?? 'Admin' }}
-        </div>
+        </p>
     @endif
 </div>
 
-<div class="card p-6">
-    <form action="{{ route('admin.settings.policies.update', $policyKey) }}" method="POST">
+<div class="pl-card">
+    <form action="{{ route('admin.settings.policies.update', $policyKey) }}" method="POST" class="pl-body">
         @csrf @method('PUT')
 
         <div class="mb-5">
-            <label class="text-xs font-semibold" style="color:#6b90aa;">Policy Title *</label>
+            <label class="pl-label">Policy title *</label>
             <input type="text" name="title"
                    value="{{ old('title', $policy?->title ?? $defaultTitle) }}"
-                   class="input mt-1 text-lg font-bold" required>
+                   class="input font-semibold" required>
         </div>
 
         <div class="mb-5">
-            <label class="text-xs font-semibold" style="color:#6b90aa;">Content *</label>
-            <p class="text-[11px] mt-0.5 mb-2" style="color:#B0B0B0;">
+            <label class="pl-label">Content *</label>
+            <p class="mb-2 text-xs pl-muted">
                 You can use plain text or basic HTML (headings, paragraphs, lists).
             </p>
             <textarea id="policy-editor" name="content" rows="24"
-                      class="input mt-1 font-mono text-sm leading-relaxed"
+                      class="input font-mono text-sm leading-relaxed"
                       required
                       placeholder="Write the policy content here…">{{ old('content', $policy?->content ?? '') }}</textarea>
         </div>
@@ -45,24 +42,18 @@
         {{-- Preview --}}
         <div class="mb-6">
             <button type="button" id="toggle-preview"
-                    class="text-xs font-semibold transition" style="color:#fa4e1c;"
+                    class="pl-link"
                     onclick="togglePreview()">
-                👁 Preview Rendered Output
+                Preview rendered output
             </button>
-            <div id="preview-box" class="hidden mt-3 rounded-xl border p-6 text-sm leading-relaxed"
-                 style="border-color:#cfdce8;background:#FFFBF7;color:#333;">
+            <div id="preview-box" class="hidden mt-3 rounded-md border p-5 text-sm leading-relaxed"
+                 style="border-color:#ECE7E3;background:#FCFBFA;color:#44403C;">
             </div>
         </div>
 
-        <div class="flex gap-3">
-            <button type="submit"
-                    class="flex-1 rounded-xl py-3 text-sm font-bold text-white transition hover:opacity-90"
-                    style="background:#002b4d;">
-                💾 Save Policy
-            </button>
-            <a href="{{ route('admin.settings.index') }}#policies"
-               class="rounded-xl border px-6 py-3 text-sm font-semibold transition"
-               style="border-color:#cfdce8;color:#6b90aa;">Cancel</a>
+        <div class="flex justify-end gap-2 border-t pt-4" style="border-color:#F2EEEA;">
+            <a href="{{ route('admin.settings.index') }}#policies" class="pl-btn-line">Cancel</a>
+            <button type="submit" class="pl-btn">Save policy</button>
         </div>
     </form>
 </div>

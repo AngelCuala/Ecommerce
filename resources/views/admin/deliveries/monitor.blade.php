@@ -28,7 +28,7 @@
 {{-- Tab filter --}}
 <div class="tab-bar" style="margin-bottom:16px;">
     @foreach([''=> 'All', 'assigned'=>'Dispatched','out_for_delivery'=>'Out for Delivery','delivered'=>'Delivered','failed'=>'Failed','returned'=>'Returned'] as $val=>$lbl)
-        <a href="{{ route('admin.deliveries.monitor',['status'=>$val]) }}"
+        <a href="{{ route('admin.logistics.deliveries.monitor',['status'=>$val]) }}"
            class="tab {{ $tab===$val ? 'active' : '' }}">{{ $lbl }}</a>
     @endforeach
 </div>
@@ -85,7 +85,7 @@
                     </span>
                 </td>
                 <td>
-                    <form method="POST" action="{{ route('admin.deliveries.update-status',$d) }}" style="display:flex;gap:6px;align-items:center;">
+                    <form method="POST" action="{{ route('admin.logistics.deliveries.update-status',$d) }}" style="display:flex;gap:6px;align-items:center;">
                         @csrf
                         <select name="status" style="width:130px;background:var(--bg-input);font-size:12px;">
                             @foreach(['assigned'=>'Dispatched','out_for_delivery'=>'Out for Delivery','delivered'=>'Delivered','failed'=>'Failed','returned'=>'Returned'] as $v=>$l)

@@ -52,6 +52,30 @@ class DashboardController extends Controller
             ];
         });
 
+        // ── Marketplace sales ─────────────────────────────────────
+        $salesQuery     = fn () => \App\Models\Order::where('status', '!=', 'Cancelled');
+        $totalOrders    = $salesQuery()->count();
+        $ordersMonth    = $salesQuery()->where('created_at', '>=', now()->startOfMonth())->count();
+        $grossSales     = (float) $salesQuery()->sum('total_price');
+        $salesMonth     = (float) $salesQuery()->where('created_at', '>=', now()->startOfMonth())->sum('total_price');
+        $commissionEarned = (float) \App\Models\OrderItem::whereHas('order', fn ($q) => $q->where('status', '!=', 'Cancelled'))
+            ->sum('commission_amount');
+        $ordersByStatus = \App\Models\Order::selectRaw('status, COUNT(*) c')->groupBy('status')->pluck('c', 'status');
+
+        // ── Sales chart (last 6 months) ───────────────────────────
+        $salesChart = collect(range(5, 0))->map(function ($back) {
+            $month = now()->subMonths($back);
+            return (object) [
+                'label' => $month->format('M'),
+                'value' => (float) \App\Models\Order::where('status', '!=', 'Cancelled')
+                    ->whereMonth('created_at', $month->month)->whereYear('created_at', $month->year)
+                    ->sum('total_price'),
+            ];
+        });
+
+        // ── Recent orders ─────────────────────────────────────────
+        $recentOrders = \App\Models\Order::with('user')->latest()->take(5)->get();
+
         // ── Recent admin activity ─────────────────────────────────
         $recentActivity = ActivityLog::with('admin')->latest()->take(6)->get();
 
@@ -83,7 +107,9 @@ class DashboardController extends Controller
             'totalSellers', 'activeSellers',
             'newToday', 'newWeek', 'newMonth',
             'pendingRequests', 'pendingSellerApps', 'pendingBuyerVerif', 'pendingList',
-            'growth', 'recentActivity', 'notifications', 'systemStatus'
+            'growth', 'recentActivity', 'notifications', 'systemStatus',
+            'totalOrders', 'ordersMonth', 'grossSales', 'salesMonth', 'commissionEarned',
+            'ordersByStatus', 'salesChart', 'recentOrders'
         ));
     }
 }

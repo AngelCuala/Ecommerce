@@ -1,355 +1,354 @@
 <x-layout title="Become a Seller — ALVY">
-<div class="mx-auto max-w-2xl px-4 py-12 sm:px-6 lg:px-8">
+@include('profile._styles')
+@php $u = auth()->user(); @endphp
+<style>
+    .pf-input.is-invalid { border-color:#DC2626; }
+    .fld-error { margin-top:.3rem; font-size:.75rem; color:#DC2626; }
+    .upload-row { display:flex; align-items:center; gap:.875rem; border:1.5px dashed #E6D9CF; border-radius:.75rem; padding:.875rem 1rem; background:#FDF8F5; cursor:pointer; transition:all .2s; }
+    .upload-row:hover { border-color:#fa4e1c; background:#fff5f3; }
+    .upload-row.has-file { border-style:solid; border-color:#fa4e1c; background:#fff5f3; }
+    .upload-row.is-invalid { border-color:#DC2626; }
+</style>
 
-    <div class="mb-8 text-center">
-        <span class="flex h-16 w-16 mx-auto items-center justify-center rounded-2xl text-3xl text-white"
-              style="background:linear-gradient(135deg,#002b4d 0%,#003d6b 100%);">🏪</span>
-        <h1 class="mt-4 font-display text-3xl font-bold" style="color:#222222;">Become a Seller</h1>
-        <p class="mt-2 text-sm" style="color:#7A7A7A;">Join the ALVY Seller Center. Applications are reviewed within 1–3 business days.</p>
+<div class="pf-page">
+<div class="mx-auto max-w-3xl px-4 py-8 sm:px-6 lg:py-10">
+
+    {{-- Header --}}
+    <div class="mb-6 text-center">
+        <span class="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl text-white"
+              style="background:linear-gradient(135deg,#fa4e1c,#ff8a5b);box-shadow:0 10px 24px -12px rgba(250,78,28,.8);">
+            <svg class="h-7 w-7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M3 9l1-5h16l1 5M4 9h16v10a1 1 0 01-1 1H5a1 1 0 01-1-1V9zM9 13h6"/></svg>
+        </span>
+        <h1 class="mt-4 font-display text-3xl font-extrabold" style="color:#222;">Become a Seller</h1>
+        <p class="mt-1 text-sm pf-muted">Join the ALVY Seller Center. Applications are reviewed within 1–3 business days.</p>
     </div>
 
     {{-- Status states --}}
     @if (isset($existing) && $existing?->isPending())
-        <div class="card p-8 text-center">
-            <span class="text-4xl">⏳</span>
-            <p class="mt-4 font-display text-xl font-semibold" style="color:#222222;">Application Under Review</p>
-            <p class="mt-2 text-sm" style="color:#7A7A7A;">Submitted {{ $existing->created_at->format('M d, Y') }}. We'll email you once reviewed.</p>
-            <a href="{{ route('profile.show') }}" class="mt-6 inline-flex rounded-xl px-6 py-3 text-sm font-bold text-white" style="background:#002b4d;">Back to Profile</a>
+        <div class="pf-card p-8 text-center">
+            <span class="pf-icon mx-auto h-14 w-14">
+                <svg class="h-7 w-7" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path stroke-linecap="round" d="M12 7v5l3 2"/></svg>
+            </span>
+            <p class="mt-4 font-display text-xl font-extrabold" style="color:#222;">Application Under Review</p>
+            <p class="mt-1 text-sm pf-muted">Submitted {{ $existing->created_at->format('M d, Y') }}. We'll email you once reviewed.</p>
+            <a href="{{ route('profile.show') }}" class="pf-btn mt-6">Back to Profile</a>
         </div>
 
     @elseif (isset($existing) && $existing?->isApproved())
-        <div class="card p-8 text-center">
-            <span class="text-4xl">✅</span>
-            <p class="mt-4 font-display text-xl font-semibold" style="color:#15803D;">You're already a Seller!</p>
-            <a href="{{ route('seller.dashboard') }}" class="mt-6 inline-flex rounded-xl px-6 py-3 text-sm font-bold text-white" style="background:#002b4d;">Go to Seller Dashboard</a>
+        <div class="pf-card p-8 text-center">
+            <span class="pf-icon mx-auto h-14 w-14" style="background:#ECFDF5;color:#059669;">
+                <svg class="h-7 w-7" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6 9 17l-5-5"/></svg>
+            </span>
+            <p class="mt-4 font-display text-xl font-extrabold" style="color:#059669;">You're already a Seller!</p>
+            <a href="{{ route('seller.dashboard') }}" class="pf-btn mt-6">Go to Seller Dashboard</a>
         </div>
 
     @else
         @if (isset($existing) && $existing?->isRejected())
-            <div class="mb-6 rounded-2xl border p-5" style="background:#FEF2F2;border-color:rgba(220,38,38,.2);">
-                <p class="font-semibold" style="color:#DC2626;">Previous application rejected.</p>
-                @if ($existing->rejection_reason)
-                    <p class="mt-1 text-sm" style="color:#7A7A7A;">Reason: {{ $existing->rejection_reason }}</p>
-                @endif
+            <div class="pf-alert pf-alert-error mb-5">
+                <svg class="mt-0.5 h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                <div>
+                    <strong>Previous application rejected.</strong>
+                    @if ($existing->rejection_reason)
+                        <p class="mt-0.5">Reason: {{ $existing->rejection_reason }}</p>
+                    @endif
+                </div>
             </div>
+        @endif
+
+        @if (session('error'))
+            <div class="pf-alert pf-alert-error mb-5">{{ session('error') }}</div>
         @endif
 
         @if ($errors->any())
-            <div class="mb-6 rounded-xl border p-4 text-sm" style="background:#FEF2F2;border-color:rgba(220,38,38,.2);color:#DC2626;">
-                <ul class="list-inside list-disc space-y-1">
-                    @foreach ($errors->all() as $err)<li>{{ $err }}</li>@endforeach
-                </ul>
+            <div class="pf-alert pf-alert-error mb-5">
+                <svg class="mt-0.5 h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                <div>
+                    <strong>Please fix the {{ $errors->count() === 1 ? 'field' : $errors->count() . ' fields' }} marked below.</strong>
+                </div>
             </div>
         @endif
 
-        <div class="card p-8">
-            <form action="{{ route('seller.apply.store') }}" method="POST" enctype="multipart/form-data" class="space-y-6">
-                @csrf
+        <form action="{{ route('seller.apply.store') }}" method="POST" enctype="multipart/form-data" class="space-y-5" id="sellerApplyForm" novalidate>
+            @csrf
 
-                {{-- Personal info --}}
-                <div>
-                    <h2 class="text-sm font-bold mb-3" style="color:#222222;">Personal Information</h2>
-                    <div class="grid gap-4 sm:grid-cols-2">
+            {{-- ═══ 1. Personal information ═══ --}}
+            <section class="pf-card p-6 sm:p-7">
+                <div class="mb-5 flex items-center gap-3">
+                    <span class="pf-icon"><span class="text-sm font-extrabold">1</span></span>
+                    <div>
+                        <h2 class="pf-card-title">Personal Information</h2>
+                        <p class="text-xs pf-muted">The account owner applying for the shop.</p>
+                    </div>
+                </div>
+                <div class="grid gap-4 sm:grid-cols-2">
+                    <div>
+                        <label class="pf-label" for="first_name">First Name *</label>
+                        <input type="text" id="first_name" name="first_name" value="{{ old('first_name', $u->first_name) }}"
+                               class="pf-input @error('first_name') is-invalid @enderror" required>
+                        @error('first_name')<p class="fld-error">{{ $message }}</p>@enderror
+                    </div>
+                    <div>
+                        <label class="pf-label" for="last_name">Last Name *</label>
+                        <input type="text" id="last_name" name="last_name" value="{{ old('last_name', $u->last_name) }}"
+                               class="pf-input @error('last_name') is-invalid @enderror" required>
+                        @error('last_name')<p class="fld-error">{{ $message }}</p>@enderror
+                    </div>
+                    <div>
+                        <label class="pf-label" for="email">Email</label>
+                        <input type="email" id="email" value="{{ $u->email }}" class="pf-input" readonly>
+                        <p class="mt-1 text-[11px] pf-muted">Your account email — we'll send updates here.</p>
+                    </div>
+                    <div>
+                        <label class="pf-label" for="phone">Mobile Number *</label>
+                        <input type="tel" id="phone" name="phone" inputmode="numeric" placeholder="09171234567"
+                               value="{{ old('phone', $u->contact_no ?: $u->phone) }}"
+                               class="pf-input @error('phone') is-invalid @enderror" required>
+                        @error('phone')<p class="fld-error">{{ $message }}</p>@enderror
+                    </div>
+                </div>
+            </section>
+
+            {{-- ═══ 2. Shop information ═══ --}}
+            <section class="pf-card p-6 sm:p-7">
+                <div class="mb-5 flex items-center gap-3">
+                    <span class="pf-icon"><span class="text-sm font-extrabold">2</span></span>
+                    <div>
+                        <h2 class="pf-card-title">Shop Information</h2>
+                        <p class="text-xs pf-muted">How your shop appears to buyers, and how it's registered.</p>
+                    </div>
+                </div>
+                <div class="grid gap-4 sm:grid-cols-2">
+                    <div class="sm:col-span-2">
+                        <label class="pf-label" for="shop_name">Shop Name *</label>
+                        <input type="text" id="shop_name" name="shop_name" value="{{ old('shop_name') }}" maxlength="100"
+                               class="pf-input @error('shop_name') is-invalid @enderror" placeholder="e.g. Juan's Handicrafts" required>
+                        @error('shop_name')<p class="fld-error">{{ $message }}</p>@enderror
+                    </div>
+                    <div>
+                        <label class="pf-label" for="line_of_business">Shop Category *</label>
+                        <select id="line_of_business" name="line_of_business" class="pf-input @error('line_of_business') is-invalid @enderror" required>
+                            <option value="">Select category</option>
+                            @foreach ($categories as $cat)
+                                <option value="{{ $cat }}" @selected(old('line_of_business') === $cat)>{{ $cat }}</option>
+                            @endforeach
+                        </select>
+                        @error('line_of_business')<p class="fld-error">{{ $message }}</p>@enderror
+                    </div>
+                    <div>
+                        <label class="pf-label" for="seller_type">Seller Type *</label>
+                        <select id="seller_type" name="seller_type" class="pf-input @error('seller_type') is-invalid @enderror" required>
+                            <option value="">Select seller type</option>
+                            @foreach ($sellerTypes as $type)
+                                <option value="{{ $type }}" @selected(old('seller_type') === $type)>{{ $type }}</option>
+                            @endforeach
+                        </select>
+                        @error('seller_type')<p class="fld-error">{{ $message }}</p>@enderror
+                    </div>
+                    <div class="sm:col-span-2">
+                        <label class="pf-label" for="tin">TIN (Taxpayer Identification Number) *</label>
+                        <input type="text" id="tin" name="tin" value="{{ old('tin') }}" inputmode="numeric" maxlength="15"
+                               class="pf-input @error('tin') is-invalid @enderror" placeholder="123-456-789-000" required>
+                        @error('tin')
+                            <p class="fld-error">{{ $message }}</p>
+                        @else
+                            <p class="mt-1 text-[11px] pf-muted">9 digits, or 12 with your branch code.</p>
+                        @enderror
+                    </div>
+                </div>
+            </section>
+
+            {{-- ═══ 3. Shop address ═══ --}}
+            <section class="pf-card p-6 sm:p-7">
+                <div class="mb-5 flex items-center gap-3">
+                    <span class="pf-icon"><span class="text-sm font-extrabold">3</span></span>
+                    <div>
+                        <h2 class="pf-card-title">Shop Address</h2>
+                        <p class="text-xs pf-muted">Where couriers pick up your orders.</p>
+                    </div>
+                </div>
+                <div class="grid gap-4 sm:grid-cols-2">
+                    <div class="sm:col-span-2">
+                        <label class="pf-label" for="sa_region">Region *</label>
+                        <select id="sa_region" name="region" class="pf-input @error('region') is-invalid @enderror" required>
+                            <option value="">— Select Region —</option>
+                        </select>
+                        @error('region')<p class="fld-error">{{ $message }}</p>@enderror
+                    </div>
+                    <div>
+                        <label class="pf-label" for="sa_province">Province *</label>
+                        <select id="sa_province" name="province" class="pf-input @error('province') is-invalid @enderror" required disabled>
+                            <option value="">— Select Region first —</option>
+                        </select>
+                        @error('province')<p class="fld-error">{{ $message }}</p>@enderror
+                    </div>
+                    <div>
+                        <label class="pf-label" for="sa_municipality">City / Municipality *</label>
+                        <select id="sa_municipality" name="municipality" class="pf-input @error('municipality') is-invalid @enderror" required disabled>
+                            <option value="">— Select Province first —</option>
+                        </select>
+                        @error('municipality')<p class="fld-error">{{ $message }}</p>@enderror
+                        {{-- PSGC codes of the selected province/municipality (official pickup origin for routing) --}}
+                        <input type="hidden" name="province_code" id="sa_province_code">
+                        <input type="hidden" name="municipality_code" id="sa_municipality_code">
+                    </div>
+                    <div>
+                        <label class="pf-label" for="sa_barangay">Barangay *</label>
+                        <select id="sa_barangay" name="barangay" class="pf-input @error('barangay') is-invalid @enderror" required disabled>
+                            <option value="">— Select City first —</option>
+                        </select>
+                        @error('barangay')<p class="fld-error">{{ $message }}</p>@enderror
+                    </div>
+                    <div>
+                        <label class="pf-label" for="zip_code">Postal Code *</label>
+                        <input type="text" id="zip_code" name="zip_code" value="{{ old('zip_code') }}" inputmode="numeric" maxlength="4"
+                               class="pf-input @error('zip_code') is-invalid @enderror" placeholder="e.g. 1121" required>
+                        @error('zip_code')<p class="fld-error">{{ $message }}</p>@enderror
+                    </div>
+                    <div class="sm:col-span-2">
+                        <label class="pf-label" for="street">Street Address *</label>
+                        <input type="text" id="street" name="street" value="{{ old('street') }}"
+                               class="pf-input @error('street') is-invalid @enderror" placeholder="e.g. Blk 12 Lot 8, Sampaguita St." required>
+                        @error('street')<p class="fld-error">{{ $message }}</p>@enderror
+                    </div>
+                </div>
+            </section>
+
+            {{-- ═══ 4. Documents ═══ --}}
+            <section class="pf-card p-6 sm:p-7">
+                <div class="mb-5 flex items-center gap-3">
+                    <span class="pf-icon"><span class="text-sm font-extrabold">4</span></span>
+                    <div>
+                        <h2 class="pf-card-title">Documents</h2>
+                        <p class="text-xs pf-muted">JPG, PNG or PDF · max 5 MB each. Only the admin team can see these.</p>
+                    </div>
+                </div>
+                <div class="space-y-3">
+                    @foreach ([
+                        ['government_id',   'Government-issued ID *', 'Passport, driver\'s license, UMID, PhilID, etc.'],
+                        ['dti_certificate', 'DTI Certificate *',      'Business name registration certificate.'],
+                        ['bir_2303',        'BIR Form 2303 *',        'Certificate of Registration from the BIR.'],
+                    ] as [$field, $label, $hint])
                         <div>
-                            <label class="text-xs font-semibold" style="color:#6b90aa;">Last Name *</label>
-                            <input type="text" name="last_name" value="{{ old('last_name', auth()->user()->last_name ?? '') }}" class="input mt-1" required>
+                            <label class="pf-label">{{ $label }}</label>
+                            <label for="{{ $field }}" class="upload-row @error($field) is-invalid @enderror" data-upload-row>
+                                <span class="pf-icon">
+                                    <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+                                </span>
+                                <span class="min-w-0 flex-1">
+                                    <span class="block truncate text-sm font-semibold" style="color:#3a2f29;" data-upload-name>Click to upload</span>
+                                    <span class="block truncate text-xs pf-muted" data-upload-hint>{{ $hint }}</span>
+                                </span>
+                            </label>
+                            <input type="file" id="{{ $field }}" name="{{ $field }}" accept="image/jpeg,image/png,.pdf" class="hidden" required>
+                            @error($field)<p class="fld-error">{{ $message }}</p>@enderror
                         </div>
-                        <div>
-                            <label class="text-xs font-semibold" style="color:#6b90aa;">First Name *</label>
-                            <input type="text" name="first_name" value="{{ old('first_name', auth()->user()->first_name ?? '') }}" class="input mt-1" required>
+                    @endforeach
+                </div>
+            </section>
+
+            {{-- ═══ 5. Confirm & submit ═══ --}}
+            <section class="pf-card p-6 sm:p-7">
+                <div class="mb-5 flex items-center gap-3">
+                    <span class="pf-icon"><span class="text-sm font-extrabold">5</span></span>
+                    <div>
+                        <h2 class="pf-card-title">Confirm It's You</h2>
+                        <p class="text-xs pf-muted">Enter your ALVY account password to submit this application.</p>
+                    </div>
+                </div>
+                <div class="grid gap-4 sm:grid-cols-2">
+                    <div>
+                        <label class="pf-label" for="password">Password *</label>
+                        <div class="relative">
+                            <input type="password" id="password" name="password" data-password autocomplete="current-password"
+                                   class="pf-input pr-11 @error('password') is-invalid @enderror" required>
+                            <button type="button" data-toggle-password aria-label="Show password"
+                                    class="absolute right-3 top-1/2 -translate-y-1/2" style="color:#8a7a70;"></button>
                         </div>
-                        <div>
-                            <label class="text-xs font-semibold" style="color:#6b90aa;">Middle Initial</label>
-                            <input type="text" name="middle_initial" maxlength="5" value="{{ old('middle_initial', auth()->user()->middle_initial ?? '') }}" class="input mt-1">
-                        </div>
-                        <div>
-                            <label class="text-xs font-semibold" style="color:#6b90aa;">Sex *</label>
-                            <select name="sex" class="input mt-1" required>
-                                <option value="">Select</option>
-                                @foreach (['Male','Female','Other'] as $s)
-                                    <option value="{{ $s }}" @selected(old('sex') === $s)>{{ $s }}</option>
-                                @endforeach
-                            </select>
-                        </div>
-                        <div>
-                            <label class="text-xs font-semibold" style="color:#6b90aa;">Email *</label>
-                            <input type="email" value="{{ auth()->user()->email }}" class="input mt-1" readonly style="background:#F9FAFB;">
-                        </div>
-                        <div>
-                            <label class="text-xs font-semibold" style="color:#6b90aa;">Contact No. *</label>
-                            <input type="text" name="phone" value="{{ old('phone', auth()->user()->phone ?? '') }}" class="input mt-1" required>
-                        </div>
-                        <div>
-                            <label class="text-xs font-semibold" style="color:#6b90aa;">Birthday *</label>
-                            <input type="date" id="birthday_apply" name="birthday" value="{{ old('birthday') }}" class="input mt-1" required>
-                        </div>
-                        <div>
-                            <label class="text-xs font-semibold" style="color:#6b90aa;">Age</label>
-                            <input type="text" id="age_apply" class="input mt-1" readonly placeholder="Auto" style="background:#F9FAFB;">
+                        @error('password')<p class="fld-error">{{ $message }}</p>@enderror
+                    </div>
+                    <div>
+                        <label class="pf-label" for="password_confirmation">Confirm Password *</label>
+                        <div class="relative">
+                            <input type="password" id="password_confirmation" name="password_confirmation" data-password autocomplete="current-password"
+                                   class="pf-input pr-11" required>
+                            <button type="button" data-toggle-password aria-label="Show password"
+                                    class="absolute right-3 top-1/2 -translate-y-1/2" style="color:#8a7a70;"></button>
                         </div>
                     </div>
                 </div>
 
-                {{-- Business info --}}
-                <div>
-                    <h2 class="text-sm font-bold mb-3" style="color:#222222;">Business Information</h2>
-                    <div class="grid gap-4 sm:grid-cols-2">
-                        <div>
-                            <label class="text-xs font-semibold" style="color:#6b90aa;">Shop / Store Name *</label>
-                            <input type="text" name="shop_name" value="{{ old('shop_name') }}" class="input mt-1" required placeholder="e.g. Maria's Fashion">
-                        </div>
-                        <div>
-                            <label class="text-xs font-semibold" style="color:#6b90aa;">Business Name</label>
-                            <input type="text" name="business_name" value="{{ old('business_name') }}" class="input mt-1" placeholder="Registered business name">
-                        </div>
-                        <div class="sm:col-span-2">
-                            <label class="text-xs font-semibold" style="color:#6b90aa;">Line of Business / Category *</label>
-                            <select name="line_of_business" class="input mt-1" required>
-                                <option value="">Select category</option>
-                                @foreach (['Pet Supplies','Kids & Baby','Electronics & Gadgets',"Women's Apparel",'Sports & Outdoors','Home & Garden',"Men's Apparel",'Health & Beauty','Books & Media','Food & Gourmet','Furniture & Office','Jewelry & Watches','Toys','Others'] as $biz)
-                                    <option value="{{ $biz }}" @selected(old('line_of_business') === $biz)>{{ $biz }}</option>
-                                @endforeach
-                            </select>
-                        </div>
-                        <div class="sm:col-span-2">
-                            <label class="text-xs font-semibold" style="color:#6b90aa;">About your store *</label>
-                            <textarea name="description" rows="3" class="input mt-1" required maxlength="1000"
-                                      placeholder="What products do you sell? What makes your store unique?">{{ old('description') }}</textarea>
-                        </div>
+                <label class="mt-5 flex cursor-pointer items-start gap-3 rounded-xl p-4" style="background:#FDF8F5;border:1px solid #F5EBE4;">
+                    <input type="checkbox" id="terms" name="terms" value="1" class="mt-0.5 h-4 w-4 shrink-0" style="accent-color:#fa4e1c;" @checked(old('terms')) required>
+                    <span class="text-sm pf-text">
+                        I agree to ALVY's
+                        <a href="{{ route('policies.show', 'terms') }}" target="_blank" class="font-semibold underline" style="color:#fa4e1c;">Terms and Conditions</a>
+                        and
+                        <a href="{{ route('policies.show', 'privacy') }}" target="_blank" class="font-semibold underline" style="color:#fa4e1c;">Privacy Policy</a>,
+                        and confirm the information above is true.
+                    </span>
+                </label>
+                @error('terms')<p class="fld-error">{{ $message }}</p>@enderror
+
+                <div class="mt-5 flex flex-col-reverse gap-3 border-t pt-5 sm:flex-row sm:items-center sm:justify-between" style="border-color:#F0E4DC;">
+                    <p class="text-xs pf-muted">We'll notify you at <strong class="pf-text">{{ $u->email }}</strong> once reviewed.</p>
+                    <div class="flex gap-3">
+                        <a href="{{ route('profile.show') }}" class="pf-btn-ghost">Cancel</a>
+                        <button type="submit" id="applySubmit" class="pf-btn px-8">Submit Application</button>
                     </div>
                 </div>
-
-                {{-- Address with PSGC --}}
-                <div>
-                    <h2 class="text-sm font-bold mb-1" style="color:#222222;">Address</h2>
-                    <p class="text-xs mt-0.5 mb-3" style="color:#6b90aa;">Select your region, province, city/municipality, then barangay.</p>
-                    <div class="grid gap-4 sm:grid-cols-2">
-
-                        {{-- Region --}}
-                        <div class="sm:col-span-2">
-                            <label class="text-xs font-semibold" style="color:#6b90aa;">Region *</label>
-                            <select id="sa_region" name="region" class="input mt-1" required
-                                    onchange="saLoadProvincesByRegion(this.value)">
-                                <option value="">— Select Region —</option>
-                            </select>
-                        </div>
-
-                        {{-- Province --}}
-                        <div>
-                            <label class="text-xs font-semibold" style="color:#6b90aa;">Province *</label>
-                            <select id="sa_province" name="province" class="input mt-1" required disabled
-                                    onchange="saLoadMunicipalities(this.options[this.selectedIndex].dataset.code, this.value)">
-                                <option value="">— Select Province —</option>
-                            </select>
-                        </div>
-
-                        {{-- Municipality / City --}}
-                        <div>
-                            <label class="text-xs font-semibold" style="color:#6b90aa;">Municipality / City *</label>
-                            <select id="sa_municipality" name="municipality" class="input mt-1" required disabled
-                                    onchange="saLoadBarangays(this.options[this.selectedIndex].dataset.code)">
-                                <option value="">— Select Province first —</option>
-                            </select>
-                            {{-- PSGC codes of the selected province/municipality (official pickup origin for routing) --}}
-                            <input type="hidden" name="province_code" id="sa_province_code">
-                            <input type="hidden" name="municipality_code" id="sa_municipality_code">
-                        </div>
-
-                        {{-- Barangay --}}
-                        <div>
-                            <label class="text-xs font-semibold" style="color:#6b90aa;">Barangay *</label>
-                            <select id="sa_barangay" name="barangay" class="input mt-1" required disabled>
-                                <option value="">— Select Municipality first —</option>
-                            </select>
-                        </div>
-
-                        {{-- ZIP Code --}}
-                        <div>
-                            <label class="text-xs font-semibold" style="color:#6b90aa;">ZIP Code</label>
-                            <input type="text" name="zip_code" value="{{ old('zip_code') }}" class="input mt-1"
-                                   placeholder="e.g. 1000">
-                        </div>
-
-                        {{-- House Number --}}
-                        <div>
-                            <label class="text-xs font-semibold" style="color:#6b90aa;">House / Unit Number *</label>
-                            <input type="text" name="house_number" value="{{ old('house_number') }}" class="input mt-1" required
-                                   placeholder="e.g. 12B">
-                        </div>
-
-                        {{-- Street --}}
-                        <div class="sm:col-span-2">
-                            <label class="text-xs font-semibold" style="color:#6b90aa;">Street / Subdivision *</label>
-                            <input type="text" name="street" value="{{ old('street', auth()->user()->address ?? '') }}" class="input mt-1" required
-                                   placeholder="e.g. Rizal Street, Sunshine Village">
-                        </div>
-
-                    </div>
-                </div>
-
-                {{-- Documents --}}
-                <div>
-                    <h2 class="text-sm font-bold mb-3" style="color:#222222;">Documents</h2>
-                    <div class="grid gap-4 sm:grid-cols-2">
-                        <div>
-                            <label class="text-xs font-semibold" style="color:#6b90aa;">Valid Government ID *</label>
-                            <input type="file" name="government_id" accept="image/*,.pdf" class="input mt-1 py-2" required>
-                            <p class="text-[11px] mt-1" style="color:#B0B0B0;">JPG, PNG or PDF · max 5 MB</p>
-                        </div>
-                        <div>
-                            <label class="text-xs font-semibold" style="color:#6b90aa;">Business Permit (optional)</label>
-                            <input type="file" name="business_permit" accept="image/*,.pdf" class="input mt-1 py-2">
-                            <p class="text-[11px] mt-1" style="color:#B0B0B0;">JPG, PNG or PDF · max 5 MB</p>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="rounded-xl border p-4 text-sm" style="background:#e8f0f6;border-color:#cfdce8;">
-                    <p style="color:#7A7A7A;">
-                        📧 After submitting, please wait for administrator approval. You will be notified at
-                        <strong>{{ auth()->user()->email }}</strong>.
-                    </p>
-                </div>
-
-                <div class="flex gap-3">
-                    <button type="submit" class="flex-1 rounded-xl py-3 text-sm font-bold text-white transition hover:opacity-90" style="background:#002b4d;">Submit Application</button>
-                    <a href="{{ route('profile.show') }}" class="rounded-xl border px-6 py-3 text-sm font-semibold" style="border-color:#cfdce8;color:#7A7A7A;">Cancel</a>
-                </div>
-            </form>
-        </div>
+            </section>
+        </form>
     @endif
 
 </div>
+</div>
 
+@include('partials.password-toggle')
+<script src="{{ asset('js/register-address-fallback.js') }}"></script>
 <script>
-// Age auto-calc
-document.getElementById('birthday_apply')?.addEventListener('change', function () {
-    const dob = new Date(this.value);
-    if (isNaN(dob)) return;
-    const today = new Date();
-    let age = today.getFullYear() - dob.getFullYear();
-    const m = today.getMonth() - dob.getMonth();
-    if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) age--;
-    document.getElementById('age_apply').value = age >= 0 ? age : '';
-});
+document.addEventListener('DOMContentLoaded', function () {
+    // Region → Province → City → Barangay dropdowns
+    if (window.RegisterAddressFallback && document.getElementById('sa_region')) {
+        RegisterAddressFallback.attach({
+            region:       '#sa_region',
+            province:     '#sa_province',
+            city:         '#sa_municipality',
+            barangay:     '#sa_barangay',
+            provinceCode: '#sa_province_code',
+            cityCode:     '#sa_municipality_code',
+            old: {
+                region:       @json(old('region')),
+                province:     @json(old('province')),
+                municipality: @json(old('municipality')),
+                barangay:     @json(old('barangay')),
+            },
+        });
+    }
 
-// ── PSGC cascading address dropdowns (same as register page) ─────────
-const PSGC = '/api/psgc';
-
-function saSetLoading(id, msg) {
-    const el = document.getElementById(id);
-    el.innerHTML = `<option value="">${msg}</option>`;
-    el.disabled = true;
-}
-
-function saPopulate(id, items, placeholder) {
-    const el = document.getElementById(id);
-    el.innerHTML = `<option value="">${placeholder}</option>`;
-    items.forEach(item => {
-        const o = document.createElement('option');
-        o.value = item.name;
-        o.dataset.code = item.code;
-        o.textContent = item.name;
-        el.appendChild(o);
+    // Show the chosen file name in each upload row
+    document.querySelectorAll('[data-upload-row]').forEach(function (row) {
+        var input = document.getElementById(row.getAttribute('for'));
+        if (!input) return;
+        input.addEventListener('change', function () {
+            var file = input.files && input.files[0];
+            row.classList.toggle('has-file', !!file);
+            row.classList.remove('is-invalid');
+            row.querySelector('[data-upload-name]').textContent = file ? file.name : 'Click to upload';
+            row.querySelector('[data-upload-hint]').textContent = file
+                ? (file.size / 1048576).toFixed(1) + ' MB'
+                : row.querySelector('[data-upload-hint]').dataset.hint || '';
+        });
+        row.querySelector('[data-upload-hint]').dataset.hint = row.querySelector('[data-upload-hint]').textContent;
     });
-    el.disabled = false;
-}
 
-function saReset(id, placeholder) {
-    const el = document.getElementById(id);
-    el.innerHTML = `<option value="">${placeholder}</option>`;
-    el.disabled = true;
-    saSyncPsgcCodes();
-}
-
-// Copy the selected options' PSGC codes into the hidden inputs.
-function saSyncPsgcCodes() {
-    const pick = id => {
-        const s = document.getElementById(id);
-        const o = s && s.options[s.selectedIndex];
-        return (o && o.value && o.dataset.code) ? o.dataset.code : '';
-    };
-    const p = document.getElementById('sa_province_code');
-    const m = document.getElementById('sa_municipality_code');
-    if (p) p.value = pick('sa_province');
-    if (m) m.value = pick('sa_municipality');
-}
-document.addEventListener('change', e => {
-    if (e.target && (e.target.id === 'sa_province' || e.target.id === 'sa_municipality')) saSyncPsgcCodes();
+    // Prevent double submits
+    var form = document.getElementById('sellerApplyForm');
+    if (form) form.addEventListener('submit', function () {
+        var btn = document.getElementById('applySubmit');
+        btn.disabled = true;
+        btn.textContent = 'Submitting…';
+    });
 });
-document.addEventListener('submit', saSyncPsgcCodes, true);
-
-// Load regions on page load
-window.addEventListener('DOMContentLoaded', async function () {
-    saSetLoading('sa_region', 'Loading regions…');
-    try {
-        const res  = await fetch(`${PSGC}/regions`);
-        const data = await res.json();
-        saPopulate('sa_region', data, '— Select Region —');
-    } catch (e) {
-        document.getElementById('sa_region').innerHTML =
-            '<option value="">⚠ Could not load regions. Refresh to retry.</option>';
-    }
-});
-
-// Region → Province
-async function saLoadProvincesByRegion(regionName) {
-    saReset('sa_province',     '— Select Province —');
-    saReset('sa_municipality', '— Select Province first —');
-    saReset('sa_barangay',     '— Select Municipality first —');
-    if (!regionName) return;
-
-    const sel  = document.getElementById('sa_region');
-    const code = sel.options[sel.selectedIndex].dataset.code;
-
-    saSetLoading('sa_province', 'Loading provinces…');
-    try {
-        const res  = await fetch(`${PSGC}/regions/${code}/provinces`);
-        const data = await res.json();
-        if (data.length === 0) {
-            // NCR — no provinces, load cities directly
-            saPopulate('sa_province', [{ code: code, name: 'Metro Manila (NCR)' }], '— Select Province —');
-            await saLoadMunicipalities(code, 'Metro Manila (NCR)');
-        } else {
-            saPopulate('sa_province', data, '— Select Province —');
-        }
-    } catch (e) {
-        document.getElementById('sa_province').innerHTML =
-            '<option value="">⚠ Could not load provinces</option>';
-    }
-}
-
-// Province → Municipality
-async function saLoadMunicipalities(code, label) {
-    saReset('sa_municipality', '— Select Municipality / City —');
-    saReset('sa_barangay',     '— Select Municipality first —');
-    if (!code) return;
-
-    saSetLoading('sa_municipality', 'Loading cities…');
-    try {
-        const res  = await fetch(`${PSGC}/provinces/${code}/municipalities`);
-        const data = await res.json();
-        saPopulate('sa_municipality', data, '— Select Municipality / City —');
-    } catch (e) {
-        document.getElementById('sa_municipality').innerHTML =
-            '<option value="">⚠ Could not load municipalities</option>';
-    }
-}
-
-// Municipality → Barangay
-async function saLoadBarangays(code) {
-    saReset('sa_barangay', '— Select Barangay —');
-    if (!code) return;
-
-    saSetLoading('sa_barangay', 'Loading barangays…');
-    try {
-        const res  = await fetch(`${PSGC}/municipalities/${code}/barangays`);
-        const data = await res.json();
-        saPopulate('sa_barangay', data, '— Select Barangay —');
-    } catch (e) {
-        document.getElementById('sa_barangay').innerHTML =
-            '<option value="">⚠ Could not load barangays</option>';
-    }
-}
 </script>
 </x-layout>

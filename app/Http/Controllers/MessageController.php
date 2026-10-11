@@ -300,6 +300,10 @@ class MessageController extends Controller
                 'mine'  => $m->sender_id === $userId,
                 'name'  => $m->sender->name ?? '',
                 'at'    => $m->created_at->format('M d, H:i'),
+                // Used by the full-page inbox to group messages by day.
+                'day'   => $m->created_at->isToday() ? 'Today'
+                         : ($m->created_at->isYesterday() ? 'Yesterday' : $m->created_at->format('M j, Y')),
+                'time'  => $m->created_at->format('g:i A'),
             ]),
         ]);
     }
@@ -318,7 +322,7 @@ class MessageController extends Controller
             $lastFromOther = Message::where('order_id', $order->id)
                 ->where('sender_id', '!=', $userId)->latest()->first();
             $receiverId = $lastFromOther?->sender_id
-                ?? ($order->user_id === $userId ? optional($order->items()->with('book')->first())->book->seller_id : $order->user_id);
+                ?? ($order->user_id === $userId ? optional($order->items()->with('product')->first())->product->seller_id : $order->user_id);
 
             Message::create([
                 'order_id'    => $order->id,
@@ -352,7 +356,7 @@ class MessageController extends Controller
     {
         $userId  = auth()->id();
         $isBuyer  = $order->user_id === $userId;
-        $isSeller = $order->items()->whereHas('book', fn ($q) => $q->where('seller_id', $userId))->exists();
+        $isSeller = $order->items()->whereHas('product', fn ($q) => $q->where('seller_id', $userId))->exists();
         $isAdmin  = auth()->user()->isAdmin();
 
         if (! ($isBuyer || $isSeller || $isAdmin)) {
@@ -412,8 +416,8 @@ class MessageController extends Controller
 
         // Sellers of the books in those orders
         $sellerIds = \App\Models\OrderItem::whereIn('order_id', $orderIds)
-            ->with('book')->get()
-            ->pluck('book.seller_id')->filter()->all();
+            ->with('product')->get()
+            ->pluck('product.seller_id')->filter()->all();
         $ids = array_merge($ids, $sellerIds);
 
         return array_values(array_unique(array_filter($ids)));
@@ -426,8 +430,8 @@ class MessageController extends Controller
             $participants[$order->user->id] = $order->user->name . ' (Buyer)';
         }
         foreach ($order->items as $item) {
-            if ($item->book?->seller && !isset($participants[$item->book->seller->id])) {
-                $participants[$item->book->seller->id] = $item->book->seller->name . ' (Seller)';
+            if ($item->product?->seller && !isset($participants[$item->product->seller->id])) {
+                $participants[$item->product->seller->id] = $item->product->seller->name . ' (Seller)';
             }
         }
         // Admin
@@ -465,7 +469,7 @@ class MessageController extends Controller
             if ($admin) $targets[$admin->id] = $admin->name . ' (Admin)';
 
             // Buyers who ordered from this seller
-            $buyerIds = \App\Models\OrderItem::whereHas('book', fn ($q) => $q->where('seller_id', $me->id))
+            $buyerIds = \App\Models\OrderItem::whereHas('product', fn ($q) => $q->where('seller_id', $me->id))
                 ->with('order.user')
                 ->get()
                 ->pluck('order.user')
@@ -477,9 +481,9 @@ class MessageController extends Controller
         } elseif ($me->isBuyer()) {
             // Buyer can message sellers of their orders
             $sellerIds = \App\Models\OrderItem::whereHas('order', fn ($q) => $q->where('user_id', $me->id))
-                ->with('book.seller')
+                ->with('product.seller')
                 ->get()
-                ->pluck('book.seller')
+                ->pluck('product.seller')
                 ->filter()
                 ->unique('id');
             foreach ($sellerIds as $seller) {

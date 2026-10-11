@@ -1,87 +1,67 @@
+@php
+    $footerCats = array_slice(\App\Http\Controllers\CategoryPageController::catalog(), 0, 6);
+    $policy = fn ($key) => route('policies.show', $key);
+    $columns = [
+        'Shop' => array_merge(
+            array_map(fn ($c) => [$c['name'], route('categories.show', $c['slug'])], $footerCats),
+            [['All categories', route('categories.page')]]
+        ),
+        'Help' => [
+            ['My orders', route('profile.orders')],
+            ['Cart', route('cart.index')],
+            ['Return & refund policy', $policy('return_refund_policy')],
+            ['Prohibited items', $policy('prohibited_items')],
+        ],
+        'ALVY' => [
+            ['About us', $policy('about_us')],
+            ['Sell on ALVY', route('seller.register')],
+            ['Seller policy', $policy('seller_policy')],
+        ],
+    ];
+@endphp
+<style>
+    .ft-link { color: rgba(255,255,255,.65); transition: color .12s; }
+    .ft-link:hover { color: #fff; text-decoration: underline; text-underline-offset: 3px; }
+</style>
 <footer style="background:#002b4d;color:rgba(255,255,255,.65);">
-
-    {{-- Trust / service features --}}
-    <div style="border-bottom:1px solid rgba(255,255,255,.08);">
-        <div class="mx-auto grid max-w-7xl grid-cols-2 gap-6 px-4 py-8 sm:px-6 md:grid-cols-4 lg:px-8">
-            @foreach ([
-                ['M5 8h14l1 8H4L5 8zM8 8V6a4 4 0 018 0v2','Free Shipping','On qualifying orders'],
-                ['M12 2l8 4v6c0 5-3.5 8-8 10-4.5-2-8-5-8-10V6l8-4z','Secure Payment','100% protected'],
-                ['M3 12a9 9 0 019-9 9 9 0 018 5M21 12a9 9 0 01-9 9 9 9 0 01-8-5M8 8H3V3m13 13h5v5','Easy Returns','30-day returns'],
-                ['M18 8a6 6 0 00-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 01-3.4 0','24/7 Support','Always here to help'],
-            ] as [$path, $title, $sub])
-                <div class="flex items-center gap-3">
-                    <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full"
-                          style="background:rgba(250,78,28,.15);">
-                        <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.7"
-                             stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" style="color:#fa4e1c;">
-                            <path d="{{ $path }}"/>
-                        </svg>
-                    </span>
-                    <div>
-                        <p class="text-sm font-bold" style="color:#fff;">{{ $title }}</p>
-                        <p class="text-xs" style="color:rgba(255,255,255,.5);">{{ $sub }}</p>
-                    </div>
-                </div>
-            @endforeach
-        </div>
-    </div>
-
-    <div class="mx-auto grid max-w-7xl gap-10 px-4 py-14 sm:px-6 lg:grid-cols-2 lg:px-8">
+    <div class="mx-auto grid max-w-7xl grid-cols-2 gap-x-6 gap-y-8 px-4 py-12 sm:grid-cols-3 sm:px-6 md:grid-cols-[1.4fr_1fr_1fr_1fr] lg:px-8">
 
         {{-- Brand --}}
-        <div>
-            <div class="flex items-center gap-2.5">
-                <span class="flex h-9 w-9 items-center justify-center rounded-xl overflow-hidden"
-                      style="background:transparent;">
-                    <img src="{{ asset('images/logo.png') }}" alt="ALVY"
-                         style="width:100%;height:100%;object-fit:cover;transform:scale(1.5);transform-origin:center;">
+        <div class="col-span-2 max-w-xs sm:col-span-3 md:col-span-1">
+            <a href="{{ route('home') }}" class="inline-flex items-center gap-2">
+                <span class="flex h-8 w-8 items-center justify-center rounded-lg" style="background:#fff;padding:4px;">
+                    <img src="{{ asset('images/logo-mark.png') }}" alt=""
+                         style="width:100%;height:100%;object-fit:contain;display:block;">
                 </span>
-                <span class="font-display text-xl font-extrabold" style="color:#fff;">ALVY</span>
-            </div>
-            <p class="mt-4 text-sm leading-relaxed" style="color:rgba(255,255,255,.5);">
-                Your one-stop online marketplace. Shop thousands of products from trusted sellers.
+                <span class="font-display text-lg font-extrabold" style="color:#fff;">ALVY</span>
+            </a>
+            <p class="mt-3 text-sm leading-relaxed">
+                An online marketplace for local sellers, with delivery to your barangay.
             </p>
-            <div class="mt-6 flex gap-3">
-                @foreach (['𝕏','IG','FB'] as $soc)
-                    <a href="#" aria-label="{{ $soc }}"
-                       class="flex h-9 w-9 items-center justify-center rounded-full text-xs font-bold transition"
-                       style="background:rgba(255,255,255,.08);color:rgba(255,255,255,.7);"
-                       onmouseover="this.style.background='#fa4e1c';this.style.color='#fff';"
-                       onmouseout="this.style.background='rgba(255,255,255,.08)';this.style.color='rgba(255,255,255,.7)';">
-                        {{ $soc }}
-                    </a>
-                @endforeach
+        </div>
+
+        {{-- Link columns --}}
+        @foreach ($columns as $heading => $links)
+            <div>
+                <h4 class="text-sm font-semibold" style="color:#fff;">{{ $heading }}</h4>
+                <ul class="mt-3 space-y-2 text-sm">
+                    @foreach ($links as [$label, $url])
+                        <li><a href="{{ $url }}" class="ft-link">{{ $label }}</a></li>
+                    @endforeach
+                </ul>
             </div>
-        </div>
-
-        {{-- Shop --}}
-        <div>
-            <h4 class="mb-4 text-sm font-bold uppercase tracking-wider" style="color:#fff;">Shop</h4>
-            <ul class="space-y-2.5 text-sm">
-                <li>
-                    <a href="{{ route('categories.page') }}" style="color:rgba(255,255,255,.55);"
-                       onmouseover="this.style.color='#fa4e1c';"
-                       onmouseout="this.style.color='rgba(255,255,255,.55)';">All Categories</a>
-                </li>
-                @php $footerCats = \App\Models\Category::orderBy('name')->take(6)->get(); @endphp
-                @foreach ($footerCats as $cat)
-                    <li>
-                        <a href="{{ route('categories.show', \App\Http\Controllers\CategoryPageController::catalog()[0]['slug'] ?? '') }}"
-                           style="color:rgba(255,255,255,.55);"
-                           onmouseover="this.style.color='#fa4e1c';"
-                           onmouseout="this.style.color='rgba(255,255,255,.55)';">{{ $cat->name }}</a>
-                    </li>
-                @endforeach
-            </ul>
-        </div>
-
+        @endforeach
     </div>
 
     {{-- Bottom bar --}}
-    <div style="border-top:1px solid rgba(255,255,255,.08);">
-        <div class="mx-auto flex max-w-7xl items-center justify-center px-4 py-4 text-xs sm:px-6 lg:px-8"
-             style="color:rgba(255,255,255,.3);">
+    <div style="border-top:1px solid rgba(255,255,255,.1);">
+        <div class="mx-auto flex max-w-7xl flex-col gap-2 px-4 py-4 text-xs sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8"
+             style="color:rgba(255,255,255,.5);">
             <p>&copy; {{ date('Y') }} ALVY. All rights reserved.</p>
+            <div class="flex gap-5">
+                <a href="{{ $policy('terms_of_service') }}" class="ft-link">Terms of Service</a>
+                <a href="{{ $policy('privacy_policy') }}" class="ft-link">Privacy Policy</a>
+            </div>
         </div>
     </div>
 </footer>

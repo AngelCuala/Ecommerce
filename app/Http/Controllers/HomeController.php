@@ -2,8 +2,9 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Product;
 use App\Models\Category;
+use App\Models\OrderItem;
+use App\Models\Product;
 
 class HomeController extends Controller
 {
@@ -14,20 +15,33 @@ class HomeController extends Controller
             return redirect()->route('sc.dashboard');
         }
 
-        $categories  = Category::withCount('products')->orderBy('name')->get();
-        $featured    = Product::with('category')->latest()->take(8)->get();
-        $bestSellers = Product::with('category')->inRandomOrder()->take(8)->get();
-        $newReleases = Product::with('category')->latest()->skip(4)->take(8)->get();
+        $published = fn () => Product::with('category')->published()->withSum('orderItems as sold', 'quantity');
 
-        // Static reviews (no reviews table yet)
-        $reviews = collect([
-            (object)['rating'=>5,'comment'=>'One of the best books I have read this year. Highly recommended.','user'=>(object)['name'=>'Ava R.'],   'product'=>(object)['slug'=>'','title'=>'']],
-            (object)['rating'=>4,'comment'=>'Arrived quickly and exactly as described. Will order again.',      'user'=>(object)['name'=>'James T.'], 'product'=>(object)['slug'=>'','title'=>'']],
-            (object)['rating'=>5,'comment'=>'Bought this as a gift and the recipient was thrilled.',            'user'=>(object)['name'=>'Sofia M.'], 'product'=>(object)['slug'=>'','title'=>'']],
-        ]);
+        // Newest listings
+        $featured = $published()->latest()->take(12)->get();
 
-        return view('home.index', compact(
-            'categories', 'featured', 'bestSellers', 'newReleases', 'reviews'
-        ));
+        // Best sellers by units sold; topped up with newer listings if there aren't enough sales yet.
+        $topIds = OrderItem::selectRaw('product_id, SUM(quantity) as sold')
+            ->groupBy('product_id')->orderByDesc('sold')->take(12)->pluck('product_id');
+        $trending = $published()->whereIn('id', $topIds)->get()
+            ->sortBy(fn ($p) => $topIds->search($p->id))->values();
+        if ($trending->count() < 6) {
+            $trending = $trending->concat(
+                $published()->whereNotIn('id', $trending->pluck('id'))->inRandomOrder()->take(6 - $trending->count())->get()
+            );
+        }
+
+        // Category shortcuts (photos live in public/images/categories) with item counts.
+        $dbCategories = Category::withCount(['products' => fn ($q) => $q->published()])->get()->keyBy('name');
+        $shortcuts = collect(CategoryPageController::catalog())->map(function ($c) use ($dbCategories) {
+            $db = $dbCategories->get($c['name']);
+            return (object) [
+                'name'  => $c['name'],
+                'slug'  => $c['slug'],
+                'count' => $db->products_count ?? 0,
+            ];
+        });
+
+        return view('home.index', compact('featured', 'trending', 'shortcuts'));
     }
 }

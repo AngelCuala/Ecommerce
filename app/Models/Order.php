@@ -62,12 +62,18 @@ class Order extends Model
     /** Human-readable full shipping address */
     public function fullAddress(): string
     {
-        return implode(', ', array_filter([
-            $this->address_line,
-            $this->city,
-            $this->province,
-            $this->zip_code,
-        ]));
+        // address_line often already contains the barangay/city/province, so
+        // drop any part that repeats an earlier one (case-insensitive).
+        $parts = [];
+        foreach ([$this->address_line, $this->city, $this->province, $this->zip_code] as $chunk) {
+            foreach (array_map('trim', explode(',', (string) $chunk)) as $part) {
+                if ($part !== '' && ! in_array(mb_strtolower($part), array_map('mb_strtolower', $parts), true)) {
+                    $parts[] = $part;
+                }
+            }
+        }
+
+        return implode(', ', $parts);
     }
 
     public function statusColor(): array

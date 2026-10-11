@@ -26,7 +26,7 @@ class ProfileController extends Controller
     {
         $orders = auth()->user()
             ->orders()
-            ->with('items.book')
+            ->with('items.product')
             ->latest()
             ->get();
 
@@ -61,7 +61,7 @@ class ProfileController extends Controller
         });
 
         // ── Order status updates ─────────────────────────────────
-        $orders = $user->orders()->with('items.book')->latest('updated_at')->get();
+        $orders = $user->orders()->with('items.product')->latest('updated_at')->get();
 
         $orderNotes = $orders->map(function ($order) {
             $meta = match (strtolower($order->status)) {
@@ -82,8 +82,8 @@ class ProfileController extends Controller
                 'body'       => $meta['body'],
                 'icon'       => $meta['icon'],
                 'is_unread'  => false,
-                'thumbnail'  => $firstItem?->book?->image,
-                'item_name'  => $firstItem?->book?->title,
+                'thumbnail'  => $firstItem?->product?->image,
+                'item_name'  => $firstItem?->product?->title,
                 'at'         => $order->updated_at,
             ];
         });

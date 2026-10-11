@@ -1,74 +1,76 @@
 <x-admin-layout title="Seller Applications" active="seller-applications">
+@include('partials.panel.plain')
+<style>
+    .sa-tab { position: relative; padding: .6rem .25rem; margin-right: 1.25rem; font-size: .875rem; font-weight: 600; color: #8a7f78; transition: color .15s; white-space: nowrap; }
+    .sa-tab:hover { color: #222; }
+    .sa-tab.is-active { color: #222; }
+    .sa-tab.is-active::after { content: ''; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; background: #fa4e1c; border-radius: 2px; }
+    .sa-tab .tab-count { margin-left: .35rem; font-size: .75rem; color: #b3a79f; }
+    .sa-tab.is-active .tab-count { color: #fa4e1c; }
+</style>
 
 @if (session('success'))
-    <div class="mb-6 rounded-xl border p-4 text-sm" style="background:rgba(250,78,28,.10);border-color:rgba(250,78,28,.35);color:#d93d0e;">
-        ✓ {{ session('success') }}
+    <div class="mb-5 rounded-md border px-4 py-3 text-sm" style="background:#ECFDF5;border-color:#A7F3D0;color:#047857;">
+        {{ session('success') }}
     </div>
 @endif
 
 {{-- Filter tabs --}}
-<div class="mb-6 flex gap-2 flex-wrap">
+<nav class="mb-5 flex flex-wrap border-b" style="border-color:#ECE7E3;">
     @foreach (['all'=>'All','pending'=>'Pending','approved'=>'Approved','rejected'=>'Rejected'] as $val=>$label)
         @php $active = request('status', 'all') === $val; @endphp
         <a href="{{ route('admin.seller-applications.index', ['status'=>$val]) }}"
-           class="rounded-full px-4 py-1.5 text-xs font-semibold transition"
-           style="{{ $active ? 'background:#fa4e1c;color:#FFFFFF;' : 'background:#F5F5F5;color:#666666;' }}">
-            {{ $label }}
-            <span class="ml-1 opacity-60">
-                ({{ $applications->where($val === 'all' ? fn($a)=>true : 'status', $val === 'all' ? true : $val)->count() }})
-            </span>
+           class="sa-tab {{ $active ? 'is-active' : '' }}">
+            {{ $label }}<span class="tab-count">{{ $applications->where($val === 'all' ? fn($a)=>true : 'status', $val === 'all' ? true : $val)->count() }}</span>
         </a>
     @endforeach
-</div>
+</nav>
 
-<div class="card overflow-hidden">
-    <table class="w-full text-sm">
-        <thead style="background:#e8f0f6;">
-            <tr>
-                <th class="px-5 py-3 text-left text-[11px] font-bold uppercase tracking-widest" style="color:#6b90aa;">Applicant</th>
-                <th class="px-3 py-3 text-left text-[11px] font-bold uppercase tracking-widest" style="color:#6b90aa;">Shop Name</th>
-                <th class="px-3 py-3 text-left text-[11px] font-bold uppercase tracking-widest" style="color:#6b90aa;">Applied</th>
-                <th class="px-3 py-3 text-left text-[11px] font-bold uppercase tracking-widest" style="color:#6b90aa;">Status</th>
-                <th class="px-5 py-3 text-right text-[11px] font-bold uppercase tracking-widest" style="color:#6b90aa;">Action</th>
-            </tr>
-        </thead>
-        <tbody>
-            @php
-                $filtered = request('status','all') === 'all'
-                    ? $applications
-                    : $applications->where('status', request('status'));
-            @endphp
-            @forelse ($filtered as $app)
-                @php
-                    $sc = match($app->status) {
-                        'approved' => ['bg'=>'#ECFDF5','color'=>'#059669'],
-                        'rejected' => ['bg'=>'#FEF2F2','color'=>'#DC2626'],
-                        default    => ['bg'=>'rgba(250,78,28,.12)','color'=>'#fa4e1c'],
-                    };
-                @endphp
-                <tr style="border-top:1px solid #dce8f0;" onmouseover="this.style.background='#e8f0f6';" onmouseout="this.style.background='';">
-                    <td class="px-5 py-3">
-                        <p class="font-semibold" style="color:#222222;">{{ $app->full_name }}</p>
-                        <p class="text-xs" style="color:#6b90aa;">{{ $app->user->email }}</p>
-                    </td>
-                    <td class="px-3 py-3" style="color:#555555;">{{ $app->shop_name }}</td>
-                    <td class="px-3 py-3" style="color:#6b90aa;">{{ $app->created_at->format('M d, Y') }}</td>
-                    <td class="px-3 py-3">
-                        <span class="rounded-full px-2.5 py-1 text-xs font-semibold"
-                              style="background:{{ $sc['bg'] }};color:{{ $sc['color'] }};">
-                            {{ ucfirst($app->status) }}
-                        </span>
-                    </td>
-                    <td class="px-5 py-3 text-right">
-                        <a href="{{ route('admin.seller-applications.show', $app->id) }}"
-                           class="text-xs font-semibold" style="color:#fa4e1c;">Review →</a>
-                    </td>
+<div class="pl-card overflow-hidden">
+    <div class="overflow-x-auto">
+        <table class="pl-table">
+            <thead>
+                <tr>
+                    <th>Applicant</th>
+                    <th>Shop name</th>
+                    <th>Applied</th>
+                    <th>Status</th>
+                    <th class="!text-right">Action</th>
                 </tr>
-            @empty
-                <tr><td colspan="5" class="px-5 py-10 text-center text-sm" style="color:#6b90aa;">No applications found.</td></tr>
-            @endforelse
-        </tbody>
-    </table>
+            </thead>
+            <tbody>
+                @php
+                    $filtered = request('status','all') === 'all'
+                        ? $applications
+                        : $applications->where('status', request('status'));
+                @endphp
+                @forelse ($filtered as $app)
+                    @php
+                        $tag = match($app->status) {
+                            'approved' => 'delivered',
+                            'rejected' => 'cancelled',
+                            'pending'  => 'pending',
+                            default    => 'neutral',
+                        };
+                    @endphp
+                    <tr>
+                        <td>
+                            <p class="font-medium" style="color:#222;">{{ $app->full_name }}</p>
+                            <p class="text-xs pl-muted">{{ $app->user->email }}</p>
+                        </td>
+                        <td>{{ $app->shop_name }}</td>
+                        <td class="whitespace-nowrap pl-muted">{{ $app->created_at->format('M d, Y') }}</td>
+                        <td><span class="pl-tag {{ $tag }}">{{ ucfirst($app->status) }}</span></td>
+                        <td class="text-right">
+                            <a href="{{ route('admin.seller-applications.show', $app->id) }}" class="pl-link">Review</a>
+                        </td>
+                    </tr>
+                @empty
+                    <tr><td colspan="5" class="!py-10 text-center text-sm pl-muted">No applications found.</td></tr>
+                @endforelse
+            </tbody>
+        </table>
+    </div>
 </div>
 
 </x-admin-layout>

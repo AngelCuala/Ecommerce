@@ -5,7 +5,7 @@
 <div class="panel">
     <div class="panel__header">
         <h2 class="tracking-no">{{ $parcel->tracking_number }}</h2>
-        <a href="{{ route('admin.parcels.index') }}" class="btn btn--ghost btn--sm">Back</a>
+        <a href="{{ route('admin.logistics.parcels.index') }}" class="btn btn--ghost btn--sm">Back</a>
     </div>
     <table>
         <tbody>

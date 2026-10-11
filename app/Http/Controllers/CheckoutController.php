@@ -18,12 +18,12 @@ class CheckoutController extends Controller
 
     private function cartItems()
     {
-        return CartItem::where('user_id', auth()->id())->with('book')->get();
+        return CartItem::where('user_id', auth()->id())->with('product')->get();
     }
 
     private function calcTotals($items): array
     {
-        $subtotal = $items->sum(fn ($i) => $i->quantity * $i->book->price);
+        $subtotal = $items->sum(fn ($i) => $i->quantity * $i->product->price);
         $shipping = 50; // fixed ₱50 delivery fee
         $total    = round($subtotal + $shipping, 2);
         return compact('subtotal', 'shipping', 'total');
@@ -106,7 +106,7 @@ class CheckoutController extends Controller
         ]);
 
         foreach ($items as $item) {
-            $lineTotal        = round($item->quantity * $item->book->price, 2);
+            $lineTotal        = round($item->quantity * $item->product->price, 2);
             $commissionAmount = round($lineTotal * ($commissionRate / 100), 2);
             $sellerEarning    = round($lineTotal - $commissionAmount, 2);
 
@@ -114,7 +114,7 @@ class CheckoutController extends Controller
                 'order_id'          => $order->id,
                 'product_id'           => $item->product_id,
                 'quantity'          => $item->quantity,
-                'price'             => $item->book->price,
+                'price'             => $item->product->price,
                 'commission_rate'   => $commissionRate,
                 'commission_amount' => $commissionAmount,
                 'seller_earning'    => $sellerEarning,
@@ -139,8 +139,8 @@ class CheckoutController extends Controller
         $orderId = Session::pull('last_order_id');
 
         $order = $orderId
-            ? Order::with('items.book')->find($orderId)
-            : Order::where('user_id', auth()->id())->with('items.book')->latest()->first();
+            ? Order::with('items.product')->find($orderId)
+            : Order::where('user_id', auth()->id())->with('items.product')->latest()->first();
 
         if (! $order) {
             return redirect()->route('home');

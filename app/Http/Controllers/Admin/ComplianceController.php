@@ -15,7 +15,7 @@ class ComplianceController extends Controller
     {
         // All sellers with their products
         $sellers = User::where('role', 'seller')
-            ->withCount(['books', 'books as violations_count' => fn($q) =>
+            ->withCount(['products as books_count', 'products as violations_count' => fn($q) =>
                 $q->whereHas('violations')
             ])
             ->with(['sellerApplication'])
@@ -23,7 +23,7 @@ class ComplianceController extends Controller
             ->get();
 
         // Recent violations
-        $recentViolations = SellerViolation::with(['seller', 'book', 'admin'])
+        $recentViolations = SellerViolation::with(['seller', 'product', 'admin'])
             ->latest()
             ->take(10)
             ->get();
@@ -45,11 +45,11 @@ class ComplianceController extends Controller
             ->findOrFail($sellerId);
 
         $violations = SellerViolation::where('seller_id', $sellerId)
-            ->with(['book', 'admin'])
+            ->with(['product', 'admin'])
             ->latest()
             ->get();
 
-        $flaggedBooks = $seller->books->filter(fn($b) => $this->isCategoryMismatch($b));
+        $flaggedBooks = $seller->products->filter(fn($b) => $this->isCategoryMismatch($b));
 
         return view('admin.compliance.show', compact('seller', 'violations', 'flaggedBooks'));
     }
@@ -87,7 +87,7 @@ class ComplianceController extends Controller
     }
 
     /** Check if a book's category mismatches the seller's registered line of business */
-    private function isCategoryMismatch(Book $book): bool
+    private function isCategoryMismatch(Product $book): bool
     {
         $lineOfBusiness = $book->seller?->sellerApplication?->line_of_business;
         if (! $lineOfBusiness || ! $book->category) return false;

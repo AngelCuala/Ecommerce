@@ -12,8 +12,12 @@ class AccountController extends Controller
 {
     public function edit()
     {
-        $view = request()->routeIs('admin.*') ? 'admin.account.edit' : 'logistics.account.edit';
-        return view($view, ['user' => auth()->user()]);
+        // Admins manage their account on the admin profile page, not a logistics one.
+        if (auth()->user()?->isAdmin()) {
+            return redirect()->route('admin.account.edit');
+        }
+
+        return view('logistics.account.edit', ['user' => auth()->user()]);
     }
 
     public function update(Request $request)

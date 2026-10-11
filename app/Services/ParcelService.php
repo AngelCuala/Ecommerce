@@ -117,10 +117,10 @@ class ParcelService
 
     private function sellerWeight(Order $order, User $seller): ?float
     {
-        $order->loadMissing('items.book');
+        $order->loadMissing('items.product');
         $kg = $order->items
-            ->filter(fn ($i) => (int) optional($i->book)->seller_id === (int) $seller->id)
-            ->sum(fn ($i) => (float) (optional($i->book)->weight_kg ?? 0) * $i->quantity);
+            ->filter(fn ($i) => (int) optional($i->product)->seller_id === (int) $seller->id)
+            ->sum(fn ($i) => (float) (optional($i->product)->weight_kg ?? 0) * $i->quantity);
 
         return $kg > 0 ? round($kg, 2) : null;
     }

@@ -5,6 +5,11 @@
         ✓ {{ session('success') }}
     </div>
 @endif
+@if (session('error') || $errors->any())
+    <div class="mb-6 rounded-xl border p-4 text-sm" style="background:#FEF2F2;border-color:rgba(220,38,38,.2);color:#DC2626;">
+        {{ session('error') ?: $errors->first() }}
+    </div>
+@endif
 
 <div class="grid gap-6 lg:grid-cols-[1fr_320px]">
 
@@ -14,24 +19,67 @@
             <h2 class="font-display text-lg font-bold" style="color:#222222;">Applicant Details</h2>
             <dl class="mt-4 divide-y text-sm" style="--tw-divide-opacity:1;">
                 @foreach ([
-                    'Full Name'    => $application->full_name,
-                    'Shop Name'    => $application->shop_name,
-                    'Phone'        => $application->phone,
-                    'Address'      => $application->address,
-                    'Email'        => $application->user->email,
-                    'Applied On'   => $application->created_at->format('M d, Y H:i'),
+                    'First Name'    => $application->first_name,
+                    'Last Name'     => $application->last_name,
+                    'Email'         => $application->user->email,
+                    'Mobile Number' => $application->phone,
+                    'Shop Name'     => $application->shop_name,
+                    'Shop Category' => $application->line_of_business,
+                    'Seller Type'   => $application->seller_type,
+                    'TIN'           => $application->tin,
+                    'Region'        => $application->region,
+                    'Province'      => $application->province,
+                    'City / Municipality' => $application->municipality,
+                    'Barangay'      => $application->barangay,
+                    'Street Address'=> $application->street,
+                    'Postal Code'   => $application->zip_code,
+                    'Applied On'    => $application->created_at->format('M d, Y H:i'),
                 ] as $label => $value)
-                    <div class="flex justify-between py-2.5" style="border-color:#dce8f0;">
-                        <dt style="color:#6b90aa;">{{ $label }}</dt>
-                        <dd class="font-medium text-right" style="color:#222222;">{{ $value }}</dd>
+                    <div class="flex justify-between gap-4 py-2.5" style="border-color:#dce8f0;">
+                        <dt class="shrink-0" style="color:#6b90aa;">{{ $label }}</dt>
+                        <dd class="font-medium text-right" style="color:#222222;">{{ $value ?: '—' }}</dd>
                     </div>
                 @endforeach
             </dl>
         </div>
 
+        @if ($application->description)
         <div class="card p-6">
             <h2 class="font-display text-base font-bold mb-3" style="color:#222222;">About the store</h2>
             <p class="text-sm leading-relaxed" style="color:#555555;">{{ $application->description }}</p>
+        </div>
+        @endif
+
+        {{-- Business documents (DTI certificate, BIR 2303, older business permit) --}}
+        @php
+            $docs = array_filter([
+                'DTI Certificate' => $application->dti_certificate_path,
+                'SEC Certificate' => $application->sec_certificate_path,
+                'BIR Form 2303'   => $application->bir_2303_path,
+                'Business Permit' => $application->business_permit_path,
+            ]);
+        @endphp
+        <div class="card p-6">
+            <h2 class="font-display text-base font-bold mb-3" style="color:#222222;">Business Documents</h2>
+            @forelse ($docs as $docLabel => $docPath)
+                @php $docExt = strtolower(pathinfo($docPath, PATHINFO_EXTENSION)); @endphp
+                <div class="flex items-center justify-between gap-3 py-2 {{ !$loop->last ? 'border-b' : '' }}" style="border-color:#dce8f0;">
+                    <div class="flex min-w-0 items-center gap-3">
+                        @if (in_array($docExt, ['jpg','jpeg','png','webp']))
+                            <img src="{{ asset('storage/'.$docPath) }}" alt="{{ $docLabel }}" class="h-12 w-12 shrink-0 rounded-lg border object-cover" style="border-color:#dce8f0;">
+                        @else
+                            <span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg text-xs font-bold" style="background:#fff1ee;color:#fa4e1c;">{{ strtoupper($docExt) }}</span>
+                        @endif
+                        <span class="text-sm font-semibold" style="color:#222222;">{{ $docLabel }}</span>
+                    </div>
+                    <a href="{{ asset('storage/'.$docPath) }}" target="_blank"
+                       class="shrink-0 rounded-lg border-2 px-3 py-1.5 text-xs font-semibold" style="border-color:#fa4e1c;color:#fa4e1c;">
+                        View
+                    </a>
+                </div>
+            @empty
+                <p class="text-sm" style="color:#6b90aa;">No business documents uploaded.</p>
+            @endforelse
         </div>
 
         <div class="card p-6">
@@ -79,6 +127,7 @@
                         View / Download ID Document
                     </a>
                 @endif
+                @include('partials.id-check-note', ['record' => $application])
             @else
                 <p class="text-sm" style="color:#6b90aa;">No ID uploaded.</p>
             @endif
@@ -128,8 +177,8 @@
             <form action="{{ route('admin.seller-applications.reject', $application->id) }}" method="POST" class="space-y-3">
                 @csrf @method('PATCH')
                 <div>
-                    <label class="text-xs font-semibold" style="color:#6b90aa;">Rejection Reason (optional)</label>
-                    <textarea name="rejection_reason" rows="3" class="input mt-1"
+                    <label class="text-xs font-semibold" style="color:#6b90aa;">Rejection Reason *</label>
+                    <textarea name="rejection_reason" rows="3" class="input mt-1" required
                               placeholder="e.g. Invalid ID, incomplete info…"></textarea>
                 </div>
                 <button type="submit" class="w-full rounded-full border-2 py-2.5 text-sm font-semibold transition"

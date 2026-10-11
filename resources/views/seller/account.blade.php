@@ -1,293 +1,217 @@
-<x-seller-layout title="Account Management" active="account">
-<div>
+<x-seller-layout title="Account" active="account">
+@php
+    $u = auth()->user();
+    if ($application) {
+        $remaining = $application->shopNameChangesRemaining();
+        $canChange = $application->canChangeShopName();
+        $resetsAt  = $application->shopNameResetsAt()->format('M j, Y');
+        $documents = array_filter([
+            'Government-issued ID' => $application->government_id_path,
+            'DTI Certificate'      => $application->dti_certificate_path,
+            'SEC Certificate'      => $application->sec_certificate_path,
+            'BIR Form 2303'        => $application->bir_2303_path,
+            'Business Permit'      => $application->business_permit_path,
+        ]);
+        $facts = array_filter([
+            'Owner'         => $application->fullName(),
+            'Category'      => $application->line_of_business,
+            'Seller type'   => $application->seller_type,
+            'TIN'           => $application->tin,
+            'Business name' => $application->business_name,
+            'Shop contact'  => $application->phone,
+            'Shop address'  => $application->address,
+        ]);
+    }
+@endphp
+<style>
+    .ac-section { background: #fff; border: 1px solid #ECE7E3; border-radius: .75rem; }
+    .ac-head { padding: 1rem 1.5rem; border-bottom: 1px solid #F2EEEA; }
+    .ac-head h2 { font-size: 1rem; font-weight: 600; color: #222; }
+    .ac-head p { margin-top: .15rem; font-size: .8125rem; color: #8a7f78; }
+    .ac-body { padding: 1.25rem 1.5rem; }
+    .ac-label { display: block; margin-bottom: .3rem; font-size: .8125rem; font-weight: 500; color: #44403C; }
+    .ac-note { margin-top: .3rem; font-size: .75rem; color: #8a7f78; }
+    .ac-error { margin-top: .3rem; font-size: .75rem; color: #B91C1C; }
+</style>
 
-    <div class="mb-6">
-        <span class="section-eyebrow" style="color:#fa4e1c;">Seller Panel</span>
-        <h1 class="mt-1 font-display text-2xl font-bold" style="color:#222222;">Account Management</h1>
+<div class="mx-auto max-w-3xl">
+
+    <div class="mb-5 flex flex-wrap items-end justify-between gap-3">
+        <div>
+            <h1 class="font-display text-2xl font-bold" style="color:#222;">Account</h1>
+            <p class="mt-0.5 text-sm" style="color:#8a7f78;">Your profile and shop details.</p>
+        </div>
+        @include('partials.panel.sign-out')
     </div>
 
-
     @if ($errors->any())
-        <div class="mb-5 rounded-xl border p-4 text-sm" style="background:#FEF2F2;border-color:rgba(220,38,38,.2);color:#DC2626;">
-            <ul class="list-inside list-disc space-y-1">@foreach($errors->all() as $e)<li>{{ $e }}</li>@endforeach</ul>
+        <div class="mb-5 rounded-md border px-4 py-3 text-sm" style="background:#FEF2F2;border-color:#FECACA;color:#B91C1C;">
+            Please fix the highlighted fields below.
         </div>
     @endif
 
-    <form action="{{ route('seller.account.update') }}" method="POST" enctype="multipart/form-data" class="space-y-6">
+    <form action="{{ route('seller.account.update') }}" method="POST" enctype="multipart/form-data" class="space-y-5">
         @csrf @method('PATCH')
 
-        {{-- ── Profile picture ─────────────────────────────── --}}
-        <div class="card p-6">
-            <h2 class="font-display text-base font-bold mb-4" style="color:#222222;">Profile Photo</h2>
-            <div class="flex items-center gap-6">
-
-                {{-- Avatar preview — click to trigger file input --}}
-                <div class="relative shrink-0 cursor-pointer group" onclick="document.getElementById('avatar-input').click()">
-                    <div class="flex h-24 w-24 items-center justify-center overflow-hidden rounded-full border-2"
-                         style="border-color:#fa4e1c;">
-                        @if (auth()->user()->profile_photo_path)
-                            <img id="avatar-preview"
-                                 src="{{ asset('storage/'.auth()->user()->profile_photo_path) }}"
-                                 class="h-24 w-24 rounded-full object-cover" alt="Profile photo">
+        {{-- ── Profile ─────────────────────────────────────── --}}
+        <section class="ac-section">
+            <div class="ac-head">
+                <h2>Profile</h2>
+                <p>How you appear to buyers and the ALVY team.</p>
+            </div>
+            <div class="ac-body space-y-5">
+                <div class="flex items-center gap-4">
+                    <button type="button" id="avatar-box" onclick="document.getElementById('avatar-input').click()"
+                            class="group relative flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full"
+                            style="background:#F5F2EF;" aria-label="Change profile photo">
+                        @if ($u->profile_photo_path)
+                            <img id="avatar-preview" src="{{ asset('storage/' . $u->profile_photo_path) }}" class="h-full w-full object-cover" alt="">
                         @else
-                            <span id="avatar-initial"
-                                  class="text-3xl font-extrabold text-white select-none"
-                                  style="background:#002b4d;width:100%;height:100%;display:flex;align-items:center;justify-content:center;">
-                                {{ strtoupper(substr(auth()->user()->name, 0, 1)) }}
-                            </span>
+                            <span id="avatar-initial" class="font-display text-xl font-bold" style="color:#8a7f78;">{{ strtoupper(mb_substr($u->name, 0, 1)) }}</span>
                         @endif
-                    </div>
-                    {{-- Camera overlay --}}
-                    <div class="absolute inset-0 flex items-center justify-center rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                         style="background:rgba(0,0,0,.45);">
-                        <svg class="h-6 w-6 text-white" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round"
-                                  d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/>
-                            <circle cx="12" cy="13" r="3"/>
-                        </svg>
+                        <span class="absolute inset-0 hidden items-center justify-center text-[11px] font-medium text-white group-hover:flex" style="background:rgba(0,0,0,.45);">Change</span>
+                    </button>
+                    <div class="min-w-0">
+                        <input id="avatar-input" type="file" name="avatar" accept="image/jpeg,image/png,image/webp" class="hidden" onchange="previewAvatar(this)">
+                        <label for="avatar-input" class="inline-block cursor-pointer rounded-md border px-3 py-1.5 text-sm font-medium transition hover:bg-stone-50" style="border-color:#E7E5E4;color:#44403C;">
+                            {{ $u->profile_photo_path ? 'Change photo' : 'Upload photo' }}
+                        </label>
+                        <p id="avatar-filename" class="ac-note">JPG, PNG or WebP, up to 2 MB.</p>
+                        @error('avatar')<p class="ac-error">{{ $message }}</p>@enderror
                     </div>
                 </div>
 
-                <div class="flex-1">
-                    <p class="font-bold text-base" style="color:#222222;">{{ auth()->user()->name }}</p>
-                    <p class="text-sm mb-3" style="color:#6b90aa;">{{ auth()->user()->email }}</p>
-                    <input id="avatar-input" type="file" name="avatar"
-                           accept="image/jpg,image/jpeg,image/png,image/webp"
-                           class="hidden"
-                           onchange="previewAvatar(this)">
-                    <label for="avatar-input"
-                           class="inline-flex cursor-pointer items-center gap-2 rounded-lg border px-4 py-2 text-xs font-semibold transition"
-                           style="border-color:#fa4e1c;color:#fa4e1c;"
-                           onmouseover="this.style.background='#fff1ee';"
-                           onmouseout="this.style.background='';">
-                        <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
-                        </svg>
-                        Choose Photo
-                    </label>
-                    <p id="avatar-filename" class="mt-1.5 text-[11px]" style="color:#B0B0B0;">JPG, PNG or WebP · max 2 MB</p>
+                <div class="grid gap-4 sm:grid-cols-2">
+                    <div>
+                        <label class="ac-label" for="name">Full name</label>
+                        <input type="text" id="name" name="name" value="{{ old('name', $u->name) }}" class="input" required>
+                        @error('name')<p class="ac-error">{{ $message }}</p>@enderror
+                    </div>
+                    <div>
+                        <label class="ac-label" for="email">Email</label>
+                        <input type="email" id="email" name="email" value="{{ old('email', $u->email) }}" class="input" required>
+                        @error('email')<p class="ac-error">{{ $message }}</p>@enderror
+                    </div>
+                    <div>
+                        <label class="ac-label" for="phone">Mobile number</label>
+                        <input type="tel" id="phone" name="phone" value="{{ old('phone', $u->phone ?: $u->contact_no) }}" class="input" placeholder="09171234567" inputmode="tel">
+                        @error('phone')<p class="ac-error">{{ $message }}</p>@enderror
+                    </div>
+                    <div>
+                        <label class="ac-label" for="city">City</label>
+                        <input type="text" id="city" name="city" value="{{ old('city', $u->city ?: $u->municipality) }}" class="input">
+                    </div>
+                    <div>
+                        <label class="ac-label" for="address">Address</label>
+                        <input type="text" id="address" name="address" value="{{ old('address', $u->address ?: $u->street) }}" class="input">
+                    </div>
+                    <div>
+                        <label class="ac-label" for="zip">ZIP code</label>
+                        <input type="text" id="zip" name="zip" value="{{ old('zip', $u->zip) }}" class="input" inputmode="numeric" maxlength="10">
+                    </div>
                 </div>
             </div>
-        </div>
+        </section>
 
-        {{-- ── Personal information ─────────────────────────── --}}
-        <div class="card p-6 space-y-4">
-            <h2 class="font-display text-base font-bold" style="color:#222222;">Personal Information</h2>
-            <div class="grid gap-4 sm:grid-cols-2">
-                <div>
-                    <label class="text-xs font-semibold" style="color:#6b90aa;">Full Name *</label>
-                    <input type="text" name="name" value="{{ old('name', auth()->user()->name) }}"
-                           class="input mt-1" required>
-                </div>
-                <div>
-                    <label class="text-xs font-semibold" style="color:#6b90aa;">Email *</label>
-                    <input type="email" name="email" value="{{ old('email', auth()->user()->email) }}"
-                           class="input mt-1" required>
-                </div>
-                <div>
-                    <label class="text-xs font-semibold" style="color:#6b90aa;">Contact No.</label>
-                    <input type="text" name="phone" value="{{ old('phone', auth()->user()->phone) }}"
-                           class="input mt-1" placeholder="+63 912 345 6789">
-                </div>
-                <div>
-                    <label class="text-xs font-semibold" style="color:#6b90aa;">Address</label>
-                    <input type="text" name="address" value="{{ old('address', auth()->user()->address) }}"
-                           class="input mt-1">
-                </div>
-                <div>
-                    <label class="text-xs font-semibold" style="color:#6b90aa;">City</label>
-                    <input type="text" name="city" value="{{ old('city', auth()->user()->city) }}"
-                           class="input mt-1">
-                </div>
-                <div>
-                    <label class="text-xs font-semibold" style="color:#6b90aa;">ZIP Code</label>
-                    <input type="text" name="zip" value="{{ old('zip', auth()->user()->zip) }}"
-                           class="input mt-1">
-                </div>
-            </div>
-        </div>
-
-        {{-- ── Business information (read-only, from approved application) ── --}}
+        {{-- ── Shop ────────────────────────────────────────── --}}
         @if ($application)
-        @php
-            $remaining  = $application->shopNameChangesRemaining();
-            $canChange  = $application->canChangeShopName();
-            $resetsAt   = $application->shopNameResetsAt()->format('M d, Y');
-
-            // Assemble the full registered address from its parts.
-            $addrParts = array_filter([
-                $application->house_number,
-                $application->street,
-                $application->barangay,
-                $application->municipality,
-                $application->province,
-            ]);
-            $fullAddress = count($addrParts) ? implode(', ', $addrParts) : ($application->address ?? '—');
-        @endphp
-        <div class="card p-6 space-y-4">
-            <div class="flex items-center justify-between">
-                <h2 class="font-display text-base font-bold" style="color:#222222;">Business Information</h2>
-                <span class="rounded-full px-3 py-1 text-xs font-bold"
-                      style="background:{{ $application->isApproved() ? '#ECFDF5' : '#e8f0f6' }};
-                             color:{{ $application->isApproved() ? '#059669' : '#fa4e1c' }};">
-                    {{ ucfirst($application->status) }}
-                </span>
-            </div>
-
-            <div class="grid gap-4 sm:grid-cols-2">
-
-                {{-- Shop name — editable with change counter --}}
-                <div class="sm:col-span-2">
-                    <div class="flex items-center justify-between mb-1">
-                        <label class="text-xs font-semibold" style="color:#6b90aa;">Shop Name</label>
-                        @if ($canChange)
-                            <span class="text-[11px] font-semibold rounded-full px-2 py-0.5"
-                                  style="background:{{ $remaining === 1 ? '#FEF9C3' : '#ECFDF5' }};
-                                         color:{{ $remaining === 1 ? '#CA8A04' : '#059669' }};">
-                                {{ $remaining }} change{{ $remaining !== 1 ? 's' : '' }} left this month
-                            </span>
-                        @else
-                            <span class="text-[11px] font-semibold rounded-full px-2 py-0.5"
-                                  style="background:#FEF2F2;color:#DC2626;">
-                                Locked until {{ $resetsAt }}
-                            </span>
-                        @endif
+            <section class="ac-section">
+                <div class="ac-head flex flex-wrap items-start justify-between gap-2">
+                    <div>
+                        <h2>Shop</h2>
+                        <p>Details from your approved seller application.</p>
                     </div>
-                    @if ($canChange)
-                        <input type="text" name="shop_name"
-                               value="{{ old('shop_name', $application->shop_name) }}"
-                               class="input" maxlength="255">
-                        @if ($remaining === 1)
-                            <p class="mt-1 text-[11px]" style="color:#CA8A04;">
-                                ⚠ This is your last change for this month.
-                            </p>
+                    <span class="rounded-md px-2 py-0.5 text-xs font-semibold"
+                          style="{{ $application->isApproved() ? 'background:#ECFDF5;color:#047857;' : 'background:#F5F5F4;color:#57534E;' }}">
+                        {{ ucfirst($application->status) }}
+                    </span>
+                </div>
+                <div class="ac-body space-y-5">
+                    <div>
+                        <div class="mb-1 flex flex-wrap items-baseline justify-between gap-2">
+                            <label class="ac-label !mb-0" for="shop_name">Shop name</label>
+                            <span class="text-xs" style="color:{{ $canChange ? '#8a7f78' : '#B91C1C' }};">
+                                @if ($canChange)
+                                    {{ $remaining }} of 3 changes left this month
+                                @else
+                                    No changes left until {{ $resetsAt }}
+                                @endif
+                            </span>
+                        </div>
+                        @if ($canChange)
+                            <input type="text" id="shop_name" name="shop_name" value="{{ old('shop_name', $application->shop_name) }}" class="input" maxlength="30">
+                        @else
+                            <input type="text" id="shop_name" value="{{ $application->shop_name }}" class="input" disabled>
                         @endif
-                    @else
-                        <input type="text" value="{{ $application->shop_name }}"
-                               class="input" readonly style="background:#F9FAFB;cursor:not-allowed;">
-                        <p class="mt-1 text-[11px]" style="color:#DC2626;">
-                            You've used all 3 changes this month. Resets on {{ $resetsAt }}.
-                        </p>
+                        @error('shop_name')
+                            <p class="ac-error">{{ $message }}</p>
+                        @else
+                            <p class="ac-note">3–30 characters. You can rename your shop up to 3 times a month.</p>
+                        @enderror
+                    </div>
+
+                    @if ($facts)
+                        <dl class="grid gap-x-6 gap-y-3 border-t pt-4 text-sm sm:grid-cols-2" style="border-color:#F2EEEA;">
+                            @foreach ($facts as $label => $value)
+                                <div class="{{ in_array($label, ['Shop address']) ? 'sm:col-span-2' : '' }}">
+                                    <dt style="color:#8a7f78;">{{ $label }}</dt>
+                                    <dd class="mt-0.5" style="color:#222;">{{ $value }}</dd>
+                                </div>
+                            @endforeach
+                        </dl>
+                    @endif
+
+                    @if ($documents)
+                        <div class="border-t pt-4" style="border-color:#F2EEEA;">
+                            <p class="mb-2 text-sm" style="color:#8a7f78;">Documents</p>
+                            <ul class="divide-y rounded-md border" style="border-color:#ECE7E3;">
+                                @foreach ($documents as $label => $path)
+                                    <li class="flex items-center justify-between gap-3 px-3 py-2 text-sm" style="border-color:#F2EEEA;">
+                                        <span style="color:#222;">{{ $label }}</span>
+                                        <a href="{{ asset('storage/' . $path) }}" target="_blank" rel="noopener" class="font-medium hover:underline" style="color:#fa4e1c;">View</a>
+                                    </li>
+                                @endforeach
+                            </ul>
+                            <p class="ac-note">To change your business details or documents, contact ALVY support.</p>
+                        </div>
                     @endif
                 </div>
-
-                <div>
-                    <label class="text-xs font-semibold" style="color:#6b90aa;">Business Name</label>
-                    <input type="text" value="{{ $application->business_name ?? '—' }}"
-                           class="input mt-1" readonly style="background:#F9FAFB;">
-                </div>
-                <div>
-                    <label class="text-xs font-semibold" style="color:#6b90aa;">Business Category</label>
-                    <input type="text" value="{{ $application->line_of_business ?? '—' }}"
-                           class="input mt-1" readonly style="background:#F9FAFB;">
-                </div>
-
-                <div>
-                    <label class="text-xs font-semibold" style="color:#6b90aa;">Business Owner</label>
-                    <input type="text" value="{{ $application->fullName() ?: '—' }}"
-                           class="input mt-1" readonly style="background:#F9FAFB;">
-                </div>
-                <div>
-                    <label class="text-xs font-semibold" style="color:#6b90aa;">Business Contact No.</label>
-                    <input type="text" value="{{ $application->phone ?? '—' }}"
-                           class="input mt-1" readonly style="background:#F9FAFB;">
-                </div>
-
-                <div class="sm:col-span-2">
-                    <label class="text-xs font-semibold" style="color:#6b90aa;">Business Address</label>
-                    <input type="text" value="{{ $fullAddress }}"
-                           class="input mt-1" readonly style="background:#F9FAFB;">
-                </div>
-
-                @if ($application->description)
-                <div class="sm:col-span-2">
-                    <label class="text-xs font-semibold" style="color:#6b90aa;">Business Description</label>
-                    <textarea rows="3" class="input mt-1" readonly style="background:#F9FAFB;resize:none;">{{ $application->description }}</textarea>
-                </div>
-                @endif
-            </div>
-
-            {{-- Uploaded documents --}}
-            <div class="mt-2 grid gap-4 sm:grid-cols-2">
-                @if ($application->government_id_path)
-                    <div>
-                        <p class="text-xs font-semibold mb-2" style="color:#6b90aa;">Valid ID</p>
-                        @php $ext = strtolower(pathinfo($application->government_id_path, PATHINFO_EXTENSION)); @endphp
-                        @if (in_array($ext, ['jpg','jpeg','png']))
-                            <a href="{{ asset('storage/'.$application->government_id_path) }}" target="_blank">
-                                <img src="{{ asset('storage/'.$application->government_id_path) }}"
-                                     class="max-h-32 rounded-lg border object-contain transition hover:opacity-90"
-                                     style="border-color:#cfdce8;">
-                            </a>
-                        @else
-                            <a href="{{ asset('storage/'.$application->government_id_path) }}" target="_blank"
-                               class="inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium"
-                               style="border-color:#cfdce8;color:#fa4e1c;">
-                                📄 View ID Document
-                            </a>
-                        @endif
-                    </div>
-                @endif
-                @if ($application->business_permit_path)
-                    <div>
-                        <p class="text-xs font-semibold mb-2" style="color:#6b90aa;">Business Permit</p>
-                        @php $ext2 = strtolower(pathinfo($application->business_permit_path, PATHINFO_EXTENSION)); @endphp
-                        @if (in_array($ext2, ['jpg','jpeg','png']))
-                            <a href="{{ asset('storage/'.$application->business_permit_path) }}" target="_blank">
-                                <img src="{{ asset('storage/'.$application->business_permit_path) }}"
-                                     class="max-h-32 rounded-lg border object-contain transition hover:opacity-90"
-                                     style="border-color:#cfdce8;">
-                            </a>
-                        @else
-                            <a href="{{ asset('storage/'.$application->business_permit_path) }}" target="_blank"
-                               class="inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium"
-                               style="border-color:#cfdce8;color:#fa4e1c;">
-                                📄 View Business Permit
-                            </a>
-                        @endif
-                    </div>
-                @endif
-            </div>
-        </div>
+            </section>
         @endif
 
-        {{-- ── Security ─────────────────────────────────────── --}}
-        <div class="card p-6">
-            <div class="flex items-center justify-between gap-4">
-                <div class="min-w-0">
-                    <h2 class="font-display text-base font-bold" style="color:#222222;">Security</h2>
-                    <p class="mt-1 text-sm" style="color:#6b90aa;">Change your password and manage authentication settings.</p>
+        {{-- ── Password ────────────────────────────────────── --}}
+        <section class="ac-section">
+            <div class="ac-body flex flex-wrap items-center justify-between gap-3">
+                <div>
+                    <h2 class="text-base font-semibold" style="color:#222;">Password</h2>
+                    <p class="mt-0.5 text-sm" style="color:#8a7f78;">Change the password you use to sign in.</p>
                 </div>
-                <a href="{{ route('seller.account.security') }}"
-                   class="inline-flex shrink-0 items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold text-white transition hover:opacity-90"
-                   style="background:#002b4d;">
-                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-                    Security Settings
-                </a>
+                <a href="{{ route('seller.account.security') }}" class="rounded-md border px-3 py-1.5 text-sm font-medium transition hover:bg-stone-50" style="border-color:#E7E5E4;color:#44403C;">Change password</a>
             </div>
-        </div>
+        </section>
 
-        {{-- ── Actions ─────────────────────────────────────── --}}
-        <div class="flex gap-3">
-            <button type="submit"
-                    class="flex-1 rounded-xl py-3 text-sm font-bold text-white transition hover:opacity-90"
-                    style="background:#002b4d;">
-                Save Changes
-            </button>
-            <form action="{{ route('logout') }}" method="POST">
-                @csrf
-                <button type="submit"
-                        class="rounded-xl border px-6 py-3 text-sm font-semibold transition"
-                        style="border-color:#EF4444;color:#EF4444;"
-                        onmouseover="this.style.background='#FEF2F2';"
-                        onmouseout="this.style.background='';">
-                    Logout
-                </button>
-            </form>
+        <div class="flex justify-end">
+            <button type="submit" class="rounded-md px-5 py-2 text-sm font-semibold text-white transition hover:opacity-90" style="background:#fa4e1c;">Save changes</button>
         </div>
     </form>
 </div>
 
-<script src="{{ asset('js/seller-account.js') }}"></script>
-@include('partials.password-toggle')
+<script>
+function previewAvatar(input) {
+    const file = input.files && input.files[0];
+    if (!file) return;
+    document.getElementById('avatar-filename').textContent = file.name;
+    const box = document.getElementById('avatar-box');
+    document.getElementById('avatar-initial')?.remove();
+    let img = document.getElementById('avatar-preview');
+    if (!img) {
+        img = document.createElement('img');
+        img.id = 'avatar-preview';
+        img.className = 'h-full w-full object-cover';
+        img.alt = '';
+        box.prepend(img);
+    }
+    img.src = URL.createObjectURL(file);
+}
+</script>
 </x-seller-layout>

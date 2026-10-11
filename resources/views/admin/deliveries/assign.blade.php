@@ -40,9 +40,9 @@
 {{-- Area filter tabs --}}
 <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap;">
     <div class="tab-bar">
-        <a href="{{ route('admin.deliveries.assign-index') }}" class="tab {{ !request('area_id') ? 'active' : '' }}">All</a>
+        <a href="{{ route('admin.logistics.deliveries.assign-index') }}" class="tab {{ !request('area_id') ? 'active' : '' }}">All</a>
         @foreach($areas as $area)
-            <a href="{{ route('admin.deliveries.assign-index',['area_id'=>$area->id]) }}"
+            <a href="{{ route('admin.logistics.deliveries.assign-index',['area_id'=>$area->id]) }}"
                class="tab {{ request('area_id')==$area->id ? 'active' : '' }}">{{ $area->name }}</a>
         @endforeach
     </div>
@@ -79,7 +79,7 @@
                     </select>
                 </td>
                 <td>
-                    <form method="POST" action="{{ route('admin.deliveries.assign',$parcel) }}" id="assign-{{ $parcel->id }}">
+                    <form method="POST" action="{{ route('admin.logistics.deliveries.assign',$parcel) }}" id="assign-{{ $parcel->id }}">
                         @csrf
                         <input type="hidden" name="rider_id" id="hidden-rider-{{ $parcel->id }}">
                         <button type="button" class="btn btn--ghost btn--sm"

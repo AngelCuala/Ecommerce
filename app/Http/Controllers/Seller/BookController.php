@@ -258,7 +258,19 @@ class BookController extends Controller
 
             // Media
             'cover_image'      => 'nullable|image|mimes:jpg,jpeg,png,webp|max:5120',
-            'images'           => 'nullable|array|max:9',
+            'images'           => ['nullable', 'array', 'max:' . Product::MAX_IMAGES,
+                // Photos already saved (minus any being removed) + new uploads ≤ the limit.
+                function (string $attr, $value, \Closure $fail) use ($request, $bookId) {
+                    $kept = $bookId
+                        ? ProductImage::where('product_id', $bookId)
+                            ->whereNotIn('id', array_filter((array) $request->input('removed_images', [])))
+                            ->count()
+                        : 0;
+                    $total = $kept + count(array_filter((array) $value));
+                    if ($total > Product::MAX_IMAGES) {
+                        $fail('A product can have up to ' . Product::MAX_IMAGES . " photos — this would make {$total}. Remove some first.");
+                    }
+                }],
             'images.*'         => 'nullable|image|mimes:jpg,jpeg,png,webp|max:5120',
             'video'            => 'nullable|mimetypes:video/mp4,video/quicktime,video/webm|max:20480',
 
@@ -292,6 +304,10 @@ class BookController extends Controller
             'title.required'   => 'Please enter a product name.',
             'price.required'   => 'Please enter a price.',
             'stock.required'   => 'Please enter the available stock.',
+            'images.max'       => 'A product can have up to ' . Product::MAX_IMAGES . ' photos.',
+            'images.*.image'   => 'Each photo must be a JPG, PNG or WebP image.',
+            'images.*.mimes'   => 'Each photo must be a JPG, PNG or WebP image.',
+            'images.*.max'     => 'Each photo must be 5 MB or smaller.',
         ];
 
         return $request->validate($rules, $messages);

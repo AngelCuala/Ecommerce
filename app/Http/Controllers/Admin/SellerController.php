@@ -20,7 +20,7 @@ class SellerController extends Controller
     public function index(Request $request)
     {
         $query = User::query()
-            ->withCount('books')
+            ->withCount('products as books_count')
             ->with('sellerApplication')
             ->where(function ($q) {
                 $q->whereIn('role', self::SELLER_ROLES)
@@ -67,7 +67,7 @@ class SellerController extends Controller
      */
     public function show(int $id)
     {
-        $seller = User::withCount('books')
+        $seller = User::withCount('products as books_count')
             ->with('sellerApplication')
             ->findOrFail($id);
 

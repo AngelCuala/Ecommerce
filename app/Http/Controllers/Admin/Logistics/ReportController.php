@@ -32,7 +32,7 @@ class ReportController extends Controller
             ->paginate(20)
             ->withQueryString();
 
-        $view = request()->routeIs('admin.*') ? 'admin.reports.index' : 'logistics.reports.index';
+        $view = 'logistics.reports.index'; // admin.reports.index is the main admin sales report
         return view($view, compact('summary', 'deliveries', 'from', 'to'));
     }
 

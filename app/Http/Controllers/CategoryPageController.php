@@ -96,6 +96,48 @@ class CategoryPageController extends Controller
                 'color' => '#D97706',
                 'subs'  => ['Necklaces & Pendants', 'Rings & Earrings', 'Bracelets & Bangles', 'Watches for Men & Women', 'Fashion Jewelry', 'Jewelry Storage & Care'],
             ],
+            [
+                'name'  => 'Bags & Luggage',
+                'slug'  => 'bags-and-luggage',
+                'icon'  => '',
+                'color' => '#92400E',
+                'subs'  => ['Handbags & Shoulder Bags', 'Backpacks', 'Wallets & Card Holders', 'Travel Luggage', 'Duffel & Gym Bags', 'Laptop Bags'],
+            ],
+            [
+                'name'  => 'Shoes & Footwear',
+                'slug'  => 'shoes-and-footwear',
+                'icon'  => '',
+                'color' => '#DC2626',
+                'subs'  => ['Sneakers', 'Sandals & Slippers', 'Formal Shoes', 'Boots', "Kids' Shoes", 'Shoe Care & Accessories'],
+            ],
+            [
+                'name'  => 'Home Appliances',
+                'slug'  => 'home-appliances',
+                'icon'  => '',
+                'color' => '#0EA5E9',
+                'subs'  => ['Small Kitchen Appliances', 'Rice Cookers & Air Fryers', 'Electric Fans & Air Coolers', 'Washing Machines', 'Vacuums & Cleaning', 'Irons & Garment Care'],
+            ],
+            [
+                'name'  => 'Gaming & Consoles',
+                'slug'  => 'gaming-and-consoles',
+                'icon'  => '',
+                'color' => '#7C3AED',
+                'subs'  => ['Consoles', 'Video Games', 'Controllers & Accessories', 'PC Gaming Peripherals', 'Gaming Chairs', 'Board & Card Games'],
+            ],
+            [
+                'name'  => 'Automotive & Motorcycle',
+                'slug'  => 'automotive-and-motorcycle',
+                'icon'  => '',
+                'color' => '#374151',
+                'subs'  => ['Motorcycle Helmets & Gear', 'Car Accessories', 'Motorcycle Parts', 'Car Care & Cleaning', 'Tools & Equipment', 'Oils & Fluids'],
+            ],
+            [
+                'name'  => 'Stationery & School Supplies',
+                'slug'  => 'stationery-and-school-supplies',
+                'icon'  => '',
+                'color' => '#059669',
+                'subs'  => ['Notebooks & Paper', 'Pens & Writing', 'Art Supplies', 'School Bags & Cases', 'Office Stationery', 'Calculators'],
+            ],
         ];
     }
 

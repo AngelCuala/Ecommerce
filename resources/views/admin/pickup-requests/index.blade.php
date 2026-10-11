@@ -17,15 +17,15 @@
 @endphp
 
 <div class="tab-bar" style="margin-bottom:18px;">
-    <a href="{{ route('admin.pickup-requests.index') }}"
+    <a href="{{ route('admin.logistics.pickup-requests.index') }}"
        class="tab {{ $tab==='all' ? 'active' : '' }}" style="min-width:100px;text-align:center;">All</a>
-    <a href="{{ route('admin.pickup-requests.index',['tab'=>'pending']) }}"
+    <a href="{{ route('admin.logistics.pickup-requests.index',['tab'=>'pending']) }}"
        class="tab {{ $tab==='pending' ? 'active' : '' }}" style="min-width:100px;text-align:center;">Pending</a>
-    <a href="{{ route('admin.pickup-requests.index',['tab'=>'confirmed']) }}"
+    <a href="{{ route('admin.logistics.pickup-requests.index',['tab'=>'confirmed']) }}"
        class="tab {{ $tab==='confirmed' ? 'active' : '' }}" style="min-width:100px;text-align:center;">Confirmed</a>
-    <a href="{{ route('admin.pickup-requests.index',['tab'=>'approved']) }}"
+    <a href="{{ route('admin.logistics.pickup-requests.index',['tab'=>'approved']) }}"
        class="tab {{ $tab==='approved' ? 'active' : '' }}" style="min-width:100px;text-align:center;">Approved</a>
-    <a href="{{ route('admin.pickup-requests.index',['tab'=>'rejected']) }}"
+    <a href="{{ route('admin.logistics.pickup-requests.index',['tab'=>'rejected']) }}"
        class="tab {{ $tab==='rejected' ? 'active' : '' }}" style="min-width:100px;text-align:center;">Rejected</a>
 </div>
 
@@ -71,15 +71,15 @@
                 <td>
                     <div style="display:flex;gap:6px;align-items:center;">
                         @if($parcel->status === 'pending_pickup')
-                            <form method="POST" action="{{ route('admin.pickup-requests.approve',$parcel) }}">@csrf
+                            <form method="POST" action="{{ route('admin.logistics.pickup-requests.approve',$parcel) }}">@csrf
                                 <button class="btn btn--primary btn--sm">Approve</button>
                             </form>
-                            <form method="POST" action="{{ route('admin.pickup-requests.reject',$parcel) }}">@csrf
+                            <form method="POST" action="{{ route('admin.logistics.pickup-requests.reject',$parcel) }}">@csrf
                                 <input type="hidden" name="reason" value="Rejected by admin">
                                 <button class="btn btn--danger btn--sm" onclick="return confirm('Reject?')">Reject</button>
                             </form>
                         @endif
-                        <a href="{{ route('admin.parcels.show',$parcel) }}" class="btn btn--ghost btn--sm">View</a>
+                        <a href="{{ route('admin.logistics.parcels.show',$parcel) }}" class="btn btn--ghost btn--sm">View</a>
                     </div>
                 </td>
             </tr>

@@ -2,9 +2,12 @@
 
 <div class="mx-auto max-w-3xl space-y-6">
 
-    <div>
-        <h1 class="font-display text-2xl font-bold" style="color:#222222;">My Profile</h1>
-        <p class="mt-1 text-sm" style="color:#6b90aa;">Your personal and account information.</p>
+    <div class="flex flex-wrap items-start justify-between gap-3">
+        <div>
+            <h1 class="font-display text-2xl font-bold" style="color:#222222;">My Profile</h1>
+            <p class="mt-1 text-sm" style="color:#6b90aa;">Your personal and account information.</p>
+        </div>
+        @include('partials.panel.sign-out')
     </div>
 
     @if (session('success'))

@@ -9,107 +9,121 @@
     $existingVars = old('variations', $isEdit ? $book->variations->map(fn($v) => [
         'name' => $v->name, 'price' => $v->price, 'stock' => $v->stock, 'sku' => $v->sku,
     ])->toArray() : []);
+    $maxPhotos    = \App\Models\Product::MAX_IMAGES;
+    $existingImgs = $isEdit ? $book->images : collect();
 @endphp
+<style>
+    [x-cloak] { display: none !important; }
+    .pf-section { background: #fff; border: 1px solid #ECE7E3; border-radius: .75rem; padding: 1.25rem 1.5rem; }
+    .pf-section h2 { font-size: 1rem; font-weight: 600; color: #222; }
+    .pf-hint { font-size: .8125rem; color: #8a7f78; }
+    .pf-label { display: block; margin-bottom: .3rem; font-size: .8125rem; font-weight: 500; color: #44403C; }
+    .pf-label .opt { font-weight: 400; color: #a39890; }
+    .pf-note { margin-top: .3rem; font-size: .75rem; color: #8a7f78; }
 
-<div x-data="productForm()" x-init="init()">
+    .photo-tile { position: relative; aspect-ratio: 1; overflow: hidden; border-radius: .5rem; border: 1px solid #E7E5E4; background: #FAFAF9; }
+    .photo-tile img { width: 100%; height: 100%; object-fit: cover; }
+    .photo-tile .cover-tag { position: absolute; left: .35rem; bottom: .35rem; padding: .05rem .4rem; border-radius: .25rem; font-size: .65rem; font-weight: 600; color: #fff; background: rgba(0, 0, 0, .65); }
+    .photo-tile .remove-btn { position: absolute; right: .3rem; top: .3rem; display: flex; height: 1.4rem; width: 1.4rem; align-items: center; justify-content: center; border-radius: 9999px; background: rgba(0, 0, 0, .55); color: #fff; font-size: .9rem; line-height: 1; opacity: 0; transition: opacity .15s; }
+    .photo-tile:hover .remove-btn, .photo-tile .remove-btn:focus { opacity: 1; }
+    .photo-tile.ex-img { cursor: grab; }
+    .photo-add { display: flex; aspect-ratio: 1; flex-direction: column; align-items: center; justify-content: center; gap: .25rem; border: 1.5px dashed #D6D3D1; border-radius: .5rem; color: #78716C; font-size: .75rem; font-weight: 500; cursor: pointer; transition: border-color .15s, color .15s; }
+    .photo-add:hover { border-color: #fa4e1c; color: #fa4e1c; }
 
-    <div class="mb-6 flex items-start justify-between gap-4">
+    .file-input { width: 100%; font-size: .8125rem; color: #57534E; }
+    .file-input::file-selector-button { margin-right: .75rem; border: 1px solid #E7E5E4; border-radius: .375rem; background: #fff; padding: .4rem .8rem; font-size: .8125rem; font-weight: 500; color: #44403C; cursor: pointer; }
+    .file-input::file-selector-button:hover { background: #FAFAF9; }
+
+    .btn-solid { display: block; width: 100%; border-radius: .375rem; padding: .6rem 1rem; font-size: .875rem; font-weight: 600; color: #fff; background: #fa4e1c; transition: opacity .15s; }
+    .btn-solid:hover { opacity: .9; }
+    .btn-line { display: block; width: 100%; border: 1px solid #E7E5E4; border-radius: .375rem; padding: .55rem 1rem; font-size: .875rem; font-weight: 500; color: #44403C; background: #fff; transition: background .15s; }
+    .btn-line:hover { background: #FAFAF9; }
+</style>
+
+<div x-data="productForm()" x-init="init()" class="mx-auto max-w-6xl" @main-photo.window="previewImage = $event.detail">
+
+    <div class="mb-5 flex flex-wrap items-end justify-between gap-3">
         <div>
-            <span class="text-xs font-semibold uppercase tracking-wide" style="color:#fa4e1c;">Seller Panel</span>
-            <h1 class="mt-1 font-display text-2xl font-bold" style="color:#002b4d;">
-                {{ $isEdit ? 'Edit Product' : 'List a New Product' }}
-            </h1>
+            <a href="{{ route('seller.books.index') }}" class="text-sm hover:underline" style="color:#8a7f78;">&larr; Inventory</a>
+            <h1 class="mt-1 font-display text-2xl font-bold" style="color:#222;">{{ $isEdit ? 'Edit product' : 'Add a product' }}</h1>
             @if ($isEdit && $book->product_code)
-                <p class="mt-1 text-sm" style="color:#6b90aa;">Product ID: <span class="font-semibold">{{ $book->product_code }}</span></p>
+                <p class="mt-0.5 text-sm" style="color:#8a7f78;">Product ID {{ $book->product_code }}</p>
             @endif
         </div>
-        <a href="{{ route('seller.books.index') }}" class="text-sm font-semibold" style="color:#6b90aa;">&larr; Back to products</a>
     </div>
 
     @if ($errors->any())
-        <div class="mb-6 rounded-xl border p-4 text-sm" style="background:rgba(217,61,14,.07);border-color:rgba(217,61,14,.25);color:#d93d0e;">
-            <p class="font-semibold mb-1">Please fix the following:</p>
-            <ul class="list-inside list-disc space-y-1">
+        <div class="mb-5 rounded-md border px-4 py-3 text-sm" style="background:#FEF2F2;border-color:#FECACA;color:#B91C1C;">
+            <p class="font-medium">Please fix the following:</p>
+            <ul class="mt-1 list-inside list-disc space-y-0.5">
                 @foreach ($errors->all() as $e)<li>{{ $e }}</li>@endforeach
             </ul>
         </div>
     @endif
 
     <form action="{{ $isEdit ? route('seller.books.update', $book->id) : route('seller.books.store') }}"
-          method="POST" enctype="multipart/form-data" class="space-y-6" id="product-form">
+          method="POST" enctype="multipart/form-data" id="product-form">
         @csrf
         @if ($isEdit) @method('PUT') @endif
         <input type="hidden" name="action" x-model="action">
 
-        <div class="grid gap-6 lg:grid-cols-3">
-            <div class="space-y-6 lg:col-span-2">
+        <div class="grid gap-5 lg:grid-cols-[1fr_18rem]">
+            <div class="space-y-5">
 
-                {{-- ════════ IMAGES ════════ --}}
-                <section class="card p-6 space-y-4">
-                    <div>
-                        <h2 class="font-display text-lg font-semibold" style="color:#002b4d;">Product Photos</h2>
-                        <p class="mt-1 text-sm" style="color:#6b90aa;">
-                            Upload up to 9 photos. The <strong>first photo is the main image</strong>. Drag to reorder.
-                            JPG, PNG or WebP · max 5&nbsp;MB each.
-                        </p>
+                {{-- ════════ PHOTOS ════════ --}}
+                <section class="pf-section">
+                    <div class="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+                        <h2>Photos</h2>
+                        <span class="pf-hint"><span id="photo-count">{{ $existingImgs->count() }}</span> of {{ $maxPhotos }}</span>
                     </div>
+                    <p class="pf-hint mb-4">
+                        The first photo is the cover buyers see first. Drag photos to reorder.
+                        JPG, PNG or WebP, up to 5 MB each.
+                    </p>
 
-                    {{-- Existing images (edit) — reorderable + removable --}}
-                    @if ($isEdit && $book->images->isNotEmpty())
-                        <div>
-                            <p class="mb-2 text-xs font-semibold" style="color:#6b90aa;">Current photos</p>
-                            <div id="existing-images" class="grid grid-cols-3 gap-3 sm:grid-cols-4 lg:grid-cols-5">
-                                @foreach ($book->images as $img)
-                                    <div class="ex-img relative aspect-square overflow-hidden rounded-xl border" data-id="{{ $img->id }}"
-                                         style="border-color:#cfdce8;cursor:grab;">
-                                        <img src="{{ $img->url() }}" class="h-full w-full object-cover">
-                                        <input type="hidden" name="image_order[]" value="{{ $img->id }}">
-                                        <span class="main-badge absolute bottom-1 left-1 hidden rounded px-1 py-0.5 text-[9px] font-bold text-white" style="background:#fa4e1c;">MAIN</span>
-                                        <button type="button" onclick="removeExisting(this, {{ $img->id }})"
-                                                class="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full text-white" style="background:rgba(0,0,0,.6);">&times;</button>
-                                    </div>
-                                @endforeach
+                    <div id="photo-grid" class="grid grid-cols-3 gap-3 sm:grid-cols-5">
+                        @foreach ($existingImgs as $img)
+                            <div class="photo-tile ex-img" data-id="{{ $img->id }}">
+                                <img src="{{ $img->url() }}" alt="">
+                                <input type="hidden" name="image_order[]" value="{{ $img->id }}">
+                                <span class="cover-tag hidden">Cover</span>
+                                <button type="button" class="remove-btn" aria-label="Remove photo" onclick="removeExisting(this, {{ $img->id }})">&times;</button>
                             </div>
-                            <p class="mt-2 text-[11px]" style="color:#6b90aa;">The first photo is marked MAIN. Drag to change order; click &times; to remove.</p>
-                        </div>
+                        @endforeach
+                        <label id="photo-add" class="photo-add" for="photo-picker">
+                            <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M12 5v14M5 12h14"/></svg>
+                            Add photos
+                        </label>
+                    </div>
+                    <input type="file" id="photo-picker" accept="image/jpeg,image/png,image/webp" multiple class="hidden">
+                    <input type="file" id="photo-files" name="images[]" multiple class="hidden">
+                    <div id="removed-container"></div>
+                    <p id="photo-error" class="mt-2 hidden text-sm" style="color:#B91C1C;"></p>
+                    @if ($existingImgs->isNotEmpty())
+                        <p class="pf-note">New photos are added after your current ones.</p>
                     @endif
 
-                    <div id="removed-container"></div>
-
-                    {{-- New uploads --}}
-                    <div>
-                        <p class="mb-2 text-xs font-semibold" style="color:#6b90aa;">{{ $isEdit ? 'Add more photos' : 'Upload photos' }}</p>
-                        <label class="flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed py-8 transition"
-                               style="border-color:#fa4e1c;background:#fff1ee;">
-                            <input type="file" name="images[]" accept="image/jpeg,image/png,image/webp" multiple class="hidden" @change="previewNew($event)">
-                            <svg class="h-8 w-8" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" style="color:#fa4e1c;"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
-                            <span class="mt-1 text-sm font-semibold" style="color:#fa4e1c;">Click to upload photos</span>
-                        </label>
-                        <div class="mt-3 grid grid-cols-3 gap-3 sm:grid-cols-4 lg:grid-cols-5" id="new-previews"></div>
-                    </div>
-
-                    {{-- Optional video --}}
-                    <div>
-                        <label class="text-xs font-semibold" style="color:#6b90aa;">Product Video <span style="font-weight:400;">(optional · MP4/MOV/WebM · max 20&nbsp;MB)</span></label>
-                        <input type="file" name="video" accept="video/mp4,video/quicktime,video/webm" class="input mt-1">
+                    <div class="mt-5 border-t pt-4" style="border-color:#F2EEEA;">
+                        <label class="pf-label" for="video">Video <span class="opt">— optional, MP4, MOV or WebM up to 20 MB</span></label>
+                        <input type="file" id="video" name="video" accept="video/mp4,video/quicktime,video/webm" class="file-input">
                         @if ($isEdit && $book->video_path)
-                            <p class="mt-1 text-[11px]" style="color:#6b90aa;">Current: {{ basename($book->video_path) }}</p>
+                            <p class="pf-note">Current video: {{ basename($book->video_path) }}</p>
                         @endif
                     </div>
                 </section>
 
                 {{-- ════════ BASIC INFO ════════ --}}
-                <section class="card p-6 space-y-5">
-                    <h2 class="font-display text-lg font-semibold" style="color:#002b4d;">Basic Information</h2>
-                    <div class="grid gap-5 sm:grid-cols-2">
+                <section class="pf-section">
+                    <h2 class="mb-4">Details</h2>
+                    <div class="grid gap-4 sm:grid-cols-2">
                         <div class="sm:col-span-2">
-                            <label class="text-xs font-semibold" style="color:#6b90aa;">Product Name *</label>
-                            <input type="text" name="title" value="{{ old('title', $book->title ?? '') }}" class="input mt-1" placeholder="e.g. Cotton Oversized T-Shirt">
+                            <label class="pf-label" for="title">Product name</label>
+                            <input type="text" id="title" name="title" value="{{ old('title', $book->title ?? '') }}" class="input" placeholder="e.g. Cotton Oversized T-Shirt">
                         </div>
 
                         <div>
-                            <label class="text-xs font-semibold" style="color:#6b90aa;">Category *</label>
-                            <select name="category_id" class="input mt-1" x-model="categoryId" @change="onCategoryChange()">
+                            <label class="pf-label" for="category_id">Category</label>
+                            <select id="category_id" name="category_id" class="input" x-model="categoryId" @change="onCategoryChange()">
                                 <option value="">Select category</option>
                                 @foreach ($categories as $cat)
                                     <option value="{{ $cat->id }}" data-name="{{ $cat->name }}"
@@ -119,101 +133,88 @@
                         </div>
 
                         <div>
-                            <label class="text-xs font-semibold" style="color:#6b90aa;">Subcategory</label>
-                            <select name="subcategory" class="input mt-1" x-model="subcategory">
-                                <option value="">Select subcategory</option>
+                            <label class="pf-label" for="subcategory">Subcategory <span class="opt">— optional</span></label>
+                            <select id="subcategory" name="subcategory" class="input" x-model="subcategory" :disabled="subs.length === 0">
+                                <option value="" x-text="subs.length ? 'Select subcategory' : 'None for this category'"></option>
                                 <template x-for="sub in subs" :key="sub">
                                     <option :value="sub" x-text="sub"></option>
                                 </template>
                             </select>
-                            <p class="mt-1 text-[11px]" style="color:#6b90aa;" x-show="subs.length === 0">No subcategories for this category.</p>
                         </div>
 
                         <div>
-                            <label class="text-xs font-semibold" style="color:#6b90aa;">Brand</label>
-                            <input type="text" name="brand" value="{{ old('brand', $book->brand ?? '') }}" class="input mt-1" placeholder="Brand name" x-ref="brand" :disabled="noBrand">
-                            <label class="mt-2 inline-flex items-center gap-2 text-[11px]" style="color:#6b90aa;">
-                                <input type="checkbox" x-model="noBrand" @change="if(noBrand) $refs.brand.value=''"> No Brand
+                            <label class="pf-label" for="brand">Brand</label>
+                            <input type="text" id="brand" name="brand" value="{{ old('brand', $book->brand ?? '') }}" class="input" placeholder="Brand name" x-ref="brand" :disabled="noBrand">
+                            <label class="mt-1.5 inline-flex items-center gap-2 text-sm" style="color:#57534E;">
+                                <input type="checkbox" x-model="noBrand" @change="if(noBrand) $refs.brand.value=''" style="accent-color:#fa4e1c;"> No brand
                             </label>
                         </div>
 
                         <div class="sm:col-span-2">
-                            <label class="text-xs font-semibold" style="color:#6b90aa;">Description</label>
-                            <textarea name="description" rows="4" class="input mt-1" maxlength="5000"
-                                      placeholder="Describe your product — features, materials, condition…">{{ old('description', $book->description ?? '') }}</textarea>
+                            <label class="pf-label" for="description">Description</label>
+                            <textarea id="description" name="description" rows="5" class="input" maxlength="5000"
+                                      placeholder="Features, materials, size, condition…">{{ old('description', $book->description ?? '') }}</textarea>
                         </div>
                     </div>
                 </section>
 
                 {{-- ════════ PRICING & INVENTORY ════════ --}}
-                <section class="card p-6 space-y-5">
-                    <h2 class="font-display text-lg font-semibold" style="color:#002b4d;">Pricing &amp; Inventory</h2>
-                    <div class="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+                <section class="pf-section">
+                    <h2 class="mb-4">Price and stock</h2>
+                    <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                         <div>
-                            <label class="text-xs font-semibold" style="color:#6b90aa;">Price (₱) *</label>
-                            <input type="number" step="0.01" min="0" name="price" x-model="price" class="input mt-1" placeholder="0.00">
+                            <label class="pf-label" for="price">Price (₱)</label>
+                            <input type="number" id="price" step="0.01" min="0" name="price" x-model="price" class="input" placeholder="0.00">
                         </div>
                         <div>
-                            <label class="text-xs font-semibold" style="color:#6b90aa;">Sale Price (₱)</label>
-                            <input type="number" step="0.01" min="0" name="sale_price" x-model="salePrice" class="input mt-1" placeholder="optional">
-                            <p class="mt-1 text-[11px]" x-show="saleError" style="color:#d93d0e;">Sale price must be ≤ original price.</p>
+                            <label class="pf-label" for="sale_price">Sale price (₱) <span class="opt">— optional</span></label>
+                            <input type="number" id="sale_price" step="0.01" min="0" name="sale_price" x-model="salePrice" class="input" placeholder="—">
+                            <p class="pf-note" x-show="saleError" style="color:#B91C1C;">Must be less than or equal to the price.</p>
                         </div>
                         <div>
-                            <label class="text-xs font-semibold" style="color:#6b90aa;">Stock *</label>
-                            <input type="number" min="0" name="stock" x-model="stock" class="input mt-1" placeholder="0" :disabled="variations.length > 0">
-                            <p class="mt-1 text-[11px]" style="color:#6b90aa;" x-show="variations.length > 0">Auto-summed from variations (<span x-text="totalVarStock"></span>).</p>
+                            <label class="pf-label" for="stock">Stock</label>
+                            <input type="number" id="stock" min="0" name="stock" x-model="stock" class="input" placeholder="0" :disabled="variations.length > 0">
+                            <p class="pf-note" x-show="variations.length > 0">Total of variations: <span x-text="totalVarStock"></span></p>
                         </div>
                         <div>
-                            <label class="text-xs font-semibold" style="color:#6b90aa;">SKU <span style="font-weight:400;">(optional)</span></label>
-                            <input type="text" name="sku" value="{{ old('sku', $book->sku ?? '') }}" class="input mt-1" placeholder="Auto ID if blank">
-                            <p class="mt-1 text-[11px]" style="color:#6b90aa;">Leave blank to auto-generate a Product ID.</p>
+                            <label class="pf-label" for="sku">SKU <span class="opt">— optional</span></label>
+                            <input type="text" id="sku" name="sku" value="{{ old('sku', $book->sku ?? '') }}" class="input" placeholder="Your own code">
                         </div>
                     </div>
-                    <div class="grid gap-5 sm:grid-cols-2">
+                    <div class="mt-4 grid gap-4 sm:grid-cols-2">
                         <div>
-                            <label class="text-xs font-semibold" style="color:#6b90aa;">Discount % <span style="font-weight:400;">(optional)</span></label>
-                            <input type="number" step="0.01" min="0" max="99" name="discount_percent" value="{{ old('discount_percent', $book->discount_percent ?? '') }}" class="input mt-1" placeholder="e.g. 10">
+                            <label class="pf-label" for="discount_percent">Discount % <span class="opt">— optional</span></label>
+                            <input type="number" id="discount_percent" step="0.01" min="0" max="99" name="discount_percent" value="{{ old('discount_percent', $book->discount_percent ?? '') }}" class="input" placeholder="e.g. 10">
                         </div>
                         <div>
-                            <label class="text-xs font-semibold" style="color:#6b90aa;">Voucher Code <span style="font-weight:400;">(optional)</span></label>
-                            <input type="text" name="voucher_code" maxlength="50" value="{{ old('voucher_code', $book->voucher_code ?? '') }}" class="input mt-1" placeholder="e.g. SAVE20">
+                            <label class="pf-label" for="voucher_code">Voucher code <span class="opt">— optional</span></label>
+                            <input type="text" id="voucher_code" name="voucher_code" maxlength="50" value="{{ old('voucher_code', $book->voucher_code ?? '') }}" class="input" placeholder="e.g. SAVE20">
                         </div>
                     </div>
                 </section>
 
                 {{-- ════════ VARIATIONS ════════ --}}
-                <section class="card p-6 space-y-4">
-                    <div class="flex items-center justify-between">
+                <section class="pf-section">
+                    <div class="flex flex-wrap items-start justify-between gap-3">
                         <div>
-                            <h2 class="font-display text-lg font-semibold" style="color:#002b4d;">Variations</h2>
-                            <p class="mt-1 text-sm" style="color:#6b90aa;">Add options like color or size, each with its own stock &amp; price. Leave empty for a single-stock product.</p>
+                            <h2>Variations</h2>
+                            <p class="pf-hint mt-1">Options like colour or size, each with its own price and stock. Skip this for a single product.</p>
                         </div>
-                        <button type="button" @click="addVariation()" class="rounded-lg px-3 py-2 text-sm font-semibold text-white" style="background:#fa4e1c;">+ Add</button>
+                        <button type="button" @click="addVariation()" class="rounded-md border px-3 py-1.5 text-sm font-medium transition hover:bg-stone-50" style="border-color:#E7E5E4;color:#44403C;">Add variation</button>
                     </div>
 
                     <template x-if="variations.length > 0">
-                        <div class="space-y-3">
+                        <div class="mt-4 overflow-hidden rounded-md border" style="border-color:#ECE7E3;">
+                            <div class="hidden grid-cols-12 gap-2 px-3 py-2 text-xs font-medium sm:grid" style="background:#FAFAF9;color:#78716C;">
+                                <span class="col-span-4">Option</span><span class="col-span-3">Price (₱)</span><span class="col-span-2">Stock</span><span class="col-span-2">SKU</span><span class="col-span-1"></span>
+                            </div>
                             <template x-for="(v, i) in variations" :key="i">
-                                <div class="grid grid-cols-12 items-end gap-2 rounded-xl border p-3" style="border-color:#cfdce8;">
-                                    <div class="col-span-12 sm:col-span-4">
-                                        <label class="text-[11px] font-semibold" style="color:#6b90aa;">Variation (e.g. Black / S)</label>
-                                        <input type="text" :name="`variations[${i}][name]`" x-model="v.name" class="input mt-1" placeholder="Black / S">
-                                    </div>
-                                    <div class="col-span-4 sm:col-span-3">
-                                        <label class="text-[11px] font-semibold" style="color:#6b90aa;">Price (₱)</label>
-                                        <input type="number" step="0.01" min="0" :name="`variations[${i}][price]`" x-model="v.price" class="input mt-1" placeholder="base">
-                                    </div>
-                                    <div class="col-span-4 sm:col-span-2">
-                                        <label class="text-[11px] font-semibold" style="color:#6b90aa;">Stock</label>
-                                        <input type="number" min="0" :name="`variations[${i}][stock]`" x-model="v.stock" class="input mt-1" placeholder="0">
-                                    </div>
-                                    <div class="col-span-3 sm:col-span-2">
-                                        <label class="text-[11px] font-semibold" style="color:#6b90aa;">SKU</label>
-                                        <input type="text" :name="`variations[${i}][sku]`" x-model="v.sku" class="input mt-1" placeholder="opt.">
-                                    </div>
-                                    <div class="col-span-1 flex justify-center">
-                                        <button type="button" @click="removeVariation(i)" class="mb-1 flex h-9 w-9 items-center justify-center rounded-lg" style="background:#fff1ee;color:#d93d0e;">&times;</button>
-                                    </div>
+                                <div class="grid grid-cols-12 items-center gap-2 border-t px-3 py-2" style="border-color:#F2EEEA;">
+                                    <input type="text" :name="`variations[${i}][name]`" x-model="v.name" class="input col-span-12 sm:col-span-4" placeholder="e.g. Black / S" aria-label="Option">
+                                    <input type="number" step="0.01" min="0" :name="`variations[${i}][price]`" x-model="v.price" class="input col-span-4 sm:col-span-3" placeholder="Same as base" aria-label="Price">
+                                    <input type="number" min="0" :name="`variations[${i}][stock]`" x-model="v.stock" class="input col-span-4 sm:col-span-2" placeholder="0" aria-label="Stock">
+                                    <input type="text" :name="`variations[${i}][sku]`" x-model="v.sku" class="input col-span-3 sm:col-span-2" placeholder="—" aria-label="SKU">
+                                    <button type="button" @click="removeVariation(i)" class="col-span-1 justify-self-center text-sm hover:underline" style="color:#B91C1C;" aria-label="Remove variation">Remove</button>
                                 </div>
                             </template>
                         </div>
@@ -221,16 +222,14 @@
                 </section>
 
                 {{-- ════════ SPECIFICATIONS ════════ --}}
-                <section class="card p-6 space-y-4" x-show="specFields.length > 0" x-cloak>
-                    <div>
-                        <h2 class="font-display text-lg font-semibold" style="color:#002b4d;">Specifications</h2>
-                        <p class="mt-1 text-sm" style="color:#6b90aa;">Category-specific details buyers look for.</p>
-                    </div>
+                <section class="pf-section" x-show="specFields.length > 0" x-cloak>
+                    <h2>Specifications</h2>
+                    <p class="pf-hint mt-1 mb-4">Details buyers look for in this category.</p>
                     <div class="grid gap-4 sm:grid-cols-2">
                         <template x-for="field in specFields" :key="field">
                             <div>
-                                <label class="text-xs font-semibold" style="color:#6b90aa;" x-text="field"></label>
-                                <input type="text" :name="`specs[${field}]`" class="input mt-1"
+                                <label class="pf-label" x-text="field"></label>
+                                <input type="text" :name="`specs[${field}]`" class="input"
                                        :value="specValues[field] ?? ''" @input="specValues[field] = $event.target.value">
                             </div>
                         </template>
@@ -238,29 +237,29 @@
                 </section>
 
                 {{-- ════════ SHIPPING ════════ --}}
-                <section class="card p-6 space-y-5">
-                    <h2 class="font-display text-lg font-semibold" style="color:#002b4d;">Shipping</h2>
-                    <div class="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+                <section class="pf-section">
+                    <h2 class="mb-4">Shipping</h2>
+                    <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                         <div>
-                            <label class="text-xs font-semibold" style="color:#6b90aa;">Weight (kg)</label>
-                            <input type="number" step="0.01" min="0" name="weight_kg" value="{{ old('weight_kg', $book->weight_kg ?? '') }}" class="input mt-1" placeholder="0.00">
+                            <label class="pf-label" for="weight_kg">Weight (kg)</label>
+                            <input type="number" id="weight_kg" step="0.01" min="0" name="weight_kg" value="{{ old('weight_kg', $book->weight_kg ?? '') }}" class="input" placeholder="0.00">
                         </div>
                         <div>
-                            <label class="text-xs font-semibold" style="color:#6b90aa;">Length (cm)</label>
-                            <input type="number" step="0.01" min="0" name="length_cm" value="{{ old('length_cm', $book->length_cm ?? '') }}" class="input mt-1" placeholder="0">
+                            <label class="pf-label" for="length_cm">Length (cm)</label>
+                            <input type="number" id="length_cm" step="0.01" min="0" name="length_cm" value="{{ old('length_cm', $book->length_cm ?? '') }}" class="input" placeholder="0">
                         </div>
                         <div>
-                            <label class="text-xs font-semibold" style="color:#6b90aa;">Width (cm)</label>
-                            <input type="number" step="0.01" min="0" name="width_cm" value="{{ old('width_cm', $book->width_cm ?? '') }}" class="input mt-1" placeholder="0">
+                            <label class="pf-label" for="width_cm">Width (cm)</label>
+                            <input type="number" id="width_cm" step="0.01" min="0" name="width_cm" value="{{ old('width_cm', $book->width_cm ?? '') }}" class="input" placeholder="0">
                         </div>
                         <div>
-                            <label class="text-xs font-semibold" style="color:#6b90aa;">Height (cm)</label>
-                            <input type="number" step="0.01" min="0" name="height_cm" value="{{ old('height_cm', $book->height_cm ?? '') }}" class="input mt-1" placeholder="0">
+                            <label class="pf-label" for="height_cm">Height (cm)</label>
+                            <input type="number" id="height_cm" step="0.01" min="0" name="height_cm" value="{{ old('height_cm', $book->height_cm ?? '') }}" class="input" placeholder="0">
                         </div>
                     </div>
-                    <div>
-                        <label class="text-xs font-semibold" style="color:#6b90aa;">Pickup Address</label>
-                        <select name="address_id" class="input mt-1">
+                    <div class="mt-4">
+                        <label class="pf-label" for="address_id">Pickup address</label>
+                        <select id="address_id" name="address_id" class="input">
                             <option value="">Select a saved address</option>
                             @foreach ($addresses as $addr)
                                 <option value="{{ $addr->id }}" {{ (string) old('address_id', $book->address_id ?? '') === (string) $addr->id ? 'selected' : '' }}>
@@ -269,222 +268,249 @@
                             @endforeach
                         </select>
                         @if ($addresses->isEmpty())
-                            <p class="mt-1 text-[11px]" style="color:#6b90aa;">No saved addresses yet. Add one in your account settings.</p>
+                            <p class="pf-note">No saved addresses yet. Add one in your account settings.</p>
                         @endif
                     </div>
                 </section>
             </div>
 
-            {{-- ════════ SIDEBAR: STATUS + ACTIONS ════════ --}}
-            <div class="space-y-6">
-                <section class="card p-6 space-y-4 lg:sticky lg:top-6">
-                    <h2 class="font-display text-lg font-semibold" style="color:#002b4d;">Publish</h2>
+            {{-- ════════ SIDE: STATUS + ACTIONS ════════ --}}
+            <aside>
+                <section class="pf-section lg:sticky lg:top-6">
+                    <label class="pf-label" for="status">Status</label>
+                    <select id="status" name="status" class="input" x-model="status">
+                        <option value="active">Active</option>
+                        <option value="inactive">Inactive</option>
+                        <option value="out_of_stock">Out of stock</option>
+                        <option value="draft">Draft</option>
+                    </select>
+                    <p class="pf-note">Only active products are shown to buyers.</p>
 
-                    <div>
-                        <label class="text-xs font-semibold" style="color:#6b90aa;">Status</label>
-                        <select name="status" class="input mt-1" x-model="status">
-                            <option value="active">Active</option>
-                            <option value="inactive">Inactive</option>
-                            <option value="out_of_stock">Out of Stock</option>
-                            <option value="draft">Draft</option>
-                        </select>
-                    </div>
-
-                    <div class="space-y-2 pt-2">
-                        <button type="submit" @click="action='publish'"
-                                class="w-full rounded-xl py-3 text-sm font-semibold text-white transition hover:opacity-90" style="background:#002b4d;">
-                            {{ $isEdit ? 'Save Changes' : 'Publish Product' }}
+                    <div class="mt-5 space-y-2">
+                        <button type="submit" @click="action='publish'" class="btn-solid">
+                            {{ $isEdit ? 'Save changes' : 'Publish product' }}
                         </button>
-                        <button type="button" @click="openPreview()"
-                                class="w-full rounded-xl border py-3 text-sm font-semibold transition"
-                                style="border-color:#fa4e1c;color:#fa4e1c;">Preview</button>
-                        <button type="submit" @click="action='draft'"
-                                class="w-full rounded-xl border py-3 text-sm font-semibold transition"
-                                style="border-color:#cfdce8;color:#6b90aa;">Save as Draft</button>
+                        <button type="submit" @click="action='draft'" class="btn-line">Save as draft</button>
+                        <button type="button" @click="openPreview()" class="w-full py-1.5 text-sm font-medium hover:underline" style="color:#57534E;">Preview</button>
                     </div>
-                    <p class="text-[11px]" style="color:#6b90aa;">A unique Product ID (ALVY-000000) is generated automatically on publish.</p>
                 </section>
-            </div>
+            </aside>
         </div>
     </form>
 
     {{-- ════════ PREVIEW MODAL ════════ --}}
-    <div x-show="preview" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4" style="background:rgba(0,43,77,.55);" @click.self="preview=false">
-        <div class="w-full max-w-3xl overflow-hidden rounded-2xl bg-white shadow-xl">
-            <div class="flex items-center justify-between border-b px-5 py-3" style="border-color:#cfdce8;">
-                <h3 class="font-display font-semibold" style="color:#002b4d;">Product Preview</h3>
-                <button type="button" @click="preview=false" class="text-2xl leading-none" style="color:#6b90aa;">&times;</button>
+    <div x-show="preview" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4" style="background:rgba(28,25,23,.5);" @click.self="preview=false" @keydown.escape.window="preview=false">
+        <div class="w-full max-w-3xl overflow-hidden rounded-xl bg-white shadow-xl">
+            <div class="flex items-center justify-between border-b px-5 py-3" style="border-color:#ECE7E3;">
+                <h3 class="font-semibold" style="color:#222;">Preview</h3>
+                <button type="button" @click="preview=false" class="text-2xl leading-none" style="color:#8a7f78;" aria-label="Close">&times;</button>
             </div>
             <div class="grid gap-6 p-6 sm:grid-cols-2">
-                <div>
-                    <div class="aspect-square overflow-hidden rounded-xl border" style="border-color:#cfdce8;">
-                        <img :src="previewImage" x-show="previewImage" class="h-full w-full object-cover">
-                        <div x-show="!previewImage" class="flex h-full items-center justify-center text-sm" style="color:#6b90aa;">No image</div>
-                    </div>
+                <div class="aspect-square overflow-hidden rounded-lg border" style="border-color:#ECE7E3;">
+                    <img :src="previewImage" x-show="previewImage" class="h-full w-full object-cover" alt="">
+                    <div x-show="!previewImage" class="flex h-full items-center justify-center text-sm" style="color:#8a7f78;">No photo</div>
                 </div>
                 <div class="space-y-3">
-                    <p class="text-xs font-semibold uppercase" style="color:#fa4e1c;" x-text="categoryName || 'Category'"></p>
-                    <h4 class="font-display text-xl font-bold" style="color:#002b4d;" x-text="title || 'Product name'"></h4>
-                    <div class="flex items-center gap-2">
+                    <p class="text-sm" style="color:#8a7f78;" x-text="categoryName || 'Category'"></p>
+                    <h4 class="font-display text-xl font-bold" style="color:#222;" x-text="title || 'Product name'"></h4>
+                    <div class="flex items-baseline gap-2">
                         <span class="text-2xl font-bold" style="color:#fa4e1c;" x-text="'₱' + displayPrice"></span>
-                        <span x-show="salePrice && Number(salePrice) < Number(price)" class="text-sm line-through" style="color:#6b90aa;" x-text="'₱' + Number(price).toFixed(2)"></span>
+                        <span x-show="salePrice && Number(salePrice) < Number(price)" class="text-sm line-through" style="color:#8a7f78;" x-text="'₱' + Number(price).toFixed(2)"></span>
                     </div>
-                    <p class="text-sm" style="color:#6b90aa;" x-text="brandLabel"></p>
-                    <p class="text-sm" style="color:#374151;" x-text="description || 'No description yet.'"></p>
-                    <p class="text-xs" style="color:#6b90aa;">Stock: <span x-text="variations.length ? totalVarStock : (stock || 0)"></span></p>
+                    <p class="text-sm" style="color:#57534E;" x-text="brandLabel"></p>
+                    <p class="whitespace-pre-line text-sm" style="color:#44403C;" x-text="description || 'No description yet.'"></p>
+                    <p class="text-sm" style="color:#8a7f78;">Stock: <span x-text="variations.length ? totalVarStock : (stock || 0)"></span></p>
                 </div>
             </div>
         </div>
     </div>
 </div>
 
-<style>[x-cloak]{display:none!important;}</style>
 <script src="//unpkg.com/alpinejs" defer></script>
 <script>
-    // Reorder existing images (native drag) + keep hidden image_order inputs & MAIN badge in sync.
-    function initReorder() {
-        const grid = document.getElementById('existing-images');
-        if (!grid) return;
-        let dragEl = null;
-        grid.querySelectorAll('.ex-img').forEach(el => {
-            el.setAttribute('draggable', 'true');
-            el.addEventListener('dragstart', () => { dragEl = el; el.style.opacity = '.4'; });
-            el.addEventListener('dragend',   () => { el.style.opacity = '1'; syncMain(); });
-            el.addEventListener('dragover', e => {
-                e.preventDefault();
-                const after = [...grid.querySelectorAll('.ex-img:not([style*="opacity: 0.4"])')]
-                    .find(c => e.clientY <= c.getBoundingClientRect().top + c.offsetHeight / 2
-                            && e.clientX <= c.getBoundingClientRect().left + c.offsetWidth / 2);
-                if (dragEl && dragEl !== el) grid.insertBefore(dragEl, after || null);
-            });
-        });
-        syncMain();
+// ── Photos: existing (reorder/remove) + new uploads, max {{ $maxPhotos }} in total ──────────
+(function () {
+    const MAX     = {{ $maxPhotos }};
+    const MAX_MB  = 5;
+    const TYPES   = ['image/jpeg', 'image/png', 'image/webp'];
+    const grid    = document.getElementById('photo-grid');
+    const addTile = document.getElementById('photo-add');
+    const picker  = document.getElementById('photo-picker');
+    const field   = document.getElementById('photo-files');   // the input that is actually submitted
+    const counter = document.getElementById('photo-count');
+    const errorEl = document.getElementById('photo-error');
+    let newFiles  = [];
+
+    const existingTiles = () => [...grid.querySelectorAll('.ex-img')];
+
+    function showError(msg) {
+        errorEl.textContent = msg || '';
+        errorEl.classList.toggle('hidden', !msg);
     }
-    function syncMain() {
-        const grid = document.getElementById('existing-images');
-        if (!grid) return;
-        const items = [...grid.querySelectorAll('.ex-img')];
-        items.forEach((el, idx) => {
-            const badge = el.querySelector('.main-badge');
-            if (badge) badge.classList.toggle('hidden', idx !== 0);
-            const hidden = el.querySelector('input[name="image_order[]"]');
-            if (hidden) el.appendChild(hidden); // keep DOM order == input order
-        });
+
+    function syncField() {
+        const dt = new DataTransfer();
+        newFiles.forEach(f => dt.items.add(f.file));
+        field.files = dt.files;
     }
-    function removeExisting(btn, id) {
-        const card = btn.closest('.ex-img');
-        const cont = document.getElementById('removed-container');
-        const inp  = document.createElement('input');
+
+    function refresh() {
+        const tiles = [...grid.querySelectorAll('.photo-tile')];
+        tiles.forEach((t, i) => t.querySelector('.cover-tag')?.classList.toggle('hidden', i !== 0));
+        // Keep hidden order inputs in DOM order.
+        existingTiles().forEach(t => { const h = t.querySelector('input[name="image_order[]"]'); if (h) t.appendChild(h); });
+        const total = tiles.length;
+        counter.textContent = total;
+        addTile.classList.toggle('hidden', total >= MAX);
+        const first = tiles[0]?.querySelector('img')?.src || '';
+        window.dispatchEvent(new CustomEvent('main-photo', { detail: first }));
+    }
+
+    function newTile(entry) {
+        const d = document.createElement('div');
+        d.className = 'photo-tile new-img';
+        d.innerHTML = `<img src="${entry.url}" alt=""><span class="cover-tag hidden">Cover</span>` +
+                      `<button type="button" class="remove-btn" aria-label="Remove photo">&times;</button>`;
+        d.querySelector('.remove-btn').addEventListener('click', () => {
+            URL.revokeObjectURL(entry.url);
+            newFiles = newFiles.filter(f => f !== entry);
+            d.remove();
+            syncField();
+            showError('');
+            refresh();
+        });
+        grid.insertBefore(d, addTile);
+    }
+
+    picker.addEventListener('change', () => {
+        const room = MAX - grid.querySelectorAll('.photo-tile').length;
+        const chosen = [...picker.files];
+        const problems = [];
+        let added = 0;
+
+        chosen.forEach(file => {
+            if (!TYPES.includes(file.type))          { problems.push(`${file.name} isn't a JPG, PNG or WebP image`); return; }
+            if (file.size > MAX_MB * 1024 * 1024)    { problems.push(`${file.name} is larger than ${MAX_MB} MB`); return; }
+            if (added >= room)                       { return; }
+            const entry = { file, url: URL.createObjectURL(file) };
+            newFiles.push(entry);
+            newTile(entry);
+            added++;
+        });
+
+        const skipped = chosen.length - added - problems.length;
+        if (skipped > 0) problems.push(`Only ${MAX} photos are allowed — ${skipped} ${skipped === 1 ? 'photo was' : 'photos were'} not added`);
+
+        picker.value = '';
+        syncField();
+        showError(problems.join('. ') + (problems.length ? '.' : ''));
+        refresh();
+    });
+
+    // Drag to reorder saved photos.
+    let dragEl = null;
+    existingTiles().forEach(el => {
+        el.setAttribute('draggable', 'true');
+        el.addEventListener('dragstart', () => { dragEl = el; el.style.opacity = '.4'; });
+        el.addEventListener('dragend',   () => { el.style.opacity = '1'; dragEl = null; refresh(); });
+        el.addEventListener('dragover', e => {
+            e.preventDefault();
+            if (!dragEl || dragEl === el) return;
+            const r = el.getBoundingClientRect();
+            const before = (e.clientX - r.left) < r.width / 2;
+            grid.insertBefore(dragEl, before ? el : el.nextSibling);
+        });
+    });
+
+    window.removeExisting = function (btn, id) {
+        const inp = document.createElement('input');
         inp.type = 'hidden'; inp.name = 'removed_images[]'; inp.value = id;
-        cont.appendChild(inp);
-        card.remove();
-        syncMain();
-    }
-    document.addEventListener('DOMContentLoaded', initReorder);
+        document.getElementById('removed-container').appendChild(inp);
+        btn.closest('.ex-img').remove();
+        showError('');
+        refresh();
+    };
 
-    function productForm() {
-        const subMap     = @json($subcategoryMap);
-        const specSchema = @json($specSchemas);
-        return {
-            action: 'publish',
-            preview: false,
-            categoryId: @json((string) $selectedCat),
-            categoryName: @json($selectedName ?? ''),
-            subcategory: @json($currentSub),
-            subs: [],
-            noBrand: @json(old('brand', $book->brand ?? null) === 'No Brand'),
-            price: @json((string) old('price', $book->price ?? '')),
-            salePrice: @json((string) old('sale_price', $book->sale_price ?? '')),
-            stock: @json((string) old('stock', $book->stock ?? '')),
-            status: @json($currentStatus),
-            variations: @json(array_values($existingVars ?: [])),
-            specFields: [],
-            specValues: @json((object) $currentSpecs),
-            previewImage: @json($isEdit && $book->image ? asset('storage/'.$book->image) : ''),
-            title: @json(old('title', $book->title ?? '')),
-            brand: @json(old('brand', $book->brand ?? '')),
-            description: @json(old('description', $book->description ?? '')),
+    document.addEventListener('DOMContentLoaded', refresh);
+    document.addEventListener('alpine:initialized', refresh);
+})();
 
-            init() {
-                this.refreshCategory();
-                // Keep preview/title/brand/description live from inputs.
-                const form = document.getElementById('product-form');
-                form.querySelector('[name=title]').addEventListener('input', e => this.title = e.target.value);
-                form.querySelector('[name=description]').addEventListener('input', e => this.description = e.target.value);
-                form.querySelector('[name=brand]').addEventListener('input', e => this.brand = e.target.value);
-            },
-            get totalVarStock() {
-                return this.variations.reduce((s, v) => s + (parseInt(v.stock) || 0), 0);
-            },
-            get saleError() {
-                return this.salePrice !== '' && this.price !== '' && Number(this.salePrice) > Number(this.price);
-            },
-            get displayPrice() {
-                const p = Number(this.price) || 0;
-                const s = Number(this.salePrice) || 0;
-                return (s > 0 && s < p ? s : p).toFixed(2);
-            },
-            get brandLabel() {
-                return this.noBrand ? 'No Brand' : (this.brand || '');
-            },
-            refreshCategory() {
-                const sel = document.querySelector('[name=category_id]');
-                const opt = sel.options[sel.selectedIndex];
-                this.categoryName = opt ? (opt.dataset.name || '') : '';
-                this.subs = subMap[this.categoryName] || [];
-                this.specFields = this.resolveSpecFields(this.categoryName);
-            },
-            onCategoryChange() {
-                this.subcategory = '';
-                this.refreshCategory();
-            },
-            resolveSpecFields(name) {
-                if (!name) return [];
-                const lower = name.toLowerCase();
-                for (const key in specSchema) {
-                    if (lower.includes(key)) return specSchema[key];
-                }
-                return [];
-            },
-            addVariation() {
-                this.variations.push({ name: '', price: '', stock: '', sku: '' });
-                this.status = this.status; // no-op keep reactive
-                this.$nextTick(() => { this.stock = String(this.totalVarStock); });
-            },
-            removeVariation(i) {
-                this.variations.splice(i, 1);
-                this.stock = this.variations.length ? String(this.totalVarStock) : this.stock;
-            },
-            previewNew(e) {
-                const wrap = document.getElementById('new-previews');
-                wrap.innerHTML = '';
-                [...e.target.files].forEach((file, idx) => {
-                    const reader = new FileReader();
-                    reader.onload = ev => {
-                        const d = document.createElement('div');
-                        d.className = 'relative aspect-square overflow-hidden rounded-xl border';
-                        d.style.borderColor = '#cfdce8';
-                        d.innerHTML = `<img src="${ev.target.result}" class="h-full w-full object-cover">` +
-                            (idx === 0 && !this.hasExisting() ? '<span class="absolute bottom-1 left-1 rounded px-1 py-0.5 text-[9px] font-bold text-white" style="background:#fa4e1c;">MAIN</span>' : '');
-                        wrap.appendChild(d);
-                    };
-                    reader.readAsDataURL(file);
-                    if (idx === 0 && !this.hasExisting()) {
-                        const r2 = new FileReader();
-                        r2.onload = ev => this.previewImage = ev.target.result;
-                        r2.readAsDataURL(file);
-                    }
-                });
-            },
-            hasExisting() {
-                const g = document.getElementById('existing-images');
-                return g && g.querySelectorAll('.ex-img').length > 0;
-            },
-            openPreview() {
-                if (this.variations.length) this.stock = String(this.totalVarStock);
-                this.preview = true;
-            },
-        };
-    }
+function productForm() {
+    const subMap     = @json($subcategoryMap);
+    const specSchema = @json($specSchemas);
+    return {
+        action: 'publish',
+        preview: false,
+        categoryId: @json((string) $selectedCat),
+        categoryName: @json($selectedName ?? ''),
+        subcategory: @json($currentSub),
+        subs: [],
+        noBrand: @json(old('brand', $book->brand ?? null) === 'No Brand'),
+        price: @json((string) old('price', $book->price ?? '')),
+        salePrice: @json((string) old('sale_price', $book->sale_price ?? '')),
+        stock: @json((string) old('stock', $book->stock ?? '')),
+        status: @json($currentStatus),
+        variations: @json(array_values($existingVars ?: [])),
+        specFields: [],
+        specValues: @json((object) $currentSpecs),
+        previewImage: @json($isEdit && $book->image ? asset('storage/'.$book->image) : ''),
+        title: @json(old('title', $book->title ?? '')),
+        brand: @json(old('brand', $book->brand ?? '')),
+        description: @json(old('description', $book->description ?? '')),
+
+        init() {
+            this.refreshCategory();
+            const form = document.getElementById('product-form');
+            form.querySelector('[name=title]').addEventListener('input', e => this.title = e.target.value);
+            form.querySelector('[name=description]').addEventListener('input', e => this.description = e.target.value);
+            form.querySelector('[name=brand]').addEventListener('input', e => this.brand = e.target.value);
+        },
+        get totalVarStock() {
+            return this.variations.reduce((s, v) => s + (parseInt(v.stock) || 0), 0);
+        },
+        get saleError() {
+            return this.salePrice !== '' && this.price !== '' && Number(this.salePrice) > Number(this.price);
+        },
+        get displayPrice() {
+            const p = Number(this.price) || 0;
+            const s = Number(this.salePrice) || 0;
+            return (s > 0 && s < p ? s : p).toFixed(2);
+        },
+        get brandLabel() {
+            return this.noBrand ? 'No Brand' : (this.brand || '');
+        },
+        refreshCategory() {
+            const sel = document.querySelector('[name=category_id]');
+            const opt = sel.options[sel.selectedIndex];
+            this.categoryName = opt ? (opt.dataset.name || '') : '';
+            this.subs = subMap[this.categoryName] || [];
+            this.specFields = this.resolveSpecFields(this.categoryName);
+        },
+        onCategoryChange() {
+            this.subcategory = '';
+            this.refreshCategory();
+        },
+        resolveSpecFields(name) {
+            if (!name) return [];
+            const lower = name.toLowerCase();
+            for (const key in specSchema) {
+                if (lower.includes(key)) return specSchema[key];
+            }
+            return [];
+        },
+        addVariation() {
+            this.variations.push({ name: '', price: '', stock: '', sku: '' });
+            this.$nextTick(() => { this.stock = String(this.totalVarStock); });
+        },
+        removeVariation(i) {
+            this.variations.splice(i, 1);
+            this.stock = this.variations.length ? String(this.totalVarStock) : this.stock;
+        },
+        openPreview() {
+            if (this.variations.length) this.stock = String(this.totalVarStock);
+            this.preview = true;
+        },
+    };
+}
 </script>
 </x-seller-layout>

@@ -38,7 +38,7 @@
 <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px;">
     <div class="tab-bar">
         @foreach(['all'=>'All','pickup_approved'=>'Received','picked_up'=>'Logged','picked_up'=>'For Sorting','sorted'=>'Sorted'] as $val=>$lbl)
-            <a href="{{ route('admin.parcels.index',['tab'=>$val]) }}"
+            <a href="{{ route('admin.logistics.parcels.index',['tab'=>$val]) }}"
                class="tab {{ $tab===$val ? 'active' : '' }}">{{ $lbl }}</a>
         @endforeach
     </div>
@@ -78,7 +78,7 @@
                 };
             @endphp
             <tr>
-                <td><a href="{{ route('admin.parcels.show',$parcel) }}" class="tracking-no">{{ $parcel->tracking_number }}</a></td>
+                <td><a href="{{ route('admin.logistics.parcels.show',$parcel) }}" class="tracking-no">{{ $parcel->tracking_number }}</a></td>
                 <td style="font-weight:500;">{{ $parcel->seller->name ?? '—' }}</td>
                 <td>{{ $parcel->receiver_name }}</td>
                 <td class="text-secondary">{{ $parcel->weight_kg ? $parcel->weight_kg.' kg' : '—' }}</td>
@@ -92,11 +92,11 @@
                 <td><span class="badge {{ $badgeClass }}">{{ $badgeLabel }}</span></td>
                 <td>
                     @if($parcel->status === 'pickup_approved')
-                        <form method="POST" action="{{ route('admin.parcels.mark-picked-up',$parcel) }}">@csrf
+                        <form method="POST" action="{{ route('admin.logistics.parcels.mark-picked-up',$parcel) }}">@csrf
                             <button class="btn btn--blue btn--sm">Advance →</button>
                         </form>
                     @elseif($parcel->status === 'picked_up')
-                        <a href="{{ route('admin.parcels.sorting') }}" class="btn btn--amber btn--sm">Sort →</a>
+                        <a href="{{ route('admin.logistics.parcels.sorting') }}" class="btn btn--amber btn--sm">Sort →</a>
                     @elseif($parcel->status === 'sorted')
                         <span class="text-muted" style="font-size:12px;">Done</span>
                     @else
