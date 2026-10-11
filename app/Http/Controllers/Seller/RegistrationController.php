@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\SellerApplication;
 use App\Models\User;
 use App\Services\LoginOtp;
+use App\Support\GoogleSignup;
 use App\Support\SellerApplicationRules;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -25,16 +26,13 @@ class RegistrationController extends Controller
             return redirect()->route(auth()->user()->isBuyer() ? 'seller.apply' : 'home');
         }
 
-        return response()
-            ->view('seller.register', [
-                'categories'  => SellerApplicationRules::categories(),
-                'sellerTypes' => SellerApplication::SELLER_TYPES,
-            ])
-            ->header('Cache-Control', 'no-cache, no-store, max-age=0, must-revalidate');
+        // Seller sign-up now lives on the main registration form.
+        return redirect()->route('register', ['role' => 'seller']);
     }
 
     public function store(Request $request)
     {
+        GoogleSignup::lockEmail($request);
         SellerApplicationRules::normalize($request);
         $email = (string) $request->input('email');
 
@@ -77,6 +75,11 @@ class RegistrationController extends Controller
 
                 return $user;
             });
+
+            // Google sign-up: the email is already verified, so no code is needed.
+            if ($done = GoogleSignup::finish($request, $user)) {
+                return $done;
+            }
 
             try {
                 app(LoginOtp::class)->send($user);

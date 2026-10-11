@@ -29,7 +29,7 @@
                 <td>{{ $rider->vehicle_type ?? '—' }}</td>
                 <td><span class="badge badge--{{ $rider->application_status === 'approved' ? 'approved' : ($rider->application_status === 'rejected' ? 'rejected' : 'pending') }}">{{ ucfirst($rider->application_status) }}</span></td>
                 <td><span class="badge badge--{{ $rider->is_active ? 'active' : 'inactive' }}">{{ $rider->is_active ? 'Active' : 'Inactive' }}</span></td>
-                <td><a href="{{ route('logistics.riders.show', $rider) }}" class="btn btn--sm">View</a></td>
+                <td><a href="{{ route('admin.logistics.riders.show', $rider) }}" class="btn btn--sm">View</a></td>
             </tr>
             @endforeach
         </tbody>

@@ -36,7 +36,7 @@
                 <td><span class="badge badge--{{ in_array($d->status,['delivered']) ? 'approved' : (in_array($d->status,['failed','returned']) ? 'rejected' : 'pending') }}">{{ ucfirst(str_replace('_',' ',$d->status)) }}</span></td>
                 <td class="text-muted">{{ $d->delivered_at?->format('M d, Y H:i') ?? '—' }}</td>
                 <td>
-                    <form method="POST" action="{{ route('logistics.deliveries.update-status', $d) }}" style="display:flex;gap:6px;">
+                    <form method="POST" action="{{ route('admin.logistics.deliveries.update-status', $d) }}" style="display:flex;gap:6px;">
                         @csrf
                         <select name="status" style="width:auto;">
                             @foreach(['assigned','out_for_delivery','delivered','failed','returned'] as $s)

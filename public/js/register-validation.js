@@ -54,6 +54,9 @@
         return !msg;
     }
 
+    // Used by register-wizard.js to check one step's fields before "Next".
+    window.RegisterValidation = { check: check, ids: Object.keys(rules) };
+
     document.addEventListener('DOMContentLoaded', function () {
         Object.keys(rules).forEach(function (id) {
             var input = document.getElementById(id);
@@ -80,6 +83,7 @@
         if (firstBad) {
             e.preventDefault();
             e.stopImmediatePropagation();
+            if (window.RegisterWizard) window.RegisterWizard.showStepOf(firstBad);
             firstBad.focus();
             firstBad.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }

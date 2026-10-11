@@ -1,4 +1,4 @@
-<x-auth-shell title="Create Account — ALVY" heading="Create your account" subtitle="Join ALVY in a few minutes — it's free." tab="signup" width="wide" :progress="true">
+<x-auth-shell title="Create Account — ALVY" heading="Create your account" subtitle="Join ALVY in a few minutes — it's free." tab="signup" width="wide">
 <x-slot:head>
     <style>
         .font-display { font-family: 'Nunito', ui-sans-serif, system-ui; }
@@ -157,10 +157,29 @@
         .sticky-submit { position: sticky; bottom: 0; z-index: 20; background: rgba(255,255,255,.96); backdrop-filter: blur(8px);
                          border-top: 1px solid #F0E4DC; border-radius: 0 0 1.75rem 1.75rem; box-shadow: 0 -12px 24px -18px rgba(58,47,41,.35); }
         .btn-primary-grad { background: linear-gradient(135deg,#fa4e1c,#ff7a45); box-shadow: 0 12px 24px -12px rgba(250,78,28,.8); }
+
+        /* ── Step-by-step wizard ── */
+        [hidden] { display: none !important; } /* beat Tailwind's .flex on toggled buttons */
+        .file-upload-box.is-invalid { border-color: #DC2626; background: #FEF2F2; }
+        .wiz-step:not(.is-current) { display: none !important; }
+        .wiz-step.is-current { animation: wizIn .22s ease; }
+        @keyframes wizIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+        .wiz-bar { height: 6px; border-radius: 999px; background: #F3E8E0; overflow: hidden; }
+        .wiz-bar-fill { height: 100%; width: 0; border-radius: 999px; background: linear-gradient(90deg,#fa4e1c,#ff8a5b); transition: width .3s ease; }
+        .wiz-dots { display: flex; gap: .25rem; }
+        .wiz-dots li { flex: 1; display: flex; flex-direction: column; align-items: center; gap: .25rem; font-size: .68rem; font-weight: 600; color: #b5a79d; text-align: center; }
+        .wiz-dots .dot { display: inline-flex; align-items: center; justify-content: center; width: 1.6rem; height: 1.6rem; border-radius: 999px;
+                         background: #F7F1ED; color: #8a7a70; font-size: .7rem; font-weight: 800; transition: all .2s; }
+        .wiz-dots li.is-done .dot { background: #fff1ee; color: #fa4e1c; }
+        .wiz-dots li.is-current { color: #222; }
+        .wiz-dots li.is-current .dot { background: #fa4e1c; color: #fff; box-shadow: 0 6px 14px -6px rgba(250,78,28,.7); }
+        @media (max-width: 480px) { .wiz-dots .lbl { display: none; } }
+        .btn-ghost { border: 1.5px solid #E6D9CF; color: #5a4d45; background: #fff; }
+        .btn-ghost:hover { border-color: #fa4e1c; color: #fa4e1c; }
     </style>
 </x-slot:head>
 
-        <form id="registrationForm" method="POST" action="{{ route('register') }}" enctype="multipart/form-data">
+        <form id="registrationForm" method="POST" action="{{ route('register') }}" enctype="multipart/form-data" novalidate>
             @csrf
 
             <div class="space-y-4 px-6 py-6 sm:px-10">
@@ -187,40 +206,56 @@
                     </div>
                 @endif
 
+                {{-- Progress: filled in by register-wizard.js from the steps of the chosen role --}}
+                <div class="wiz-progress" aria-live="polite">
+                    <div class="flex items-center justify-between text-xs font-semibold" style="color:#8a7a70;">
+                        <span id="wizStepText">Step 1</span>
+                        <span id="wizStepName"></span>
+                    </div>
+                    <div class="wiz-bar mt-2"><div class="wiz-bar-fill" id="wizBarFill"></div></div>
+                    <ol class="wiz-dots mt-3" id="wizDots"></ol>
+                </div>
+
                 {{-- 1. Account type --}}
-                <section class="form-card">
-                    <h2 class="card-title"><span class="card-num">1</span> I am a…</h2>
+                <section class="form-card wiz-step" data-step="type" data-title="Account type">
+                    <h2 class="card-title"><span class="card-num">1</span> What kind of account do you want?</h2>
+                    <p class="-mt-2 mb-3 text-xs" style="color:#8a7a70;">Pick one to continue — the next steps depend on your choice.</p>
                     <div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                        <div class="role-chip active p-3 text-center" data-role="buyer">
+                        <div class="role-chip p-3 text-center" data-role="buyer">
                             <svg class="mx-auto mb-1 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
                             </svg>
-                            <span class="text-xs font-semibold">Buyer</span>
+                            <span class="block text-xs font-semibold">Buyer</span>
+                            <span class="block text-[10px] opacity-75">Shop and order</span>
                         </div>
                         <div class="role-chip p-3 text-center" data-role="seller">
                             <svg class="mx-auto mb-1 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/>
                             </svg>
-                            <span class="text-xs font-semibold">Seller</span>
+                            <span class="block text-xs font-semibold">Seller</span>
+                            <span class="block text-[10px] opacity-75">Open a shop</span>
                         </div>
                         <div class="role-chip p-3 text-center" data-role="courier">
                             <svg class="mx-auto mb-1 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
                             </svg>
-                            <span class="text-xs font-semibold">Courier</span>
+                            <span class="block text-xs font-semibold">Courier</span>
+                            <span class="block text-[10px] opacity-75">Deliver parcels</span>
                         </div>
                         <div class="role-chip p-3 text-center" data-role="logistics">
                             <svg class="mx-auto mb-1 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
                             </svg>
-                            <span class="text-xs font-semibold">Logistics</span>
+                            <span class="block text-xs font-semibold">Logistics</span>
+                            <span class="block text-[10px] opacity-75">Run a sorting hub</span>
                         </div>
                     </div>
-                    <input type="hidden" name="role" id="roleInput" value="buyer">
+                    <input type="hidden" name="role" id="roleInput" value="">
+                    <p class="field-error" data-error-for="roleInput"></p>
                 </section>
 
                 {{-- 2. Personal information --}}
-                <section class="form-card">
+                <section class="form-card wiz-step" data-step="personal" data-title="Personal">
                     <h2 class="card-title"><span class="card-num">2</span> Personal Information</h2>
 
                     <div class="grid grid-cols-1 gap-3 sm:grid-cols-5">
@@ -243,16 +278,26 @@
 
                     <div class="mt-3">
                         <label class="fld-label" for="email">Email Address*</label>
-                        <input type="email" name="email" id="email" class="form-input" placeholder="example@gmail.com" value="{{ old('email') }}" required>
+                        @if ($google = \App\Support\GoogleSignup::pending(request()))
+                            {{-- From "Continue with Google": the email is fixed and already verified. --}}
+                            <input type="email" name="email" id="email" class="form-input" value="{{ $google['email'] }}" readonly required>
+                            <p class="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs" style="color:#15803d;">
+                                <svg class="h-4 w-4" viewBox="0 0 24 24" aria-hidden="true"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+                                <span class="font-semibold">Verified with Google</span> — no email code needed.
+                                <a href="{{ route('register', ['google' => 'forget']) }}" class="font-semibold underline" style="color:#8a7a70;">Use a different email</a>
+                            </p>
+                        @else
+                            <input type="email" name="email" id="email" class="form-input" placeholder="example@gmail.com" value="{{ old('email') }}" required>
+                        @endif
                         <p class="field-error" data-error-for="email">@error('email'){{ $message }}@enderror</p>
                     </div>
 
                     <div class="mt-3">
                         <label class="fld-label">Sex*</label>
-                        <div class="grid grid-cols-3 gap-2">
+                        {{-- users.sex is enum('Male','Female') --}}
+                        <div class="grid grid-cols-2 gap-2">
                             <div class="gender-chip active px-3 py-2.5 text-center text-sm font-semibold" data-gender="male">Male</div>
                             <div class="gender-chip px-3 py-2.5 text-center text-sm font-semibold" data-gender="female">Female</div>
-                            <div class="gender-chip px-3 py-2.5 text-center text-sm font-semibold" data-gender="other">Other</div>
                         </div>
                         <input type="hidden" name="sex" id="genderInput" value="male">
                     </div>
@@ -262,7 +307,7 @@
                             <label class="fld-label" for="contactNo">Contact No.*</label>
                             <input type="tel" name="contact_no" id="contactNo" class="form-input" placeholder="09171234567"
                                    inputmode="numeric" value="{{ old('contact_no') }}" required>
-                            <p class="field-error" data-error-for="contactNo">@error('contact_no'){{ $message }}@enderror</p>
+                            <p class="field-error" data-error-for="contactNo">@error('contact_no'){{ $message }}@enderror @error('phone'){{ $message }}@enderror</p>
                         </div>
                         <div class="sm:col-span-2">
                             <label class="fld-label" for="birthday">Birthday*</label>
@@ -277,7 +322,7 @@
                 </section>
 
                 {{-- 3. Address (PSGC) --}}
-                <section class="form-card">
+                <section class="form-card wiz-step" data-step="address" data-title="Address">
                     <h2 class="card-title"><span class="card-num">3</span> Address</h2>
                     <div class="space-y-3">
                         <div>
@@ -328,7 +373,7 @@
                 </section>
 
                 {{-- 4. Security & verification --}}
-                <section class="form-card">
+                <section class="form-card wiz-step" data-step="security" data-title="Security">
                     <h2 class="card-title"><span class="card-num">4</span> Security &amp; Verification</h2>
 
                     <div>
@@ -359,49 +404,95 @@
                                 <p class="text-xs" style="color:#9a8b81;">JPG, PNG or PDF · max 5 MB</p>
                             </div>
                         </div>
-                        <input type="file" id="buyerIdUpload" name="valid_id" accept="image/jpeg,image/png,.pdf" class="hidden">
+                        <input type="file" id="buyerIdUpload" name="valid_id" required accept="image/jpeg,image/png,.pdf" class="hidden">
                         <img id="buyerIdPreview" class="file-preview hidden">
                     </div>
                 </section>
 
                 {{-- SELLER FIELDS --}}
-                <section id="sellerSection" class="hidden-section form-card">
-                    <h2 class="card-title"><span class="card-num">5</span> Seller Documents</h2>
+                <section id="sellerSection" class="hidden-section form-card wiz-step" data-step="seller" data-title="Shop">
+                    <h2 class="card-title"><span class="card-num">5</span> Shop Information</h2>
 
-                    <div class="mb-3">
-                        <label class="fld-label">Valid Government ID</label>
-                        <div class="file-upload-box" onclick="document.getElementById('sellerIdUpload').click()">
-                            <span class="upload-icon">
-                                <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
-                            </span>
-                            <p class="text-sm font-semibold" style="color:#3a2f29;">Click to upload Valid ID</p>
+                    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                        <div class="sm:col-span-2">
+                            <label class="fld-label" for="shopName">Shop Name* <span class="font-normal" style="color:#8a7a70;">(3–30 characters)</span></label>
+                            <input type="text" name="shop_name" id="shopName" required class="form-input @error('shop_name') is-invalid @enderror"
+                                   placeholder="e.g. Maria Clara Handicrafts" value="{{ old('shop_name') }}" maxlength="30">
+                            @error('shop_name')<p class="field-error">{{ $message }}</p>@enderror
                         </div>
-                        <input type="file" id="sellerIdUpload" name="id_image" accept="image/*,.pdf" class="hidden">
-                        <img id="sellerIdPreview" class="file-preview hidden">
+                        <div>
+                            <label class="fld-label" for="lineOfBusiness">Shop Category*</label>
+                            <select name="line_of_business" id="lineOfBusiness" required class="form-input @error('line_of_business') is-invalid @enderror">
+                                <option value="">Select category</option>
+                                @foreach ($categories as $cat)
+                                    <option value="{{ $cat }}" @selected(old('line_of_business') === $cat)>{{ $cat }}</option>
+                                @endforeach
+                            </select>
+                            @error('line_of_business')<p class="field-error">{{ $message }}</p>@enderror
+                        </div>
+                        <div>
+                            <label class="fld-label" for="sellerType">Seller Type*</label>
+                            <select name="seller_type" id="sellerType" required class="form-input @error('seller_type') is-invalid @enderror">
+                                <option value="">Select seller type</option>
+                                @foreach ($sellerTypes as $type)
+                                    <option value="{{ $type }}" @selected(old('seller_type') === $type)>{{ $type }}</option>
+                                @endforeach
+                            </select>
+                            @error('seller_type')<p class="field-error">{{ $message }}</p>@enderror
+                        </div>
+                        <div class="sm:col-span-2">
+                            <label class="fld-label" for="tin">TIN*</label>
+                            <input type="text" name="tin" id="tin" required class="form-input @error('tin') is-invalid @enderror"
+                                   placeholder="000-000-000-000" inputmode="numeric" maxlength="15" value="{{ old('tin') }}">
+                            @error('tin')
+                                <p class="field-error">{{ $message }}</p>
+                            @else
+                                <p class="mt-1 text-[11px]" style="color:#8a7a70;">12 digits, including your 3-digit branch code (000 for the main office).</p>
+                            @enderror
+                        </div>
                     </div>
 
-                    <div class="mb-3">
-                        <label class="fld-label">Business / DTI Permit</label>
-                        <div class="file-upload-box" onclick="document.getElementById('sellerPermitUpload').click()">
-                            <span class="upload-icon">
-                                <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
-                            </span>
-                            <p class="text-sm font-semibold" style="color:#3a2f29;">Click to upload Business Permit</p>
-                        </div>
-                        <input type="file" id="sellerPermitUpload" name="business_permit" accept="image/*,.pdf" class="hidden">
-                        <img id="sellerPermitPreview" class="file-preview hidden">
+                    <div class="section-divider">
+                        <div class="section-bar"></div>
+                        <h3 class="text-sm font-bold" style="color:#3a2f29;">Business Documents</h3>
+                    </div>
+                    <p class="mb-3 text-xs" style="color:#8a7a70;">JPG, PNG or PDF · max 5 MB each. Only the admin team can see these.</p>
+
+                    <div class="space-y-3">
+                        @foreach ([
+                            ['government_id',   'Government-issued ID*', 'Passport, driver\'s license, UMID, PhilID, etc.', ''],
+                            ['dti_certificate', 'DTI Certificate*',      'Business name registration certificate.',        'dti'],
+                            ['sec_certificate', 'SEC Certificate*',      'Required for corporations.',                     'sec'],
+                            ['bir_2303',        'BIR Form 2303*',        'Certificate of Registration from the BIR.',      ''],
+                        ] as [$field, $label, $hint, $group])
+                            <div @if ($group) data-doc-group="{{ $group }}" @endif>
+                                <label class="fld-label">{{ $label }}</label>
+                                <div class="file-upload-box" onclick="document.getElementById('seller_{{ $field }}').click()">
+                                    <span class="upload-icon">
+                                        <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+                                    </span>
+                                    <div class="min-w-0">
+                                        <p class="truncate text-sm font-semibold" style="color:#3a2f29;" id="seller_{{ $field }}_label">Click to upload</p>
+                                        <p class="truncate text-xs" style="color:#9a8b81;">{{ $hint }}</p>
+                                    </div>
+                                </div>
+                                <input type="file" id="seller_{{ $field }}" name="{{ $field }}" required accept="image/jpeg,image/png,.pdf" class="hidden">
+                                <img id="seller_{{ $field }}_preview" class="file-preview hidden">
+                                @error($field)<p class="field-error">{{ $message }}</p>@enderror
+                            </div>
+                        @endforeach
                     </div>
 
-                    <div class="flex gap-2 rounded-lg border p-3 text-sm" style="background:#fff5f3;border-color:#fdd5c8;">
+                    <div class="mt-3 flex gap-2 rounded-lg border p-3 text-sm" style="background:#fff5f3;border-color:#fdd5c8;">
                         <svg class="mt-0.5 h-4 w-4 flex-shrink-0" style="color:#fa4e1c;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
                         </svg>
-                        <p style="color:#b4380f;">Both your valid ID and business permit are required for verification.</p>
+                        <p style="color:#b4380f;">After you verify your email, our team will review your shop in 1–3 business days.</p>
                     </div>
                 </section>
 
                 {{-- COURIER FIELDS --}}
-                <section id="courierSection" class="hidden-section form-card">
+                <section id="courierSection" class="hidden-section form-card wiz-step" data-step="courier" data-title="Courier">
                     <h2 class="card-title"><span class="card-num">5</span> Courier Details</h2>
 
                     <div class="section-divider">
@@ -411,7 +502,7 @@
 
                     <div class="mb-3">
                         <label class="fld-label">Vehicle Type</label>
-                        <div class="grid grid-cols-3 gap-2">
+                        <div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
                             <div class="wheel-chip active p-3 text-center" data-wheel="motorcycle">
                                 <svg class="mx-auto mb-1 h-6 w-6" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
                                     <circle cx="5.5" cy="16.5" r="3.5"/><circle cx="18.5" cy="16.5" r="3.5"/><path stroke-linecap="round" stroke-linejoin="round" d="M5.5 16.5 9 9h5l4.5 7.5M14 9l-1-3h3"/>
@@ -430,37 +521,46 @@
                                 </svg>
                                 <p class="text-xs font-semibold">4 Wheels<br/>(Car/Van)</p>
                             </div>
+                            <div class="wheel-chip p-3 text-center" data-wheel="truck">
+                                <svg class="mx-auto mb-1 h-6 w-6" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M2 6h12v11H2zM14 10h4l4 4v3h-8"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="18" r="2"/>
+                                </svg>
+                                <p class="text-xs font-semibold">6+ Wheels<br/>(Truck)</p>
+                            </div>
                         </div>
                         <input type="hidden" name="vehicle_type" id="vehicleTypeInput" value="motorcycle">
                     </div>
 
                     <div class="mb-3">
-                        <label class="fld-label" for="plateNumber">Plate Number</label>
-                        <input type="text" name="plate_number" id="plateNumber" class="form-input" placeholder="ABC 1234" style="text-transform:uppercase;">
+                        <label class="fld-label" for="plateNumber">Plate Number*</label>
+                        <input type="text" name="plate_number" id="plateNumber" required class="form-input @error('plate_number') is-invalid @enderror" placeholder="ABC 1234" value="{{ old('plate_number') }}" style="text-transform:uppercase;">
+                        @error('plate_number')<p class="field-error">{{ $message }}</p>@enderror
                     </div>
 
                     <div class="mb-3">
-                        <label class="fld-label">Driver's License</label>
+                        <label class="fld-label">Driver's License*</label>
                         <div class="file-upload-box" onclick="document.getElementById('driverLicenseUpload').click()">
                             <span class="upload-icon">
                                 <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
                             </span>
                             <p class="text-sm font-semibold" style="color:#3a2f29;">Click to upload Driver's License</p>
                         </div>
-                        <input type="file" id="driverLicenseUpload" name="or_cr_image" accept="image/*,.pdf" class="hidden">
+                        <input type="file" id="driverLicenseUpload" name="or_cr_image" required accept="image/jpeg,image/png,.pdf" class="hidden">
                         <img id="driverLicensePreview" class="file-preview hidden">
+                        @error('or_cr_image')<p class="field-error">{{ $message }}</p>@enderror
                     </div>
 
                     <div class="mb-3">
-                        <label class="fld-label">Vehicle Registration (OR/CR)</label>
+                        <label class="fld-label">Vehicle Registration (OR/CR)*</label>
                         <div class="file-upload-box" onclick="document.getElementById('vehicleRegUpload').click()">
                             <span class="upload-icon">
                                 <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
                             </span>
                             <p class="text-sm font-semibold" style="color:#3a2f29;">Click to upload Vehicle Registration</p>
                         </div>
-                        <input type="file" id="vehicleRegUpload" name="vehicle_reg_image" accept="image/*,.pdf" class="hidden">
+                        <input type="file" id="vehicleRegUpload" name="vehicle_reg_image" required accept="image/jpeg,image/png,.pdf" class="hidden">
                         <img id="vehicleRegPreview" class="file-preview hidden">
+                        @error('vehicle_reg_image')<p class="field-error">{{ $message }}</p>@enderror
                     </div>
 
                     <div class="section-divider">
@@ -478,82 +578,57 @@
                     <input type="hidden" name="logistics_id" id="logisticsIdInput">
                 </section>
 
-                {{-- LOGISTICS FIELDS --}}
-                <section id="logisticsSection" class="hidden-section form-card">
+                {{-- LOGISTICS (Sorting Center) FIELDS — the Address step is the hub address --}}
+                <section id="logisticsSection" class="hidden-section form-card wiz-step" data-step="logistics" data-title="Sorting Center">
                     <h2 class="card-title"><span class="card-num">5</span> Sorting Center Information</h2>
 
                     <div class="mb-3">
-                        <label class="fld-label" for="logisticsBusinessName">Business / Center Name</label>
-                        <input type="text" name="business_name" id="logisticsBusinessName" class="form-input" placeholder="e.g. ALVY Hub Lipa">
+                        <label class="fld-label" for="logisticsBusinessName">Business / Center Name*</label>
+                        <input type="text" name="business_name" id="logisticsBusinessName" required maxlength="150"
+                               class="form-input @error('business_name') is-invalid @enderror" placeholder="e.g. ALVY Hub Lipa" value="{{ old('business_name') }}">
+                        @error('business_name')<p class="field-error">{{ $message }}</p>@enderror
+                        <p class="mt-1 text-[11px]" style="color:#8a7a70;">The address you entered in the Address step is used as the hub address.</p>
                     </div>
 
                     <div class="section-divider">
                         <div class="section-bar"></div>
-                        <h3 class="text-sm font-bold" style="color:#3a2f29;">Hub Address</h3>
+                        <h3 class="text-sm font-bold" style="color:#3a2f29;">Documents</h3>
                     </div>
+                    <p class="mb-3 text-xs" style="color:#8a7a70;">JPG, PNG or PDF · max 5 MB each. Only the admin team can see these.</p>
 
-                    <div class="mb-3 space-y-3">
-                        <div>
-                            <label class="fld-label" for="logisticsProvince">Province</label>
-                            <select name="province" id="logisticsProvince" class="form-input">
-                                <option value="">Select Province</option>
-                            </select>
-                        </div>
-                        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                            <div>
-                                <label class="fld-label" for="logisticsMunicipality">Municipality / City</label>
-                                <select name="municipality" id="logisticsMunicipality" class="form-input" disabled>
-                                    <option value="">Select province first</option>
-                                </select>
+                    @foreach ([
+                        ['government_id',   'Government-issued ID*',  'Passport, driver\'s license, UMID, PhilID, etc.'],
+                        ['business_permit', 'Business / DTI Permit*', 'Business permit or DTI business name registration.'],
+                    ] as [$field, $label, $hint])
+                        <div class="mb-3">
+                            <label class="fld-label">{{ $label }}</label>
+                            <div class="file-upload-box" onclick="document.getElementById('logistics_{{ $field }}').click()">
+                                <span class="upload-icon">
+                                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+                                </span>
+                                <div class="min-w-0">
+                                    <p class="truncate text-sm font-semibold" style="color:#3a2f29;" id="logistics_{{ $field }}_label">Click to upload</p>
+                                    <p class="truncate text-xs" style="color:#9a8b81;">{{ $hint }}</p>
+                                </div>
                             </div>
-                            <div>
-                                <label class="fld-label" for="logisticsBarangay">Barangay</label>
-                                <select name="barangay" id="logisticsBarangay" class="form-input" disabled>
-                                    <option value="">Select municipality first</option>
-                                </select>
-                            </div>
+                            <input type="file" id="logistics_{{ $field }}" name="{{ $field }}" required accept="image/jpeg,image/png,.pdf" class="hidden">
+                            <img id="logistics_{{ $field }}_preview" class="file-preview hidden">
+                            @error($field)<p class="field-error">{{ $message }}</p>@enderror
                         </div>
-                        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                            <div>
-                                <label class="fld-label" for="logisticsStreet">Street</label>
-                                <input type="text" name="street" id="logisticsStreet" class="form-input" placeholder="Street">
-                            </div>
-                            <div>
-                                <label class="fld-label" for="logisticsHouseNumber">Bldg / Unit No.</label>
-                                <input type="text" name="house_number" id="logisticsHouseNumber" class="form-input" placeholder="Bldg / Unit No.">
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="section-divider">
-                        <div class="section-bar"></div>
-                        <h3 class="text-sm font-bold" style="color:#3a2f29;">Logistics Documents</h3>
-                    </div>
-
-                    <div class="mb-3">
-                        <label class="fld-label">Business / DTI Permit</label>
-                        <div class="file-upload-box" onclick="document.getElementById('logisticsPermitUpload').click()">
-                            <span class="upload-icon">
-                                <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
-                            </span>
-                            <p class="text-sm font-semibold" style="color:#3a2f29;">Click to upload DTI Permit</p>
-                        </div>
-                        <input type="file" id="logisticsPermitUpload" name="dti_permit" accept="image/*,.pdf" class="hidden">
-                        <img id="logisticsPermitPreview" class="file-preview hidden">
-                    </div>
+                    @endforeach
 
                     <div class="flex gap-2 rounded-lg border p-3 text-sm" style="background:#fff5f3;border-color:#fdd5c8;">
                         <svg class="mt-0.5 h-4 w-4 flex-shrink-0" style="color:#fa4e1c;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
                         </svg>
-                        <p style="color:#b4380f;">Your permit and hub address will be reviewed by the admin before your account is activated.</p>
+                        <p style="color:#b4380f;">Your documents and hub address will be reviewed by the admin. You can sign in to the Sorting Center portal once approved.</p>
                     </div>
                 </section>
             </div>
 
-            {{-- Footer (sticky): terms + submit --}}
+            {{-- Footer (sticky): Back / Next, and terms + submit on the last step --}}
             <div class="sticky-submit px-6 py-4 sm:px-10">
-                <label class="flex cursor-pointer items-start gap-3">
+                <label class="flex cursor-pointer items-start gap-3" id="wizTerms" hidden>
                     <input type="checkbox" id="agreeTerms" name="terms" value="1" class="mt-0.5 h-4 w-4 flex-shrink-0 rounded" style="accent-color:#fa4e1c;" @checked(old('terms')) required>
                     <span class="text-sm" style="color:#5a4d45;">
                         I agree to ALVY's
@@ -563,7 +638,7 @@
                     </span>
                 </label>
                 @error('terms')
-                    <p class="mt-2 text-xs" style="color:#DC2626;">{{ $message }}</p>
+                    <p class="mt-2 text-xs" style="color:#DC2626;" data-wiz-terms-error>{{ $message }}</p>
                 @enderror
 
                 <div class="mt-4 flex flex-col-reverse items-center gap-3 sm:flex-row sm:justify-between">
@@ -572,12 +647,24 @@
                         <a href="{{ route('login') }}" class="font-bold" style="color:#222;"
                            onmouseover="this.style.color='#fa4e1c';" onmouseout="this.style.color='#222';">Log In</a>
                     </p>
-                    <button type="submit" id="submitBtn"
-                            class="btn-primary-grad flex w-full items-center justify-center gap-2 rounded-xl px-8 py-3 text-sm font-bold text-white transition sm:w-auto"
-                            style="opacity:0.5;cursor:not-allowed;"
-                            disabled>
-                        Create Account
-                    </button>
+                    <div class="flex w-full gap-2 sm:w-auto">
+                        <button type="button" id="wizBack" hidden
+                                class="btn-ghost flex flex-1 items-center justify-center gap-1 rounded-xl px-5 py-3 text-sm font-bold transition sm:flex-none">
+                            <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
+                            Back
+                        </button>
+                        <button type="button" id="wizNext"
+                                class="btn-primary-grad flex flex-1 items-center justify-center gap-1 rounded-xl px-8 py-3 text-sm font-bold text-white transition sm:flex-none">
+                            Next
+                            <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
+                        </button>
+                        <button type="submit" id="submitBtn" hidden
+                                class="btn-primary-grad flex flex-1 items-center justify-center gap-2 rounded-xl px-8 py-3 text-sm font-bold text-white transition sm:flex-none"
+                                style="opacity:0.5;cursor:not-allowed;"
+                                disabled>
+                            Create Account
+                        </button>
+                    </div>
                 </div>
             </div>
         </form>
@@ -597,14 +684,14 @@ document.addEventListener('DOMContentLoaded', function() {
     const logisticsSection = document.getElementById('logisticsSection');
     
     // Disable inputs in hidden role sections so they aren't submitted
-    // (logistics fields share names like province/street with the main address)
+    // (seller and logistics sections share field names like government_id)
     function syncSectionInputs() {
         [sellerSection, courierSection, logisticsSection].forEach(sec => {
             const hidden = sec.classList.contains('hidden-section');
             sec.querySelectorAll('input, select').forEach(el => {
                 if (hidden) {
                     el.disabled = true;
-                } else if (!['logisticsMunicipality', 'logisticsBarangay'].includes(el.id) || el.options.length > 1) {
+                } else {
                     el.disabled = false;
                 }
             });
@@ -615,11 +702,6 @@ document.addEventListener('DOMContentLoaded', function() {
     // Role Selection
     roleChips.forEach(chip => {
         chip.addEventListener('click', function() {
-            // Sellers sign up on their own page (shop details, TIN, business documents).
-            if (this.dataset.role === 'seller') {
-                window.location.href = @json(route('seller.register'));
-                return;
-            }
             roleChips.forEach(c => c.classList.remove('active'));
             this.classList.add('active');
             const role = this.dataset.role;
@@ -638,7 +720,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 loadLogisticsProviders();
             } else if (role === 'logistics') {
                 logisticsSection.classList.remove('hidden-section');
-                loadProvinces();
             }
             syncSectionInputs();
         });
@@ -670,11 +751,14 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     
     // File Upload Previews
-    setupFilePreview('sellerIdUpload', 'sellerIdPreview');
-    setupFilePreview('sellerPermitUpload', 'sellerPermitPreview');
+    ['government_id', 'dti_certificate', 'sec_certificate', 'bir_2303'].forEach(function (f) {
+        setupFilePreview('seller_' + f, 'seller_' + f + '_preview', 'seller_' + f + '_label');
+    });
     setupFilePreview('driverLicenseUpload', 'driverLicensePreview');
     setupFilePreview('vehicleRegUpload', 'vehicleRegPreview');
-    setupFilePreview('logisticsPermitUpload', 'logisticsPermitPreview');
+    ['government_id', 'business_permit'].forEach(function (f) {
+        setupFilePreview('logistics_' + f, 'logistics_' + f + '_preview', 'logistics_' + f + '_label');
+    });
     setupFilePreview('buyerIdUpload', 'buyerIdPreview', 'buyerIdLabel');
 
     // Age auto-calculation from birthday
@@ -707,6 +791,22 @@ document.addEventListener('DOMContentLoaded', function() {
             syncBuyerIdVisibility(this.dataset.role);
         });
     });
+
+    // Sellers: corporations upload an SEC certificate, everyone else a DTI certificate.
+    const sellerType = document.getElementById('sellerType');
+    function syncSellerDocs() {
+        const corp = sellerType.value === 'Corporation';
+        document.querySelector('[data-doc-group="dti"]').style.display = corp ? 'none' : '';
+        document.querySelector('[data-doc-group="sec"]').style.display = corp ? '' : 'none';
+    }
+    sellerType.addEventListener('change', syncSellerDocs);
+    syncSellerDocs();
+
+    // Re-open the role from a failed submit, or from links like /register?role=seller.
+    // (A programmatic click selects the role without moving the wizard forward.)
+    const initialRole = @json(old('role', request('role', '')));
+    const initialChip = initialRole ? document.querySelector('.role-chip[data-role="' + initialRole + '"]') : null;
+    if (initialChip) initialChip.click();
     
     // Terms checkbox toggles the submit button
     const agreeCheckbox = document.getElementById('agreeTerms');
@@ -804,69 +904,13 @@ function selectProvider(id, element) {
     document.getElementById('logisticsIdInput').value = id;
 }
 
-// Load Provinces for Logistics
-function loadProvinces() {
-    fetch('https://psgc.gitlab.io/api/provinces/')
-        .then(res => res.json())
-        .then(data => {
-            const select = document.getElementById('logisticsProvince');
-            select.innerHTML = '<option value="">Select Province</option>' +
-                data.sort((a, b) => a.name.localeCompare(b.name))
-                    .map(p => `<option value="${p.name}" data-code="${p.code}">${p.name}</option>`)
-                    .join('');
-        });
-}
-
-// Load Municipalities when province changes
-document.addEventListener('DOMContentLoaded', function() {
-    document.getElementById('logisticsProvince')?.addEventListener('change', function() {
-        const selectedOption = this.options[this.selectedIndex];
-        const code = selectedOption.dataset.code;
-        
-        if (!code) return;
-        
-        const munSelect = document.getElementById('logisticsMunicipality');
-        munSelect.disabled = true;
-        munSelect.innerHTML = '<option value="">Loading...</option>';
-        
-        Promise.all([
-            fetch(`https://psgc.gitlab.io/api/provinces/${code}/municipalities/`).then(r => r.json()),
-            fetch(`https://psgc.gitlab.io/api/provinces/${code}/cities/`).then(r => r.json())
-        ]).then(([muns, cities]) => {
-            const combined = [...muns, ...cities].sort((a, b) => a.name.localeCompare(b.name));
-            munSelect.innerHTML = '<option value="">Select Municipality / City</option>' +
-                combined.map(m => `<option value="${m.name}" data-code="${m.code}">${m.name}</option>`).join('');
-            munSelect.disabled = false;
-        });
-    });
-    
-    document.getElementById('logisticsMunicipality')?.addEventListener('change', function() {
-        const selectedOption = this.options[this.selectedIndex];
-        const code = selectedOption.dataset.code;
-        
-        if (!code) return;
-        
-        const brgySelect = document.getElementById('logisticsBarangay');
-        brgySelect.disabled = true;
-        brgySelect.innerHTML = '<option value="">Loading...</option>';
-        
-        fetch(`https://psgc.gitlab.io/api/municipalities/${code}/barangays/`)
-            .then(res => res.json())
-            .then(data => {
-                brgySelect.innerHTML = '<option value="">Select Barangay</option>' +
-                    data.sort((a, b) => a.name.localeCompare(b.name))
-                        .map(b => `<option value="${b.name}">${b.name}</option>`)
-                        .join('');
-                brgySelect.disabled = false;
-            });
-    });
-});
 </script>
 @if (file_exists(public_path('js/psgc-address.js')))
 <script src="{{ asset('js/psgc-address.js') }}"></script>
 @endif
 <script src="{{ asset('js/register-address-fallback.js') }}"></script>
 <script src="{{ asset('js/register-validation.js') }}"></script>
+<script src="{{ asset('js/register-wizard.js') }}"></script>
 <script>
 // Attach PSGC cascade for the registration form address
 document.addEventListener('DOMContentLoaded', function() {

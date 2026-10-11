@@ -150,7 +150,7 @@ Route::middleware('guest')->group(function () {
 Route::get('/auth/google', [\App\Http\Controllers\Auth\GoogleAuthController::class, 'redirect'])->middleware('guest')->name('auth.google');
 Route::get('/auth/google/callback', [\App\Http\Controllers\Auth\GoogleAuthController::class, 'callback'])->middleware('guest')->name('auth.google.callback');
 Route::get('/register', [RegisteredUserController::class, 'create'])->name('register');
-Route::post('/register',[RegisteredUserController::class, 'store']);
+Route::post('/register',[RegisteredUserController::class, 'store'])->middleware('guest');
 
 Route::post('/logout', [AuthenticatedSessionController::class, 'destroy'])
     ->middleware('auth')->name('logout');

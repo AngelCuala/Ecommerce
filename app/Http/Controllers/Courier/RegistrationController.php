@@ -42,7 +42,7 @@ class RegistrationController extends Controller
             'street'          => 'nullable|string|max:255',
             'house_number'    => 'nullable|string|max:100',
             'address_details' => 'nullable|string|max:255',
-            'vehicle_type'    => 'required|in:Motorcycle,Bicycle,Tricycle,Car,Van,Other',
+            'vehicle_type'    => 'required|in:Motorcycle,Bicycle,Tricycle,Car,Van,Truck,Other',
             'plate_number'    => 'required|string|max:30',
             'or_cr'           => 'required|file|mimes:jpg,jpeg,png,pdf|max:5120',
             'id_upload'       => 'required|file|mimes:jpg,jpeg,png,pdf|max:5120',

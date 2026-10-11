@@ -46,7 +46,7 @@ class MessageController extends Controller
         // ── Direct threads ───────────────────────────────────────
         $directThreadKeys = Message::whereNull('order_id')
             ->where(fn ($q) => $q->where('sender_id', $userId)->orWhere('receiver_id', $userId))
-            ->pluck('thread_key')->unique();
+            ->pluck('thread_key')->filter()->unique();
 
         $directThreads = collect();
         foreach ($directThreadKeys as $key) {
@@ -191,7 +191,7 @@ class MessageController extends Controller
         $seenUserIds = [];
         $keys = Message::whereNull('order_id')
             ->where(fn ($q) => $q->where('sender_id', $userId)->orWhere('receiver_id', $userId))
-            ->pluck('thread_key')->unique();
+            ->pluck('thread_key')->filter()->unique();
 
         foreach ($keys as $key) {
             $last = Message::where('thread_key', $key)->latest()->first();

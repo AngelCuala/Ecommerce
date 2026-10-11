@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class Courier extends Model
 {
     protected $fillable = [
-        'user_id', 'last_name', 'first_name', 'middle_initial',
+        'user_id', 'sorting_center_id', 'last_name', 'first_name', 'middle_initial',
         'sex', 'contact_no', 'birthday', 'age',
         'province', 'municipality', 'barangay', 'street', 'house_number',
         'business_name',
@@ -29,6 +29,8 @@ class Courier extends Model
     public function user(): BelongsTo          { return $this->belongsTo(User::class); }
     public function deliveries(): HasMany       { return $this->hasMany(Delivery::class); }
     public function reviewedBy(): BelongsTo     { return $this->belongsTo(User::class, 'reviewed_by'); }
+    /** The sorting center (hub) the courier applied to; it reviews the application. */
+    public function sortingCenter(): BelongsTo  { return $this->belongsTo(User::class, 'sorting_center_id'); }
 
     public function fullName(): string
     {

@@ -1,6 +1,6 @@
 <x-logistics-layout title="Rider: {{ $rider->full_name }}">
 
-<a href="{{ route('logistics.riders.index') }}" class="btn btn--sm btn--ghost" style="margin-bottom:18px;display:inline-block;">← Back</a>
+<a href="{{ route('admin.logistics.riders.index') }}" class="btn btn--sm btn--ghost" style="margin-bottom:18px;display:inline-block;">← Back</a>
 
 <div class="panel" style="max-width:640px">
     <div class="panel__header">
@@ -35,15 +35,15 @@
 
     <div style="padding:0 18px 18px;display:flex;gap:10px;flex-wrap:wrap;">
         @if($rider->application_status === 'pending')
-            <form method="POST" action="{{ route('logistics.riders.approve', $rider) }}">@csrf
+            <form method="POST" action="{{ route('admin.logistics.riders.approve', $rider) }}">@csrf
                 <button class="btn btn--primary">Approve</button>
             </form>
-            <form method="POST" action="{{ route('logistics.riders.disapprove', $rider) }}">@csrf
+            <form method="POST" action="{{ route('admin.logistics.riders.disapprove', $rider) }}">@csrf
                 <div class="field"><input type="text" name="rejection_reason" placeholder="Rejection reason (optional)"></div>
                 <button class="btn btn--danger">Disapprove</button>
             </form>
         @elseif($rider->application_status === 'approved')
-            <form method="POST" action="{{ route('logistics.riders.toggle-active', $rider) }}">@csrf
+            <form method="POST" action="{{ route('admin.logistics.riders.toggle-active', $rider) }}">@csrf
                 <button class="btn {{ $rider->is_active ? 'btn--danger' : 'btn--primary' }}">
                     {{ $rider->is_active ? 'Deactivate' : 'Activate' }}
                 </button>

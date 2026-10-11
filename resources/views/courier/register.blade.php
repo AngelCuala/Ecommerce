@@ -198,7 +198,7 @@
                             <select name="vehicle_type" class="w-full rounded-xl border px-4 py-2.5 text-sm outline-none" style="border-color:#cfdce8;"
                                     onfocus="this.style.borderColor='#fa4e1c';" onblur="this.style.borderColor='#cfdce8';" required>
                                 <option value="">— Select vehicle —</option>
-                                @foreach(['Motorcycle','Bicycle','Tricycle','Car','Van','Other'] as $v)
+                                @foreach(['Motorcycle','Bicycle','Tricycle','Car','Van','Truck','Other'] as $v)
                                     <option value="{{ $v }}" @selected(old('vehicle_type') === $v)>{{ $v }}</option>
                                 @endforeach
                             </select>

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Rules\GovernmentId;
 use App\Services\LoginOtp;
+use App\Support\GoogleSignup;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Auth\Events\Registered;
@@ -15,7 +16,7 @@ use Illuminate\Support\Facades\Storage;
 
 class RegisteredUserController extends Controller
 {
-    public function create()
+    public function create(Request $request)
     {
         // If user is already authenticated, redirect to appropriate dashboard
         if (auth()->check()) {
@@ -23,9 +24,19 @@ class RegisteredUserController extends Controller
             return $this->redirectToUserDashboard($user);
         }
 
+        // "Use a different email" on a Google sign-up → back to a normal sign-up.
+        if ($request->query('google') === 'forget') {
+            GoogleSignup::forget($request);
+            return redirect()->route('register', $request->only('role'));
+        }
+
         // Add cache control headers to prevent browser back button issues
         return response()
-            ->view('auth.register')
+            ->view('auth.register', [
+                // Seller fields live on this same form (shown when "Seller" is picked).
+                'categories'  => \App\Support\SellerApplicationRules::categories(),
+                'sellerTypes' => \App\Models\SellerApplication::SELLER_TYPES,
+            ])
             ->header('Cache-Control', 'no-cache, no-store, max-age=0, must-revalidate')
             ->header('Pragma', 'no-cache')
             ->header('Expires', 'Fri, 01 Jan 1990 00:00:00 GMT');
@@ -55,6 +66,28 @@ class RegisteredUserController extends Controller
         // Get the role from the request
         $role = $request->input('role', 'buyer');
 
+        // Came from "Continue with Google": the email is the Google one, whatever was typed.
+        GoogleSignup::lockEmail($request);
+
+        // Sellers use the same form but go through the seller sign-up (shop details,
+        // TIN, business documents, email OTP). Map this form's field names to it.
+        if ($role === 'seller') {
+            $request->merge([
+                'phone'  => $request->input('contact_no'),
+                'street' => trim($request->input('house_number', '') . ' ' . $request->input('street', '')),
+            ]);
+
+            return app(\App\Http\Controllers\Seller\RegistrationController::class)->store($request);
+        }
+
+        // "Logistics" is a sorting center (hub): it goes through the sorting center sign-up,
+        // which an admin approves under Sorting Center Applications.
+        if ($role === 'logistics') {
+            $request->merge(['sex' => ucfirst((string) $request->input('sex'))]);
+
+            return app(\App\Http\Controllers\SortingCenter\RegistrationController::class)->store($request);
+        }
+
         // Emails are compared case-insensitively for duplicates.
         if (is_string($request->input('email'))) {
             $request->merge(['email' => mb_strtolower(trim($request->input('email')))]);
@@ -67,14 +100,14 @@ class RegisteredUserController extends Controller
 
         // Base validation rules
         $rules = [
-            // Sellers sign up through /seller/register (shop details + email verification).
-            'role'           => 'required|in:buyer,courier,logistics',
+            // Sellers and logistics (sorting centers) are handed off above.
+            'role'           => 'required|in:buyer,courier',
             'first_name'     => $nameRule,
             'last_name'      => $nameRule,
             'middle_initial' => ['nullable', 'string', 'max:3', 'regex:/^\pL{1,2}\.?$/u'],
             'email'          => ['required', 'string', 'max:255', 'email:rfc', 'regex:/^[^@\s]+@[^@\s]+\.[A-Za-z]{2,}$/', 'unique:users,email'],
             'password'       => 'required|string|min:8',
-            'sex'            => 'required|in:male,female,other',
+            'sex'            => 'required|in:male,female', // users.sex is enum('Male','Female')
             'terms'          => 'accepted',
             // Fields now required for all roles
             'contact_no'   => ['required', 'string', 'regex:/^09\d{9}$/', 'unique:users,contact_no'],
@@ -90,23 +123,13 @@ class RegisteredUserController extends Controller
         // Role-specific validation rules
         if ($role === 'buyer') {
             $rules['valid_id'] = ['bail', 'required', 'file', 'mimes:jpg,jpeg,png,pdf', 'max:5120', new GovernmentId];
-        } elseif ($role === 'seller') {
-            $rules['id_image'] = 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120';
-            $rules['business_permit'] = 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120';
         } elseif ($role === 'courier') {
-            $rules['vehicle_type'] = 'required|in:motorcycle,tricycle,car';
+            $rules['vehicle_type'] = 'required|in:motorcycle,tricycle,car,truck';
             $rules['plate_number'] = 'required|string|max:50';
-            $rules['or_cr_image'] = ['bail', 'nullable', 'file', 'mimes:jpg,jpeg,png,pdf', 'max:5120', new GovernmentId]; // driver's license
-            $rules['vehicle_reg_image'] = 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120';
+            // couriers.id_license_path / or_cr_path are NOT NULL, so both documents are required.
+            $rules['or_cr_image'] = ['bail', 'required', 'file', 'mimes:jpg,jpeg,png,pdf', 'max:5120', new GovernmentId]; // driver's license
+            $rules['vehicle_reg_image'] = 'required|file|mimes:jpg,jpeg,png,pdf|max:5120';
             $rules['logistics_id'] = 'nullable|exists:users,id';
-        } elseif ($role === 'logistics') {
-            $rules['business_name'] = 'required|string|max:255';
-            $rules['province'] = 'required|string|max:255';
-            $rules['municipality'] = 'required|string|max:255';
-            $rules['barangay'] = 'required|string|max:255';
-            $rules['street'] = 'nullable|string|max:255';
-            $rules['house_number'] = 'nullable|string|max:50';
-            $rules['dti_permit'] = 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120';
         }
 
         $validated = $request->validate($rules, [
@@ -157,7 +180,8 @@ class RegisteredUserController extends Controller
             'middle_initial'  => $validated['middle_initial'] ?? null,
             'email'           => $validated['email'],
             'password'        => Hash::make($validated['password']),
-            'role'            => $role,
+            // Couriers stay "courier_pending" until the Logistics team approves them.
+            'role'            => $role === 'courier' ? 'courier_pending' : $role,
             'sex'             => ucfirst($validated['sex']),
             'contact_no'      => $validated['contact_no'],
             'birthday'        => $validated['birthday'],
@@ -167,6 +191,7 @@ class RegisteredUserController extends Controller
             'barangay'        => $addr['barangay'],
             'street'          => $validated['street'],
             'house_number'    => $validated['house_number'],
+            'zip'             => $validated['zip_code'] ?? null,
             'approval_status' => 'unverified', // → 'pending' once the email code is entered
         ];
 
@@ -179,70 +204,40 @@ class RegisteredUserController extends Controller
             $userData += GovernmentId::columnsFor('or_cr_image');
         }
 
-        // Seller: save the uploaded ID
-        if ($role === 'seller' && $request->hasFile('id_image')) {
-            $userData['valid_id_path'] = $request->file('id_image')->store('seller-ids', 'public');
-        }
-
         $user = User::create($userData);
 
         // Create role-specific records
-        if ($role === 'seller') {
-            $sellerData = [
-                'user_id'         => $user->id,
-                'last_name'       => $validated['last_name'],
-                'first_name'      => $validated['first_name'],
-                'middle_initial'  => $validated['middle_initial'] ?? null,
-                'full_name'       => $user->name,
-                'shop_name'       => $validated['first_name'] . "'s Store",
-                'business_name'   => $validated['first_name'] . "'s Store",
-                'line_of_business'=> 'General',
-                'sex'             => ucfirst($validated['sex']),
-                'birthday'        => '2000-01-01',
-                'age'             => 24,
-                'status'          => 'pending',
-                'province'        => '',
-                'municipality'    => '',
-                'barangay'        => '',
-            ];
-
-            if ($request->hasFile('id_image')) {
-                $sellerData['government_id_path'] = $request->file('id_image')->store('seller-ids', 'public');
-            }
-            if ($request->hasFile('business_permit')) {
-                $sellerData['business_permit_path'] = $request->file('business_permit')->store('seller-permits', 'public');
-            }
-
-            \App\Models\SellerApplication::create($sellerData);
-        } elseif ($role === 'courier') {
+        if ($role === 'courier') {
             $courierData = [
                 'user_id'        => $user->id,
                 'last_name'      => $validated['last_name'],
                 'first_name'     => $validated['first_name'],
                 'middle_initial' => $validated['middle_initial'] ?? null,
                 'sex'            => ucfirst($validated['sex']),
-                'birthday'       => '2000-01-01',
-                'age'            => 24,
+                'birthday'       => $validated['birthday'],
+                'age'            => $age,
                 'vehicle_type'   => $validated['vehicle_type'],
                 'plate_number'   => strtoupper($validated['plate_number']),
                 'status'         => 'pending',
-                'province'       => '',
-                'municipality'   => '',
-                'barangay'       => '',
-                'contact_no'     => '',
+                'province'       => $addr['province_display'] ?? '',
+                'municipality'   => $addr['municipality'],
+                'barangay'       => $addr['barangay'],
+                'street'         => trim($validated['house_number'] . ' ' . $validated['street']),
+                'contact_no'     => $validated['contact_no'],
+                // "or_cr_image" is the driver's license upload; "vehicle_reg_image" is the OR/CR.
+                'id_license_path' => $request->file('or_cr_image')->store('courier-licenses', 'public'),
+                'or_cr_path'      => $request->file('vehicle_reg_image')->store('courier-vehicle-regs', 'public'),
             ];
-
-            if ($request->hasFile('or_cr_image')) {
-                $courierData['or_cr_path'] = $request->file('or_cr_image')->store('courier-licenses', 'public');
-            }
-            if ($request->hasFile('vehicle_reg_image')) {
-                $courierData['id_license_path'] = $request->file('vehicle_reg_image')->store('courier-vehicle-regs', 'public');
-            }
 
             \App\Models\Courier::create($courierData);
         }
 
         event(new Registered($user));
+
+        // Google sign-up: the email is already verified, so no code is needed.
+        if ($done = GoogleSignup::finish($request, $user)) {
+            return $done;
+        }
 
         // Verify the email with a one-time code before the account goes for approval.
         try {
