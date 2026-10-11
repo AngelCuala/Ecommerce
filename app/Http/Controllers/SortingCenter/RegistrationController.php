@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\SortingCenterApplication;
 use App\Models\User;
 use App\Services\PsgcDirectory;
+use App\Support\GoogleSignup;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -20,11 +21,15 @@ class RegistrationController extends Controller
 {
     public function create()
     {
-        return view('sorting-center.register');
+        // Sorting center sign-up now lives on the main registration form ("Logistics").
+        return redirect()->route('register', ['role' => 'logistics']);
     }
 
     public function store(Request $request)
     {
+        GoogleSignup::lockEmail($request);
+        $psgcAvailable = class_exists(PsgcDirectory::class);
+
         $data = $request->validate([
             'last_name'       => 'required|string|max:100',
             'first_name'      => 'required|string|max:100',
@@ -44,12 +49,27 @@ class RegistrationController extends Controller
             'government_id'   => 'required|file|mimes:jpg,jpeg,png,pdf|max:5120',
             'business_permit' => 'required|file|mimes:jpg,jpeg,png,pdf|max:5120',
             'terms'           => 'accepted',
-        ] + PsgcDirectory::codeRules(), [
+        ] + ($psgcAvailable ? PsgcDirectory::codeRules() : [
+            'province_code'     => ['nullable', 'regex:/^\d{9,10}$/'],
+            'municipality_code' => ['nullable', 'regex:/^\d{9,10}$/'],
+        ]), [
             'business_permit.required' => 'Please upload your business / DTI permit.',
         ]);
 
-        // Validate the full address chain against the PSA PSGC dataset.
-        $addr = app(PsgcDirectory::class)->resolve($request->all(), true, $data['barangay']);
+        // Validate the full address chain against the PSA PSGC dataset when that service is
+        // installed; otherwise use the names and codes picked in the address dropdowns.
+        $addr = $psgcAvailable
+            ? app(PsgcDirectory::class)->resolve($request->all(), true, $data['barangay'])
+            : [
+                'region'            => $request->input('region'),
+                'region_code'       => null,
+                'province_display'  => $data['province'] ?? null,
+                'province_code'     => $data['province_code'] ?? null,
+                'municipality'      => $data['municipality'],
+                'municipality_code' => $data['municipality_code'] ?? null,
+                'barangay'          => $data['barangay'],
+                'barangay_code'     => null,
+            ];
         if (! $addr['municipality_code']) {
             throw ValidationException::withMessages([
                 'municipality' => "{$addr['municipality']} has no PSA correspondence code yet.",
@@ -64,7 +84,7 @@ class RegistrationController extends Controller
             $addr['barangay'], $addr['municipality'], $addr['province_display'],
         ]));
 
-        DB::transaction(function () use ($data, $addr, $age, $idPath, $permitPath, $address) {
+        $user = DB::transaction(function () use ($data, $addr, $age, $idPath, $permitPath, $address) {
             $user = User::create([
                 'name'            => $data['business_name'],
                 'first_name'      => $data['first_name'],
@@ -112,7 +132,15 @@ class RegistrationController extends Controller
                 'business_permit_path' => $permitPath,
                 'status'               => 'pending',
             ]);
+
+            return $user;
         });
+
+        // Came from "Continue with Google": link it (the email is already verified).
+        if ($google = GoogleSignup::pending($request)) {
+            $user->forceFill(['google_id' => $google['id'], 'email_verified_at' => now()])->save();
+            GoogleSignup::forget($request);
+        }
 
         return redirect()->route('sc.login')->with('success',
             'Registration submitted. Please wait for the administrator\'s approval, which will be sent to your email at ' . $data['email'] . '.');

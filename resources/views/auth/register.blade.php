@@ -278,7 +278,17 @@
 
                     <div class="mt-3">
                         <label class="fld-label" for="email">Email Address*</label>
-                        <input type="email" name="email" id="email" class="form-input" placeholder="example@gmail.com" value="{{ old('email') }}" required>
+                        @if ($google = \App\Support\GoogleSignup::pending(request()))
+                            {{-- From "Continue with Google": the email is fixed and already verified. --}}
+                            <input type="email" name="email" id="email" class="form-input" value="{{ $google['email'] }}" readonly required>
+                            <p class="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs" style="color:#15803d;">
+                                <svg class="h-4 w-4" viewBox="0 0 24 24" aria-hidden="true"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+                                <span class="font-semibold">Verified with Google</span> — no email code needed.
+                                <a href="{{ route('register', ['google' => 'forget']) }}" class="font-semibold underline" style="color:#8a7a70;">Use a different email</a>
+                            </p>
+                        @else
+                            <input type="email" name="email" id="email" class="form-input" placeholder="example@gmail.com" value="{{ old('email') }}" required>
+                        @endif
                         <p class="field-error" data-error-for="email">@error('email'){{ $message }}@enderror</p>
                     </div>
 
@@ -568,75 +578,50 @@
                     <input type="hidden" name="logistics_id" id="logisticsIdInput">
                 </section>
 
-                {{-- LOGISTICS FIELDS --}}
+                {{-- LOGISTICS (Sorting Center) FIELDS — the Address step is the hub address --}}
                 <section id="logisticsSection" class="hidden-section form-card wiz-step" data-step="logistics" data-title="Sorting Center">
                     <h2 class="card-title"><span class="card-num">5</span> Sorting Center Information</h2>
 
                     <div class="mb-3">
-                        <label class="fld-label" for="logisticsBusinessName">Business / Center Name</label>
-                        <input type="text" name="business_name" id="logisticsBusinessName" required class="form-input" placeholder="e.g. ALVY Hub Lipa">
+                        <label class="fld-label" for="logisticsBusinessName">Business / Center Name*</label>
+                        <input type="text" name="business_name" id="logisticsBusinessName" required maxlength="150"
+                               class="form-input @error('business_name') is-invalid @enderror" placeholder="e.g. ALVY Hub Lipa" value="{{ old('business_name') }}">
+                        @error('business_name')<p class="field-error">{{ $message }}</p>@enderror
+                        <p class="mt-1 text-[11px]" style="color:#8a7a70;">The address you entered in the Address step is used as the hub address.</p>
                     </div>
 
                     <div class="section-divider">
                         <div class="section-bar"></div>
-                        <h3 class="text-sm font-bold" style="color:#3a2f29;">Hub Address</h3>
+                        <h3 class="text-sm font-bold" style="color:#3a2f29;">Documents</h3>
                     </div>
+                    <p class="mb-3 text-xs" style="color:#8a7a70;">JPG, PNG or PDF · max 5 MB each. Only the admin team can see these.</p>
 
-                    <div class="mb-3 space-y-3">
-                        <div>
-                            <label class="fld-label" for="logisticsProvince">Province</label>
-                            <select name="province" id="logisticsProvince" class="form-input" required>
-                                <option value="">Select Province</option>
-                            </select>
-                        </div>
-                        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                            <div>
-                                <label class="fld-label" for="logisticsMunicipality">Municipality / City</label>
-                                <select name="municipality" id="logisticsMunicipality" class="form-input" required disabled>
-                                    <option value="">Select province first</option>
-                                </select>
+                    @foreach ([
+                        ['government_id',   'Government-issued ID*',  'Passport, driver\'s license, UMID, PhilID, etc.'],
+                        ['business_permit', 'Business / DTI Permit*', 'Business permit or DTI business name registration.'],
+                    ] as [$field, $label, $hint])
+                        <div class="mb-3">
+                            <label class="fld-label">{{ $label }}</label>
+                            <div class="file-upload-box" onclick="document.getElementById('logistics_{{ $field }}').click()">
+                                <span class="upload-icon">
+                                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+                                </span>
+                                <div class="min-w-0">
+                                    <p class="truncate text-sm font-semibold" style="color:#3a2f29;" id="logistics_{{ $field }}_label">Click to upload</p>
+                                    <p class="truncate text-xs" style="color:#9a8b81;">{{ $hint }}</p>
+                                </div>
                             </div>
-                            <div>
-                                <label class="fld-label" for="logisticsBarangay">Barangay</label>
-                                <select name="barangay" id="logisticsBarangay" class="form-input" required disabled>
-                                    <option value="">Select municipality first</option>
-                                </select>
-                            </div>
+                            <input type="file" id="logistics_{{ $field }}" name="{{ $field }}" required accept="image/jpeg,image/png,.pdf" class="hidden">
+                            <img id="logistics_{{ $field }}_preview" class="file-preview hidden">
+                            @error($field)<p class="field-error">{{ $message }}</p>@enderror
                         </div>
-                        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                            <div>
-                                <label class="fld-label" for="logisticsStreet">Street</label>
-                                <input type="text" name="street" id="logisticsStreet" class="form-input" placeholder="Street">
-                            </div>
-                            <div>
-                                <label class="fld-label" for="logisticsHouseNumber">Bldg / Unit No.</label>
-                                <input type="text" name="house_number" id="logisticsHouseNumber" class="form-input" placeholder="Bldg / Unit No.">
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="section-divider">
-                        <div class="section-bar"></div>
-                        <h3 class="text-sm font-bold" style="color:#3a2f29;">Logistics Documents</h3>
-                    </div>
-
-                    <div class="mb-3">
-                        <label class="fld-label">Business / DTI Permit</label>
-                        <div class="file-upload-box" onclick="document.getElementById('logisticsPermitUpload').click()">
-                            <span class="upload-icon">
-                                <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
-                            </span>
-                            <p class="text-sm font-semibold" style="color:#3a2f29;">Click to upload DTI Permit</p>
-                        </div>
-                        <input type="file" id="logisticsPermitUpload" name="dti_permit" accept="image/*,.pdf" class="hidden">
-                        <img id="logisticsPermitPreview" class="file-preview hidden">
-                    </div>
+                    @endforeach
 
                     <div class="flex gap-2 rounded-lg border p-3 text-sm" style="background:#fff5f3;border-color:#fdd5c8;">
                         <svg class="mt-0.5 h-4 w-4 flex-shrink-0" style="color:#fa4e1c;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
                         </svg>
-                        <p style="color:#b4380f;">Your permit and hub address will be reviewed by the admin before your account is activated.</p>
+                        <p style="color:#b4380f;">Your documents and hub address will be reviewed by the admin. You can sign in to the Sorting Center portal once approved.</p>
                     </div>
                 </section>
             </div>
@@ -699,14 +684,14 @@ document.addEventListener('DOMContentLoaded', function() {
     const logisticsSection = document.getElementById('logisticsSection');
     
     // Disable inputs in hidden role sections so they aren't submitted
-    // (logistics fields share names like province/street with the main address)
+    // (seller and logistics sections share field names like government_id)
     function syncSectionInputs() {
         [sellerSection, courierSection, logisticsSection].forEach(sec => {
             const hidden = sec.classList.contains('hidden-section');
             sec.querySelectorAll('input, select').forEach(el => {
                 if (hidden) {
                     el.disabled = true;
-                } else if (!['logisticsMunicipality', 'logisticsBarangay'].includes(el.id) || el.options.length > 1) {
+                } else {
                     el.disabled = false;
                 }
             });
@@ -735,7 +720,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 loadLogisticsProviders();
             } else if (role === 'logistics') {
                 logisticsSection.classList.remove('hidden-section');
-                loadProvinces();
             }
             syncSectionInputs();
         });
@@ -772,7 +756,9 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     setupFilePreview('driverLicenseUpload', 'driverLicensePreview');
     setupFilePreview('vehicleRegUpload', 'vehicleRegPreview');
-    setupFilePreview('logisticsPermitUpload', 'logisticsPermitPreview');
+    ['government_id', 'business_permit'].forEach(function (f) {
+        setupFilePreview('logistics_' + f, 'logistics_' + f + '_preview', 'logistics_' + f + '_label');
+    });
     setupFilePreview('buyerIdUpload', 'buyerIdPreview', 'buyerIdLabel');
 
     // Age auto-calculation from birthday
@@ -918,63 +904,6 @@ function selectProvider(id, element) {
     document.getElementById('logisticsIdInput').value = id;
 }
 
-// Load Provinces for Logistics
-function loadProvinces() {
-    fetch('https://psgc.gitlab.io/api/provinces/')
-        .then(res => res.json())
-        .then(data => {
-            const select = document.getElementById('logisticsProvince');
-            select.innerHTML = '<option value="">Select Province</option>' +
-                data.sort((a, b) => a.name.localeCompare(b.name))
-                    .map(p => `<option value="${p.name}" data-code="${p.code}">${p.name}</option>`)
-                    .join('');
-        });
-}
-
-// Load Municipalities when province changes
-document.addEventListener('DOMContentLoaded', function() {
-    document.getElementById('logisticsProvince')?.addEventListener('change', function() {
-        const selectedOption = this.options[this.selectedIndex];
-        const code = selectedOption.dataset.code;
-        
-        if (!code) return;
-        
-        const munSelect = document.getElementById('logisticsMunicipality');
-        munSelect.disabled = true;
-        munSelect.innerHTML = '<option value="">Loading...</option>';
-        
-        Promise.all([
-            fetch(`https://psgc.gitlab.io/api/provinces/${code}/municipalities/`).then(r => r.json()),
-            fetch(`https://psgc.gitlab.io/api/provinces/${code}/cities/`).then(r => r.json())
-        ]).then(([muns, cities]) => {
-            const combined = [...muns, ...cities].sort((a, b) => a.name.localeCompare(b.name));
-            munSelect.innerHTML = '<option value="">Select Municipality / City</option>' +
-                combined.map(m => `<option value="${m.name}" data-code="${m.code}">${m.name}</option>`).join('');
-            munSelect.disabled = false;
-        });
-    });
-    
-    document.getElementById('logisticsMunicipality')?.addEventListener('change', function() {
-        const selectedOption = this.options[this.selectedIndex];
-        const code = selectedOption.dataset.code;
-        
-        if (!code) return;
-        
-        const brgySelect = document.getElementById('logisticsBarangay');
-        brgySelect.disabled = true;
-        brgySelect.innerHTML = '<option value="">Loading...</option>';
-        
-        fetch(`https://psgc.gitlab.io/api/municipalities/${code}/barangays/`)
-            .then(res => res.json())
-            .then(data => {
-                brgySelect.innerHTML = '<option value="">Select Barangay</option>' +
-                    data.sort((a, b) => a.name.localeCompare(b.name))
-                        .map(b => `<option value="${b.name}">${b.name}</option>`)
-                        .join('');
-                brgySelect.disabled = false;
-            });
-    });
-});
 </script>
 @if (file_exists(public_path('js/psgc-address.js')))
 <script src="{{ asset('js/psgc-address.js') }}"></script>

@@ -94,6 +94,14 @@ class AuthenticatedSessionController extends Controller
             return redirect()->route('seller.status');
         }
 
+        // Courier sign-ups waiting for (or turned down by) the Logistics team → their
+        // application status page, like sellers. Approval makes them a courier.
+        if ($user->isCourierPending() && ! $user->isApproved()) {
+            $request->session()->regenerate();
+            return redirect()->route('courier.status')
+                ->with('info', 'Your courier registration is still awaiting approval from the Logistics team.');
+        }
+
         // Block accounts pending admin approval or rejected
         if ($user->isPending()) {
             Auth::guard('web')->logout();
@@ -251,28 +259,37 @@ class AuthenticatedSessionController extends Controller
 
         // Sign-up: email confirmed → the account goes to the approval queue.
         if ($user->isUnverified()) {
-            $user->forceFill(['approval_status' => 'pending'])->save();
-
-            // Sellers can watch their application on the status page.
-            if ($user->isSeller()) {
-                $user->sellerApplication()->where('status', 'unverified')->update(['status' => 'pending']);
-
-                Auth::login($user, $remember);
-                $request->session()->regenerate();
-
-                return redirect()->route('seller.status')
-                    ->with('success', 'Email verified! Your seller application is now waiting for admin approval.');
-            }
-
-            return redirect()->route('login')->with('success', $user->role === 'courier'
-                ? 'Email verified! Your account is now waiting for the Logistics/Sorting Center\'s approval. We\'ll email you once it\'s approved.'
-                : 'Email verified! Your account is now waiting for admin approval. We\'ll email you once it\'s approved.');
+            return $this->finishSignup($request, $user, $remember);
         }
 
         Auth::login($user, $remember);
         $request->session()->regenerate();
 
         return $this->completeLogin($request, $user);
+    }
+
+    /**
+     * A new account's email is confirmed (by the emailed code, or by Google):
+     * it moves from "unverified" to the approval queue.
+     */
+    public function finishSignup(Request $request, User $user, bool $remember = false, string $verified = 'Email verified!')
+    {
+        $user->forceFill(['approval_status' => 'pending'])->save();
+
+        // Sellers can watch their application on the status page.
+        if ($user->isSeller()) {
+            $user->sellerApplication()->where('status', 'unverified')->update(['status' => 'pending']);
+
+            Auth::login($user, $remember);
+            $request->session()->regenerate();
+
+            return redirect()->route('seller.status')
+                ->with('success', $verified . ' Your seller application is now waiting for admin approval.');
+        }
+
+        return redirect()->route('login')->with('success', $user->role === 'courier'
+            ? $verified . ' Your account is now waiting for the Logistics/Sorting Center\'s approval. We\'ll email you once it\'s approved.'
+            : $verified . ' Your account is now waiting for admin approval. We\'ll email you once it\'s approved.');
     }
 
     public function resendOtp(Request $request)

@@ -106,9 +106,11 @@ class ScRegistrationAndLogisticsTest extends TestCase
 
     public function test_registration_page_loads_and_has_psgc_and_register_link_on_login(): void
     {
-        $html = $this->get(route('sc.register'))->assertOk()->getContent();
-        $this->assertStringContainsString('scr_region', $html);
-        $this->assertStringContainsString('psgc-address.js', $html);
+        // Sorting center sign-up is the "Logistics" account type on the /register wizard.
+        $this->get(route('sc.register'))->assertRedirect(route('register', ['role' => 'logistics']));
+        $html = $this->get(route('register', ['role' => 'logistics']))->assertOk()->getContent();
+        $this->assertStringContainsString('reg_region', $html);
+        $this->assertStringContainsString('name="business_name"', $html);
         $this->assertStringContainsString('government_id', $html);
         $this->assertStringContainsString('business_permit', $html);
         $this->get(route('sc.login'))->assertOk()->assertSee(route('sc.register'), false);

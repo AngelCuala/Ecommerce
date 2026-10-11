@@ -12,6 +12,10 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        // alvy.trade is served through Cloudflare, which talks to this app over plain HTTP.
+        // Trust its X-Forwarded-* headers so URLs (e.g. the Google sign-in callback) are https://.
+        $middleware->trustProxies(at: '*');
+
         $middleware->alias([
             'role'         => \App\Http\Middleware\RoleMiddleware::class,
             'is_admin'     => \App\Http\Middleware\IsAdmin::class,

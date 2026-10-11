@@ -3,13 +3,10 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Mail\CourierApprovedMail;
-use App\Mail\CourierRejectedMail;
 use App\Models\Courier;
 use App\Models\UserNotification;
+use App\Services\CourierReview;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Mail;
 
 class CourierController extends Controller
 {
@@ -39,45 +36,18 @@ class CourierController extends Controller
         return view('admin.couriers.show', compact('courier'));
     }
 
-    public function approve(Courier $courier)
+    public function approve(Courier $courier, CourierReview $review)
     {
-        $courier->update([
-            'status'      => 'approved',
-            'reviewed_at' => now(),
-            'reviewed_by' => auth()->id(),
-        ]);
-        $courier->user->update(['role' => 'courier']);
-
-        $this->notify($courier, 'Courier application approved',
-            'Congratulations! Your courier application has been approved. You can now log in and start accepting deliveries.',
-            'info', route('courier.dashboard'));
-
-        $this->email(fn () => Mail::to($courier->user->email)->send(new CourierApprovedMail($courier)));
+        $review->approve($courier, auth()->user());
 
         return back()->with('success', $courier->fullName() . ' approved as courier.');
     }
 
-    public function reject(Request $request, Courier $courier)
+    public function reject(Request $request, Courier $courier, CourierReview $review)
     {
         $request->validate(['rejection_reason' => 'nullable|string|max:500']);
 
-        $courier->update([
-            'status'           => 'rejected',
-            'rejection_reason' => $request->rejection_reason,
-            'reviewed_at'      => now(),
-            'reviewed_by'      => auth()->id(),
-        ]);
-        // Return the user to a plain buyer so they can re-apply.
-        $courier->user->update(['role' => 'buyer']);
-
-        $reason = $request->rejection_reason
-            ? ' Reason: ' . $request->rejection_reason
-            : '';
-        $this->notify($courier, 'Courier application rejected',
-            'Your courier application was not approved.' . $reason . ' You may re-apply from your account.',
-            'warning', route('courier.register'));
-
-        $this->email(fn () => Mail::to($courier->user->email)->send(new CourierRejectedMail($courier)));
+        $review->reject($courier, auth()->user(), $request->rejection_reason);
 
         return back()->with('success', $courier->fullName() . '\'s application rejected.');
     }
@@ -104,15 +74,5 @@ class CourierController extends Controller
             'type'    => $type,
             'link'    => $link,
         ]);
-    }
-
-    /** Send an email but never let a mail failure break the review action. */
-    private function email(callable $send): void
-    {
-        try {
-            $send();
-        } catch (\Throwable $e) {
-            Log::warning('Courier review email failed: ' . $e->getMessage());
-        }
     }
 }
