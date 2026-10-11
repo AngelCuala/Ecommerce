@@ -111,8 +111,9 @@ class RegisteredUserController extends Controller
         } elseif ($role === 'courier') {
             $rules['vehicle_type'] = 'required|in:motorcycle,tricycle,car,truck';
             $rules['plate_number'] = 'required|string|max:50';
-            $rules['or_cr_image'] = ['bail', 'nullable', 'file', 'mimes:jpg,jpeg,png,pdf', 'max:5120', new GovernmentId]; // driver's license
-            $rules['vehicle_reg_image'] = 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120';
+            // couriers.id_license_path / or_cr_path are NOT NULL, so both documents are required.
+            $rules['or_cr_image'] = ['bail', 'required', 'file', 'mimes:jpg,jpeg,png,pdf', 'max:5120', new GovernmentId]; // driver's license
+            $rules['vehicle_reg_image'] = 'required|file|mimes:jpg,jpeg,png,pdf|max:5120';
             $rules['logistics_id'] = 'nullable|exists:users,id';
         } elseif ($role === 'logistics') {
             $rules['business_name'] = 'required|string|max:255';
@@ -236,23 +237,20 @@ class RegisteredUserController extends Controller
                 'first_name'     => $validated['first_name'],
                 'middle_initial' => $validated['middle_initial'] ?? null,
                 'sex'            => ucfirst($validated['sex']),
-                'birthday'       => '2000-01-01',
-                'age'            => 24,
+                'birthday'       => $validated['birthday'],
+                'age'            => $age,
                 'vehicle_type'   => $validated['vehicle_type'],
                 'plate_number'   => strtoupper($validated['plate_number']),
                 'status'         => 'pending',
-                'province'       => '',
-                'municipality'   => '',
-                'barangay'       => '',
-                'contact_no'     => '',
+                'province'       => $addr['province_display'] ?? '',
+                'municipality'   => $addr['municipality'],
+                'barangay'       => $addr['barangay'],
+                'street'         => trim($validated['house_number'] . ' ' . $validated['street']),
+                'contact_no'     => $validated['contact_no'],
+                // "or_cr_image" is the driver's license upload; "vehicle_reg_image" is the OR/CR.
+                'id_license_path' => $request->file('or_cr_image')->store('courier-licenses', 'public'),
+                'or_cr_path'      => $request->file('vehicle_reg_image')->store('courier-vehicle-regs', 'public'),
             ];
-
-            if ($request->hasFile('or_cr_image')) {
-                $courierData['or_cr_path'] = $request->file('or_cr_image')->store('courier-licenses', 'public');
-            }
-            if ($request->hasFile('vehicle_reg_image')) {
-                $courierData['id_license_path'] = $request->file('vehicle_reg_image')->store('courier-vehicle-regs', 'public');
-            }
 
             \App\Models\Courier::create($courierData);
         }

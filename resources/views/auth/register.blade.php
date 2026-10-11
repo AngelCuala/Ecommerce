@@ -1,4 +1,4 @@
-<x-auth-shell title="Create Account — ALVY" heading="Create your account" subtitle="Join ALVY in a few minutes — it's free." tab="signup" width="wide" :progress="true">
+<x-auth-shell title="Create Account — ALVY" heading="Create your account" subtitle="Join ALVY in a few minutes — it's free." tab="signup" width="wide">
 <x-slot:head>
     <style>
         .font-display { font-family: 'Nunito', ui-sans-serif, system-ui; }
@@ -157,10 +157,29 @@
         .sticky-submit { position: sticky; bottom: 0; z-index: 20; background: rgba(255,255,255,.96); backdrop-filter: blur(8px);
                          border-top: 1px solid #F0E4DC; border-radius: 0 0 1.75rem 1.75rem; box-shadow: 0 -12px 24px -18px rgba(58,47,41,.35); }
         .btn-primary-grad { background: linear-gradient(135deg,#fa4e1c,#ff7a45); box-shadow: 0 12px 24px -12px rgba(250,78,28,.8); }
+
+        /* ── Step-by-step wizard ── */
+        [hidden] { display: none !important; } /* beat Tailwind's .flex on toggled buttons */
+        .file-upload-box.is-invalid { border-color: #DC2626; background: #FEF2F2; }
+        .wiz-step:not(.is-current) { display: none !important; }
+        .wiz-step.is-current { animation: wizIn .22s ease; }
+        @keyframes wizIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+        .wiz-bar { height: 6px; border-radius: 999px; background: #F3E8E0; overflow: hidden; }
+        .wiz-bar-fill { height: 100%; width: 0; border-radius: 999px; background: linear-gradient(90deg,#fa4e1c,#ff8a5b); transition: width .3s ease; }
+        .wiz-dots { display: flex; gap: .25rem; }
+        .wiz-dots li { flex: 1; display: flex; flex-direction: column; align-items: center; gap: .25rem; font-size: .68rem; font-weight: 600; color: #b5a79d; text-align: center; }
+        .wiz-dots .dot { display: inline-flex; align-items: center; justify-content: center; width: 1.6rem; height: 1.6rem; border-radius: 999px;
+                         background: #F7F1ED; color: #8a7a70; font-size: .7rem; font-weight: 800; transition: all .2s; }
+        .wiz-dots li.is-done .dot { background: #fff1ee; color: #fa4e1c; }
+        .wiz-dots li.is-current { color: #222; }
+        .wiz-dots li.is-current .dot { background: #fa4e1c; color: #fff; box-shadow: 0 6px 14px -6px rgba(250,78,28,.7); }
+        @media (max-width: 480px) { .wiz-dots .lbl { display: none; } }
+        .btn-ghost { border: 1.5px solid #E6D9CF; color: #5a4d45; background: #fff; }
+        .btn-ghost:hover { border-color: #fa4e1c; color: #fa4e1c; }
     </style>
 </x-slot:head>
 
-        <form id="registrationForm" method="POST" action="{{ route('register') }}" enctype="multipart/form-data">
+        <form id="registrationForm" method="POST" action="{{ route('register') }}" enctype="multipart/form-data" novalidate>
             @csrf
 
             <div class="space-y-4 px-6 py-6 sm:px-10">
@@ -187,40 +206,56 @@
                     </div>
                 @endif
 
+                {{-- Progress: filled in by register-wizard.js from the steps of the chosen role --}}
+                <div class="wiz-progress" aria-live="polite">
+                    <div class="flex items-center justify-between text-xs font-semibold" style="color:#8a7a70;">
+                        <span id="wizStepText">Step 1</span>
+                        <span id="wizStepName"></span>
+                    </div>
+                    <div class="wiz-bar mt-2"><div class="wiz-bar-fill" id="wizBarFill"></div></div>
+                    <ol class="wiz-dots mt-3" id="wizDots"></ol>
+                </div>
+
                 {{-- 1. Account type --}}
-                <section class="form-card">
-                    <h2 class="card-title"><span class="card-num">1</span> I am a…</h2>
+                <section class="form-card wiz-step" data-step="type" data-title="Account type">
+                    <h2 class="card-title"><span class="card-num">1</span> What kind of account do you want?</h2>
+                    <p class="-mt-2 mb-3 text-xs" style="color:#8a7a70;">Pick one to continue — the next steps depend on your choice.</p>
                     <div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                        <div class="role-chip active p-3 text-center" data-role="buyer">
+                        <div class="role-chip p-3 text-center" data-role="buyer">
                             <svg class="mx-auto mb-1 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
                             </svg>
-                            <span class="text-xs font-semibold">Buyer</span>
+                            <span class="block text-xs font-semibold">Buyer</span>
+                            <span class="block text-[10px] opacity-75">Shop and order</span>
                         </div>
                         <div class="role-chip p-3 text-center" data-role="seller">
                             <svg class="mx-auto mb-1 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/>
                             </svg>
-                            <span class="text-xs font-semibold">Seller</span>
+                            <span class="block text-xs font-semibold">Seller</span>
+                            <span class="block text-[10px] opacity-75">Open a shop</span>
                         </div>
                         <div class="role-chip p-3 text-center" data-role="courier">
                             <svg class="mx-auto mb-1 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
                             </svg>
-                            <span class="text-xs font-semibold">Courier</span>
+                            <span class="block text-xs font-semibold">Courier</span>
+                            <span class="block text-[10px] opacity-75">Deliver parcels</span>
                         </div>
                         <div class="role-chip p-3 text-center" data-role="logistics">
                             <svg class="mx-auto mb-1 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
                             </svg>
-                            <span class="text-xs font-semibold">Logistics</span>
+                            <span class="block text-xs font-semibold">Logistics</span>
+                            <span class="block text-[10px] opacity-75">Run a sorting hub</span>
                         </div>
                     </div>
-                    <input type="hidden" name="role" id="roleInput" value="buyer">
+                    <input type="hidden" name="role" id="roleInput" value="">
+                    <p class="field-error" data-error-for="roleInput"></p>
                 </section>
 
                 {{-- 2. Personal information --}}
-                <section class="form-card">
+                <section class="form-card wiz-step" data-step="personal" data-title="Personal">
                     <h2 class="card-title"><span class="card-num">2</span> Personal Information</h2>
 
                     <div class="grid grid-cols-1 gap-3 sm:grid-cols-5">
@@ -277,7 +312,7 @@
                 </section>
 
                 {{-- 3. Address (PSGC) --}}
-                <section class="form-card">
+                <section class="form-card wiz-step" data-step="address" data-title="Address">
                     <h2 class="card-title"><span class="card-num">3</span> Address</h2>
                     <div class="space-y-3">
                         <div>
@@ -328,7 +363,7 @@
                 </section>
 
                 {{-- 4. Security & verification --}}
-                <section class="form-card">
+                <section class="form-card wiz-step" data-step="security" data-title="Security">
                     <h2 class="card-title"><span class="card-num">4</span> Security &amp; Verification</h2>
 
                     <div>
@@ -359,25 +394,25 @@
                                 <p class="text-xs" style="color:#9a8b81;">JPG, PNG or PDF · max 5 MB</p>
                             </div>
                         </div>
-                        <input type="file" id="buyerIdUpload" name="valid_id" accept="image/jpeg,image/png,.pdf" class="hidden">
+                        <input type="file" id="buyerIdUpload" name="valid_id" required accept="image/jpeg,image/png,.pdf" class="hidden">
                         <img id="buyerIdPreview" class="file-preview hidden">
                     </div>
                 </section>
 
                 {{-- SELLER FIELDS --}}
-                <section id="sellerSection" class="hidden-section form-card">
+                <section id="sellerSection" class="hidden-section form-card wiz-step" data-step="seller" data-title="Shop">
                     <h2 class="card-title"><span class="card-num">5</span> Shop Information</h2>
 
                     <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
                         <div class="sm:col-span-2">
                             <label class="fld-label" for="shopName">Shop Name* <span class="font-normal" style="color:#8a7a70;">(3–30 characters)</span></label>
-                            <input type="text" name="shop_name" id="shopName" class="form-input @error('shop_name') is-invalid @enderror"
+                            <input type="text" name="shop_name" id="shopName" required class="form-input @error('shop_name') is-invalid @enderror"
                                    placeholder="e.g. Maria Clara Handicrafts" value="{{ old('shop_name') }}" maxlength="30">
                             @error('shop_name')<p class="field-error">{{ $message }}</p>@enderror
                         </div>
                         <div>
                             <label class="fld-label" for="lineOfBusiness">Shop Category*</label>
-                            <select name="line_of_business" id="lineOfBusiness" class="form-input @error('line_of_business') is-invalid @enderror">
+                            <select name="line_of_business" id="lineOfBusiness" required class="form-input @error('line_of_business') is-invalid @enderror">
                                 <option value="">Select category</option>
                                 @foreach ($categories as $cat)
                                     <option value="{{ $cat }}" @selected(old('line_of_business') === $cat)>{{ $cat }}</option>
@@ -387,7 +422,7 @@
                         </div>
                         <div>
                             <label class="fld-label" for="sellerType">Seller Type*</label>
-                            <select name="seller_type" id="sellerType" class="form-input @error('seller_type') is-invalid @enderror">
+                            <select name="seller_type" id="sellerType" required class="form-input @error('seller_type') is-invalid @enderror">
                                 <option value="">Select seller type</option>
                                 @foreach ($sellerTypes as $type)
                                     <option value="{{ $type }}" @selected(old('seller_type') === $type)>{{ $type }}</option>
@@ -397,7 +432,7 @@
                         </div>
                         <div class="sm:col-span-2">
                             <label class="fld-label" for="tin">TIN*</label>
-                            <input type="text" name="tin" id="tin" class="form-input @error('tin') is-invalid @enderror"
+                            <input type="text" name="tin" id="tin" required class="form-input @error('tin') is-invalid @enderror"
                                    placeholder="000-000-000-000" inputmode="numeric" maxlength="15" value="{{ old('tin') }}">
                             @error('tin')
                                 <p class="field-error">{{ $message }}</p>
@@ -431,7 +466,7 @@
                                         <p class="truncate text-xs" style="color:#9a8b81;">{{ $hint }}</p>
                                     </div>
                                 </div>
-                                <input type="file" id="seller_{{ $field }}" name="{{ $field }}" accept="image/jpeg,image/png,.pdf" class="hidden">
+                                <input type="file" id="seller_{{ $field }}" name="{{ $field }}" required accept="image/jpeg,image/png,.pdf" class="hidden">
                                 <img id="seller_{{ $field }}_preview" class="file-preview hidden">
                                 @error($field)<p class="field-error">{{ $message }}</p>@enderror
                             </div>
@@ -442,12 +477,12 @@
                         <svg class="mt-0.5 h-4 w-4 flex-shrink-0" style="color:#fa4e1c;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
                         </svg>
-                        <p style="color:#b4380f;">Sellers need a 4-digit ZIP code and a stronger password (uppercase, lowercase, number and symbol). We'll review your shop in 1–3 business days after you verify your email.</p>
+                        <p style="color:#b4380f;">After you verify your email, our team will review your shop in 1–3 business days.</p>
                     </div>
                 </section>
 
                 {{-- COURIER FIELDS --}}
-                <section id="courierSection" class="hidden-section form-card">
+                <section id="courierSection" class="hidden-section form-card wiz-step" data-step="courier" data-title="Courier">
                     <h2 class="card-title"><span class="card-num">5</span> Courier Details</h2>
 
                     <div class="section-divider">
@@ -487,32 +522,35 @@
                     </div>
 
                     <div class="mb-3">
-                        <label class="fld-label" for="plateNumber">Plate Number</label>
-                        <input type="text" name="plate_number" id="plateNumber" class="form-input" placeholder="ABC 1234" style="text-transform:uppercase;">
+                        <label class="fld-label" for="plateNumber">Plate Number*</label>
+                        <input type="text" name="plate_number" id="plateNumber" required class="form-input @error('plate_number') is-invalid @enderror" placeholder="ABC 1234" value="{{ old('plate_number') }}" style="text-transform:uppercase;">
+                        @error('plate_number')<p class="field-error">{{ $message }}</p>@enderror
                     </div>
 
                     <div class="mb-3">
-                        <label class="fld-label">Driver's License</label>
+                        <label class="fld-label">Driver's License*</label>
                         <div class="file-upload-box" onclick="document.getElementById('driverLicenseUpload').click()">
                             <span class="upload-icon">
                                 <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
                             </span>
                             <p class="text-sm font-semibold" style="color:#3a2f29;">Click to upload Driver's License</p>
                         </div>
-                        <input type="file" id="driverLicenseUpload" name="or_cr_image" accept="image/*,.pdf" class="hidden">
+                        <input type="file" id="driverLicenseUpload" name="or_cr_image" required accept="image/jpeg,image/png,.pdf" class="hidden">
                         <img id="driverLicensePreview" class="file-preview hidden">
+                        @error('or_cr_image')<p class="field-error">{{ $message }}</p>@enderror
                     </div>
 
                     <div class="mb-3">
-                        <label class="fld-label">Vehicle Registration (OR/CR)</label>
+                        <label class="fld-label">Vehicle Registration (OR/CR)*</label>
                         <div class="file-upload-box" onclick="document.getElementById('vehicleRegUpload').click()">
                             <span class="upload-icon">
                                 <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
                             </span>
                             <p class="text-sm font-semibold" style="color:#3a2f29;">Click to upload Vehicle Registration</p>
                         </div>
-                        <input type="file" id="vehicleRegUpload" name="vehicle_reg_image" accept="image/*,.pdf" class="hidden">
+                        <input type="file" id="vehicleRegUpload" name="vehicle_reg_image" required accept="image/jpeg,image/png,.pdf" class="hidden">
                         <img id="vehicleRegPreview" class="file-preview hidden">
+                        @error('vehicle_reg_image')<p class="field-error">{{ $message }}</p>@enderror
                     </div>
 
                     <div class="section-divider">
@@ -531,12 +569,12 @@
                 </section>
 
                 {{-- LOGISTICS FIELDS --}}
-                <section id="logisticsSection" class="hidden-section form-card">
+                <section id="logisticsSection" class="hidden-section form-card wiz-step" data-step="logistics" data-title="Sorting Center">
                     <h2 class="card-title"><span class="card-num">5</span> Sorting Center Information</h2>
 
                     <div class="mb-3">
                         <label class="fld-label" for="logisticsBusinessName">Business / Center Name</label>
-                        <input type="text" name="business_name" id="logisticsBusinessName" class="form-input" placeholder="e.g. ALVY Hub Lipa">
+                        <input type="text" name="business_name" id="logisticsBusinessName" required class="form-input" placeholder="e.g. ALVY Hub Lipa">
                     </div>
 
                     <div class="section-divider">
@@ -547,20 +585,20 @@
                     <div class="mb-3 space-y-3">
                         <div>
                             <label class="fld-label" for="logisticsProvince">Province</label>
-                            <select name="province" id="logisticsProvince" class="form-input">
+                            <select name="province" id="logisticsProvince" class="form-input" required>
                                 <option value="">Select Province</option>
                             </select>
                         </div>
                         <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
                             <div>
                                 <label class="fld-label" for="logisticsMunicipality">Municipality / City</label>
-                                <select name="municipality" id="logisticsMunicipality" class="form-input" disabled>
+                                <select name="municipality" id="logisticsMunicipality" class="form-input" required disabled>
                                     <option value="">Select province first</option>
                                 </select>
                             </div>
                             <div>
                                 <label class="fld-label" for="logisticsBarangay">Barangay</label>
-                                <select name="barangay" id="logisticsBarangay" class="form-input" disabled>
+                                <select name="barangay" id="logisticsBarangay" class="form-input" required disabled>
                                     <option value="">Select municipality first</option>
                                 </select>
                             </div>
@@ -603,9 +641,9 @@
                 </section>
             </div>
 
-            {{-- Footer (sticky): terms + submit --}}
+            {{-- Footer (sticky): Back / Next, and terms + submit on the last step --}}
             <div class="sticky-submit px-6 py-4 sm:px-10">
-                <label class="flex cursor-pointer items-start gap-3">
+                <label class="flex cursor-pointer items-start gap-3" id="wizTerms" hidden>
                     <input type="checkbox" id="agreeTerms" name="terms" value="1" class="mt-0.5 h-4 w-4 flex-shrink-0 rounded" style="accent-color:#fa4e1c;" @checked(old('terms')) required>
                     <span class="text-sm" style="color:#5a4d45;">
                         I agree to ALVY's
@@ -615,7 +653,7 @@
                     </span>
                 </label>
                 @error('terms')
-                    <p class="mt-2 text-xs" style="color:#DC2626;">{{ $message }}</p>
+                    <p class="mt-2 text-xs" style="color:#DC2626;" data-wiz-terms-error>{{ $message }}</p>
                 @enderror
 
                 <div class="mt-4 flex flex-col-reverse items-center gap-3 sm:flex-row sm:justify-between">
@@ -624,12 +662,24 @@
                         <a href="{{ route('login') }}" class="font-bold" style="color:#222;"
                            onmouseover="this.style.color='#fa4e1c';" onmouseout="this.style.color='#222';">Log In</a>
                     </p>
-                    <button type="submit" id="submitBtn"
-                            class="btn-primary-grad flex w-full items-center justify-center gap-2 rounded-xl px-8 py-3 text-sm font-bold text-white transition sm:w-auto"
-                            style="opacity:0.5;cursor:not-allowed;"
-                            disabled>
-                        Create Account
-                    </button>
+                    <div class="flex w-full gap-2 sm:w-auto">
+                        <button type="button" id="wizBack" hidden
+                                class="btn-ghost flex flex-1 items-center justify-center gap-1 rounded-xl px-5 py-3 text-sm font-bold transition sm:flex-none">
+                            <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
+                            Back
+                        </button>
+                        <button type="button" id="wizNext"
+                                class="btn-primary-grad flex flex-1 items-center justify-center gap-1 rounded-xl px-8 py-3 text-sm font-bold text-white transition sm:flex-none">
+                            Next
+                            <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
+                        </button>
+                        <button type="submit" id="submitBtn" hidden
+                                class="btn-primary-grad flex flex-1 items-center justify-center gap-2 rounded-xl px-8 py-3 text-sm font-bold text-white transition sm:flex-none"
+                                style="opacity:0.5;cursor:not-allowed;"
+                                disabled>
+                            Create Account
+                        </button>
+                    </div>
                 </div>
             </div>
         </form>
@@ -767,9 +817,10 @@ document.addEventListener('DOMContentLoaded', function() {
     syncSellerDocs();
 
     // Re-open the role from a failed submit, or from links like /register?role=seller.
-    const initialRole = @json(old('role', request('role', 'buyer')));
-    const initialChip = document.querySelector('.role-chip[data-role="' + initialRole + '"]');
-    if (initialChip && initialRole !== 'buyer') initialChip.click();
+    // (A programmatic click selects the role without moving the wizard forward.)
+    const initialRole = @json(old('role', request('role', '')));
+    const initialChip = initialRole ? document.querySelector('.role-chip[data-role="' + initialRole + '"]') : null;
+    if (initialChip) initialChip.click();
     
     // Terms checkbox toggles the submit button
     const agreeCheckbox = document.getElementById('agreeTerms');
@@ -930,6 +981,7 @@ document.addEventListener('DOMContentLoaded', function() {
 @endif
 <script src="{{ asset('js/register-address-fallback.js') }}"></script>
 <script src="{{ asset('js/register-validation.js') }}"></script>
+<script src="{{ asset('js/register-wizard.js') }}"></script>
 <script>
 // Attach PSGC cascade for the registration form address
 document.addEventListener('DOMContentLoaded', function() {
