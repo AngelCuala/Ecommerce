@@ -61,6 +61,10 @@ class RegistrationRolesTest extends TestCase
     {
         $this->post(route('register'), $this->base([
             'role' => 'courier', 'vehicle_type' => 'motorcycle', 'plate_number' => 'ABC 1234',
+            'logistics_id' => User::create([
+                'name' => 'Hub', 'email' => 'hub@alvy.test', 'password' => Hash::make('Secret@123'),
+                'role' => 'sorting_center', 'approval_status' => 'approved',
+            ])->id,
             'or_cr_image'       => UploadedFile::fake()->create('license.jpg', 100, 'image/jpeg'),
             'vehicle_reg_image' => UploadedFile::fake()->create('orcr.pdf', 100, 'application/pdf'),
         ]))->assertRedirect(route('otp.show'));

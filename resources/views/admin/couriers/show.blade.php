@@ -33,6 +33,7 @@
                     <div><dt class="text-xs" style="color:#9db3c4;">Birthday / Age</dt><dd class="font-medium" style="color:#222;">{{ optional($courier->birthday)->format('M d, Y') }} · {{ $courier->age }}</dd></div>
                     <div class="sm:col-span-2"><dt class="text-xs" style="color:#9db3c4;">Address</dt><dd class="font-medium" style="color:#222;">{{ $courier->fullAddress() }}</dd></div>
                     <div><dt class="text-xs" style="color:#9db3c4;">Vehicle Type</dt><dd class="font-medium" style="color:#222;">{{ $courier->vehicle_type }}</dd></div>
+                    <div><dt class="text-xs" style="color:#9db3c4;">Sorting Center (reviews this application)</dt><dd class="font-medium" style="color:#222;">{{ $courier->sortingCenter->name ?? '—' }}</dd></div>
                     <div><dt class="text-xs" style="color:#9db3c4;">Plate Number</dt><dd class="font-medium" style="color:#222;">{{ $courier->plate_number }}</dd></div>
                     <div><dt class="text-xs" style="color:#9db3c4;">Submitted</dt><dd class="font-medium" style="color:#222;">{{ optional($courier->submitted_at ?? $courier->created_at)->format('M d, Y g:i A') }}</dd></div>
                     @if ($courier->reviewed_at)

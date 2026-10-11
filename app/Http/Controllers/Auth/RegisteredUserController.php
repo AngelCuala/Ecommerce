@@ -36,6 +36,8 @@ class RegisteredUserController extends Controller
                 // Seller fields live on this same form (shown when "Seller" is picked).
                 'categories'  => \App\Support\SellerApplicationRules::categories(),
                 'sellerTypes' => \App\Models\SellerApplication::SELLER_TYPES,
+                // Sorting centers a courier can apply to.
+                'hubs'        => \App\Support\SortingCenters::forCouriers(),
             ])
             ->header('Cache-Control', 'no-cache, no-store, max-age=0, must-revalidate')
             ->header('Pragma', 'no-cache')
@@ -129,7 +131,8 @@ class RegisteredUserController extends Controller
             // couriers.id_license_path / or_cr_path are NOT NULL, so both documents are required.
             $rules['or_cr_image'] = ['bail', 'required', 'file', 'mimes:jpg,jpeg,png,pdf', 'max:5120', new GovernmentId]; // driver's license
             $rules['vehicle_reg_image'] = 'required|file|mimes:jpg,jpeg,png,pdf|max:5120';
-            $rules['logistics_id'] = 'nullable|exists:users,id';
+            // The sorting center that will review the application (and that the courier delivers for).
+            $rules['logistics_id'] = ['required', \App\Support\SortingCenters::existsRule()];
         }
 
         $validated = $request->validate($rules, [
@@ -153,6 +156,9 @@ class RegisteredUserController extends Controller
 
             'contact_no.regex'     => 'Please enter a valid mobile number: 11 digits starting with 09 (e.g. 09171234567).',
             'contact_no.unique'    => 'This mobile number is already in use by another account.',
+
+            'logistics_id.required' => 'Please choose the sorting center you want to apply to.',
+            'logistics_id.exists'   => 'That sorting center is not available. Please choose another one.',
 
             'password.min'         => 'Password must be at least 8 characters.',
         ]);
@@ -210,6 +216,7 @@ class RegisteredUserController extends Controller
         if ($role === 'courier') {
             $courierData = [
                 'user_id'        => $user->id,
+                'sorting_center_id' => $validated['logistics_id'],
                 'last_name'      => $validated['last_name'],
                 'first_name'     => $validated['first_name'],
                 'middle_initial' => $validated['middle_initial'] ?? null,
@@ -219,6 +226,7 @@ class RegisteredUserController extends Controller
                 'vehicle_type'   => $validated['vehicle_type'],
                 'plate_number'   => strtoupper($validated['plate_number']),
                 'status'         => 'pending',
+                'submitted_at'   => now(),
                 'province'       => $addr['province_display'] ?? '',
                 'municipality'   => $addr['municipality'],
                 'barangay'       => $addr['barangay'],

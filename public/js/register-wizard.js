@@ -61,7 +61,8 @@
     }
 
     function errorSlot(el) {
-        var named = el.id && document.querySelector('[data-error-for="' + el.id + '"]');
+        var key = el.dataset.errorFor || el.id;
+        var named = key && document.querySelector('[data-error-for="' + key + '"]');
         if (named) return named;
         var box = el.closest('div');
         var slot = box.querySelector(':scope > .field-error');
@@ -82,9 +83,13 @@
         errorSlot(el).textContent = msg;
         markTarget(el).classList.toggle('is-invalid', !!msg);
         if (msg && !el.dataset.wizWatch) {
-            el.dataset.wizWatch = '1';
-            ['input', 'change'].forEach(function (ev) {
-                el.addEventListener(ev, function () { setError(el, ''); });
+            // Clear the message as soon as the field changes (any option of a radio group).
+            var watched = el.type === 'radio' ? form.querySelectorAll('input[name="' + el.name + '"]') : [el];
+            Array.prototype.forEach.call(watched, function (w) {
+                w.dataset.wizWatch = '1';
+                ['input', 'change'].forEach(function (ev) {
+                    w.addEventListener(ev, function () { setError(el, ''); });
+                });
             });
         }
         return !msg;
@@ -100,6 +105,7 @@
 
     function isEmpty(el) {
         if (el.type === 'file') return !(el.files && el.files.length);
+        if (el.type === 'radio') return !form.querySelector('input[name="' + el.name + '"]:checked');
         return !String(el.value || '').trim();
     }
 
@@ -134,14 +140,20 @@
             });
         }
 
+        var seenRadios = {};
         step.querySelectorAll('[required]').forEach(function (el) {
             if (isSkipped(el, step) || el.type === 'checkbox') return;
+            if (el.type === 'radio') {           // one check per radio group
+                if (seenRadios[el.name]) return;
+                seenRadios[el.name] = true;
+            }
             if (window.RegisterValidation && window.RegisterValidation.ids.indexOf(el.id) !== -1) return;
 
             var msg = '';
             if (isEmpty(el)) {
                 var label = labelOf(el);
-                msg = el.type === 'file' ? 'Please upload your ' + label + '.'
+                msg = el.dataset.requiredMsg ? el.dataset.requiredMsg
+                    : el.type === 'file' ? 'Please upload your ' + label + '.'
                     : el.tagName === 'SELECT' ? 'Please select a ' + label + '.'
                     : label + ' is required.';
             } else if (role() === 'seller' && SELLER_CHECKS[el.name]) {

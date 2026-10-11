@@ -39,6 +39,14 @@
                 <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
                 Rider Management
             </a>
+            <a href="{{ route('sc.courier-applications.index') }}" class="nav-link {{ request()->routeIs('sc.courier-applications.*') ? 'active' : '' }}">
+                @php $pendingCouriers = \App\Models\Courier::where('sorting_center_id', auth()->id())->where('status', 'pending')->count(); @endphp
+                <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><rect x="1" y="3" width="15" height="13" rx="1"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+                Courier Applications
+                @if($pendingCouriers > 0)
+                    <span style="margin-left:auto;background:var(--accent-orange);color:#fff;border-radius:999px;padding:1px 7px;font-size:10px;font-weight:700;">{{ $pendingCouriers }}</span>
+                @endif
+            </a>
             <a href="{{ route('sc.areas') }}" class="nav-link {{ request()->routeIs('sc.areas') ? 'active' : '' }}">
                 <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
                 Coverage Areas

@@ -94,12 +94,12 @@ class AuthenticatedSessionController extends Controller
             return redirect()->route('seller.status');
         }
 
-        // Courier sign-ups waiting for (or turned down by) the Logistics team → their
+        // Courier sign-ups waiting for (or turned down by) their sorting center → their
         // application status page, like sellers. Approval makes them a courier.
         if ($user->isCourierPending() && ! $user->isApproved()) {
             $request->session()->regenerate();
             return redirect()->route('courier.status')
-                ->with('info', 'Your courier registration is still awaiting approval from the Logistics team.');
+                ->with('info', $this->courierWaitingMessage($user));
         }
 
         // Block accounts pending admin approval or rejected
@@ -174,7 +174,7 @@ class AuthenticatedSessionController extends Controller
         // Courier applicants still awaiting review → status page with a clear message
         if ($user->isCourierPending()) {
             return redirect()->route('courier.status')
-                ->with('info', 'Your courier registration is still awaiting approval from the Logistics team.');
+                ->with('info', $this->courierWaitingMessage($user));
         }
 
         // ALVY admins → ALVY admin panel
@@ -287,9 +287,25 @@ class AuthenticatedSessionController extends Controller
                 ->with('success', $verified . ' Your seller application is now waiting for admin approval.');
         }
 
-        return redirect()->route('login')->with('success', $user->role === 'courier'
-            ? $verified . ' Your account is now waiting for the Logistics/Sorting Center\'s approval. We\'ll email you once it\'s approved.'
-            : $verified . ' Your account is now waiting for admin approval. We\'ll email you once it\'s approved.');
+        if ($user->isCourierPending() && $user->courier) {
+            return redirect()->route('login')->with('success', $verified . ' Your courier application is now waiting for approval from '
+                . $user->courier->hubName() . ', the sorting center you applied to. We\'ll email you once it\'s reviewed.');
+        }
+
+        return redirect()->route('login')->with('success',
+            $verified . ' Your account is now waiting for admin approval. We\'ll email you once it\'s approved.');
+    }
+
+    /** "Still waiting" message for a courier applicant, naming the sorting center they applied to. */
+    private function courierWaitingMessage(User $user): string
+    {
+        $courier = $user->courier;
+        if ($courier && $courier->isRejected()) {
+            return 'Your courier application was not approved by ' . $courier->hubName() . '. See the details below.';
+        }
+
+        return 'Your courier application is still waiting for approval from '
+            . ($courier ? $courier->hubName() : 'the Logistics team') . '.';
     }
 
     public function resendOtp(Request $request)

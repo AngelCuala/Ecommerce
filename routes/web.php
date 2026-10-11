@@ -63,6 +63,14 @@ Route::middleware(['auth', 'is_sc', 'prevent.back'])->prefix('sc')->name('sc.')-
     Route::post('/riders/{rider}/reject',  [\App\Http\Controllers\SortingCenterController::class, 'rejectRider'])->name('riders.reject');
     Route::post('/riders/{rider}/toggle',  [\App\Http\Controllers\SortingCenterController::class, 'toggleRider'])->name('riders.toggle');
 
+    // Courier applications sent to this sorting center
+    Route::get('/courier-applications',                        [\App\Http\Controllers\SortingCenter\CourierApplicationController::class, 'index'])->name('courier-applications.index');
+    Route::get('/courier-applications/{courier}',              [\App\Http\Controllers\SortingCenter\CourierApplicationController::class, 'show'])->name('courier-applications.show');
+    Route::get('/courier-applications/{courier}/documents/{document}', [\App\Http\Controllers\SortingCenter\CourierApplicationController::class, 'document'])
+        ->whereIn('document', ['license', 'or-cr'])->name('courier-applications.document');
+    Route::post('/courier-applications/{courier}/approve',     [\App\Http\Controllers\SortingCenter\CourierApplicationController::class, 'approve'])->name('courier-applications.approve');
+    Route::post('/courier-applications/{courier}/reject',      [\App\Http\Controllers\SortingCenter\CourierApplicationController::class, 'reject'])->name('courier-applications.reject');
+
     // Pickup requests
     Route::get('/pickup-requests',      [\App\Http\Controllers\SortingCenterController::class, 'pickupRequests'])->name('pickup-requests');
     Route::post('/pickup-requests/{parcel}/approve', [\App\Http\Controllers\SortingCenterController::class, 'approvePickup'])->name('pickup-requests.approve');

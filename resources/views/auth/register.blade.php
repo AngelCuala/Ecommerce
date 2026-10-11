@@ -148,7 +148,7 @@
             margin-bottom: .5rem;
         }
         .provider-card:hover { background: #fff5f3; border-color: #fa4e1c; }
-        .provider-card.active { background: #fff1ee; border-color: #fa4e1c; }
+        .provider-card.active, .provider-card:has(input:checked) { background: #fff1ee; border-color: #fa4e1c; }
 
         /* Sections sit on a soft panel inside the white card */
         .form-card { background: #FDFAF8; border-color: #F3E8E0; }
@@ -565,17 +565,28 @@
 
                     <div class="section-divider">
                         <div class="section-bar"></div>
-                        <h3 class="text-sm font-bold" style="color:#3a2f29;">Logistics Provider</h3>
+                        <h3 class="text-sm font-bold" style="color:#3a2f29;">Sorting Center</h3>
                     </div>
 
-                    <label class="fld-label">Select your Sorting Center / Logistics Hub</label>
-                    <div id="logisticsProvidersList">
-                        <div class="py-4 text-center">
-                            <div class="mx-auto h-8 w-8 animate-spin rounded-full border-b-2" style="border-color:#fa4e1c;"></div>
-                            <p class="mt-2 text-sm" style="color:#8a7a70;">Loading providers...</p>
-                        </div>
-                    </div>
-                    <input type="hidden" name="logistics_id" id="logisticsIdInput">
+                    <label class="fld-label">Sorting Center / Logistics Hub*</label>
+                    <p class="mb-2 text-xs" style="color:#8a7a70;">Your application goes to the sorting center you choose. It reviews your documents, and you deliver for it once approved.</p>
+                    @forelse ($hubs as $hub)
+                        <label class="provider-card flex items-center gap-3">
+                            <input type="radio" name="logistics_id" value="{{ $hub['id'] }}" required
+                                   data-error-for="logisticsHub" data-required-msg="Please choose the sorting center you want to apply to."
+                                   class="h-4 w-4 flex-shrink-0" style="accent-color:#fa4e1c;"
+                                   @checked((string) old('logistics_id') === (string) $hub['id'])>
+                            <span class="min-w-0 flex-1">
+                                <span class="block text-sm font-semibold" style="color:#222;">{{ $hub['name'] }}</span>
+                                @if ($hub['hub_address'])
+                                    <span class="block text-xs" style="color:#8a7a70;">{{ $hub['hub_address'] }}</span>
+                                @endif
+                            </span>
+                        </label>
+                    @empty
+                        <p class="rounded-lg border p-3 text-sm" style="border-color:#F0E4DC;color:#8a7a70;">No sorting centers are accepting couriers yet. Please check back later.</p>
+                    @endforelse
+                    <p class="field-error" data-error-for="logisticsHub">@error('logistics_id'){{ $message }}@enderror</p>
                 </section>
 
                 {{-- LOGISTICS (Sorting Center) FIELDS — the Address step is the hub address --}}
@@ -717,7 +728,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 sellerSection.classList.remove('hidden-section');
             } else if (role === 'courier') {
                 courierSection.classList.remove('hidden-section');
-                loadLogisticsProviders();
             } else if (role === 'logistics') {
                 logisticsSection.classList.remove('hidden-section');
             }
@@ -864,44 +874,6 @@ function setupFilePreview(inputId, previewId, labelId) {
             reader.readAsDataURL(file);
         }
     });
-}
-
-// Load Logistics Providers for Courier
-function loadLogisticsProviders() {
-    fetch('/api/logistics-providers')
-        .then(res => res.json())
-        .then(data => {
-            const container = document.getElementById('logisticsProvidersList');
-            if (data.length === 0) {
-                container.innerHTML = '<p class="text-center text-sm text-gray-500 py-4">No logistics providers available yet.</p>';
-                return;
-            }
-            
-            container.innerHTML = data.map(provider => `
-                <div class="provider-card" onclick="selectProvider(${provider.id}, this)">
-                    <div class="flex items-center gap-3">
-                        <div class="p-2 bg-gray-100 rounded-lg">
-                            <svg class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
-                            </svg>
-                        </div>
-                        <div class="flex-1">
-                            <p class="font-semibold text-sm">${provider.name || ''}</p>
-                            ${provider.hub_address ? `<p class="text-xs text-gray-500">${provider.hub_address}</p>` : ''}
-                        </div>
-                    </div>
-                </div>
-            `).join('');
-        })
-        .catch(err => {
-            document.getElementById('logisticsProvidersList').innerHTML = '<p class="text-center text-sm text-red-500 py-4">Failed to load providers.</p>';
-        });
-}
-
-function selectProvider(id, element) {
-    document.querySelectorAll('.provider-card').forEach(card => card.classList.remove('active'));
-    element.classList.add('active');
-    document.getElementById('logisticsIdInput').value = id;
 }
 
 </script>

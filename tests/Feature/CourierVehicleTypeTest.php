@@ -28,6 +28,14 @@ class CourierVehicleTypeTest extends TestCase
             ->assertSessionHasErrors('vehicle_type');
     }
 
+    /** An approved sorting center for the courier to apply to. */
+    private function hubId(): int
+    {
+        return User::firstOrCreate(['email' => 'hub@alvy.test'], [
+            'name' => 'Hub', 'password' => Hash::make('Secret@123'), 'role' => 'sorting_center', 'approval_status' => 'approved',
+        ])->id;
+    }
+
     private function courierPayload(array $overrides = []): array
     {
         return array_merge([
@@ -36,6 +44,7 @@ class CourierVehicleTypeTest extends TestCase
             'region' => 'NCR', 'province' => 'Metro Manila', 'municipality' => 'Quezon City', 'barangay' => 'Commonwealth',
             'house_number' => '12', 'street' => 'Rizal St', 'password' => 'secret123', 'password_confirmation' => 'secret123',
             'vehicle_type' => 'truck', 'plate_number' => 'abc 1234', 'terms' => '1',
+            'logistics_id' => $this->hubId(),
             'or_cr_image'       => UploadedFile::fake()->create('license.jpg', 300, 'image/jpeg'),
             'vehicle_reg_image' => UploadedFile::fake()->create('or_cr.pdf', 300, 'application/pdf'),
         ], $overrides);

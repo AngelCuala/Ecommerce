@@ -9,7 +9,7 @@
         </div>
         <h1 class="mt-4 font-display text-3xl font-bold" style="color:#222;">Courier / Rider Registration</h1>
         <p class="mt-2 text-sm" style="color:#6B7280;">
-            Join the ALVY delivery fleet. Applications are reviewed by the Logistics team within 1–3 business days.
+            Join the ALVY delivery fleet. Applications are reviewed by the sorting center you choose, usually within 1–3 business days.
         </p>
     </div>
 
@@ -210,6 +210,19 @@
                                    onfocus="this.style.borderColor='#fa4e1c';" onblur="this.style.borderColor='#cfdce8';"
                                    placeholder="e.g. ABC 1234" required>
                         </div>
+                        <div class="sm:col-span-2">
+                            <label class="block text-xs font-semibold mb-1" style="color:#6B7280;">Sorting Center *</label>
+                            <select name="sorting_center_id" class="w-full rounded-xl border px-4 py-2.5 text-sm outline-none" style="border-color:#cfdce8;"
+                                    onfocus="this.style.borderColor='#fa4e1c';" onblur="this.style.borderColor='#cfdce8';" required>
+                                <option value="">— Select the sorting center you'll deliver for —</option>
+                                @foreach ($hubs as $hub)
+                                    <option value="{{ $hub['id'] }}" @selected((string) old('sorting_center_id') === (string) $hub['id'])>
+                                        {{ $hub['name'] }}{{ $hub['hub_address'] ? ' — ' . $hub['hub_address'] : '' }}
+                                    </option>
+                                @endforeach
+                            </select>
+                            <p class="mt-1 text-[11px]" style="color:#6b90aa;">Your application goes to this sorting center for review.</p>
+                        </div>
                     </div>
                 </div>
 
@@ -262,7 +275,7 @@
                 <div class="rounded-xl border p-4 text-sm" style="background:#FFF8F3;border-color:#cfdce8;">
                     <p style="color:#1a4d6e;">
                         After submitting, your account will be marked <strong>Pending Approval</strong>. You won't have access to
-                        pickup/delivery functions until the Logistics team reviews your application. You'll be notified by email at
+                        pickup/delivery functions until the sorting center you chose reviews your application. You'll be notified by email at
                         <strong>{{ auth()->user()->email }}</strong>.
                     </p>
                 </div>
