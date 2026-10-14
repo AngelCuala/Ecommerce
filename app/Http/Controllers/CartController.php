@@ -14,7 +14,7 @@ class CartController extends Controller
             ->with('product.category')
             ->get();
 
-        $subtotal = $items->sum(fn ($i) => $i->quantity * $i->product->price);
+        $subtotal = $items->sum(fn ($i) => $i->quantity * $i->product->effective_price);
 
         return view('cart.index', compact('items', 'subtotal'));
     }

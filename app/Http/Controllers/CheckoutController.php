@@ -41,7 +41,7 @@ class CheckoutController extends Controller
 
     private function calcTotals($items): array
     {
-        $subtotal = $items->sum(fn ($i) => $i->quantity * $i->product->price);
+        $subtotal = $items->sum(fn ($i) => $i->quantity * $i->product->effective_price);
         $shipping = 50; // fixed ₱50 delivery fee
         $total    = round($subtotal + $shipping, 2);
         return compact('subtotal', 'shipping', 'total');
@@ -147,7 +147,7 @@ class CheckoutController extends Controller
             $shares = $vouchers->lineShares($quote);
 
             foreach ($items as $item) {
-                $lineTotal = round($item->quantity * $item->product->price, 2);
+                $lineTotal = round($item->quantity * $item->product->effective_price, 2);
                 $share     = $shares[$item->id] ?? ['seller' => 0.0, 'platform' => 0.0];
 
                 // A store voucher comes out of the seller's sale (commission is on what was
@@ -161,7 +161,7 @@ class CheckoutController extends Controller
                     'order_id'          => $order->id,
                     'product_id'        => $item->product_id,
                     'quantity'          => $item->quantity,
-                    'price'             => $item->product->price,
+                    'price'             => $item->product->effective_price,
                     'seller_discount'   => $share['seller'],
                     'platform_discount' => $share['platform'],
                     'commission_rate'   => $commissionRate,

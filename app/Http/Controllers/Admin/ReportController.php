@@ -30,6 +30,11 @@ class ReportController extends Controller
         }
         $type = $request->input('type', 'sales'); // 'sales', 'commission' or 'sellers'
 
+        // Picking a seller always opens that seller's own sales report.
+        if ($request->filled('seller')) {
+            $type = 'sellers';
+        }
+
         $dateFilter = [$from . ' 00:00:00', $to . ' 23:59:59'];
 
         if ($type === 'sellers') {
@@ -46,6 +51,10 @@ class ReportController extends Controller
         $totalRevenue = $totalOrders = $totalItems = $byStatus = $topProducts = $dailySales = null;
         $totalCommission = $totalPayout = $bySellerCommission = $dailyCommission = null;
         $commissionRate  = config('marketplace.commission_rate', 10);
+
+        // Every seller with their sales for the period (the "Sellers" box, with "View sales" links).
+        $allSellers = $this->sellerTotals($dateFilter);
+        $sellerBox  = $allSellers->where('id', '>', 0)->sortByDesc('gross')->values();
 
         if ($type === 'sales') {
             // ── Sales Summary ────────────────────────────────────
@@ -79,7 +88,7 @@ class ReportController extends Controller
             $totalCommission = $items()->sum('order_items.commission_amount');
             $totalPayout     = $items()->sum('order_items.seller_earning');
 
-            $bySellerCommission = $this->sellerTotals($dateFilter)
+            $bySellerCommission = $allSellers   // includes "ALVY (no seller)"
                 ->filter(fn ($row) => $row->units > 0)
                 ->sortByDesc('commission')
                 ->map(fn ($row) => [
@@ -108,6 +117,7 @@ class ReportController extends Controller
             // Commission
             'totalCommission', 'totalPayout', 'commissionRate',
             'bySellerCommission', 'dailyCommission',
+            'sellerBox',
         );
 
         if ($request->query('export') === 'pdf') {
@@ -133,60 +143,10 @@ class ReportController extends Controller
             ->download($filename);
     }
 
-    /**
-     * Sales per seller for the period: every seller is listed, including those with no sales.
-     * Cancelled orders don't count as sales.
-     */
+    /** Sales per seller for the period (see App\Services\SellerSales). */
     private function sellerTotals(array $dateFilter)
     {
-        $sales = OrderItem::query()
-            ->join('orders', 'orders.id', '=', 'order_items.order_id')
-            ->join('products', 'products.id', '=', 'order_items.product_id')
-            ->whereBetween('orders.created_at', $dateFilter)
-            ->where('orders.status', '!=', 'Cancelled')
-            ->groupBy('products.seller_id')
-            ->selectRaw('products.seller_id,
-                COUNT(DISTINCT order_items.order_id) as orders,
-                SUM(order_items.quantity) as units,
-                SUM(order_items.quantity * order_items.price - order_items.seller_discount) as gross,
-                SUM(order_items.commission_amount) as commission,
-                SUM(order_items.seller_earning) as payout')
-            ->get()
-            ->keyBy('seller_id');
-
-        // Every seller account, plus anyone whose products sold in the period even if their
-        // role changed since (e.g. a suspended seller), so the totals always add up.
-        $rows = User::where('role', 'seller')
-            ->orWhereIn('id', $sales->keys()->filter())
-            ->with('sellerApplication')
-            ->orderBy('name')
-            ->get()
-            ->map(function ($seller) use ($sales) {
-                $row = $sales->get($seller->id);
-
-                return (object) [
-                    'id'         => $seller->id,
-                    'name'       => $seller->name,
-                    'shop'       => $seller->sellerApplication->shop_name ?? null,
-                    'email'      => $seller->email,
-                    'orders'     => (int) ($row->orders ?? 0),
-                    'units'      => (int) ($row->units ?? 0),
-                    'gross'      => (float) ($row->gross ?? 0),
-                    'commission' => (float) ($row->commission ?? 0),
-                    'payout'     => (float) ($row->payout ?? 0),
-                ];
-            });
-
-        // Products listed by ALVY itself (no seller).
-        if ($own = $sales->get(null) ?? $sales->get('')) {
-            $rows->push((object) [
-                'id' => 0, 'name' => 'ALVY (no seller)', 'shop' => null, 'email' => '',
-                'orders' => (int) $own->orders, 'units' => (int) $own->units, 'gross' => (float) $own->gross,
-                'commission' => (float) $own->commission, 'payout' => (float) $own->payout,
-            ]);
-        }
-
-        return $rows;
+        return app(\App\Services\SellerSales::class)->totals($dateFilter);
     }
 
     /** "Sales by Seller": all sellers for the period, or one seller's detail (?seller=ID). */
@@ -198,6 +158,11 @@ class ReportController extends Controller
         $seller = $products = $daily = null;
         if ($request->filled('seller')) {
             $seller = $sellers->firstWhere('id', (int) $request->seller);
+            if (! $seller && ($user = User::with('sellerApplication')->where('role', 'seller')->find((int) $request->seller))) {
+                // A seller listed in the picker with no sales in this period
+                $seller = (object) ['id' => $user->id, 'name' => $user->name, 'shop' => $user->sellerApplication->shop_name ?? null,
+                    'email' => $user->email, 'orders' => 0, 'units' => 0, 'gross' => 0.0, 'commission' => 0.0, 'payout' => 0.0];
+            }
             abort_unless($seller, 404);
 
             $items = OrderItem::query()

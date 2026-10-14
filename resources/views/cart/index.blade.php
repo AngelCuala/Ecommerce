@@ -52,7 +52,7 @@
             {{-- Items --}}
             <div class="space-y-4">
                 @foreach ($items as $item)
-                    @php $lineTotal = $item->quantity * $item->product->price; @endphp
+                    @php $lineTotal = $item->quantity * $item->product->effective_price; @endphp
                     <div class="card flex gap-5 p-5">
                         {{-- Cover --}}
                         <a href="{{ route('products.show', $item->product->slug) }}" class="shrink-0">
@@ -72,7 +72,7 @@
                                         {{ $item->product->title }}
                                     </a>
                                     <p class="mt-0.5 text-xs" style="color:#6b90aa;">by {{ $item->product->author }}</p>
-                                    <p class="mt-1 text-sm font-semibold" style="color:#fa4e1c;">${{ number_format($item->product->price, 2) }}</p>
+                                    <p class="mt-1 text-sm font-semibold" style="color:#fa4e1c;">₱{{ number_format($item->product->effective_price, 2) }}</p>
                                 </div>
 
                                 {{-- Remove --}}
@@ -114,7 +114,7 @@
                                                 onmouseout="this.style.background='';">+</button>
                                     </div>
                                 </form>
-                                <span class="font-display text-lg font-bold" style="color:#222222;">${{ number_format($lineTotal, 2) }}</span>
+                                <span class="font-display text-lg font-bold" style="color:#222222;">₱{{ number_format($lineTotal, 2) }}</span>
                             </div>
                         </div>
                     </div>
@@ -140,47 +140,26 @@
                     </div>
 
                     <div class="p-6">
-                        {{-- Free shipping bar --}}
-                        @php $freeAt = 50; $pct = min(100, round($subtotal / $freeAt * 100)); @endphp
-                        @if ($subtotal < $freeAt)
-                            <div class="mb-5 rounded-xl p-4" style="background:rgba(250,78,28,.10);">
-                                <p class="text-xs font-semibold" style="color:#fa4e1c;">
-                                    Add <strong>${{ number_format($freeAt - $subtotal, 2) }}</strong> more for free shipping
-                                </p>
-                                <div class="mt-2 h-1.5 w-full overflow-hidden rounded-full" style="background:#dce8f0;">
-                                    <div class="h-full rounded-full transition-all duration-500" style="width:{{ $pct }}%;background:#fa4e1c;"></div>
-                                </div>
-                            </div>
-                        @else
-                            <div class="mb-5 flex items-center gap-2 rounded-xl p-4 text-xs font-semibold" style="background:#ECFDF5;color:#059669;">
-                                <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6 9 17l-5-5"/></svg>
-                                Free shipping unlocked!
-                            </div>
-                        @endif
-
+                        {{-- Same totals as checkout: flat delivery fee, no tax. Vouchers are picked at checkout. --}}
+                        @php $deliveryFee = 50; @endphp
                         <div class="space-y-3 text-sm">
                             <div class="flex justify-between" style="color:#555555;">
                                 <span>Subtotal ({{ $items->sum('quantity') }} items)</span>
-                                <span class="font-semibold" style="color:#222222;">${{ number_format($subtotal, 2) }}</span>
+                                <span class="font-semibold" style="color:#222222;">₱{{ number_format($subtotal, 2) }}</span>
                             </div>
                             <div class="flex justify-between" style="color:#555555;">
-                                <span>Shipping</span>
-                                <span class="font-semibold" style="color:{{ $subtotal >= $freeAt ? '#059669' : '#222222' }};">
-                                    {{ $subtotal >= $freeAt ? 'Free' : '$5.99' }}
-                                </span>
-                            </div>
-                            <div class="flex justify-between" style="color:#555555;">
-                                <span>Tax (8%)</span>
-                                <span class="font-semibold" style="color:#222222;">${{ number_format($subtotal * 0.08, 2) }}</span>
+                                <span>Delivery Fee</span>
+                                <span class="font-semibold" style="color:#222222;">₱{{ number_format($deliveryFee, 2) }}</span>
                             </div>
                         </div>
 
                         <div class="mt-4 flex justify-between border-t pt-4" style="border-color:#dce8f0;">
                             <span class="font-display text-lg font-bold" style="color:#222222;">Total</span>
                             <span class="font-display text-xl font-bold" style="color:#fa4e1c;">
-                                ${{ number_format($subtotal + ($subtotal >= $freeAt ? 0 : 5.99) + $subtotal * 0.08, 2) }}
+                                ₱{{ number_format($subtotal + $deliveryFee, 2) }}
                             </span>
                         </div>
+                        <p class="mt-2 text-xs" style="color:#6b90aa;">Have a voucher? Apply it at checkout.</p>
 
                         <a href="{{ route('checkout.index') }}" class="btn-gold mt-6 flex w-full items-center justify-center gap-2 py-3.5 text-base" style="background:#fa4e1c;border-color:#fa4e1c;color:#FFFFFF;">
                             Proceed to Checkout

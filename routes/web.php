@@ -315,6 +315,7 @@ Route::middleware(['auth', 'role:admin', 'prevent.back'])
 
     // Buyer management
     Route::get('/customers',                        [AdminCustomerController::class, 'index'])->name('customers.index');
+    Route::get('/riders',                           [\App\Http\Controllers\Admin\RiderDirectoryController::class, 'index'])->name('riders.index');
     Route::get('/customers/{id}',                   [AdminCustomerController::class, 'show'])->name('customers.show');
     Route::get('/customers/{id}/valid-id',          [AdminCustomerController::class, 'validId'])->name('customers.validId');
     Route::patch('/customers/{id}/approve',         [AdminCustomerController::class, 'approve'])->name('customers.approve');

@@ -246,4 +246,11 @@
 
 @endif
 
+{{-- Every seller, with a "View sales" link to their own report (below the report) --}}
+@if ($type !== 'sellers' && isset($sellerBox))
+    <div class="mt-6">
+        @include('admin.reports._seller_box')
+    </div>
+@endif
+
 </x-admin-layout>

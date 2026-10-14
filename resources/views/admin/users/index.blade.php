@@ -25,6 +25,14 @@
         }
         return ucfirst(str_replace('_', ' ', $role));
     };
+    $roleGroup = function ($role) {
+        $role = strtolower($role ?? 'buyer');
+        if (in_array($role, ['courier', 'courier_pending', 'rider'])) return 'rider';
+        if (in_array($role, ['sorting_center', 'sorting_center_pending', 'logistics'])) return 'sorting_center';
+        if ($role === 'customer') return 'buyer';
+        return $role;
+    };
+    $roleLabelMap = ['courier' => 'Rider', 'courier_pending' => 'Rider (pending)', 'customer' => 'Buyer'];
     $roleTag = function ($role) {
         $role = strtolower($role ?? 'buyer');
         if (in_array($role, ['suspended', 'deactivated', 'rejected'])) return 'cancelled';
@@ -38,11 +46,11 @@
     {{-- Role tabs + search --}}
     <div class="mb-5 flex flex-wrap items-end justify-between gap-3 border-b" style="border-color:#ECE7E3;">
         <nav class="flex flex-wrap" id="roleTabs">
-            @php $tabs = ['All', 'Admin', 'Seller', 'Buyer', 'Suspended', 'Deactivated']; @endphp
-            @foreach ($tabs as $tab)
-                <button type="button" class="role-tab {{ $tab === 'All' ? 'is-active' : '' }}"
-                        data-role="{{ strtolower($tab) }}">
-                    {{ $tab }}<span class="tab-count">{{ $tab==='All' ? $users->count() : $users->filter(fn($u) => strtolower($u->role??'buyer')===strtolower($tab))->count() }}</span>
+            @php $tabs = ['all' => 'All', 'admin' => 'Admin', 'seller' => 'Seller', 'buyer' => 'Buyer', 'rider' => 'Rider', 'sorting_center' => 'Sorting Center', 'suspended' => 'Suspended', 'deactivated' => 'Deactivated']; @endphp
+            @foreach ($tabs as $key => $tab)
+                <button type="button" class="role-tab {{ $key === 'all' ? 'is-active' : '' }}"
+                        data-role="{{ $key }}">
+                    {{ $tab }}<span class="tab-count">{{ $key==='all' ? $users->count() : $users->filter(fn($u) => $roleGroup($u->role) === $key)->count() }}</span>
                 </button>
             @endforeach
         </nav>
@@ -67,7 +75,7 @@
                     <tr>
                         <th>User</th>
                         <th>Role</th>
-                        <th>Products</th>
+                        <th>Products / Deliveries</th>
                         <th>Orders</th>
                         <th>Joined</th>
                         <th class="!text-right">Actions</th>
@@ -77,9 +85,10 @@
                     @forelse ($users as $u)
                         @php
                             $roleKey = strtolower($u->role ?? 'buyer');
+                            $rider = $riders[$u->id] ?? null;
                         @endphp
                         <tr class="user-row"
-                            data-role="{{ $roleKey }}"
+                            data-role="{{ $roleGroup($u->role) }}"
                             data-search="{{ strtolower($u->name.' '.$u->email.' '.($u->username??'')) }}">
                             <td>
                                 <div class="flex items-center gap-3">
@@ -90,11 +99,25 @@
                                         @if ($u->username)
                                             <p class="text-xs" style="color:#a39890;">{{ '@' . $u->username }}</p>
                                         @endif
+                                        @if ($rider)
+                                            <p class="text-xs" style="color:#8a7f78;">
+                                                {{ $rider->sortingCenter?->name ?? 'No sorting center' }}
+                                                · {{ $rider->area ? 'Brgy. ' . $rider->area->name : 'No barangay' }}
+                                                · {{ ucfirst($rider->application_status) }}{{ $rider->is_active ? '' : ' (inactive)' }}
+                                            </p>
+                                        @endif
                                     </div>
                                 </div>
                             </td>
-                            <td><span class="pl-tag {{ $roleTag($u->role) }}">{{ $roleLabel($u->role) }}</span></td>
-                            <td>{{ $u->books_count ?? 0 }}</td>
+                            <td><span class="pl-tag {{ $roleTag($u->role) }}">{{ $roleLabelMap[$roleKey] ?? $roleLabel($u->role) }}</span></td>
+                            <td>
+                                @if ($rider)
+                                    {{ $rider->delivered_count }} / {{ $rider->deliveries_count }}
+                                    <span class="text-xs pl-muted">delivered</span>
+                                @else
+                                    {{ $u->books_count ?? 0 }}
+                                @endif
+                            </td>
                             <td>{{ $u->orders_count ?? 0 }}</td>
                             <td class="whitespace-nowrap pl-muted">{{ $u->created_at->format('M d, Y') }}</td>
 

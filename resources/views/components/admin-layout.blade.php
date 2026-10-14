@@ -124,6 +124,7 @@ $navSections = [
             'People' => [
                 'customers'           => ['route' => 'admin.customers.index',           'label' => 'Buyers',                       'icon' => 'bag'],
                 'sellers'             => ['route' => 'admin.sellers.index',             'label' => 'Sellers',                      'icon' => 'store'],
+                'people-riders'       => ['route' => 'admin.riders.index',              'label' => 'Riders',                       'icon' => 'truck'],
                 'users'               => ['route' => 'admin.users.index',               'label' => 'All User Accounts',            'icon' => 'users'],
             ],
             'Approvals' => [

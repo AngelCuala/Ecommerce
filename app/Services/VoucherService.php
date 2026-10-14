@@ -28,7 +28,7 @@ class VoucherService
             ->map(fn ($group, $sellerId) => [
                 'name'     => $sellerId ? ($group->first()->product->seller->sellerApplication->shop_name
                                 ?? $group->first()->product->seller->name ?? 'Seller') : 'ALVY',
-                'subtotal' => round($group->sum(fn ($i) => $i->quantity * $i->product->price), 2),
+                'subtotal' => round($group->sum(fn ($i) => $i->quantity * $i->product->effective_price), 2),
                 'items'    => $group,
             ]);
     }
@@ -152,7 +152,7 @@ class VoucherService
 
         // The platform voucher is shared over what each line costs after its store voucher.
         $afterSeller = $allLines->mapWithKeys(fn ($i) => [
-            $i->id => $i->quantity * $i->product->price - ($shares[$i->id]['seller'] ?? 0),
+            $i->id => $i->quantity * $i->product->effective_price - ($shares[$i->id]['seller'] ?? 0),
         ]);
         foreach ($this->split($quote['platform_discount'], $allLines, $afterSeller) as $id => $amount) {
             $shares[$id]['platform'] = $amount;
@@ -180,6 +180,10 @@ class VoucherService
             $locked = Voucher::whereKey($voucher->id)->lockForUpdate()->first();
             if ($locked->usage_limit !== null && $locked->used_count >= $locked->usage_limit) {
                 throw ValidationException::withMessages([$field => "Voucher {$locked->code} has just run out. Please choose another one."]);
+            }
+            $myUses = VoucherRedemption::where('voucher_id', $locked->id)->where('user_id', $user->id)->count();
+            if ($myUses >= $locked->per_user_limit) {
+                throw ValidationException::withMessages([$field => "You have already used voucher {$locked->code}."]);
             }
             $locked->increment('used_count');
 
@@ -237,7 +241,7 @@ class VoucherService
             return $lines->mapWithKeys(fn ($l) => [$l->id => 0.0])->all();
         }
 
-        $weights ??= $lines->mapWithKeys(fn ($l) => [$l->id => $l->quantity * $l->product->price]);
+        $weights ??= $lines->mapWithKeys(fn ($l) => [$l->id => $l->quantity * $l->product->effective_price]);
         $total = max(0.01, $weights->sum());
         $out = [];
         $left = $amount;

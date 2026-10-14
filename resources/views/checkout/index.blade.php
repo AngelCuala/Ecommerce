@@ -166,7 +166,7 @@
                                         <p class="text-xs" style="color:#999999;">Qty: {{ $item->quantity }}</p>
                                     </div>
                                     <span class="text-sm font-semibold flex-shrink-0" style="color:#fa4e1c;">
-                                        ₱{{ number_format($item->quantity * $item->product->price, 2) }}
+                                        ₱{{ number_format($item->quantity * $item->product->effective_price, 2) }}
                                     </span>
                                 </div>
                             </div>

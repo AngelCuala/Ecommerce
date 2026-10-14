@@ -21,7 +21,18 @@ class UserController extends Controller
         }
 
         $users = $query->get();
-        return view('admin.users.index', compact('users'));
+
+        // Rider profiles (sorting center, barangay, deliveries) for courier accounts
+        $riders = \App\Models\Rider::whereIn('user_id', $users->pluck('id'))
+            ->with(['sortingCenter:id,name', 'area:id,name'])
+            ->withCount([
+                'parcelDeliveries as deliveries_count',
+                'parcelDeliveries as delivered_count' => fn ($q) => $q->where('status', 'delivered'),
+            ])
+            ->get()
+            ->keyBy('user_id');
+
+        return view('admin.users.index', compact('users', 'riders'));
     }
 
     public function show(int $id)

@@ -25,7 +25,9 @@ class VoucherRules
             'max_discount'   => 'nullable|numeric|min:1|max:1000000',
             'min_spend'      => 'nullable|numeric|min:0|max:10000000',
             'starts_at'      => 'nullable|date',
-            'ends_at'        => array_filter(['nullable', 'date', 'after:now', $request->filled('starts_at') ? 'after:starts_at' : null]),
+            'ends_at'        => array_filter(['nullable', 'date',
+                                    self::endChanged($request, $voucher) ? 'after:now' : null,
+                                    $request->filled('starts_at') ? 'after:starts_at' : null]),
             'usage_limit'    => 'nullable|integer|min:1|max:1000000',
             'per_user_limit' => 'required|integer|min:1|max:100',
             'is_active'      => 'nullable|boolean',
@@ -55,5 +57,22 @@ class VoucherRules
         $data['is_active']    = $request->boolean('is_active');
 
         return $data;
+    }
+
+    /** New voucher, or the end date was edited (an unchanged past end date is fine). */
+    private static function endChanged(Request $request, ?Voucher $voucher): bool
+    {
+        if (! $voucher || ! $request->filled('ends_at')) {
+            return true;
+        }
+        if (! $voucher->ends_at) {
+            return true;
+        }
+
+        try {
+            return ! \Carbon\Carbon::parse($request->input('ends_at'))->equalTo($voucher->ends_at->copy()->startOfMinute());
+        } catch (\Throwable $e) {
+            return true;
+        }
     }
 }
