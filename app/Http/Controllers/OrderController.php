@@ -30,6 +30,7 @@ class OrderController extends Controller
             'status'               => 'Cancelled',
             'cancellation_reason'  => $request->cancellation_reason,
         ]);
+        \App\Models\ActivityLog::note('Order #' . str_pad((string) $order->id, 6, '0', STR_PAD_LEFT) . ' · reason: ' . $request->cancellation_reason, $order);
 
         // A courier job that hasn't been picked up yet can no longer be completed.
         $delivery = Delivery::where('order_id', $order->id)

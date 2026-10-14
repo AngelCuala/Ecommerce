@@ -39,6 +39,7 @@ class CartController extends Controller
                 return back()->with('error', 'Only ' . $book->stock . ' left in stock.');
             }
             session()->put('buy_now', ['product_id' => $book->id, 'quantity' => $qty]);
+            \App\Models\ActivityLog::note('Buy now: "' . $book->title . '" ×' . $qty, $book);
 
             return redirect()->route('checkout.index', ['buy_now' => 1]);
         }
@@ -51,6 +52,7 @@ class CartController extends Controller
         // Increment if already in cart, otherwise set the requested qty
         $item->quantity = $item->exists ? $item->quantity + $qty : $qty;
         $item->save();
+        \App\Models\ActivityLog::note('"' . $book->title . '" ×' . $qty . ' (now ' . $item->quantity . ' in cart)', $book);
 
         return back()->with('success', '"' . $book->title . '" added to your cart.');
     }

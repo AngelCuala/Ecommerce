@@ -16,6 +16,9 @@ return Application::configure(basePath: dirname(__DIR__))
         // Trust its X-Forwarded-* headers so URLs (e.g. the Google sign-in callback) are https://.
         $middleware->trustProxies(at: '*');
 
+        // Every action that changes something (by any account) goes to the activity log, with IP.
+        $middleware->web(append: [\App\Http\Middleware\LogUserActivity::class]);
+
         $middleware->alias([
             'role'         => \App\Http\Middleware\RoleMiddleware::class,
             'is_admin'     => \App\Http\Middleware\IsAdmin::class,

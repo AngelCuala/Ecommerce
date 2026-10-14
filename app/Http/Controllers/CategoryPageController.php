@@ -9,6 +9,23 @@ use Illuminate\Support\Str;
 class CategoryPageController extends Controller
 {
     // ── Full catalog ──────────────────────────────────────────────────────────
+    /** Older category names still used by some products, shown under the shop's category. */
+    private const LEGACY_NAMES = [
+        'Electronics & Gadgets'        => ['Electronics'],
+        'Books & Media'                => ['Books'],
+        'Sports & Outdoors'            => ['Sports'],
+        'Kids & Baby'                  => ['Toys & Games'],
+        'Automotive & Motorcycle'      => ['Automotive'],
+        'Food & Gourmet'               => ['Food & Beverages'],
+        'Stationery & School Supplies' => ['Office Supplies'],
+    ];
+
+    /** Category names (in the categories table) that belong to a shop category. */
+    public static function categoryNames(string $shopCategory): array
+    {
+        return array_merge([$shopCategory], self::LEGACY_NAMES[$shopCategory] ?? []);
+    }
+
     public static function catalog(): array
     {
         return [
@@ -164,10 +181,9 @@ class CategoryPageController extends Controller
             ->published()
             ->where('stock', '>', 0);
 
-        // Match by category name (approximate) or slug
-        $query->whereHas('category', function ($q) use ($active) {
-            $q->where('name', 'like', '%' . $active['name'] . '%');
-        });
+        // Match the category by its exact name (a "LIKE %Men's Apparel%" also matched
+        // "Women's Apparel"), plus the older category names products may still use.
+        $query->whereHas('category', fn ($q) => $q->whereIn('name', self::categoryNames($active['name'])));
 
         // Sort
         $sort = $request->query('sort', 'newest');

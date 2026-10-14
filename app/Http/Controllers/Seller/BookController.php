@@ -138,6 +138,9 @@ class BookController extends Controller
             return $book;
         });
 
+        \App\Models\ActivityLog::note('"' . $book->title . '" (' . $book->product_code . ') · ₱' . number_format((float) $book->price, 2)
+            . ' · stock ' . $book->stock . ($book->status === 'draft' ? ' · draft' : ' · sent for approval'), $book);
+
         return redirect()->route('seller.books.index')
             ->with('success', $this->successMessage($book, $request));
     }
@@ -182,8 +185,12 @@ class BookController extends Controller
             $this->syncVariations($request, $book);
         });
 
+        $saved = $book->fresh();
+        \App\Models\ActivityLog::note('"' . $saved->title . '" (' . $saved->product_code . ') · ₱' . number_format((float) $saved->price, 2)
+            . ' · stock ' . $saved->stock, $saved);
+
         return redirect()->route('seller.books.index')
-            ->with('success', $this->successMessage($book->fresh(), $request));
+            ->with('success', $this->successMessage($saved, $request));
     }
 
     public function destroy(Product $book)
@@ -211,6 +218,7 @@ class BookController extends Controller
     {
         $this->authorizeBook($book);
         $request->validate(['stock' => 'required|integer|min:0']);
+        \App\Models\ActivityLog::note('"' . $book->title . '" stock ' . $book->stock . ' → ' . $request->stock, $book);
         $book->update([
             'stock'        => $request->stock,
             'availability' => $request->stock > 0 ? 'in_stock' : 'out_of_stock',

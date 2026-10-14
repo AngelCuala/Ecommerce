@@ -34,11 +34,12 @@ class HomeController extends Controller
         // Category shortcuts (photos live in public/images/categories) with item counts.
         $dbCategories = Category::withCount(['products' => fn ($q) => $q->published()])->get()->keyBy('name');
         $shortcuts = collect(CategoryPageController::catalog())->map(function ($c) use ($dbCategories) {
-            $db = $dbCategories->get($c['name']);
             return (object) [
                 'name'  => $c['name'],
                 'slug'  => $c['slug'],
-                'count' => $db->products_count ?? 0,
+                // Same categories the category page shows (its own name plus older names).
+                'count' => collect(CategoryPageController::categoryNames($c['name']))
+                    ->sum(fn ($name) => $dbCategories->get($name)->products_count ?? 0),
             ];
         });
 

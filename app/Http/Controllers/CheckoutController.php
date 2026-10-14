@@ -223,6 +223,13 @@ class CheckoutController extends Controller
             return $order;
         });
 
+        \App\Models\ActivityLog::note('Order #' . str_pad((string) $order->id, 6, '0', STR_PAD_LEFT)
+            . ' · ' . $items->sum('quantity') . ' item(s): ' . $items->map(fn ($i) => $i->product->title . ' ×' . $i->quantity)->implode(', ')
+            . ' · total ₱' . number_format((float) $order->total_price, 2)
+            . (($codes = array_filter([$quote['platform_voucher']?->code, ...array_map(fn ($v) => $v->code, $quote['seller_vouchers'])]))
+                ? ' · vouchers ' . implode(', ', $codes) : '')
+            . ($buyNow ? ' · Buy now' : ''), $order);
+
         // Buy now leaves the cart as it was; a cart checkout empties it.
         if ($buyNow) {
             Session::forget('buy_now');

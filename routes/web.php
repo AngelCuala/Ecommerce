@@ -148,7 +148,7 @@ Route::get('/api/psgc/provinces',                        [\App\Http\Controllers\
 Route::get('/api/psgc/provinces/{code}/municipalities',  [\App\Http\Controllers\PsgcController::class, 'municipalities']);
 Route::get('/api/psgc/municipalities/{code}/barangays',  [\App\Http\Controllers\PsgcController::class, 'barangays']);
 Route::get('/login',    [AuthenticatedSessionController::class, 'create'])->name('login');
-Route::post('/login',   [AuthenticatedSessionController::class, 'store']);
+Route::post('/login',   [AuthenticatedSessionController::class, 'store'])->name('login.attempt');
 Route::middleware('guest')->group(function () {
     Route::get('/login/verify',         [AuthenticatedSessionController::class, 'showOtp'])->name('otp.show');
     Route::post('/login/verify',        [AuthenticatedSessionController::class, 'verifyOtp'])->middleware('throttle:10,1')->name('otp.verify');
@@ -158,7 +158,7 @@ Route::middleware('guest')->group(function () {
 Route::get('/auth/google', [\App\Http\Controllers\Auth\GoogleAuthController::class, 'redirect'])->middleware('guest')->name('auth.google');
 Route::get('/auth/google/callback', [\App\Http\Controllers\Auth\GoogleAuthController::class, 'callback'])->middleware('guest')->name('auth.google.callback');
 Route::get('/register', [RegisteredUserController::class, 'create'])->name('register');
-Route::post('/register',[RegisteredUserController::class, 'store'])->middleware('guest');
+Route::post('/register',[RegisteredUserController::class, 'store'])->middleware('guest')->name('register.store');
 
 Route::post('/logout', [AuthenticatedSessionController::class, 'destroy'])
     ->middleware('auth')->name('logout');
