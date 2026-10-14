@@ -10,6 +10,9 @@
     $sold = (int) ($product->sold ?? 0);
     $url = isset($product->slug) ? route('products.show', $product->slug) : '#';
     $categoryName = $isProduct && $product->relationLoaded('category') ? $product->category?->name : null;
+    // One query per page for the hearts, not one per card.
+    $wishedIds = auth()->check() ? once(fn () => \App\Models\WishlistItem::where('user_id', auth()->id())->pluck('product_id')->all()) : [];
+    $wished = in_array($product->id, $wishedIds);
 @endphp
 
 @once
@@ -38,15 +41,21 @@
 
 <div class="pc-card group">
 
-    {{-- Wishlist --}}
-    <button type="button"
-            class="wishlist-btn absolute right-1.5 top-1.5 z-20 flex h-8 w-8 items-center justify-center rounded-full bg-white/90 transition"
-            title="Add to wishlist" aria-label="Add {{ $product->title }} to wishlist">
-        <svg class="h-[18px] w-[18px]" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round"
-                  d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/>
-        </svg>
-    </button>
+    {{-- Wishlist (signed-out buyers are sent to sign in) --}}
+    <form action="{{ route('wishlist.toggle', $product->id) }}" method="POST" class="absolute right-1.5 top-1.5 z-20">
+        @csrf
+        <input type="hidden" name="state" value="{{ $wished ? 'off' : 'on' }}">
+        <button type="submit"
+                class="wishlist-btn {{ $wished ? 'is-wished' : '' }} flex h-8 w-8 items-center justify-center rounded-full bg-white/90 transition"
+                title="{{ $wished ? 'Remove from wishlist' : 'Add to wishlist' }}" aria-pressed="{{ $wished ? 'true' : 'false' }}"
+                aria-label="{{ $wished ? 'Remove' : 'Add' }} {{ $product->title }} {{ $wished ? 'from' : 'to' }} wishlist"
+                onclick="if (this.dataset.busy) return false; this.dataset.busy = 1;">
+            <svg class="h-[18px] w-[18px]" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                      d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/>
+            </svg>
+        </button>
+    </form>
 
     {{-- Image --}}
     <a href="{{ $url }}" class="pc-media">

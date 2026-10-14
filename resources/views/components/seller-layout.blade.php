@@ -100,6 +100,7 @@ $navSections = [
                 'products'  => ['route' => 'seller.books.index',  'label' => 'Inventory',        'icon' => 'box'],
                 'reports'   => ['route' => 'seller.reports',      'label' => 'Reports',          'icon' => 'chart'],
                 'vouchers'  => ['route' => 'seller.vouchers.index', 'label' => 'Vouchers',       'icon' => 'ticket'],
+                'flash'     => ['route' => 'seller.flash-sales.index', 'label' => 'Flash sales', 'icon' => 'ticket'],
             ],
             'General' => [
                 'messages'  => ['route' => 'messages.inbox',      'label' => 'Messages',         'icon' => 'chat'],

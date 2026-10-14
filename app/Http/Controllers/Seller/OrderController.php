@@ -13,13 +13,14 @@ class OrderController extends Controller
     public function index()
     {
         // Get all order IDs that contain this seller's books
-        $bookIds = Product::where('seller_id', auth()->id())->pluck('id');
+        $bookIds = Product::withTrashed()->where('seller_id', auth()->id())->pluck('id');
 
         $orderIds = OrderItem::whereIn('product_id', $bookIds)
             ->pluck('order_id')
             ->unique();
 
-        $orders = Order::whereIn('id', $orderIds)
+        // Online orders the buyer hasn't paid yet don't reach the seller.
+        $orders = Order::whereIn('id', $orderIds)->where('status', '!=', Order::AWAITING_PAYMENT)
             ->with(['items' => function ($q) use ($bookIds) {
                 $q->whereIn('product_id', $bookIds)->with('product');
             }])
@@ -36,7 +37,7 @@ class OrderController extends Controller
 
     public function show(int $id)
     {
-        $bookIds = Product::where('seller_id', auth()->id())->pluck('id');
+        $bookIds = Product::withTrashed()->where('seller_id', auth()->id())->pluck('id');
 
         // Make sure this seller actually has items in the order
         $hasItems = OrderItem::where('order_id', $id)
@@ -49,7 +50,7 @@ class OrderController extends Controller
 
         $order = Order::with(['items' => function ($q) use ($bookIds) {
             $q->whereIn('product_id', $bookIds)->with('product');
-        }, 'delivery'])->findOrFail($id);
+        }, 'delivery', 'returnRequests', 'events'])->findOrFail($id);
 
         $order->sellerItems = $order->items->whereIn('product_id', $bookIds->toArray())->values();
 
@@ -70,7 +71,7 @@ class OrderController extends Controller
         ]);
 
         // Only update if this seller owns at least one book in the order
-        $bookIds  = Product::where('seller_id', auth()->id())->pluck('id');
+        $bookIds  = Product::withTrashed()->where('seller_id', auth()->id())->pluck('id');
         $hasItems = OrderItem::where('order_id', $id)
             ->whereIn('product_id', $bookIds)
             ->exists();
@@ -84,6 +85,37 @@ class OrderController extends Controller
         return back()->with('success', 'Order status updated to ' . $request->status . '.');
     }
 
+    /** Approve or reject the buyer's return / refund request. */
+    public function decideReturn(Request $request, int $id)
+    {
+        $bookIds = Product::withTrashed()->where('seller_id', auth()->id())->pluck('id');
+        abort_unless(OrderItem::where('order_id', $id)->whereIn('product_id', $bookIds)->exists(), 403);
+
+        $order  = Order::findOrFail($id);
+        $return = $order->returnRequests()->where('status', 'requested')->first();
+        if (! $return || $order->status !== Order::RETURN_REQUESTED) {
+            return back()->with('error', 'There is no return request waiting for a decision.');
+        }
+
+        $data = $request->validate([
+            'decision'    => 'required|in:approve,reject',
+            'seller_note' => 'required_if:decision,reject|nullable|string|max:500',
+        ], [
+            'seller_note.required_if' => 'Please tell the buyer why the return is rejected.',
+        ]);
+
+        $approved = $data['decision'] === 'approve';
+        $return->update([
+            'status'      => $approved ? 'approved' : 'rejected',
+            'seller_note' => $data['seller_note'] ?? null,
+            'resolved_at' => now(),
+        ]);
+        // Approved: refunded. Rejected: back to Delivered, so the buyer can still confirm it.
+        $order->update(['status' => $approved ? Order::REFUNDED : Order::DELIVERED]);
+
+        return back()->with('success', $approved ? 'Return approved. The buyer will be refunded.' : 'Return rejected. The buyer was told why.');
+    }
+
     /** Schedule courier pickup & create/update delivery record */
     public function handover(Request $request, int $id)
     {
@@ -94,7 +126,7 @@ class OrderController extends Controller
             'notes'               => 'nullable|string|max:500',
         ]);
 
-        $bookIds  = Product::where('seller_id', auth()->id())->pluck('id');
+        $bookIds  = Product::withTrashed()->where('seller_id', auth()->id())->pluck('id');
         $hasItems = OrderItem::where('order_id', $id)->whereIn('product_id', $bookIds)->exists();
         if (! $hasItems) abort(403);
 
@@ -210,7 +242,7 @@ class OrderController extends Controller
     /** Mark as handed over to courier → status becomes Shipped */
     public function markHandedOver(int $id)
     {
-        $bookIds  = Product::where('seller_id', auth()->id())->pluck('id');
+        $bookIds  = Product::withTrashed()->where('seller_id', auth()->id())->pluck('id');
         $hasItems = OrderItem::where('order_id', $id)->whereIn('product_id', $bookIds)->exists();
         if (! $hasItems) abort(403);
 

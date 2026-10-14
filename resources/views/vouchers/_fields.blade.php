@@ -104,3 +104,23 @@
            @checked(old('is_active', $voucher->is_active ?? true))>
     Active (buyers can use it while it's within its dates)
 </label>
+
+<label class="mt-2 flex cursor-pointer items-start gap-2 text-sm" style="color:#3a2f29;">
+    <input type="hidden" name="is_claimable" value="0">
+    <input type="checkbox" name="is_claimable" value="1" class="mt-0.5 h-4 w-4" style="accent-color:#fa4e1c;"
+           @checked(old('is_claimable', $voucher->is_claimable ?? true))>
+    <span>Show it to buyers (store page, product pages, checkout list)
+        <span class="block text-xs" style="color:#8a7f78;">Untick for a code-only voucher: it is hidden and works only when the buyer types the code.</span></span>
+</label>
+
+@if (! empty($allowShipping))
+    @php $kind = old('scope', $voucher->scope ?? 'platform'); @endphp
+    <div class="mt-4">
+        <label class="{{ $label }}" style="color:#3a2f29;" for="scope">What it discounts *</label>
+        <select id="scope" name="scope" class="{{ $input }} vf-input" @disabled($used)>
+            <option value="platform" @selected($kind === 'platform')>The order (ALVY voucher on any store's items)</option>
+            <option value="shipping" @selected($kind === 'shipping')>Shipping fees (free-shipping voucher — set a fixed amount, e.g. ₱50)</option>
+        </select>
+        @if ($used)<input type="hidden" name="scope" value="{{ $voucher->scope }}">@endif
+    </div>
+@endif

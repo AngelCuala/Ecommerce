@@ -11,13 +11,14 @@
                             onmouseover="this.style.textDecoration='underline';" onmouseout="this.style.textDecoration='none';">Remove</button>
                 </form>
             </div>
-            <p class="mt-2 text-sm font-semibold" style="color:#222222;">{{ $review->title }}</p>
-            <p class="mt-1 text-sm" style="color:#555555;">{{ $review->comment }}</p>
-            <p class="mt-3 text-xs" style="color:#6b90aa;">{{ $review->user->name }} on {{ $review->product->title }}</p>
+            @if ($review->comment)<p class="mt-2 text-sm" style="color:#555555;">{{ $review->comment }}</p>@endif
+            @if ($review->photo_path)<img src="{{ asset('storage/' . $review->photo_path) }}" alt="Review photo" class="mt-2 h-20 w-20 rounded-md object-cover">@endif
+            <p class="mt-3 text-xs" style="color:#6b90aa;">{{ $review->user->name ?? 'Buyer' }} on {{ $review->product->title ?? 'a removed product' }}@if ($review->variation_name) ({{ $review->variation_name }})@endif · {{ $review->created_at->format('M j, Y') }}</p>
         </div>
     @empty
         <p class="text-sm" style="color:#6b90aa;">No reviews yet.</p>
     @endforelse
 </div>
+<div class="mt-4">{{ $reviews->links() }}</div>
 
 </x-admin-layout>

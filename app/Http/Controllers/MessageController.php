@@ -104,16 +104,21 @@ class MessageController extends Controller
         $this->authorizeDirectMessage($otherUser);
 
         $messages = Message::where('thread_key', $threadKey)
-            ->with('sender')
+            ->with('sender', 'product')
             ->oldest()
             ->get();
+
+        // Chat started from a product page: show that product until a message carries it.
+        $aboutProduct = session('chat_product.' . $threadKey)
+            ? \App\Models\Product::find(session('chat_product.' . $threadKey))
+            : null;
 
         Message::where('thread_key', $threadKey)
             ->where('receiver_id', $userId)
             ->where('is_read', false)
             ->update(['is_read' => true]);
 
-        return view('messages.direct', compact('threadKey', 'otherUser', 'messages'));
+        return view('messages.direct', compact('threadKey', 'otherUser', 'messages', 'aboutProduct'));
     }
 
     public function directStore(Request $request, string $threadKey)
@@ -129,14 +134,27 @@ class MessageController extends Controller
         $otherUser = User::findOrFail($otherId);
         $this->authorizeDirectMessage($otherUser);
 
-        $request->validate(['body' => 'required|string|max:1000']);
+        $request->validate([
+            'body'       => 'required_without:attachment|nullable|string|max:1000',
+            'attachment' => 'nullable|file|mimes:jpg,jpeg,png|mimetypes:image/jpeg,image/png|max:5120',
+        ], [
+            'body.required_without' => 'Write a message or attach a photo.',
+            'attachment.mimes'      => 'Only JPG or PNG photos can be sent.',
+            'attachment.mimetypes'  => 'Only real JPG or PNG photos can be sent.',
+            'attachment.max'        => 'A photo can be at most 5 MB.',
+        ]);
+
+        // The first message after "Chat" on a product page carries that product as a card.
+        $productId = session()->pull('chat_product.' . $threadKey);
 
         Message::create([
-            'order_id'    => null,
-            'thread_key'  => $threadKey,
-            'sender_id'   => $userId,
-            'receiver_id' => $otherId,
-            'body'        => $request->body,
+            'order_id'        => null,
+            'thread_key'      => $threadKey,
+            'sender_id'       => $userId,
+            'receiver_id'     => $otherId,
+            'body'            => (string) $request->body,
+            'attachment_path' => $request->file('attachment')?->store('chat', 'public'),
+            'product_id'      => $productId,
         ]);
 
         return back()->with('success', 'Message sent.');
@@ -151,6 +169,10 @@ class MessageController extends Controller
         $this->authorizeDirectMessage($otherUser);
 
         $threadKey = Message::threadKey(auth()->id(), $otherUser->id);
+
+        if ($request->filled('product_id') && \App\Models\Product::whereKey($request->integer('product_id'))->exists()) {
+            session()->put('chat_product.' . $threadKey, $request->integer('product_id'));
+        }
 
         return redirect()->route('messages.direct', $threadKey);
     }

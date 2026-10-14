@@ -28,8 +28,18 @@
                     @php $lastDay = $day; @endphp
                 @endif
                 <div class="mb-2 flex flex-col {{ $isMine ? 'items-end' : 'items-start' }}">
+                    @if ($msg->product)
+                        @include('messages._product-card', ['product' => $msg->product])
+                    @endif
+                    @if ($msg->attachment_path)
+                        <a href="{{ asset('storage/' . $msg->attachment_path) }}" target="_blank" class="mb-1">
+                            <img src="{{ asset('storage/' . $msg->attachment_path) }}" alt="Photo" class="max-h-56 max-w-[16rem] rounded-xl border object-cover" style="border-color:#ECE7E3;" loading="lazy">
+                        </a>
+                    @endif
+                    @if ($msg->body !== '')
                     <div class="max-w-[75%] whitespace-pre-wrap break-words rounded-2xl px-3.5 py-2 text-sm leading-relaxed"
                          style="{{ $isMine ? 'background:#fa4e1c;color:#fff;border-bottom-right-radius:.3rem;' : 'background:#F5F2EF;color:#222;border-bottom-left-radius:.3rem;' }}">{{ $msg->body }}</div>
+                    @endif
                     <span class="mt-0.5 text-[11px]" style="color:#b3a79f;">
                         {{ $isMine ? '' : ($msg->sender->name ?? '—') . ' · ' }}{{ $msg->created_at->format('g:i A') }}
                     </span>
@@ -39,14 +49,26 @@
             @endforelse
         </div>
 
-        <form action="{{ route('messages.direct.store', $threadKey) }}" method="POST" class="flex items-end gap-2 border-t px-4 py-3" style="border-color:#F2EEEA;">
+        @if ($aboutProduct)
+            <div class="border-t px-4 pt-3" style="border-color:#F2EEEA;">
+                <p class="mb-1 text-[11px]" style="color:#a39890;">You're asking about:</p>
+                @include('messages._product-card', ['product' => $aboutProduct])
+            </div>
+        @endif
+        <form action="{{ route('messages.direct.store', $threadKey) }}" method="POST" enctype="multipart/form-data" class="flex items-end gap-2 border-t px-4 py-3" style="border-color:#F2EEEA;">
             @csrf
-            <textarea name="body" rows="2" required maxlength="1000" aria-label="Message"
+            <label class="flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-lg border" style="border-color:#E7E5E4;color:#57534E;" title="Attach a photo (JPG or PNG, up to 5 MB)">
+                <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.6-4.6a2 2 0 012.8 0L16 16m-2-2l1.6-1.6a2 2 0 012.8 0L20 14M14 8h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                <input type="file" name="attachment" accept="image/jpeg,image/png" class="sr-only" onchange="this.closest('form').querySelector('[data-file]').textContent = this.files[0] ? this.files[0].name : ''">
+            </label>
+            <textarea name="body" rows="2" maxlength="1000" aria-label="Message"
                       class="flex-1 resize-none rounded-lg border px-3 py-2 text-sm focus:border-[#fa4e1c] focus:outline-none"
                       style="border-color:#E7E5E4;color:#222;" placeholder="Write a message"></textarea>
             <button type="submit" class="rounded-lg px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90" style="background:#fa4e1c;">Send</button>
         </form>
+        <p data-file class="px-4 pb-1 text-[11px]" style="color:#8a7f78;"></p>
         @error('body')<p class="px-4 pb-3 text-xs" style="color:#B91C1C;">{{ $message }}</p>@enderror
+        @error('attachment')<p class="px-4 pb-3 text-xs" style="color:#B91C1C;">{{ $message }}</p>@enderror
     </div>
 </div>
 

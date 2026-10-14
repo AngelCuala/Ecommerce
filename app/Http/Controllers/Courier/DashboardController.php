@@ -16,7 +16,7 @@ class DashboardController extends Controller
         // Available deliveries (not yet accepted by anyone, order still live)
         $available = Delivery::where('status', 'available')
             ->whereNull('courier_id')
-            ->whereHas('order', fn ($q) => $q->whereNotIn('status', ['Cancelled', 'Delivered']))
+            ->whereHas('order', fn ($q) => $q->whereNotIn('status', \App\Models\Order::LOGISTICS_DONE))
             ->whereDoesntHave('order.parcels', fn ($q) => $q->whereNotIn('status', \App\Models\Parcel::CLOSED_STATUSES))
             ->with($with)->latest()->get();
 

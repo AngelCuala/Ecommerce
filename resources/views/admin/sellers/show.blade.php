@@ -125,4 +125,103 @@
     </div>
 </div>
 
+{{-- ── The seller's products ───────────────────────────────────── --}}
+@php
+    $tabs = ['all' => 'All', 'live' => 'Live', 'pending' => 'Pending approval', 'rejected' => 'Rejected', 'draft' => 'Drafts', 'archived' => 'Archived'];
+@endphp
+<div class="card mt-6 p-6" id="seller-products">
+    <div class="mb-4 flex flex-wrap items-end justify-between gap-3">
+        <div>
+            <h3 class="font-display text-xl font-extrabold" style="color:#002b4d;">Products</h3>
+            <p class="text-xs" style="color:#6b90aa;">Everything this seller has listed, including drafts and items waiting for approval.</p>
+        </div>
+        <form method="GET" action="{{ route('admin.sellers.show', $seller->id) }}#seller-products" class="flex gap-2">
+            <input type="hidden" name="products" value="{{ $productState }}">
+            <input type="search" name="product_search" value="{{ request('product_search') }}" placeholder="Product name or code…"
+                   class="input w-56 py-2 text-sm" style="border-color:#FFDCC2;">
+            <button class="btn-gold !py-2 text-sm" style="background:#fa4e1c;border-color:#fa4e1c;color:#fff;">Search</button>
+        </form>
+    </div>
+
+    <div class="mb-4 flex flex-wrap gap-2">
+        @foreach ($tabs as $key => $label)
+            <a href="{{ route('admin.sellers.show', ['id' => $seller->id, 'products' => $key]) }}#seller-products"
+               class="rounded-full border px-3 py-1 text-xs font-semibold"
+               style="{{ $productState === $key ? 'background:#fa4e1c;border-color:#fa4e1c;color:#fff;' : 'border-color:#FFDCC2;color:#6b5a50;' }}">
+                {{ $label }} <span class="opacity-80">({{ $productCounts[$key] }})</span>
+            </a>
+        @endforeach
+    </div>
+
+    <div class="overflow-x-auto rounded-lg border" style="border-color:#dce8f0;">
+        <table class="w-full text-sm">
+            <thead style="background:#e8f0f6;">
+                <tr style="color:#6b90aa;">
+                    <th class="px-3 py-2 text-left text-[11px] font-bold uppercase tracking-wider">Product</th>
+                    <th class="px-3 py-2 text-left text-[11px] font-bold uppercase tracking-wider">Category</th>
+                    <th class="px-3 py-2 text-right text-[11px] font-bold uppercase tracking-wider">Price</th>
+                    <th class="px-3 py-2 text-right text-[11px] font-bold uppercase tracking-wider">Stock</th>
+                    <th class="px-3 py-2 text-right text-[11px] font-bold uppercase tracking-wider">Sold</th>
+                    <th class="px-3 py-2 text-left text-[11px] font-bold uppercase tracking-wider">Status</th>
+                    <th class="px-3 py-2"></th>
+                </tr>
+            </thead>
+            <tbody>
+            @forelse ($products as $p)
+                @php
+                    [$stateLabel, $stateStyle] = match (true) {
+                        $p->is_archived            => ['Archived', 'background:#F5F5F4;color:#78716C;'],
+                        $p->status === 'draft'     => ['Draft', 'background:#F5F5F4;color:#57534E;'],
+                        $p->isPendingApproval()    => ['Pending approval', 'background:#FFFBEB;color:#B45309;'],
+                        $p->isRejected()           => ['Rejected', 'background:#FEF2F2;color:#B91C1C;'],
+                        $p->stock <= 0             => ['Out of stock', 'background:#FEF2F2;color:#B91C1C;'],
+                        default                    => ['Live', 'background:#ECFDF5;color:#047857;'],
+                    };
+                @endphp
+                <tr class="border-t" style="border-color:#eef3f7;">
+                    <td class="px-3 py-2">
+                        <div class="flex items-center gap-3">
+                            <img src="{{ $p->image ? asset('storage/' . $p->image) : 'https://placehold.co/48x48/f5f5f5/999?text=—' }}"
+                                 alt="" class="h-11 w-11 shrink-0 rounded-md border object-cover" style="border-color:#eef3f7;" loading="lazy">
+                            <div class="min-w-0">
+                                <p class="truncate font-semibold" style="color:#002b4d;max-width:280px;">{{ $p->title }}</p>
+                                <p class="text-xs" style="color:#6b90aa;">{{ $p->product_code ?: 'No code' }} · added {{ $p->created_at->format('M d, Y') }}</p>
+                            </div>
+                        </div>
+                    </td>
+                    <td class="px-3 py-2 text-xs" style="color:#555;">{{ $p->category->name ?? '—' }}</td>
+                    <td class="whitespace-nowrap px-3 py-2 text-right">
+                        <span class="font-semibold" style="color:#002b4d;">₱{{ number_format($p->effective_price, 2) }}</span>
+                        @if ($p->effective_price < $p->price)
+                            <span class="block text-xs line-through" style="color:#9db3c4;">₱{{ number_format($p->price, 2) }}</span>
+                        @endif
+                    </td>
+                    <td class="px-3 py-2 text-right" style="{{ $p->stock <= 5 ? 'color:#B91C1C;font-weight:600;' : '' }}">{{ $p->stock }}</td>
+                    <td class="px-3 py-2 text-right">{{ (int) $p->sold }}</td>
+                    <td class="px-3 py-2">
+                        <span class="rounded-md px-2 py-0.5 text-xs font-semibold" style="{{ $stateStyle }}">{{ $stateLabel }}</span>
+                        @if ($p->isRejected() && $p->approval_note)
+                            <span class="mt-1 block max-w-[200px] text-xs" style="color:#B91C1C;">{{ $p->approval_note }}</span>
+                        @endif
+                    </td>
+                    <td class="whitespace-nowrap px-3 py-2 text-right text-xs font-semibold">
+                        @if ($p->isPendingApproval() && $p->status !== 'draft' && ! $p->is_archived)
+                            <a href="{{ route('admin.product-approvals.index', ['search' => $p->product_code ?: $p->title]) }}" style="color:#B45309;">Review</a>
+                            <span class="mx-1" style="color:#E7E5E4;">|</span>
+                        @endif
+                        <a href="{{ route('admin.products.edit', $p->id) }}" style="color:#fa4e1c;">Edit</a>
+                    </td>
+                </tr>
+            @empty
+                <tr><td colspan="7" class="px-3 py-8 text-center text-sm" style="color:#6b90aa;">
+                    {{ request('product_search') ? 'No products match "' . request('product_search') . '".' : 'No products here.' }}
+                </td></tr>
+            @endforelse
+            </tbody>
+        </table>
+    </div>
+
+    <div class="mt-4">{{ $products->fragment('seller-products')->links() }}</div>
+</div>
+
 </x-admin-layout>

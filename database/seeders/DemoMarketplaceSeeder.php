@@ -5,6 +5,7 @@ namespace Database\Seeders;
 use App\Models\Category;
 use App\Models\Product;
 use App\Models\ProductImage;
+use App\Models\ProductVariation;
 use App\Models\SellerApplication;
 use App\Models\User;
 use App\Models\Voucher;
@@ -192,11 +193,41 @@ class DemoMarketplaceSeeder extends Seeder
             }
         }
 
+        $this->showcase();
+
         // The ALVY-wide sample vouchers too.
         $this->call(SampleVoucherSeeder::class);
 
         $this->command?->info("Demo marketplace ready: {$productCount} demo products in " . count($shops) . ' shops; '
             . Product::published()->count() . ' products visible in the shop.');
+    }
+
+    /**
+     * A few listings that show the buyer features: options (one and two option types),
+     * a sale with a countdown, and a per-buyer limit.
+     */
+    private function showcase(): void
+    {
+        $options = [
+            'DEMO-F01' => ['Color, Size', [['Navy / M', 999, 15], ['Navy / L', 999, 12], ['White / M', 999, 10], ['White / L', 1049, 0], ['Maroon / M', 999, 8]]],
+            'DEMO-G01' => ['Shade', [['Rosewood', null, 40], ['Brick Red', null, 30], ['Nude Pink', null, 0], ['Berry', 329, 25]]],
+            'DEMO-L01' => ['Color', [['Tan', null, 8], ['Black', null, 7]]],
+        ];
+        foreach ($options as $code => [$labels, $rows]) {
+            $product = Product::where('product_code', $code)->first();
+            if (! $product) {
+                continue;
+            }
+            $product->update(['variation_labels' => $labels]);
+            foreach ($rows as $i => [$name, $price, $stock]) {
+                ProductVariation::updateOrCreate(['product_id' => $product->id, 'name' => $name],
+                    ['price' => $price, 'stock' => $stock, 'sort_order' => $i]);
+            }
+            $product->update(['stock' => $product->variations()->sum('stock')]);
+        }
+
+        Product::where('product_code', 'DEMO-H02')->update(['sale_ends_at' => now()->addDays(3)->setTime(23, 59)]);
+        Product::where('product_code', 'DEMO-T01')->update(['purchase_limit' => 2]);
     }
 
     /** An existing seller account, or a new approved demo shop. */

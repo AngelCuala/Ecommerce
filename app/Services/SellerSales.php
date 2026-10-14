@@ -28,7 +28,7 @@ class SellerSales
             ->join('orders', 'orders.id', '=', 'order_items.order_id')
             ->join('products', 'products.id', '=', 'order_items.product_id')
             ->whereBetween('orders.created_at', $dateFilter)
-            ->where('orders.status', '!=', 'Cancelled')
+            ->whereNotIn('orders.status', \App\Models\Order::NOT_SALES)
             ->groupBy('products.seller_id')
             ->selectRaw('products.seller_id,
                 COUNT(DISTINCT order_items.order_id) as orders,

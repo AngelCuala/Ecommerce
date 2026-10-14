@@ -42,10 +42,10 @@ class ReportController extends Controller
         }
 
         // Sales = orders placed in the period that were not cancelled.
-        $orders = fn () => Order::whereBetween('created_at', $dateFilter)->where('status', '!=', 'Cancelled');
+        $orders = fn () => Order::whereBetween('created_at', $dateFilter)->whereNotIn('status', \App\Models\Order::NOT_SALES);
         $items  = fn () => OrderItem::join('orders', 'orders.id', '=', 'order_items.order_id')
             ->whereBetween('orders.created_at', $dateFilter)
-            ->where('orders.status', '!=', 'Cancelled');
+            ->whereNotIn('orders.status', \App\Models\Order::NOT_SALES);
 
         // Only the numbers for the report being shown are queried.
         $totalRevenue = $totalOrders = $totalItems = $byStatus = $topProducts = $dailySales = null;
@@ -169,7 +169,7 @@ class ReportController extends Controller
                 ->join('orders', 'orders.id', '=', 'order_items.order_id')
                 ->join('products', 'products.id', '=', 'order_items.product_id')
                 ->whereBetween('orders.created_at', $dateFilter)
-                ->where('orders.status', '!=', 'Cancelled')
+                ->whereNotIn('orders.status', \App\Models\Order::NOT_SALES)
                 ->where('products.seller_id', $seller->id);
 
             $products = (clone $items)

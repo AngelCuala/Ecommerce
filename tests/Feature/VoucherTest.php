@@ -19,7 +19,7 @@ use Tests\TestCase;
  */
 class VoucherTest extends TestCase
 {
-    use RefreshDatabase;
+    use RefreshDatabase, \Tests\Concerns\ChecksOut;
 
     private User $admin;
     private User $furniture;   // seller A
@@ -79,11 +79,10 @@ class VoucherTest extends TestCase
 
     private function placeOrder(array $vouchers = [])
     {
-        return $this->actingAs($this->buyer)->from(route('checkout.index'))->post(route('checkout.store'), $vouchers + [
-            'full_name' => 'Buyer', 'phone' => '09170000000', 'email' => 'buyer@alvy.test', 'region' => 'NCR',
-            'province' => 'Metro Manila', 'city' => 'Quezon City', 'barangay' => 'Commonwealth',
-            'zip_code' => '1121', 'payment_method' => 'cod',
-        ]);
+        $address = $this->buyer->addresses()->first() ?? $this->addressFor($this->buyer);
+
+        return $this->actingAs($this->buyer)->from(route('checkout.index'))
+            ->post(route('checkout.store'), $this->checkoutForm($address, $vouchers));
     }
 
     // ── Making vouchers ────────────────────────────────────────
@@ -141,7 +140,7 @@ class VoucherTest extends TestCase
 
         $this->actingAs($this->buyer)->get(route('checkout.index'))->assertOk()
             ->assertSee('TABLE150')->assertSee('SALE1111')
-            ->assertSee('BOOKS50')->assertSee('needs a minimum spend of ₱1,000.00', false)   // shown, but can't be picked
+            ->assertSee('BOOKS50')->assertSee('minimum spend ₱1,000.00', false)   // shown, but can't be picked
             ->assertDontSee('LATER');                                                     // not started yet
     }
 
@@ -187,7 +186,7 @@ class VoucherTest extends TestCase
 
         $res = $this->actingAs($this->buyer)->get(route('checkout.index'))->assertOk()
             ->assertDontSee('Best vouchers applied automatically');
-        $this->assertSame(['platform' => null, 'sellers' => [], 'discount' => 0.0], $res->viewData('vouchers')['best']);
+        $this->assertSame(['platform' => null, 'sellers' => [], 'discount' => 0.0, 'shipping' => null], $res->viewData('vouchers')['best']);
     }
 
     public function test_store_and_alvy_vouchers_on_one_order(): void
@@ -199,11 +198,19 @@ class VoucherTest extends TestCase
         $this->placeOrder(['seller_vouchers' => [$this->furniture->id => 'TABLE150'], 'platform_voucher' => 'sale1111'])
             ->assertSessionHasNoErrors()->assertRedirect(route('checkout.confirmation'));
 
-        $order = Order::firstOrFail();
-        // Store voucher: ₱150 off the table. ALVY voucher: 10% of (2,500 - 150) = 235 → capped at ₱200.
-        $this->assertEquals(150, $order->seller_discount);
-        $this->assertEquals(200, $order->platform_discount);
-        $this->assertEquals(2500 - 150 - 200 + 50, $order->total_price);
+        // One order per store, from one checkout.
+        $this->assertSame(2, Order::count());
+        $this->assertSame(1, Order::distinct()->count('checkout_group'));
+        $tableOrder = Order::where('seller_id', $this->furniture->id)->firstOrFail();
+        $novelOrder = Order::where('seller_id', $this->books->id)->firstOrFail();
+        // Store voucher: ₱150 off the table. ALVY voucher: 10% of (2,500 - 150) = 235 → capped at ₱200, shared by both orders.
+        $this->assertEquals(150, $tableOrder->seller_discount);
+        $this->assertEquals(0, $novelOrder->seller_discount);
+        $this->assertEquals(200, round($tableOrder->platform_discount + $novelOrder->platform_discount, 2));
+        // Each store ships separately: ₱50 within NCR for up to 1 kg.
+        $this->assertEquals(50, $tableOrder->shipping_fee);
+        $this->assertEquals(50, $novelOrder->shipping_fee);
+        $this->assertEquals(2500 - 150 - 200 + 100, round($tableOrder->total_price + $novelOrder->total_price, 2));
 
         $table = OrderItem::where('product_id', $this->table->id)->firstOrFail();
         $novel = OrderItem::where('product_id', $this->novel->id)->firstOrFail();
@@ -239,7 +246,7 @@ class VoucherTest extends TestCase
         $this->fillCart();
 
         $this->placeOrder(['seller_vouchers' => [$this->furniture->id => 'TABLE150']])
-            ->assertSessionHasErrors(['seller_vouchers.' . $this->furniture->id => 'Voucher TABLE150: needs a minimum spend of ₱2,100.00 (add ₱100.00 more).']);
+            ->assertSessionHasErrors(['seller_vouchers.' . $this->furniture->id => 'TABLE150 was removed: spend ₱100.00 more to use it (minimum spend ₱2,100.00).']);
         $this->assertSame(0, Order::count());
         $this->assertSame(2, CartItem::count());   // nothing was lost
     }
@@ -251,20 +258,24 @@ class VoucherTest extends TestCase
         $this->voucher(['code' => 'OFF', 'scope' => 'platform', 'discount_value' => 50, 'is_active' => false]);
 
         $this->fillCart();
-        $this->placeOrder(['platform_voucher' => 'OLD'])->assertSessionHasErrors(['platform_voucher' => 'Voucher OLD: this voucher has ended.']);
+        $this->placeOrder(['platform_voucher' => 'OLD'])->assertSessionHasErrors(['platform_voucher' => 'OLD was removed: this voucher has expired.']);
         $this->placeOrder(['platform_voucher' => 'OFF'])->assertSessionHasErrors('platform_voucher');
 
         $this->placeOrder(['platform_voucher' => 'SALE1111'])->assertSessionHasNoErrors();
-        $order = Order::firstOrFail();
+        $orders = Order::all();
+        $this->assertCount(2, $orders);   // one per store
 
         // Once per buyer.
         $this->fillCart();
         $this->placeOrder(['platform_voucher' => 'SALE1111'])
-            ->assertSessionHasErrors(['platform_voucher' => 'Voucher SALE1111: you have already used this voucher.']);
+            ->assertSessionHasErrors(['platform_voucher' => 'SALE1111 was removed: you have already used this voucher.']);
 
-        // Cancelling the order gives the voucher back.
-        $this->actingAs($this->buyer)->post(route('orders.cancel', $order->id), ['cancellation_reason' => 'Changed my mind']);
-        $this->assertSame('Cancelled', $order->fresh()->status);
+        // The ALVY voucher is shared by both orders: cancelling one keeps it in use for the other…
+        $this->actingAs($this->buyer)->post(route('orders.cancel', $orders[0]->id), ['cancellation_reason' => 'Changed my mind']);
+        $this->assertSame('Cancelled', $orders[0]->fresh()->status);
+        $this->assertSame(1, Voucher::where('code', 'SALE1111')->value('used_count'));
+        // …and cancelling the last one gives it back.
+        $this->actingAs($this->buyer)->post(route('orders.cancel', $orders[1]->id), ['cancellation_reason' => 'Changed my mind']);
         $this->assertSame(0, Voucher::where('code', 'SALE1111')->value('used_count'));
         $this->placeOrder(['platform_voucher' => 'SALE1111'])->assertSessionHasNoErrors();
     }

@@ -20,7 +20,7 @@ use Tests\TestCase;
  */
 class ProductApprovalAndSellerReportTest extends TestCase
 {
-    use RefreshDatabase;
+    use RefreshDatabase, \Tests\Concerns\ChecksOut;
 
     private User $seller;
     private User $admin;
@@ -138,11 +138,8 @@ class ProductApprovalAndSellerReportTest extends TestCase
         $buyer   = $this->user('buyer', 'buyer@alvy.test', 'Buyer');
         CartItem::create(['user_id' => $buyer->id, 'product_id' => $product->id, 'quantity' => 1]);
 
-        $this->actingAs($buyer)->post(route('checkout.store'), [
-            'full_name' => 'Buyer', 'phone' => '09170000000', 'email' => 'buyer@alvy.test', 'region' => 'NCR',
-            'province' => 'Metro Manila', 'city' => 'Quezon City', 'barangay' => 'Commonwealth',
-            'zip_code' => '1121', 'payment_method' => 'cod',
-        ])->assertRedirect(route('cart.index'))->assertSessionHas('error');
+        $this->actingAs($buyer)->post(route('checkout.store'), $this->checkoutForm($this->addressFor($buyer)))
+            ->assertRedirect(route('cart.index'))->assertSessionHas('error');
         $this->assertSame(0, Order::count());
     }
 

@@ -17,6 +17,14 @@
                     {{ session('success') }}
                 </div>
             @endif
+            @if (session('error'))
+                <div class="pf-alert pf-alert-error">{{ session('error') }}</div>
+            @endif
+            @if (request('return') === 'checkout')
+                <div class="pf-alert" style="background:#FFF8F4;border:1px solid #FDD5C8;color:#9A3412;">
+                    Add or fix your address, then <a href="{{ route('checkout.index', session()->has('buy_now') ? ['buy_now' => 1] : []) }}" class="font-semibold underline">go back to checkout</a>.
+                </div>
+            @endif
             @if ($errors->any())
                 <div class="pf-alert pf-alert-error">
                     <svg class="mt-0.5 h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
@@ -36,7 +44,7 @@
                             <p class="text-xs pf-muted">Manage your saved delivery addresses.</p>
                         </div>
                     </div>
-                    <button type="button" onclick="document.getElementById('add-address-modal').classList.remove('hidden')" class="pf-btn">
+                    <button type="button" onclick="openAddressModal()" class="pf-btn">
                         <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 5v14M5 12h14"/></svg>
                         Add Address
                     </button>
@@ -73,11 +81,15 @@
 
                             <div class="mt-4 flex-1 rounded-xl p-3.5 text-sm pf-text" style="background:#FDF8F5;border:1px solid #F5EBE4;">
                                 {{ $address->full_address }}
+                                @unless ($address->municipality_code)
+                                    <p class="mt-1 text-xs" style="color:#B45309;">Edit this address and choose the region, city and barangay from the lists so it can be used at checkout.</p>
+                                @endunless
                             </div>
 
                             {{-- Actions --}}
                             <div class="mt-4 flex flex-wrap items-center gap-2">
-                                <button onclick="openEditModal({{ $address->id }}, {{ json_encode($address) }})"
+                                @php $editData = $address->only(['id', 'label', 'full_name', 'phone', 'address_line', 'zip', 'region', 'province', 'city', 'barangay', 'province_code', 'municipality_code', 'barangay_code', 'is_default']); @endphp
+                                <button type="button" onclick='openAddressModal(@json($editData))'
                                         class="pf-btn-ghost px-3.5 py-1.5 text-xs">
                                     <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7M18.5 2.5a2.12 2.12 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                                     Edit
@@ -111,7 +123,7 @@
                             </span>
                             <p class="font-display text-base font-extrabold" style="color:#222;">No addresses saved yet</p>
                             <p class="text-sm pf-muted">Add an address to speed up checkout.</p>
-                            <button onclick="document.getElementById('add-address-modal').classList.remove('hidden')" class="pf-btn mt-2">
+                            <button onclick="openAddressModal()" class="pf-btn mt-2">
                                 <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 5v14M5 12h14"/></svg>
                                 Add Your First Address
                             </button>
@@ -125,191 +137,5 @@
 </div>
 </div>
 
-{{-- ═══════════════════════════════ ADD ADDRESS MODAL ═══════════════════════════════ --}}
-<div id="add-address-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4"
-     style="background:rgba(34,24,18,.55);backdrop-filter:blur(2px);">
-    <div class="pf-card w-full max-w-lg overflow-hidden" style="max-height:92vh;overflow-y:auto;">
-        <div class="flex items-center justify-between gap-3 px-6 py-4" style="background:linear-gradient(120deg,#fff5f3 0%,#fff 70%);border-bottom:1px solid #F0E4DC;">
-            <div class="flex items-center gap-3">
-                <span class="pf-icon">
-                    <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
-                </span>
-                <div>
-                    <h3 class="pf-card-title">Add New Address</h3>
-                    <p class="text-xs pf-muted">Where should we deliver your orders?</p>
-                </div>
-            </div>
-            <button onclick="document.getElementById('add-address-modal').classList.add('hidden')"
-                    class="flex h-8 w-8 items-center justify-center rounded-lg text-2xl leading-none transition hover:bg-[#fff1ee] hover:text-[#fa4e1c]" style="color:#8a7a70;">&times;</button>
-        </div>
-        <form action="{{ route('addresses.store') }}" method="POST" class="p-6 grid gap-4 sm:grid-cols-2">
-            @csrf
-
-            <div>
-                <label class="pf-label">Label</label>
-                <select name="label" class="pf-input">
-                    <option value="Home">🏠 Home</option>
-                    <option value="Work">🏢 Work</option>
-                    <option value="Other">📍 Other</option>
-                </select>
-            </div>
-
-            <div>
-                <label class="pf-label">Full Name</label>
-                <input type="text" name="full_name" value="{{ old('full_name', auth()->user()->name) }}"
-                       class="pf-input" required placeholder="Recipient name">
-            </div>
-
-            <div>
-                <label class="pf-label">Phone</label>
-                <input type="text" name="phone" value="{{ old('phone', auth()->user()->phone) }}"
-                       class="pf-input" placeholder="+63 912 345 6789">
-            </div>
-
-            <div>
-                <label class="pf-label">ZIP Code</label>
-                <input type="text" name="zip" class="pf-input" placeholder="1234">
-            </div>
-
-            <div class="sm:col-span-2">
-                <label class="pf-label">Street / House No.</label>
-                <input type="text" name="address_line" class="pf-input" required placeholder="e.g. 123 Rizal St., Unit 4B">
-            </div>
-
-            <div>
-                <label class="pf-label">Barangay</label>
-                <input type="text" name="barangay" class="pf-input" placeholder="Barangay">
-            </div>
-
-            <div>
-                <label class="pf-label">City / Municipality</label>
-                <input type="text" name="city" class="pf-input" required placeholder="Quezon City">
-            </div>
-
-            <div>
-                <label class="pf-label">Province</label>
-                <input type="text" name="province" class="pf-input" placeholder="Metro Manila">
-            </div>
-
-            <div>
-                <label class="pf-label">Country</label>
-                <input type="text" name="country" value="Philippines" class="pf-input">
-            </div>
-
-            <div class="sm:col-span-2 flex items-center gap-3 rounded-xl p-3.5" style="background:#FDF8F5;border:1px solid #F5EBE4;">
-                <input type="checkbox" name="is_default" value="1" id="add_is_default" class="h-4 w-4 rounded accent-orange-500">
-                <label for="add_is_default" class="text-sm font-medium pf-text">Set as default delivery address</label>
-            </div>
-
-            <div class="sm:col-span-2 flex justify-end gap-3 border-t pt-5" style="border-color:#F0E4DC;">
-                <button type="button"
-                        onclick="document.getElementById('add-address-modal').classList.add('hidden')"
-                        class="pf-btn-ghost">
-                    Cancel
-                </button>
-                <button type="submit" class="pf-btn px-6">
-                    Save Address
-                </button>
-            </div>
-        </form>
-    </div>
-</div>
-
-{{-- ═══════════════════════════════ EDIT ADDRESS MODAL ═══════════════════════════════ --}}
-<div id="edit-address-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4"
-     style="background:rgba(34,24,18,.55);backdrop-filter:blur(2px);">
-    <div class="pf-card w-full max-w-lg overflow-hidden" style="max-height:92vh;overflow-y:auto;">
-        <div class="flex items-center justify-between gap-3 px-6 py-4" style="background:linear-gradient(120deg,#fff5f3 0%,#fff 70%);border-bottom:1px solid #F0E4DC;">
-            <div class="flex items-center gap-3">
-                <span class="pf-icon">
-                    <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7M18.5 2.5a2.12 2.12 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                </span>
-                <div>
-                    <h3 class="pf-card-title">Edit Address</h3>
-                    <p class="text-xs pf-muted">Update this delivery address.</p>
-                </div>
-            </div>
-            <button onclick="document.getElementById('edit-address-modal').classList.add('hidden')"
-                    class="flex h-8 w-8 items-center justify-center rounded-lg text-2xl leading-none transition hover:bg-[#fff1ee] hover:text-[#fa4e1c]" style="color:#8a7a70;">&times;</button>
-        </div>
-        <form id="edit-address-form" method="POST" class="p-6 grid gap-4 sm:grid-cols-2"
-              data-addresses-base="{{ url('/profile/addresses') }}">
-            @csrf @method('PATCH')
-
-            <div>
-                <label class="pf-label">Label</label>
-                <select name="label" id="edit_label" class="pf-input">
-                    <option value="Home">🏠 Home</option>
-                    <option value="Work">🏢 Work</option>
-                    <option value="Other">📍 Other</option>
-                </select>
-            </div>
-
-            <div>
-                <label class="pf-label">Full Name</label>
-                <input type="text" name="full_name" id="edit_full_name" class="pf-input" required>
-            </div>
-
-            <div>
-                <label class="pf-label">Phone</label>
-                <input type="text" name="phone" id="edit_phone" class="pf-input">
-            </div>
-
-            <div>
-                <label class="pf-label">ZIP Code</label>
-                <input type="text" name="zip" id="edit_zip" class="pf-input">
-            </div>
-
-            <div class="sm:col-span-2">
-                <label class="pf-label">Street / House No.</label>
-                <input type="text" name="address_line" id="edit_address_line" class="pf-input" required>
-            </div>
-
-            <div>
-                <label class="pf-label">Barangay</label>
-                <input type="text" name="barangay" id="edit_barangay" class="pf-input">
-            </div>
-
-            <div>
-                <label class="pf-label">City / Municipality</label>
-                <input type="text" name="city" id="edit_city" class="pf-input" required>
-            </div>
-
-            <div>
-                <label class="pf-label">Province</label>
-                <input type="text" name="province" id="edit_province" class="pf-input">
-            </div>
-
-            <div>
-                <label class="pf-label">Country</label>
-                <input type="text" name="country" id="edit_country" class="pf-input">
-            </div>
-
-            <div class="sm:col-span-2 flex items-center gap-3 rounded-xl p-3.5" style="background:#FDF8F5;border:1px solid #F5EBE4;">
-                <input type="checkbox" name="is_default" value="1" id="edit_is_default" class="h-4 w-4 rounded accent-orange-500">
-                <label for="edit_is_default" class="text-sm font-medium pf-text">Set as default delivery address</label>
-            </div>
-
-            <div class="sm:col-span-2 flex justify-end gap-3 border-t pt-5" style="border-color:#F0E4DC;">
-                <button type="button"
-                        onclick="document.getElementById('edit-address-modal').classList.add('hidden')"
-                        class="pf-btn-ghost">
-                    Cancel
-                </button>
-                <button type="submit" class="pf-btn px-6">
-                    Save Changes
-                </button>
-            </div>
-        </form>
-    </div>
-</div>
-
-{{-- Address modal behaviour --}}
-<script src="{{ asset('js/profile-addresses.js') }}"></script>
-@if ($errors->any() && old('address_line'))
-    <script>
-        // Auto-open add modal if validation errors exist (user was adding)
-        document.getElementById('add-address-modal').classList.remove('hidden');
-    </script>
-@endif
+@include('profile._address-modal')
 </x-layout>

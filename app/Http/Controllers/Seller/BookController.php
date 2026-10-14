@@ -196,7 +196,12 @@ class BookController extends Controller
     public function destroy(Product $book)
     {
         $this->authorizeBook($book);
-        $book->delete();
+        $active = \App\Models\OrderItem::where('product_id', $book->id)
+            ->whereHas('order', fn ($q) => $q->whereIn('status', ['Pending', 'Processing', 'Shipped', 'Delivered', 'Return Requested']))->exists();
+        if ($active) {
+            return back()->with('error', '"' . $book->title . '" has orders that are not finished yet, so it cannot be deleted. Archive it instead.');
+        }
+        $book->delete();   // soft delete: order history still shows the product
         return back()->with('success', 'Product deleted.');
     }
 
@@ -263,7 +268,10 @@ class BookController extends Controller
             'sale_price'       => 'nullable|numeric|min:0|lte:price',
             'discount_percent' => 'nullable|numeric|min:0|max:99',
             'voucher_code'     => 'nullable|string|max:50',
-            'stock'            => ($draft ? 'nullable' : 'required') . '|integer|min:0',
+            'stock'            => ($draft ? 'nullable' : 'required') . '|integer|min:0|max:99999',
+            'purchase_limit'   => 'nullable|integer|min:1|max:99999',
+            'sale_ends_at'     => 'nullable|date',
+            'variation_labels' => 'nullable|string|max:60',
             'sku'              => ['nullable', 'string', 'max:100', Rule::unique('products', 'sku')->ignore($bookId)],
             'status'           => ['nullable', Rule::in(self::STATUSES)],
 
@@ -359,6 +367,9 @@ class BookController extends Controller
             'price'            => $data['price'] ?? 0,
             'sale_price'       => $data['sale_price'] ?? null,
             'discount_percent' => $data['discount_percent'] ?? 0,
+            'sale_ends_at'     => $data['sale_ends_at'] ?? null,
+            'purchase_limit'   => $data['purchase_limit'] ?? null,
+            'variation_labels' => $data['variation_labels'] ?? null,
             'voucher_code'     => $data['voucher_code'] ?? null,
             'stock'            => $stock,
             'sku'              => $data['sku'] ?? null,
@@ -446,21 +457,28 @@ class BookController extends Controller
     private function syncVariations(Request $request, Product $book): void
     {
         $variations = (array) $request->input('variations', []);
-        $book->variations()->delete();
 
+        // Options are matched by name and updated in place, so buyers' carts keep pointing at them.
+        $existing = $book->variations()->get()->keyBy(fn ($v) => mb_strtolower($v->name));
+        $kept = [];
         $sort = 0;
         foreach ($variations as $v) {
             $name = trim($v['name'] ?? '');
-            if ($name === '') continue;
-            ProductVariation::create([
-                'product_id'    => $book->id,
-                'name'       => $name,
-                'price'      => ($v['price'] ?? '') !== '' ? $v['price'] : null,
-                'stock'      => (int) ($v['stock'] ?? 0),
-                'sku'        => $v['sku'] ?? null,
-                'sort_order' => $sort++,
-            ]);
+            if ($name === '' || in_array(mb_strtolower($name), $kept, true)) continue;
+            $kept[] = mb_strtolower($name);
+            ProductVariation::updateOrCreate(
+                ['id' => $existing[mb_strtolower($name)]->id ?? null],
+                [
+                    'product_id' => $book->id,
+                    'name'       => $name,
+                    'price'      => ($v['price'] ?? '') !== '' ? $v['price'] : null,
+                    'stock'      => (int) ($v['stock'] ?? 0),
+                    'sku'        => $v['sku'] ?? null,
+                    'sort_order' => $sort++,
+                ]
+            );
         }
+        $book->variations()->whereNotIn(\Illuminate\Support\Facades\DB::raw('LOWER(name)'), $kept ?: ['__none__'])->delete();
 
         // When variations exist, base stock mirrors their total.
         if ($sort > 0) {

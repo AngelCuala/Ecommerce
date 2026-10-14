@@ -11,7 +11,7 @@
         @csrf
         @if ($voucher->exists) @method('PUT') @endif
 
-        @include('vouchers._fields')
+        @include('vouchers._fields', ['allowShipping' => true])
 
         <div class="mt-6 flex gap-3">
             <button class="btn-gold px-6 py-2.5 text-sm" style="background:#fa4e1c;border-color:#fa4e1c;color:#fff;">

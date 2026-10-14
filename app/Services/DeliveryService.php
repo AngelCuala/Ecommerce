@@ -28,7 +28,7 @@ class DeliveryService
     /** Move the order forward to $status (never backwards, never out of Cancelled/Delivered). */
     public function advanceOrder(?Order $order, string $status): void
     {
-        if (! $order || in_array($order->status, ['Cancelled', 'Delivered'], true)) {
+        if (! $order || in_array($order->status, \App\Models\Order::LOGISTICS_DONE, true)) {
             return;
         }
 

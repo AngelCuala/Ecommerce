@@ -17,7 +17,8 @@ class VoucherController extends Controller
     {
         $scope = $request->query('scope') === 'seller' ? Voucher::SCOPE_SELLER : Voucher::SCOPE_PLATFORM;
 
-        $vouchers = Voucher::where('scope', $scope)
+        // The ALVY tab lists order and shipping vouchers (both paid by ALVY).
+        $vouchers = Voucher::whereIn('scope', $scope === Voucher::SCOPE_SELLER ? [Voucher::SCOPE_SELLER] : [Voucher::SCOPE_PLATFORM, Voucher::SCOPE_SHIPPING])
             ->with('seller.sellerApplication')
             ->when($request->filled('search'), fn ($q) => $q->where(fn ($q) => $q
                 ->where('code', 'like', '%' . $request->search . '%')
@@ -27,7 +28,7 @@ class VoucherController extends Controller
             ->withQueryString();
 
         $counts = [
-            'platform' => Voucher::where('scope', Voucher::SCOPE_PLATFORM)->count(),
+            'platform' => Voucher::whereIn('scope', [Voucher::SCOPE_PLATFORM, Voucher::SCOPE_SHIPPING])->count(),
             'seller'   => Voucher::where('scope', Voucher::SCOPE_SELLER)->count(),
         ];
 
@@ -42,24 +43,32 @@ class VoucherController extends Controller
     public function store(Request $request)
     {
         $data = VoucherRules::validate($request);
+        $scope = $request->input('scope') === Voucher::SCOPE_SHIPPING ? Voucher::SCOPE_SHIPPING : Voucher::SCOPE_PLATFORM;
+        if ($scope === Voucher::SCOPE_SHIPPING && $data['discount_type'] !== 'fixed') {
+            return back()->withInput()->withErrors(['discount_type' => 'A shipping voucher takes a fixed amount off the shipping (e.g. ₱50).']);
+        }
 
-        Voucher::create($data + ['scope' => Voucher::SCOPE_PLATFORM, 'created_by' => auth()->id()]);
+        Voucher::create($data + ['scope' => $scope, 'created_by' => auth()->id()]);
 
         return redirect()->route('admin.vouchers.index')->with('success', 'ALVY voucher ' . $data['code'] . ' created.');
     }
 
     public function edit(Voucher $voucher)
     {
-        abort_unless($voucher->isPlatform(), 404);   // store vouchers are edited by their seller
+        abort_unless($voucher->isPlatform() || $voucher->isShipping(), 404);   // store vouchers are edited by their seller
 
         return view('admin.vouchers.form', compact('voucher'));
     }
 
     public function update(Request $request, Voucher $voucher)
     {
-        abort_unless($voucher->isPlatform(), 404);
+        abort_unless($voucher->isPlatform() || $voucher->isShipping(), 404);
 
-        $voucher->update(VoucherRules::validate($request, $voucher));
+        $data = VoucherRules::validate($request, $voucher);
+        if ($voucher->used_count === 0 && in_array($request->input('scope'), [Voucher::SCOPE_PLATFORM, Voucher::SCOPE_SHIPPING], true)) {
+            $data['scope'] = $request->input('scope');
+        }
+        $voucher->update($data);
 
         return redirect()->route('admin.vouchers.index')->with('success', 'Voucher ' . $voucher->code . ' updated.');
     }

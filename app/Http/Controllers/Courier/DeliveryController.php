@@ -34,7 +34,7 @@ class DeliveryController extends Controller
         $claimed = Delivery::where('id', $deliveryId)
             ->where('status', 'available')
             ->whereNull('courier_id')
-            ->whereHas('order', fn ($q) => $q->whereNotIn('status', ['Cancelled', 'Delivered']))
+            ->whereHas('order', fn ($q) => $q->whereNotIn('status', \App\Models\Order::LOGISTICS_DONE))
             // One route per order: never claim an order the sorting center is handling.
             ->whereDoesntHave('order.parcels', fn ($q) => $q->whereNotIn('status', \App\Models\Parcel::CLOSED_STATUSES))
             ->update([

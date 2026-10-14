@@ -2,41 +2,66 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Order;
 use App\Models\UserAddress;
+use App\Support\PhoneNumber;
 use Illuminate\Http\Request;
 
+/**
+ * Address book. Region → province → city → barangay come from the PSGC lists (their codes are
+ * saved for shipping zones and delivery routing). A buyer always has exactly one default
+ * address while they have any.
+ */
 class AddressController extends Controller
 {
+    private function validated(Request $request): array
+    {
+        $request->merge(['phone' => PhoneNumber::normalize($request->input('phone'))]);
+
+        $data = $request->validate([
+            'label'             => 'required|string|max:50',
+            'full_name'         => 'required|string|max:255',
+            'phone'             => ['required', 'string', 'regex:' . PhoneNumber::PATTERN],
+            'region'            => 'required|string|max:120',
+            'province'          => 'required|string|max:120',
+            'city'              => 'required|string|max:120',
+            'barangay'          => 'required|string|max:120',
+            'address_line'      => 'required|string|max:255',
+            'zip'               => 'nullable|string|max:10',
+            'province_code'     => ['nullable', 'regex:/^\d{9,10}$/'],
+            'municipality_code' => ['required', 'regex:/^\d{9,10}$/'],
+            'barangay_code'     => ['nullable', 'regex:/^\d{9,10}$/'],
+            'is_default'        => 'boolean',
+        ], [
+            'phone.regex'                => 'Enter a valid PH mobile number: 09XXXXXXXXX (11 digits) or +639XXXXXXXXX.',
+            'municipality_code.required' => 'Please choose the region, province, city and barangay from the lists.',
+            'address_line.required'      => 'Please enter the house number and street.',
+        ]);
+        $data['country'] = 'Philippines';
+
+        return $data;
+    }
+
     public function store(Request $request)
     {
-        $data = $request->validate([
-            'label'        => 'required|string|max:50',
-            'full_name'    => 'required|string|max:255',
-            'phone'        => 'nullable|string|max:30',
-            'address_line' => 'required|string|max:255',
-            'barangay'     => 'nullable|string|max:120',
-            'city'         => 'required|string|max:120',
-            'province'     => 'nullable|string|max:120',
-            'zip'          => 'nullable|string|max:20',
-            'country'      => 'nullable|string|max:100',
-            'is_default'   => 'boolean',
-        ]);
-
+        $data = $this->validated($request);
         $user = auth()->user();
         $data['user_id'] = $user->id;
-        $data['country'] = $data['country'] ?? 'Philippines';
 
-        // If marking as default, clear existing default first
-        if (! empty($data['is_default'])) {
+        // The first address is always the default.
+        if ($user->addresses()->count() === 0) {
+            $data['is_default'] = true;
+        } elseif (! empty($data['is_default'])) {
             $user->addresses()->update(['is_default' => false]);
         }
 
-        // If this is the first address, auto-set as default
-        if ($user->addresses()->count() === 0) {
-            $data['is_default'] = true;
-        }
+        $address = UserAddress::create($data);
 
-        UserAddress::create($data);
+        if ($request->input('return') === 'checkout') {
+            session()->put('checkout_address', $address->id);
+            return redirect()->route('checkout.index', session()->has('buy_now') ? ['buy_now' => 1] : [])
+                ->with('success', 'Address added.');
+        }
 
         return back()->with('success', 'Address added successfully.');
     }
@@ -45,29 +70,17 @@ class AddressController extends Controller
     {
         abort_unless($address->user_id === auth()->id(), 403);
 
-        $data = $request->validate([
-            'label'        => 'required|string|max:50',
-            'full_name'    => 'required|string|max:255',
-            'phone'        => 'nullable|string|max:30',
-            'address_line' => 'required|string|max:255',
-            'barangay'     => 'nullable|string|max:120',
-            'city'         => 'required|string|max:120',
-            'province'     => 'nullable|string|max:120',
-            'zip'          => 'nullable|string|max:20',
-            'country'      => 'nullable|string|max:100',
-            'is_default'   => 'boolean',
-        ]);
+        $data = $this->validated($request);
 
-        $makeDefault = ! empty($data['is_default']);
-
-        if ($makeDefault) {
+        if (! empty($data['is_default'])) {
             auth()->user()->addresses()->update(['is_default' => false]);
             $data['is_default'] = true;
         } else {
-            // Never allow the sole/last default to be silently dropped on update
+            // Unticking can't leave the buyer with no default; choose another address as default instead.
             unset($data['is_default']);
         }
 
+        // Orders already placed keep their own copy of the address, so they don't change.
         $address->update($data);
 
         return back()->with('success', 'Address updated successfully.');
@@ -77,15 +90,22 @@ class AddressController extends Controller
     {
         abort_unless($address->user_id === auth()->id(), 403);
 
+        // Orders on their way keep a copy of the address, but the buyer may need it to follow up.
+        $inUse = Order::where('address_id', $address->id)
+            ->whereIn('status', [Order::PENDING, Order::PROCESSING, Order::SHIPPED])->exists();
+        if ($inUse) {
+            return back()->with('error', 'This address is used by an order that hasn\'t arrived yet. You can delete it after the order is delivered.');
+        }
+
         $wasDefault = $address->is_default;
         $address->delete();
 
-        // Promote the oldest remaining address to default
+        // There is never zero defaults while addresses exist: the oldest remaining one takes over.
         if ($wasDefault) {
             auth()->user()->addresses()->oldest()->first()?->update(['is_default' => true]);
         }
 
-        return back()->with('success', 'Address removed.');
+        return back()->with('success', 'Address removed.' . ($wasDefault && auth()->user()->addresses()->exists() ? ' Another address is now your default.' : ''));
     }
 
     public function setDefault(UserAddress $address)

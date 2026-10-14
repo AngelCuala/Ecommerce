@@ -31,6 +31,7 @@ class VoucherRules
             'usage_limit'    => 'nullable|integer|min:1|max:1000000',
             'per_user_limit' => 'required|integer|min:1|max:100',
             'is_active'      => 'nullable|boolean',
+            'is_claimable'   => 'nullable|boolean',
         ], [
             'code.regex'              => 'Use letters, numbers, - or _ only (e.g. SALE1111).',
             'code.unique'             => 'That code is already used by another voucher.',
@@ -55,6 +56,7 @@ class VoucherRules
         $data['min_spend']    = $data['min_spend'] ?? 0;
         $data['max_discount'] = $data['discount_type'] === 'percent' ? ($data['max_discount'] ?? null) : null;
         $data['is_active']    = $request->boolean('is_active');
+        $data['is_claimable'] = $request->has('is_claimable') ? $request->boolean('is_claimable') : ($voucher->is_claimable ?? true);
 
         return $data;
     }

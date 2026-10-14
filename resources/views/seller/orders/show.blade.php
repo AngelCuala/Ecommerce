@@ -6,7 +6,9 @@
     $gross     = $order->sellerItems->sum(fn ($i) => $i->price * $i->quantity);
     $fees      = $order->sellerItems->sum('commission_amount');
     $earned    = $order->sellerItems->sum('seller_earning');
-    $steps     = ['Pending', 'Processing', 'Shipped', 'Delivered'];
+    $steps     = ['Pending', 'Processing', 'Shipped', 'Delivered', 'Completed'];
+    $openReturn = $order->returnRequests->firstWhere('status', 'requested');
+    $lastReturn = $order->returnRequests->first();
     $currIdx   = array_search($order->status, $steps);
 @endphp
 
@@ -22,10 +24,43 @@
         <p class="mt-0.5 text-sm pl-muted">Placed {{ $order->created_at->format('M j, Y · g:i A') }}</p>
     </div>
 
-    @if ($order->status === 'Delivered')
+    @if ($order->status === 'Completed')
         <div class="mb-5 rounded-md border px-4 py-3 text-sm" style="background:#F0FDF4;border-color:#BBF7D0;color:#166534;">
-            {{ $order->full_name }} confirmed they received this order. Payment: {{ $order->payment_status }}. Your earnings have been credited.
+            This order is complete. Payment: {{ $order->payment_status }}. Your earnings for it are now available.
         </div>
+    @elseif ($order->status === 'Delivered')
+        <div class="mb-5 rounded-md border px-4 py-3 text-sm" style="background:#F0FDF4;border-color:#BBF7D0;color:#166534;">
+            Delivered{{ $order->delivered_at ? ' on ' . $order->delivered_at->format('M j, Y') : '' }}. The order completes when {{ $order->full_name }} confirms it,
+            or by itself {{ \App\Models\Order::RETURN_DAYS }} days after delivery.
+        </div>
+    @endif
+
+    {{-- Return / refund request --}}
+    @if ($openReturn || $lastReturn)
+        @php $rr = $openReturn ?? $lastReturn; @endphp
+        <section class="pl-card mb-5" style="border-color:#BFDBFE;">
+            <div class="pl-head"><h2>Return / refund request</h2><span class="pl-tag pending">{{ ucfirst($rr->status) }}</span></div>
+            <div class="pl-body space-y-2 text-sm">
+                <p><strong>Reason:</strong> {{ $rr->reason }}</p>
+                @if ($rr->details)<p class="pl-muted">{{ $rr->details }}</p>@endif
+                <a href="{{ asset('storage/' . $rr->evidence_path) }}" target="_blank" class="inline-block">
+                    <img src="{{ asset('storage/' . $rr->evidence_path) }}" alt="Evidence photo" class="h-28 rounded-md border object-cover" style="border-color:#ECE7E3;">
+                </a>
+                <p class="text-xs pl-muted">Requested {{ $rr->created_at->format('M j, Y · g:i A') }} · refund ₱{{ number_format($rr->refund_amount, 2) }}</p>
+                @if ($rr->seller_note)<p class="text-xs"><strong>Your note:</strong> {{ $rr->seller_note }}</p>@endif
+                @if ($openReturn)
+                    <form action="{{ route('seller.orders.return', $order->id) }}" method="POST" class="space-y-2 border-t pt-3" style="border-color:#F2EEEA;">
+                        @csrf
+                        <textarea name="seller_note" rows="2" maxlength="500" class="input text-sm" placeholder="Note to the buyer (required when rejecting)">{{ old('seller_note') }}</textarea>
+                        @error('seller_note')<p class="text-xs" style="color:#B91C1C;">{{ $message }}</p>@enderror
+                        <div class="flex gap-2">
+                            <button name="decision" value="approve" class="pl-btn" onclick="return confirm('Approve the return and refund the buyer?')">Approve refund</button>
+                            <button name="decision" value="reject" class="pl-btn-ghost rounded-md border px-3 py-1.5 text-sm" style="border-color:#FCA5A5;color:#B91C1C;">Reject</button>
+                        </div>
+                    </form>
+                @endif
+            </div>
+        </section>
     @endif
 
     <div class="grid gap-5 lg:grid-cols-[1fr_19rem]">
@@ -66,7 +101,7 @@
                         @endif
                         <div class="min-w-0 flex-1">
                             <p class="truncate text-sm font-medium" style="color:#222;">{{ $item->product->title ?? 'Removed product' }}</p>
-                            <p class="text-xs pl-muted">₱{{ number_format($item->price, 2) }} × {{ $item->quantity }}</p>
+                            <p class="text-xs pl-muted">@if ($item->variation_name){{ $item->variation_name }} · @endif₱{{ number_format($item->price, 2) }} × {{ $item->quantity }}</p>
                         </div>
                         <p class="text-sm font-medium" style="color:#222;">₱{{ number_format($item->price * $item->quantity, 2) }}</p>
                     </div>
@@ -89,6 +124,9 @@
                     <div><dt>Phone</dt><dd>{{ $order->phone }}</dd></div>
                     <div><dt>Email</dt><dd class="break-all">{{ $order->email }}</dd></div>
                     <div><dt>Address</dt><dd class="max-w-[24rem]">{{ $order->fullAddress() }}</dd></div>
+                    @if ($order->buyer_note)
+                        <div><dt>Note from buyer</dt><dd class="max-w-[24rem] font-medium" style="color:#9A3412;">“{{ $order->buyer_note }}”</dd></div>
+                    @endif
                     <div><dt>Payment</dt><dd>{{ $order->payment_method }} · {{ $order->payment_status }}</dd></div>
                     @if ($order->payment_method === 'COD' && $order->payment_status !== 'Paid')
                         <div><dt>Collect on delivery</dt><dd class="font-semibold">₱{{ number_format($order->total_price, 2) }}</dd></div>
@@ -101,7 +139,7 @@
         <div class="space-y-5">
 
             {{-- Update status --}}
-            @if (! in_array($order->status, ['Delivered', 'Cancelled']))
+            @if (! in_array($order->status, \App\Models\Order::LOGISTICS_DONE))
                 <section class="pl-card pl-body">
                     <form action="{{ route('seller.orders.update', $order->id) }}" method="POST">
                         @csrf @method('PATCH')
@@ -137,7 +175,7 @@
             @endif
 
             {{-- Courier handover --}}
-            @if (! in_array($order->status, ['Delivered', 'Cancelled']))
+            @if (! in_array($order->status, \App\Models\Order::LOGISTICS_DONE))
 
                 {{-- One route per order: a sorting-center parcel replaces the courier cards below. --}}
                 @if ((! $delivery && ! $parcel) || ($delivery && $delivery->status === 'available' && ! $delivery->pickup_scheduled_at) || ($parcel && $parcel->status === 'pickup_rejected'))

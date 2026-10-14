@@ -16,10 +16,12 @@ class Voucher extends Model
 {
     public const SCOPE_PLATFORM = 'platform';
     public const SCOPE_SELLER   = 'seller';
+    /** ALVY-funded discount on the shipping fees ("FREESHIP"). */
+    public const SCOPE_SHIPPING = 'shipping';
 
     protected $fillable = [
         'code', 'name', 'scope', 'seller_id', 'discount_type', 'discount_value', 'max_discount',
-        'min_spend', 'starts_at', 'ends_at', 'usage_limit', 'per_user_limit', 'is_active', 'created_by',
+        'min_spend', 'starts_at', 'ends_at', 'usage_limit', 'per_user_limit', 'is_active', 'is_claimable', 'created_by',
     ];
 
     protected $casts = [
@@ -32,12 +34,15 @@ class Voucher extends Model
         'per_user_limit' => 'integer',
         'used_count'     => 'integer',
         'is_active'      => 'boolean',
+        'is_claimable'   => 'boolean',
     ];
 
     public function seller(): BelongsTo        { return $this->belongsTo(User::class, 'seller_id'); }
     public function redemptions(): HasMany     { return $this->hasMany(VoucherRedemption::class); }
 
     public function isPlatform(): bool { return $this->scope === self::SCOPE_PLATFORM; }
+    public function isShipping(): bool { return $this->scope === self::SCOPE_SHIPPING; }
+    public function claims(): HasMany  { return $this->hasMany(VoucherClaim::class); }
 
     /** Codes are stored and matched in upper case. */
     public function setCodeAttribute($value): void
@@ -69,6 +74,9 @@ class Voucher extends Model
     /** "₱150 off" or "10% off (up to ₱200)". */
     public function discountLabel(): string
     {
+        if ($this->isShipping()) {
+            return 'Shipping ₱' . number_format($this->discount_value, 0) . ' off';
+        }
         if ($this->discount_type === 'percent') {
             return rtrim(rtrim(number_format($this->discount_value, 2), '0'), '.') . '% off'
                 . ($this->max_discount ? ' (up to ₱' . number_format($this->max_discount, 0) . ')' : '');

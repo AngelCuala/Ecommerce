@@ -137,6 +137,7 @@ Route::middleware('buyer_only')->group(function () {
     Route::get('/categories/{slug}', [\App\Http\Controllers\CategoryPageController::class, 'show'])->name('categories.show');
     Route::get('/shop', [ShopController::class, 'index'])->name('shop.index');
     Route::get('/products/{slug}', [ProductController::class, 'show'])->name('products.show');
+    Route::get('/store/{sellerId}', [\App\Http\Controllers\StoreController::class, 'show'])->whereNumber('sellerId')->name('stores.show');
 });
 Route::get('/dbconn', fn() => view('dbconn'));
 Route::get('/policies/{key}', [\App\Http\Controllers\PolicyController::class, 'show'])->name('policies.show');
@@ -203,6 +204,38 @@ Route::middleware(['auth', 'buyer_only', 'prevent.back'])->group(function () {
 
     // Buyer cancel order
     Route::post('/orders/{id}/cancel', [\App\Http\Controllers\OrderController::class, 'cancelByBuyer'])->name('orders.cancel');
+
+    // ── Buyer modules (B1–B14) ──
+    Route::get('/profile/orders/{id}',            [ProfileController::class, 'orderShow'])->whereNumber('id')->name('profile.orders.show');
+    Route::post('/orders/{id}/return',            [\App\Http\Controllers\OrderController::class, 'requestReturn'])->name('orders.return');
+    Route::post('/reviews/item/{item}',           [\App\Http\Controllers\ReviewController::class, 'store'])->name('reviews.store');
+    Route::patch('/reviews/{review}',             [\App\Http\Controllers\ReviewController::class, 'update'])->name('reviews.update');
+
+    Route::post('/checkout/preview',              [CheckoutController::class, 'preview'])->name('checkout.preview');
+
+    Route::get('/notifications/{id}/open',        [ProfileController::class, 'openNotification'])->name('notifications.open');
+    Route::post('/notifications/read-all',        [ProfileController::class, 'readAllNotifications'])->name('notifications.read-all');
+
+    // Email / phone change, confirmed with a code
+    Route::post('/profile/security/email',        [ProfileController::class, 'changeEmail'])->middleware('throttle:5,1')->name('profile.email.change');
+    Route::post('/profile/security/phone',        [ProfileController::class, 'changePhone'])->middleware('throttle:5,1')->name('profile.phone.change');
+    Route::post('/profile/security/verify',       [ProfileController::class, 'verifyContact'])->middleware('throttle:10,1')->name('profile.contact.verify');
+    Route::post('/profile/security/resend',       [ProfileController::class, 'resendContactCode'])->middleware('throttle:3,1')->name('profile.contact.resend');
+    Route::post('/profile/security/cancel',       [ProfileController::class, 'cancelContactChange'])->name('profile.contact.cancel');
+
+    Route::get('/wishlist',                       [\App\Http\Controllers\WishlistController::class, 'index'])->name('wishlist.index');
+    Route::post('/wishlist/{productId}',          [\App\Http\Controllers\WishlistController::class, 'toggle'])->name('wishlist.toggle');
+    Route::post('/store/{sellerId}/follow',       [\App\Http\Controllers\StoreController::class, 'toggleFollow'])->name('stores.follow');
+    Route::get('/following',                      [\App\Http\Controllers\StoreController::class, 'following'])->name('stores.following');
+    Route::get('/my-vouchers',                    [\App\Http\Controllers\VoucherWalletController::class, 'index'])->name('vouchers.wallet');
+    Route::post('/vouchers/{voucher}/claim',      [\App\Http\Controllers\VoucherWalletController::class, 'claim'])->name('vouchers.claim');
+
+    // Online payment (e-wallet / card) and flash sale reminders
+    Route::post('/orders/{id}/pay',               [\App\Http\Controllers\PaymentController::class, 'pay'])->name('orders.pay');
+    Route::get('/payments/{payment}/return',      [\App\Http\Controllers\PaymentController::class, 'back'])->name('payments.return');
+    Route::get('/payments/{payment}/sandbox',     [\App\Http\Controllers\PaymentController::class, 'sandbox'])->name('payments.sandbox');
+    Route::post('/payments/{payment}/sandbox',    [\App\Http\Controllers\PaymentController::class, 'sandboxAction'])->name('payments.sandbox.act');
+    Route::post('/flash-sales/{flashSale}/remind', [\App\Http\Controllers\FlashSaleReminderController::class, 'toggle'])->name('flash-sales.remind');
 });
 
 // ── Authenticated (all roles) ─────────────────────────────────
@@ -257,6 +290,10 @@ Route::middleware(['auth', 'role:seller,admin', 'seller.approved', 'prevent.back
     Route::patch('/orders/{id}',             [SellerOrderController::class, 'update'])->name('orders.update');
     Route::post('/orders/{id}/handover',     [SellerOrderController::class, 'handover'])->name('orders.handover');
     Route::post('/orders/{id}/handed-over',  [SellerOrderController::class, 'markHandedOver'])->name('orders.handed-over');
+    Route::post('/orders/{id}/return',       [SellerOrderController::class, 'decideReturn'])->name('orders.return');
+    Route::get('/flash-sales',               [\App\Http\Controllers\Seller\FlashSaleController::class, 'index'])->name('flash-sales.index');
+    Route::post('/flash-sales',              [\App\Http\Controllers\Seller\FlashSaleController::class, 'store'])->name('flash-sales.store');
+    Route::delete('/flash-sales/{flashSale}', [\App\Http\Controllers\Seller\FlashSaleController::class, 'destroy'])->name('flash-sales.destroy');
 
     // Reports
     Route::get('/reports',                   [SellerReportController::class, 'index'])->name('reports');

@@ -65,13 +65,36 @@ class SellerController extends Controller
      * Show a single seller: shop/business details, verification, product count.
      * Does NOT list individual seller orders (out of admin scope).
      */
-    public function show(int $id)
+    public function show(Request $request, int $id)
     {
         $seller = User::withCount('products as books_count')
             ->with('sellerApplication')
             ->findOrFail($id);
 
-        return view('admin.sellers.show', compact('seller'));
+        // The seller's products, with how many sold, filterable by state.
+        $all = \App\Models\Product::where('seller_id', $seller->id);
+        $states = [
+            'all'      => fn ($q) => $q,
+            'live'     => fn ($q) => $q->published(),
+            'pending'  => fn ($q) => $q->where('approval_status', 'pending')->where('status', '!=', 'draft')->where('is_archived', false),
+            'rejected' => fn ($q) => $q->where('approval_status', 'rejected')->where('is_archived', false),
+            'draft'    => fn ($q) => $q->where('status', 'draft')->where('is_archived', false),
+            'archived' => fn ($q) => $q->where('is_archived', true),
+        ];
+        $productState  = array_key_exists($request->query('products'), $states) ? $request->query('products') : 'all';
+        $productCounts = collect($states)->map(fn ($apply) => $apply(clone $all)->count());
+
+        $products = $states[$productState](clone $all)
+            ->with('category')
+            ->withSum(['orderItems as sold' => fn ($q) => $q->whereHas('order', fn ($o) => $o->whereNotIn('status', \App\Models\Order::NOT_SALES))], 'quantity')
+            ->when($request->filled('product_search'), fn ($q) => $q->where(fn ($q) => $q
+                ->where('title', 'like', '%' . $request->product_search . '%')
+                ->orWhere('product_code', 'like', '%' . $request->product_search . '%')))
+            ->latest()
+            ->paginate(20, ['*'], 'products_page')
+            ->withQueryString();
+
+        return view('admin.sellers.show', compact('seller', 'products', 'productState', 'productCounts'));
     }
 
     /** Suspend a seller account (reversible). */

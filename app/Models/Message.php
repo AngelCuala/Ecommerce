@@ -7,7 +7,10 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Message extends Model
 {
-    protected $fillable = ['order_id', 'thread_key', 'sender_id', 'receiver_id', 'body', 'is_read'];
+    protected $fillable = ['order_id', 'thread_key', 'sender_id', 'receiver_id', 'body', 'attachment_path', 'product_id', 'is_read'];
+
+    /** The product the buyer was looking at when they started the chat (shown as a card). */
+    public function product(): BelongsTo  { return $this->belongsTo(Product::class)->withTrashed(); }
 
     public function sender(): BelongsTo   { return $this->belongsTo(User::class, 'sender_id'); }
     public function receiver(): BelongsTo { return $this->belongsTo(User::class, 'receiver_id'); }

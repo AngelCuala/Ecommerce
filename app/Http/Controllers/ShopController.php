@@ -2,56 +2,46 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Product;
-use App\Models\Category;
+use App\Models\SellerApplication;
+use App\Support\ProductSearch;
 use Illuminate\Http\Request;
 
 class ShopController extends Controller
 {
-    public function index(Request $request)
+    public function index(Request $request, ProductSearch $search)
     {
-        // If there's a search query, keep the shop page for search results
-        if ($request->filled('search')) {
-            $query = Product::with(['category', 'images'])
-                ->published()
-                ->where('stock', '>', 0)
-                ->where(function ($q) use ($request) {
-                    $q->where('title', 'like', '%' . $request->search . '%')
-                      ->orWhere('author', 'like', '%' . $request->search . '%')
-                      ->orWhere('description', 'like', '%' . $request->search . '%');
-                });
+        $filtering = $request->hasAny(['min_price', 'max_price', 'rating', 'category', 'location', 'sort']);
 
-            if ($request->filled('min_price')) {
-                $query->where('price', '>=', $request->min_price);
-            }
-            if ($request->filled('max_price')) {
-                $query->where('price', '<=', $request->max_price);
-            }
-
-            match ($request->get('sort', 'newest')) {
-                'price_low'  => $query->orderBy('price'),
-                'price_high' => $query->orderByDesc('price'),
-                default      => $query->latest(),
-            };
-
-            $products   = $query->get();
-            $categories = Category::orderBy('name')->get();
-            return view('shop.index', compact('products', 'categories'));
-        }
-
-        // If a category is passed, find the matching slug and redirect
-        if ($request->filled('category')) {
-            $catalog = \App\Http\Controllers\CategoryPageController::catalog();
-            $match   = collect($catalog)->first(fn($c) =>
+        // A category link without a search: go to that category's page.
+        if (! $request->filled('search') && $request->filled('category') && ! $filtering) {
+            $match = collect(CategoryPageController::catalog())->first(fn ($c) =>
                 str_contains(strtolower($c['name']), strtolower($request->category)) ||
-                str_contains(strtolower($request->category), strtolower($c['name']))
-            );
+                str_contains(strtolower($request->category), strtolower($c['name'])));
             if ($match) {
                 return redirect()->route('categories.show', $match['slug']);
             }
         }
 
-        // Default: redirect to the category page
-        return redirect()->route('categories.page');
+        // An empty search shows everything (newest first).
+        $term = trim((string) $request->input('search'));
+
+        [$query, $notes] = $search->apply($request, $term);
+        $products = $query->paginate(24)->withQueryString();
+
+        // Nothing found: try the closest spelling ("Ratan baskit" → "rattan basket").
+        $suggestion = null;
+        if ($products->total() === 0 && $term !== '' && ($suggestion = $search->suggestion($term))) {
+            [$query] = $search->apply($request, $suggestion);
+            $products = $query->paginate(24)->withQueryString();
+            if ($products->total() === 0) {
+                $suggestion = null;
+            }
+        }
+
+        $categories = collect(CategoryPageController::catalog())->pluck('name');
+        $locations  = SellerApplication::where('status', 'approved')->whereNotNull('province')
+            ->distinct()->orderBy('province')->pluck('province');
+
+        return view('shop.index', compact('products', 'term', 'suggestion', 'notes', 'categories', 'locations'));
     }
 }

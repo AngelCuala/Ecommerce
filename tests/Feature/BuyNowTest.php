@@ -15,7 +15,7 @@ use Tests\TestCase;
 /** "Buy now" goes straight to checkout with just that item; "Add to cart" still adds to the cart. */
 class BuyNowTest extends TestCase
 {
-    use RefreshDatabase;
+    use RefreshDatabase, \Tests\Concerns\ChecksOut;
 
     private User $buyer;
     private Product $lamp;
@@ -32,16 +32,15 @@ class BuyNowTest extends TestCase
         $this->lamp = Product::create(['category_id' => $cat->id, 'seller_id' => $seller->id, 'title' => 'Desk Lamp', 'price' => 800, 'stock' => 3, 'status' => 'active']);
         $this->mug  = Product::create(['category_id' => $cat->id, 'seller_id' => $seller->id, 'title' => 'Coffee Mug', 'price' => 150, 'stock' => 10, 'status' => 'active']);
 
-        // Something already waiting in the cart.
+        // Something already waiting in the cart, and a saved address in Quezon City.
         CartItem::create(['user_id' => $this->buyer->id, 'product_id' => $this->mug->id, 'quantity' => 2]);
+        $this->addressFor($this->buyer);
     }
 
     private function order(array $extra = [])
     {
-        return $this->actingAs($this->buyer)->from(route('checkout.index', ['buy_now' => 1]))->post(route('checkout.store'), $extra + [
-            'buy_now' => '1', 'full_name' => 'Buyer', 'phone' => '09170000000', 'email' => 'b@alvy.test', 'region' => 'NCR',
-            'province' => 'Metro Manila', 'city' => 'Quezon City', 'barangay' => 'Commonwealth', 'zip_code' => '1121', 'payment_method' => 'cod',
-        ]);
+        return $this->actingAs($this->buyer)->from(route('checkout.index', ['buy_now' => 1]))
+            ->post(route('checkout.store'), $this->checkoutForm($this->buyer->addresses()->first(), $extra + ['buy_now' => '1']));
     }
 
     public function test_buy_now_checks_out_only_that_item_and_keeps_the_cart(): void
@@ -51,7 +50,7 @@ class BuyNowTest extends TestCase
 
         $this->actingAs($this->buyer)->get(route('checkout.index', ['buy_now' => 1]))->assertOk()
             ->assertSee('Desk Lamp')->assertDontSee('Coffee Mug')
-            ->assertSee('₱1,650.00');                         // 2 × 800 + ₱50 delivery
+            ->assertSee('₱1,650.00');                         // 2 × 800 + ₱50 shipping (1 kg within NCR)
         $this->assertSame(1, CartItem::count());              // the lamp was not put in the cart
 
         $this->order()->assertSessionHasNoErrors()->assertRedirect(route('checkout.confirmation'));

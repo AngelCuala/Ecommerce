@@ -5,10 +5,23 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Str;
 
 class Product extends Model
 {
+    // Deleted listings are kept (soft-deleted) so order history still shows them.
+    use SoftDeletes;
+
+    /** Running flash sales for the current request: ['key' => request id, 'sales' => Collection]. */
+    private static array $runningFlashSales = [];
+
+    /** Forget the cached flash sales (after one is created or sells units). */
+    public static function forgetFlashSales(): void
+    {
+        self::$runningFlashSales = [];
+    }
+
     /** Most photos a single listing can have. */
     public const MAX_IMAGES = 15;
 
@@ -23,6 +36,7 @@ class Product extends Model
         'weight_kg', 'length_cm', 'width_cm', 'height_cm', 'address_id',
         'is_archived', 'archived_at',
         'approval_status', 'approval_note', 'approval_reviewed_at', 'approval_reviewed_by',
+        'variation_labels', 'purchase_limit', 'sale_ends_at',
     ];
 
     protected $casts = [
@@ -39,6 +53,8 @@ class Product extends Model
         'is_archived'      => 'boolean',
         'archived_at'      => 'datetime',
         'approval_reviewed_at' => 'datetime',
+        'sale_ends_at'     => 'datetime',
+        'purchase_limit'   => 'integer',
     ];
 
     // ── Relationships ─────────────────────────────────────────
@@ -117,22 +133,145 @@ class Product extends Model
         return (int) $this->stock;
     }
 
-    /** Effective price: sale price if valid, otherwise discount %, otherwise base price. */
+    /** A sale with an end date stops on that date. */
+    public function saleIsRunning(): bool
+    {
+        return ! $this->sale_ends_at || $this->sale_ends_at->isFuture();
+    }
+
+    /** Effective price: a running flash sale, else the sale price, else discount %, else the base price. */
     public function getEffectivePriceAttribute(): float
     {
-        if ($this->sale_price !== null && $this->sale_price > 0 && $this->sale_price < $this->price) {
-            return round((float) $this->sale_price, 2);
+        $normal = $this->priceFor((float) $this->price, true);
+        $flash  = $this->runningFlashSale();
+
+        return $flash ? min($normal, round($flash->flash_price, 2)) : $normal;
+    }
+
+    /** Price without the flash sale (after its flash quantity is sold out). */
+    public function getRegularPriceAttribute(): float
+    {
+        return $this->priceFor((float) $this->price, true);
+    }
+
+    public function flashSales(): HasMany
+    {
+        return $this->hasMany(FlashSale::class);
+    }
+
+    /** The flash sale running now with units left (products without options only), or null. */
+    public function runningFlashSale(): ?FlashSale
+    {
+        if (! $this->exists) {
+            return null;
         }
-        if ($this->discount_percent > 0) {
-            return round($this->price * (1 - $this->discount_percent / 100), 2);
+        // Few flash sales run at once: load them all once per request, not one query per product card.
+        $key = spl_object_id(request());
+        if ((self::$runningFlashSales['key'] ?? null) !== $key) {
+            self::$runningFlashSales = ['key' => $key, 'sales' => FlashSale::running()->orderBy('flash_price')->get()->groupBy('product_id')];
         }
-        return (float) $this->price;
+        $sale = self::$runningFlashSales['sales']->get($this->id)?->first();
+
+        // Re-check (the cached list may be from earlier in a long request, e.g. after a sale in it).
+        return $sale && $sale->isRunning() ? $sale : null;
+    }
+
+    /** The next flash sale that hasn't started yet, or null. */
+    public function upcomingFlashSale(): ?FlashSale
+    {
+        return $this->flashSales()->upcoming()->orderBy('starts_at')->first();
+    }
+
+    /**
+     * What a buyer pays for a base price (the product's own, or a variant's) once the
+     * product's sale is applied. A fixed sale price only applies to the product's own price.
+     */
+    public function priceFor(float $base, bool $ownPrice = false): float
+    {
+        if ($this->saleIsRunning()) {
+            if ($ownPrice && $this->sale_price !== null && $this->sale_price > 0 && $this->sale_price < $base) {
+                return round((float) $this->sale_price, 2);
+            }
+            if ($this->discount_percent > 0) {
+                return round($base * (1 - $this->discount_percent / 100), 2);
+            }
+        }
+        return round($base, 2);
     }
 
     public function hasDiscount(): bool
     {
-        return ($this->sale_price !== null && $this->sale_price > 0 && $this->sale_price < $this->price)
-            || $this->discount_percent > 0;
+        if ($this->runningFlashSale() && $this->runningFlashSale()->flash_price < $this->price) {
+            return true;
+        }
+        return $this->saleIsRunning()
+            && (($this->sale_price !== null && $this->sale_price > 0 && $this->sale_price < $this->price)
+                || $this->discount_percent > 0);
+    }
+
+    /** Units this buyer may still buy under the per-buyer limit (null = no limit). */
+    public function remainingAllowanceFor(?User $user): ?int
+    {
+        if (! $this->purchase_limit) {
+            return null;
+        }
+        $bought = $user ? (int) OrderItem::where('product_id', $this->id)
+            ->whereHas('order', fn ($q) => $q->where('user_id', $user->id)->whereNotIn('status', Order::VOID_STATUSES))
+            ->sum('quantity') : 0;
+
+        return max(0, $this->purchase_limit - $bought);
+    }
+
+    /** Variant groups for the product page: "Natural / M" names → [['Natural','Black'], ['S','M','L']]. */
+    public function variationGroups(): array
+    {
+        $groups = [];
+        foreach ($this->variations as $v) {
+            foreach (array_map('trim', explode('/', $v->name)) as $i => $part) {
+                if ($part !== '' && ! in_array($part, $groups[$i] ?? [], true)) {
+                    $groups[$i][] = $part;
+                }
+            }
+        }
+        return $groups;
+    }
+
+    /** Names of the variant groups ("Color", "Size"), else "Variation" / "Option 1", "Option 2". */
+    public function variationGroupLabels(): array
+    {
+        $groups = $this->variationGroups();
+        $labels = array_values(array_filter(array_map('trim', explode(',', (string) $this->variation_labels))));
+
+        return array_map(fn ($i) => $labels[$i] ?? (count($groups) > 1 ? 'Option ' . ($i + 1) : 'Variation'), array_keys($groups));
+    }
+
+    // ── Reviews ───────────────────────────────────────────────
+    public function reviews(): HasMany
+    {
+        return $this->hasMany(Review::class);
+    }
+
+    public function getRatingAvgAttribute(): ?float
+    {
+        $avg = array_key_exists('reviews_avg_rating', $this->attributes)
+            ? $this->attributes['reviews_avg_rating']
+            : $this->reviews()->avg('rating');
+
+        return $avg !== null ? round((float) $avg, 1) : null;
+    }
+
+    public function getRatingCountAttribute(): int
+    {
+        return (int) (array_key_exists('reviews_count', $this->attributes)
+            ? $this->attributes['reviews_count']
+            : $this->reviews()->count());
+    }
+
+    /** Average rating for product cards (needs withAvg('reviews', 'rating') to avoid a query per card). */
+    public function getRatingAttribute(): ?float
+    {
+        return array_key_exists('reviews_avg_rating', $this->attributes) && $this->attributes['reviews_avg_rating'] !== null
+            ? round((float) $this->attributes['reviews_avg_rating'], 1) : null;
     }
 
     public function isLowStock(int $threshold = 5): bool

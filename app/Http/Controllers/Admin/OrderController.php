@@ -25,7 +25,7 @@ class OrderController extends Controller
 
         $orders = $query->paginate(20)->withQueryString();
 
-        $statuses = ['Pending', 'Processing', 'Shipped', 'Delivered', 'Cancelled'];
+        $statuses = ['Pending', 'Processing', 'Shipped', 'Delivered', 'Completed', 'Cancelled', 'Return Requested', 'Refunded'];
 
         return view('admin.orders.index', compact('orders', 'statuses'));
     }

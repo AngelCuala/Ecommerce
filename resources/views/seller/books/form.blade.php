@@ -187,6 +187,16 @@
                             <input type="number" id="discount_percent" step="0.01" min="0" max="99" name="discount_percent" value="{{ old('discount_percent', $book->discount_percent ?? '') }}" class="input" placeholder="e.g. 10">
                         </div>
                         <div>
+                            <label class="pf-label" for="sale_ends_at">Sale ends <span class="opt">— optional</span></label>
+                            <input type="datetime-local" id="sale_ends_at" name="sale_ends_at" value="{{ old('sale_ends_at', optional($book->sale_ends_at ?? null)->format('Y-m-d\TH:i')) }}" class="input">
+                            <p class="pf-note">Buyers see a countdown; the sale price / discount stops at this time.</p>
+                        </div>
+                        <div>
+                            <label class="pf-label" for="purchase_limit">Limit per buyer <span class="opt">— optional</span></label>
+                            <input type="number" id="purchase_limit" min="1" max="99999" name="purchase_limit" value="{{ old('purchase_limit', $book->purchase_limit ?? '') }}" class="input" placeholder="No limit">
+                            <p class="pf-note">Most units one buyer can buy in total (all their orders).</p>
+                        </div>
+                        <div>
                             <span class="pf-label">Vouchers</span>
                             <p class="pf-note" style="margin-top:0;">
                                 Store vouchers (e.g. ₱150 off a ₱2,000 spend) apply to all your products.
@@ -201,7 +211,10 @@
                     <div class="flex flex-wrap items-start justify-between gap-3">
                         <div>
                             <h2>Variations</h2>
-                            <p class="pf-hint mt-1">Options like colour or size, each with its own price and stock. Skip this for a single product.</p>
+                            <p class="pf-hint mt-1">Options like colour or size, each with its own price and stock. Skip this for a single product.
+                                For two option types write both, e.g. <strong>Black / S</strong>, and name the types below.</p>
+                            <input type="text" name="variation_labels" maxlength="60" value="{{ old('variation_labels', $book->variation_labels ?? '') }}"
+                                   class="input mt-2 max-w-xs text-sm" placeholder="Option names, e.g. Color, Size" aria-label="Option type names">
                         </div>
                         <button type="button" @click="addVariation()" class="rounded-md border px-3 py-1.5 text-sm font-medium transition hover:bg-stone-50" style="border-color:#E7E5E4;color:#44403C;">Add variation</button>
                     </div>

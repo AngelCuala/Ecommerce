@@ -14,7 +14,7 @@ use Tests\TestCase;
 /** Important actions by anyone are logged with who, what, the result and the IP — never passwords. */
 class ActivityLogTest extends TestCase
 {
-    use RefreshDatabase;
+    use RefreshDatabase, \Tests\Concerns\ChecksOut;
 
     private User $admin;
     private User $seller;
@@ -43,10 +43,7 @@ class ActivityLogTest extends TestCase
         CartItem::create(['user_id' => $this->buyer->id, 'product_id' => $this->lamp->id, 'quantity' => 2]);
 
         $this->actingAs($this->buyer)->withServerVariables(['REMOTE_ADDR' => '203.0.113.7'])
-            ->post(route('checkout.store'), [
-                'full_name' => 'Ben', 'phone' => '09170000000', 'email' => 'buyer@alvy.test', 'region' => 'NCR',
-                'province' => 'Metro Manila', 'city' => 'Quezon City', 'barangay' => 'Commonwealth', 'zip_code' => '1121', 'payment_method' => 'cod',
-            ])->assertSessionHasNoErrors();
+            ->post(route('checkout.store'), $this->checkoutForm($this->addressFor($this->buyer)))->assertSessionHasNoErrors();
 
         $log = ActivityLog::where('action', 'checkout.store')->sole();
         $this->assertSame('Buyer Ben', $log->admin_name);

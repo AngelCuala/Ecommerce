@@ -3,7 +3,16 @@
     $inStock = $product->inStock();
     $hasDiscount = $product->hasDiscount() && $product->effective_price < $product->price;
     $pct = $hasDiscount && $product->price > 0 ? (int) round(100 - ($product->effective_price / $product->price * 100)) : 0;
-    $sold = (int) $product->orderItems()->sum('quantity');
+    $maxQty = max(1, min($product->totalStock(), $allowance ?? PHP_INT_MAX));
+    $variantData = $product->variations->map(fn ($v) => [
+        'id' => $v->id, 'name' => $v->name,
+        'parts' => array_map('trim', explode('/', $v->name)),
+        'price' => $v->price > 0 ? $product->priceFor((float) $v->price) : $product->effective_price,
+        'base'  => $v->price > 0 ? (float) $v->price : (float) $product->price,
+        'stock' => (int) $v->stock,
+    ])->values();
+    $groups = $product->variationGroups();
+    $groupLabels = $product->variationGroupLabels();
 
     $allImages = collect();
     if ($product->image) {
@@ -115,19 +124,43 @@
 
             {{-- Price --}}
             <div class="mt-5 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                <span class="font-display text-3xl font-extrabold" style="color:#fa4e1c;">₱{{ number_format($product->effective_price, 2) }}</span>
+                <span id="pd-price" class="font-display text-3xl font-extrabold" style="color:#fa4e1c;">₱{{ number_format($product->effective_price, 2) }}</span>
                 @if ($hasDiscount)
-                    <span class="text-base line-through" style="color:#a8a29e;">₱{{ number_format($product->price, 2) }}</span>
-                    <span class="text-sm font-semibold" style="color:#E0431A;">Save ₱{{ number_format($product->price - $product->effective_price, 2) }}</span>
+                    <span id="pd-base" class="text-base line-through" style="color:#a8a29e;">₱{{ number_format($product->price, 2) }}</span>
+                    <span id="pd-pct" class="text-sm font-semibold" style="color:#E0431A;">-{{ $pct }}%</span>
                 @endif
             </div>
+            @if ($flash)
+                <div class="mt-3 flex flex-wrap items-center gap-3 rounded-lg px-3 py-2 text-sm text-white" style="background:linear-gradient(90deg,#fa4e1c,#f97316);">
+                    <strong>⚡ FLASH SALE</strong>
+                    <span>Ends in <span id="pd-countdown" data-ends="{{ $flash->ends_at->toIso8601String() }}">{{ $flash->ends_at->diffForHumans(null, true) }}</span></span>
+                    <span class="ml-auto text-xs">{{ $flash->remaining() }} of {{ $flash->quantity }} left at this price · then ₱{{ number_format($product->regular_price, 2) }}</span>
+                </div>
+            @elseif ($upcoming)
+                <div class="mt-3 flex flex-wrap items-center gap-3 rounded-lg border px-3 py-2 text-sm" style="border-color:#FDBA9B;background:#FFF8F4;color:#9A3412;">
+                    <span>⚡ Flash sale <strong>{{ $upcoming->starts_at->format('M j, g:i A') }}</strong>: ₱{{ number_format($upcoming->flash_price, 2) }} for the first {{ $upcoming->quantity }}</span>
+                    @auth
+                        <form action="{{ route('flash-sales.remind', $upcoming) }}" method="POST" class="ml-auto">@csrf
+                            <button class="rounded-md px-3 py-1 text-xs font-semibold {{ $reminded ? 'border' : 'text-white' }}" style="{{ $reminded ? 'border-color:#fa4e1c;color:#fa4e1c;' : 'background:#fa4e1c;' }}">{{ $reminded ? '✓ Reminder set' : 'Remind me' }}</button>
+                        </form>
+                    @endauth
+                </div>
+            @endif
+            @if ($hasDiscount && $product->sale_ends_at && ! $flash)
+                <p class="mt-2 inline-flex items-center gap-2 rounded-md px-2.5 py-1 text-xs font-semibold" style="background:#FFF1EB;color:#C2410C;">
+                    Sale ends in <span id="pd-countdown" data-ends="{{ $product->sale_ends_at->toIso8601String() }}">{{ $product->sale_ends_at->diffForHumans(null, true) }}</span>
+                </p>
+            @endif
 
             {{-- Stock --}}
             <p class="mt-2 flex items-center gap-2 text-sm">
                 <span class="h-2 w-2 rounded-full" style="background:{{ $inStock ? '#16A34A' : '#DC2626' }};"></span>
                 @if ($inStock)
                     <span style="color:#44403C;">In stock</span>
-                    <span style="color:#a39890;">&middot; {{ $product->stock }} available</span>
+                    <span style="color:#a39890;">&middot; <span id="pd-stock">{{ $product->totalStock() }}</span> available</span>
+                    @if ($product->purchase_limit)
+                        <span class="rounded px-1.5 py-0.5 text-[11px] font-semibold" style="background:#EFF6FF;color:#1D4ED8;">Limit {{ $product->purchase_limit }} per buyer{{ $allowance !== null && $allowance < $product->purchase_limit ? ' · ' . $allowance . ' left for you' : '' }}</span>
+                    @endif
                 @else
                     <span style="color:#B91C1C;">Out of stock</span>
                 @endif
@@ -135,37 +168,61 @@
 
             <div class="my-5 h-px" style="background:#ECE7E3;"></div>
 
+            @if ($vouchers->isNotEmpty())
+                <div class="mb-5">
+                    <p class="mb-2 text-sm font-semibold" style="color:#222;">Store vouchers</p>
+                    <div class="flex flex-wrap gap-2">
+                        @foreach ($vouchers as $v)
+                            <div class="flex items-center gap-2 rounded-md border border-dashed px-2.5 py-1.5 text-xs" style="border-color:#FDBA9B;background:#FFF8F4;">
+                                <span><strong style="color:#C2410C;">{{ $v->discountLabel() }}</strong>@if ($v->min_spend > 0) <span style="color:#8a7f78;">min ₱{{ number_format($v->min_spend, 0) }}</span>@endif</span>
+                                @if (in_array($v->id, $claimed))
+                                    <span class="font-semibold" style="color:#059669;">Claimed</span>
+                                @else
+                                    <form action="{{ route('vouchers.claim', $v) }}" method="POST">@csrf
+                                        <button class="rounded px-2 py-0.5 font-semibold text-white" style="background:#fa4e1c;">Claim</button>
+                                    </form>
+                                @endif
+                            </div>
+                        @endforeach
+                    </div>
+                </div>
+            @endif
+
             {{-- Purchase --}}
-            <form action="{{ route('cart.store', $product->id) }}" method="POST">
+            <form action="{{ route('cart.store', $product->id) }}" method="POST" id="pd-form">
                 @csrf
 
                 @if ($product->variations->isNotEmpty())
-                    <div class="mb-5">
-                        <p class="mb-2 text-sm font-semibold" style="color:#222;">Variation</p>
-                        <input type="hidden" name="variation" id="variation-input" value="">
-                        <div class="flex flex-wrap gap-2">
-                            @foreach ($product->variations as $v)
-                                <button type="button" data-variation="{{ e($v->name) }}" onclick="selectVariation(this)"
-                                        class="variation-btn" {{ $v->stock > 0 ? '' : 'disabled' }}>
-                                    {{ $v->name }}
-                                    @if ($v->price)<span class="ml-1 text-xs" style="color:#8a7f78;">₱{{ number_format($v->price, 2) }}</span>@endif
-                                    @if ($v->stock <= 0)<span class="ml-1 text-xs" style="color:#B91C1C;">(sold out)</span>@endif
-                                </button>
-                            @endforeach
+                    <input type="hidden" name="variation_id" id="pd-variation" value="{{ old('variation_id') }}">
+                    @foreach ($groups as $gi => $values)
+                        <div class="mb-4">
+                            <p class="mb-2 text-sm font-semibold" style="color:#222;">{{ $groupLabels[$gi] }}</p>
+                            <div class="flex flex-wrap gap-2">
+                                @foreach ($values as $value)
+                                    <button type="button" class="variation-btn" data-group="{{ $gi }}" data-value="{{ $value }}">{{ $value }}</button>
+                                @endforeach
+                            </div>
                         </div>
-                    </div>
-                    <script src="{{ asset('js/product-variation.js') }}"></script>
+                    @endforeach
+                    <p id="pd-variation-msg" class="-mt-2 mb-3 hidden text-xs font-semibold" style="color:#B91C1C;">Please select a variation.</p>
                 @endif
 
                 <p class="mb-2 text-sm font-semibold" style="color:#222;">Quantity</p>
                 <div class="flex flex-wrap items-center gap-3">
                     <div class="pd-qty flex items-center overflow-hidden rounded-lg border bg-white" style="border-color:#E7E5E4;">
                         <button type="button" aria-label="Decrease" data-qty="-1">&minus;</button>
-                        <input type="number" name="quantity" value="1" min="1" max="{{ max(1, $product->stock) }}" aria-label="Quantity"
+                        <input type="number" name="quantity" value="{{ old('quantity', 1) }}" min="1" max="{{ $maxQty }}" step="1" id="pd-qty" aria-label="Quantity"
                                class="h-11 w-12 border-0 bg-transparent text-center text-sm font-semibold focus:outline-none" style="color:#222;">
                         <button type="button" aria-label="Increase" data-qty="1">+</button>
                     </div>
+                    <button type="button" id="pd-wish" onclick="document.getElementById('pd-wish-form').submit()"
+                            class="flex h-11 items-center gap-1.5 rounded-lg border px-3 text-sm font-medium" style="border-color:#E7E5E4;color:{{ $wished ? '#fa4e1c' : '#57534E' }};"
+                            aria-pressed="{{ $wished ? 'true' : 'false' }}">
+                        <svg class="h-4 w-4" fill="{{ $wished ? '#fa4e1c' : 'none' }}" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 000-7.78z"/></svg>
+                        {{ $wished ? 'In wishlist' : 'Wishlist' }}
+                    </button>
                 </div>
+                <p id="pd-qty-msg" class="mt-1 hidden text-xs font-semibold" style="color:#B91C1C;"></p>
 
                 <div class="mt-4 flex gap-3">
                     <button type="submit" name="action" value="cart" class="pd-btn pd-btn-line" {{ $inStock ? '' : 'disabled' }}>
@@ -180,17 +237,28 @@
                     </button>
                 </div>
             </form>
+            <form id="pd-wish-form" action="{{ route('wishlist.toggle', $product->id) }}" method="POST" class="hidden">@csrf
+                <input type="hidden" name="state" value="{{ $wished ? 'off' : 'on' }}">
+            </form>
 
             {{-- Seller --}}
             @if ($product->seller)
-                <div class="pd-card mt-6 flex items-center gap-3 p-4">
+                <div class="pd-card mt-6 flex flex-wrap items-center gap-3 p-4">
                     <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold" style="background:#F5F2EF;color:#57534E;">
-                        {{ strtoupper(substr($product->seller->name, 0, 1)) }}
+                        {{ strtoupper(substr($product->seller->storeName(), 0, 1)) }}
                     </span>
-                    <div class="min-w-0">
+                    <div class="min-w-0 flex-1">
                         <p class="text-xs" style="color:#a39890;">Sold by</p>
-                        <p class="truncate text-sm font-semibold" style="color:#222;">{{ $product->seller->name }}</p>
+                        <a href="{{ route('stores.show', $product->seller->id) }}" class="truncate text-sm font-semibold hover:underline" style="color:#222;">{{ $product->seller->storeName() }}</a>
                     </div>
+                    @auth
+                        <form action="{{ route('messages.new') }}" method="POST">@csrf
+                            <input type="hidden" name="receiver_id" value="{{ $product->seller->id }}">
+                            <input type="hidden" name="product_id" value="{{ $product->id }}">
+                            <button class="rounded-md border px-3 py-1.5 text-xs font-semibold" style="border-color:#fa4e1c;color:#fa4e1c;">Chat</button>
+                        </form>
+                    @endauth
+                    <a href="{{ route('stores.show', $product->seller->id) }}" class="rounded-md border px-3 py-1.5 text-xs font-semibold" style="border-color:#E7E5E4;color:#57534E;">View store</a>
                 </div>
             @endif
 
@@ -224,6 +292,51 @@
         </div>
     </div>
 
+    {{-- Ratings & reviews --}}
+    <section class="mt-14" id="reviews">
+        <h2 class="font-display text-lg font-extrabold" style="color:#222;">Ratings &amp; reviews</h2>
+        @if ($product->rating_count > 0)
+            <div class="pd-card mt-3 flex flex-wrap items-center gap-6 p-5">
+                <div class="text-center">
+                    <p class="font-display text-4xl font-extrabold" style="color:#fa4e1c;">{{ number_format($product->rating_avg, 1) }}</p>
+                    <p class="text-xs" style="color:#8a7f78;">out of 5 · {{ $product->rating_count }} {{ \Illuminate\Support\Str::plural('review', $product->rating_count) }}</p>
+                </div>
+                <div class="min-w-[12rem] flex-1 space-y-1">
+                    @for ($star = 5; $star >= 1; $star--)
+                        @php $n = (int) ($ratingBreakdown[$star] ?? 0); @endphp
+                        <div class="flex items-center gap-2 text-xs" style="color:#57534E;">
+                            <span class="w-8">{{ $star }} ★</span>
+                            <span class="h-1.5 flex-1 overflow-hidden rounded-full" style="background:#F2EEEA;"><span class="block h-full" style="width:{{ round($n / $product->rating_count * 100) }}%;background:#F59E0B;"></span></span>
+                            <span class="w-6 text-right">{{ $n }}</span>
+                        </div>
+                    @endfor
+                </div>
+            </div>
+            <div class="mt-3 space-y-3">
+                @foreach ($reviews as $review)
+                    @php $who = $review->user->name ?? 'Buyer'; @endphp
+                    <article class="pd-card p-4">
+                        <div class="flex flex-wrap items-center gap-2 text-sm">
+                            <span class="font-semibold" style="color:#222;">{{ mb_substr($who, 0, 1) . str_repeat('*', max(2, mb_strlen($who) - 2)) . mb_substr($who, -1) }}</span>
+                            <span style="color:#F59E0B;">{{ str_repeat('★', $review->rating) }}<span style="color:#E7E5E4;">{{ str_repeat('★', 5 - $review->rating) }}</span></span>
+                            <span class="text-xs" style="color:#a39890;">{{ $review->created_at->format('M j, Y') }}@if ($review->variation_name) · {{ $review->variation_name }}@endif @if ($review->edit_count) · edited @endif</span>
+                        </div>
+                        @if ($review->comment)<p class="mt-2 whitespace-pre-line text-sm" style="color:#44403C;">{{ $review->comment }}</p>@endif
+                        @if ($review->photo_path)
+                            <a href="{{ asset('storage/' . $review->photo_path) }}" target="_blank"><img src="{{ asset('storage/' . $review->photo_path) }}" alt="Review photo" class="mt-2 h-24 w-24 rounded-md border object-cover" style="border-color:#ECE7E3;" loading="lazy"></a>
+                        @endif
+                        @if ($review->seller_reply)
+                            <div class="mt-3 rounded-md px-3 py-2 text-sm" style="background:#F5F2EF;color:#44403C;"><strong>Seller:</strong> {{ $review->seller_reply }}</div>
+                        @endif
+                    </article>
+                @endforeach
+                <div>{{ $reviews->fragment('reviews')->links() }}</div>
+            </div>
+        @else
+            <p class="mt-2 text-sm" style="color:#8a7f78;">No reviews yet. Buyers can rate this item after their order is completed.</p>
+        @endif
+    </section>
+
     {{-- Related --}}
     @if ($related->count())
         <section class="mt-14">
@@ -242,6 +355,10 @@
     @endif
 </div>
 
+<script>
+window.PD = { variants: @json($variantData), groups: {{ count($groups) }}, maxQty: {{ $maxQty }}, allowance: @json($allowance) };
+</script>
+<script src="{{ asset('js/product-page.js') }}?v=3"></script>
 <script>
 // Gallery thumbnails and quantity stepper
 (function () {

@@ -30,9 +30,12 @@ class User extends Authenticatable
         // Profile extras
         'phone', 'address', 'city', 'zip', 'country',
         'profile_photo_path', 'bio', 'last_login_at',
+
+        // Email / phone change waiting for its verification code
+        'pending_email', 'pending_phone',
     ];
 
-    protected $hidden = ['password', 'remember_token', 'otp_code'];
+    protected $hidden = ['password', 'remember_token', 'otp_code', 'contact_otp'];
 
     protected function casts(): array
     {
@@ -43,6 +46,7 @@ class User extends Authenticatable
             'last_login_at'     => 'datetime',
             'otp_expires_at'    => 'datetime',
             'otp_sent_at'       => 'datetime',
+            'contact_otp_expires_at' => 'datetime',
         ];
     }
 
@@ -100,6 +104,34 @@ class User extends Authenticatable
     public function orders(): HasMany
     {
         return $this->hasMany(Order::class);
+    }
+
+    public function wishlistItems(): HasMany
+    {
+        return $this->hasMany(WishlistItem::class);
+    }
+
+    /** Stores this buyer follows. */
+    public function follows(): HasMany
+    {
+        return $this->hasMany(StoreFollow::class);
+    }
+
+    /** Buyers following this seller's store. */
+    public function followers(): HasMany
+    {
+        return $this->hasMany(StoreFollow::class, 'seller_id');
+    }
+
+    public function voucherClaims(): HasMany
+    {
+        return $this->hasMany(VoucherClaim::class);
+    }
+
+    /** Shop name for a seller, else the account name. */
+    public function storeName(): string
+    {
+        return $this->sellerApplication->shop_name ?? $this->name ?? 'Store';
     }
 
     public function cartItems(): HasMany

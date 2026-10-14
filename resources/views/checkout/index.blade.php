@@ -1,361 +1,257 @@
 <x-layout title="Checkout — ALVY">
-<div class="mx-auto max-w-6xl px-4 py-10 sm:px-6 lg:px-8">
+@php
+    $q = $summary['quote'];
+    $peso = fn ($n) => '₱' . number_format((float) $n, 2);
+    $optionText = function (array $v) {
+        $text = $v['code'] . ' — ' . $v['label'];
+        if ($v['min_spend'] > 0) $text .= ' · min ₱' . number_format($v['min_spend'], 0);
+        return $text;
+    };
+    // A minimum-spend reason can change as other vouchers change, so those stay selectable.
+    $blocks = fn (array $v) => $v['reason'] && ! str_starts_with($v['reason'], 'spend ');
+@endphp
+<style>
+    .co-card { background:#fff; border:1px solid #ECE7E3; border-radius:.75rem; }
+    .co-addr { display:flex; gap:.75rem; border:1.5px solid #ECE7E3; border-radius:.6rem; padding:.85rem 1rem; cursor:pointer; transition:border-color .15s, background .15s; }
+    .co-addr:has(input:checked) { border-color:#fa4e1c; background:#FFF8F4; }
+    .co-select { width:100%; border:1px solid #E6D9CF; border-radius:.5rem; padding:.45rem .6rem; font-size:.8125rem; background:#fff; }
+    .co-row { display:flex; justify-content:space-between; gap:1rem; }
+    .co-off { color:#059669; }
+</style>
 
-    <h1 class="font-display text-3xl font-extrabold" style="color:#222222;">Checkout</h1>
+<div class="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
 
-    {{-- Progress --}}
-    <div class="mt-5 flex items-center">
-        @foreach (['Cart','Checkout','Confirmation'] as $i => $step)
-            @if ($i > 0)<div class="h-px flex-1" style="background:#E0E0E0;"></div>@endif
-            <div class="flex shrink-0 flex-col items-center gap-1">
-                <span class="flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold"
-                      style="{{ $i === 1 ? 'background:#fa4e1c;color:#FFFFFF;' : 'background:#EFEFEF;color:#999999;' }}">{{ $i+1 }}</span>
-                <span class="text-[10px] font-semibold" style="{{ $i === 1 ? 'color:#fa4e1c;' : 'color:#999999;' }}">{{ $step }}</span>
-            </div>
-            @if ($i < 2)<div class="h-px flex-1" style="background:#E0E0E0;"></div>@endif
-        @endforeach
-    </div>
+    <h1 class="font-display text-3xl font-extrabold" style="color:#222;">Checkout</h1>
 
     @if ($errors->any())
         <div class="mt-5 rounded-lg border p-4 text-sm" style="background:rgba(208,2,27,.06);border-color:rgba(208,2,27,.2);color:#D0021B;">
-            <ul class="list-inside list-disc space-y-1">@foreach($errors->all() as $e)<li>{{ $e }}</li>@endforeach</ul>
+            <ul class="list-inside list-disc space-y-1">@foreach ($errors->all() as $e)<li>{{ $e }}</li>@endforeach</ul>
         </div>
     @endif
     @if (session('error'))
         <div class="mt-5 rounded-lg border p-4 text-sm" style="background:rgba(208,2,27,.06);border-color:rgba(208,2,27,.2);color:#D0021B;">{{ session('error') }}</div>
     @endif
-    @if (! empty($buyNow))
+    @if ($buyNow)
         <div class="mt-5 rounded-lg border p-3 text-sm" style="background:#FFF8F4;border-color:#FDD5C8;color:#9A3412;">
             <strong>Buy now:</strong> you're checking out only this item. Your cart stays as it is.
-            <a href="{{ route('checkout.index') }}" class="ml-1 font-semibold underline">Check out your whole cart instead</a>
         </div>
     @endif
 
-    <form action="{{ route('checkout.store') }}" method="POST" class="mt-8 grid gap-8 lg:grid-cols-[1fr_380px]">
+    <form id="checkoutForm" action="{{ route('checkout.store') }}" method="POST" class="mt-6 grid gap-6 lg:grid-cols-[1fr_380px]"
+          data-preview-url="{{ route('checkout.preview') }}">
         @csrf
-        <input type="hidden" name="payment_method" value="cod">
-        @if (! empty($buyNow))
-            <input type="hidden" name="buy_now" value="1">
-        @endif
+        <input type="hidden" name="checkout_token" value="{{ $token }}">
+        @if ($buyNow)<input type="hidden" name="buy_now" value="1">@endif
+        @foreach ($prices as $lineId => $price)
+            <input type="hidden" name="prices[{{ $lineId }}]" value="{{ $price }}">
+        @endforeach
 
-        <div class="space-y-6">
+        <div class="space-y-5">
 
-            {{-- ── Contact Information ── --}}
-            <div class="card p-6">
-                <h2 class="font-display text-lg font-extrabold mb-4" style="color:#222222;">Contact Information</h2>
-                <div class="grid gap-4 sm:grid-cols-2">
-                    <div>
-                        <label class="text-xs font-semibold" style="color:#999999;">Full Name *</label>
-                        <input type="text" name="full_name"
-                               value="{{ old('full_name', auth()->user()->name) }}"
-                               class="input mt-1" required>
-                    </div>
-                    <div>
-                        <label class="text-xs font-semibold" style="color:#999999;">Phone Number *</label>
-                        <input type="text" name="phone"
-                               value="{{ old('phone', auth()->user()->contact_no ?? auth()->user()->phone) }}"
-                               class="input mt-1" required placeholder="+63 912 345 6789">
-                    </div>
-                    <div class="sm:col-span-2">
-                        <label class="text-xs font-semibold" style="color:#999999;">Email Address *</label>
-                        <input type="email" name="email"
-                               value="{{ old('email', auth()->user()->email) }}"
-                               class="input mt-1" required>
-                    </div>
+            {{-- ── Delivery address ── --}}
+            <section class="co-card p-5">
+                <div class="mb-3 flex items-center justify-between gap-3">
+                    <h2 class="font-display text-lg font-extrabold" style="color:#222;">Delivery address</h2>
+                    <a href="{{ route('profile.addresses', ['return' => 'checkout']) }}" class="text-sm font-semibold" style="color:#fa4e1c;">+ Add / manage addresses</a>
                 </div>
-            </div>
 
-            {{-- ── Delivery Address ── --}}
-            <div class="card p-6">
-                <h2 class="font-display text-lg font-extrabold mb-4" style="color:#222222;">Delivery Address</h2>
+                @forelse ($addresses as $a)
+                    <label class="co-addr mb-2">
+                        <input type="radio" name="address_id" value="{{ $a->id }}" class="mt-1 accent-orange-600" @checked($address && $address->id === $a->id) required>
+                        <span class="min-w-0 text-sm">
+                            <span class="font-semibold" style="color:#222;">{{ $a->full_name }}</span>
+                            <span style="color:#8a7f78;">· {{ $a->phone }}</span>
+                            <span class="ml-1 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase" style="background:#F5F2EF;color:#57534E;">{{ $a->label }}</span>
+                            @if ($a->is_default)<span class="ml-1 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase" style="background:#FFF1EB;color:#E0431A;">Default</span>@endif
+                            <span class="mt-0.5 block" style="color:#57534E;">{{ $a->full_address }}</span>
+                            @unless ($a->municipality_code)
+                                <span class="mt-1 block text-xs" style="color:#B45309;">Edit this address and pick the region, city and barangay from the lists to use it.</span>
+                            @endunless
+                        </span>
+                    </label>
+                @empty
+                    <div class="rounded-lg border border-dashed p-5 text-center text-sm" style="border-color:#E7E5E4;color:#57534E;">
+                        You have no saved address yet.
+                        <a href="{{ route('profile.addresses', ['return' => 'checkout']) }}" class="font-semibold" style="color:#fa4e1c;">Add your address</a> to continue.
+                    </div>
+                @endforelse
 
-                <div class="grid gap-4 sm:grid-cols-2">
+                <p id="unserviceableMsg" class="mt-2 rounded-lg px-3 py-2 text-sm {{ $summary['unserviceable'] ? '' : 'hidden' }}"
+                   style="background:#FEF2F2;color:#B91C1C;">{{ $summary['unserviceable'] }}</p>
+            </section>
 
-                    {{-- Region --}}
-                    <div class="sm:col-span-2">
-                        <label class="text-xs font-semibold" style="color:#999999;">Region *</label>
-                        <select id="sel-region" name="region" class="input mt-1" required
-                                onchange="loadProvinces(this.value, this.options[this.selectedIndex].text)">
-                            <option value="">— Select Region —</option>
-                        </select>
-                        <p id="loading-region" class="mt-1 text-[11px] hidden" style="color:#fa4e1c;">Loading regions…</p>
+            {{-- ── One block per store ── --}}
+            @foreach ($summary['groups'] as $sellerId => $group)
+                @php $ship = $summary['shipping'][$sellerId] ?? null; $storeVouchers = $vouchers['sellers'][$sellerId]['vouchers'] ?? []; @endphp
+                <section class="co-card overflow-hidden" data-store="{{ $sellerId }}">
+                    <div class="flex items-center gap-2 border-b px-5 py-3" style="border-color:#F2EEEA;">
+                        <svg class="h-4 w-4" style="color:#fa4e1c;" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 9l1.5-5h15L21 9M3 9h18M3 9a3 3 0 006 0 3 3 0 006 0 3 3 0 006 0M5 12v8h14v-8"/></svg>
+                        @if ($sellerId)
+                            <a href="{{ route('stores.show', $sellerId) }}" class="text-sm font-bold hover:underline" style="color:#222;">{{ $group['name'] }}</a>
+                        @else
+                            <span class="text-sm font-bold" style="color:#222;">{{ $group['name'] }}</span>
+                        @endif
                     </div>
 
-                    {{-- Province --}}
-                    <div>
-                        <label class="text-xs font-semibold" style="color:#999999;">Province *</label>
-                        <select id="sel-province" name="province" class="input mt-1" required disabled
-                                onchange="loadMunicipalities(this.value, this.options[this.selectedIndex].text)">
-                            <option value="">— Select Province —</option>
-                        </select>
-                    </div>
-
-                    {{-- City / Municipality --}}
-                    <div>
-                        <label class="text-xs font-semibold" style="color:#999999;">City / Municipality *</label>
-                        <select id="sel-city" name="city" class="input mt-1" required disabled
-                                onchange="loadBarangays(this.value, this.options[this.selectedIndex].text)">
-                            <option value="">— Select City / Municipality —</option>
-                        </select>
-                        {{-- PSGC codes of the selected province/city (used for delivery routing) --}}
-                        <input type="hidden" name="province_code" id="province-code">
-                        <input type="hidden" name="municipality_code" id="municipality-code">
-                    </div>
-
-                    {{-- Barangay --}}
-                    <div>
-                        <label class="text-xs font-semibold" style="color:#999999;">Barangay *</label>
-                        <select id="sel-barangay" name="barangay" class="input mt-1" required disabled>
-                            <option value="">— Select Barangay —</option>
-                        </select>
-                    </div>
-
-                    {{-- ZIP Code --}}
-                    <div>
-                        <label class="text-xs font-semibold" style="color:#999999;">ZIP Code *</label>
-                        <input type="text" name="zip_code"
-                               value="{{ old('zip_code', auth()->user()->zip) }}"
-                               class="input mt-1" required placeholder="e.g. 1000">
-                    </div>
-
-                    {{-- House Number --}}
-                    <div>
-                        <label class="text-xs font-semibold" style="color:#999999;">House / Unit No.</label>
-                        <input type="text" name="house_number"
-                               value="{{ old('house_number', auth()->user()->house_number) }}"
-                               class="input mt-1" placeholder="e.g. 123, Unit 4B">
-                    </div>
-
-                    {{-- Street --}}
-                    <div class="sm:col-span-2">
-                        <label class="text-xs font-semibold" style="color:#999999;">Street / Subdivision</label>
-                        <input type="text" name="street"
-                               value="{{ old('street', auth()->user()->street) }}"
-                               class="input mt-1" placeholder="e.g. Rizal Street, Sunshine Village">
-                    </div>
-
-                </div>
-            </div>
-
-            {{-- ── Payment Method ── --}}
-            <div class="card p-6">
-                <h2 class="font-display text-lg font-extrabold mb-4" style="color:#222222;">Payment Method</h2>
-                <div class="flex items-center gap-4 rounded-xl border-2 p-5"
-                     style="border-color:#fa4e1c;background:#FFF8F4;">
-                    <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xl"
-                         style="background:#fa4e1c;color:#fff;">💵</div>
-                    <div>
-                        <p class="font-bold text-sm" style="color:#222222;">Cash on Delivery (COD)</p>
-                        <p class="text-xs mt-0.5" style="color:#757575;">Pay in cash when your order arrives at your door</p>
-                    </div>
-                    <span class="ml-auto rounded-full px-3 py-1 text-[11px] font-bold"
-                          style="background:#fa4e1c;color:#fff;">Selected</span>
-                </div>
-                <div class="mt-4 rounded-lg p-4 text-sm" style="background:#fff1ee;border:1px solid #fdb49e;">
-                    💡 <span style="color:#555555;">Please prepare
-                    <strong style="color:#fa4e1c;" data-checkout-total>₱{{ number_format($total, 2) }}</strong>
-                    upon delivery. No advance payment needed.</span>
-                </div>
-            </div>
-        </div>
-
-        {{-- ── Order Summary ── --}}
-        <div class="lg:sticky lg:top-24 lg:self-start">
-            <div class="card overflow-hidden">
-                <div class="px-6 py-4" style="background:#002b4d;">
-                    <h2 class="font-display text-lg font-extrabold" style="color:#FFFFFF;">Order Summary</h2>
-                </div>
-                <div class="p-6">
-                    <div class="space-y-3 max-h-64 overflow-y-auto">
-                        @foreach ($items as $item)
-                            <div class="flex items-center gap-3">
-                                <img src="{{ $item->product->image ? asset('storage/'.$item->product->image) : 'https://placehold.co/48x64/FF6300/FFFFFF?text=P' }}"
-                                     class="h-12 w-9 rounded object-cover flex-shrink-0"
-                                     alt="{{ $item->product->title }}">
-                                <div class="flex flex-1 items-start justify-between gap-2">
-                                    <div>
-                                        <p class="text-sm font-semibold leading-snug" style="color:#222222;">{{ $item->product->title }}</p>
-                                        <p class="text-xs" style="color:#999999;">Qty: {{ $item->quantity }}</p>
-                                    </div>
-                                    <span class="text-sm font-semibold flex-shrink-0" style="color:#fa4e1c;">
-                                        ₱{{ number_format($item->quantity * $item->product->effective_price, 2) }}
-                                    </span>
+                    <div class="divide-y px-5" style="--tw-divide-opacity:1;">
+                        @foreach ($group['items'] as $line)
+                            <div class="flex items-center gap-3 py-3" style="border-color:#F7F3F0;">
+                                <img src="{{ $line->product->image ? asset('storage/' . $line->product->image) : 'https://placehold.co/64x64/f5f5f5/999?text=P' }}"
+                                     class="h-14 w-14 shrink-0 rounded-md border object-cover" style="border-color:#F2EEEA;" alt="">
+                                <div class="min-w-0 flex-1">
+                                    <p class="truncate text-sm font-medium" style="color:#222;">{{ $line->product->title }}</p>
+                                    @if ($line->variation)<p class="text-xs" style="color:#8a7f78;">{{ $line->variation->name }}</p>@endif
+                                    <p class="text-xs" style="color:#8a7f78;">{{ $peso($line->unit_price) }} × {{ $line->quantity }}</p>
                                 </div>
+                                <p class="text-sm font-semibold" style="color:#222;">{{ $peso($line->quantity * $line->unit_price) }}</p>
                             </div>
                         @endforeach
                     </div>
 
-                    @include('checkout._vouchers')
+                    <div class="space-y-3 border-t px-5 py-4 text-sm" style="border-color:#F2EEEA;background:#FCFBFA;">
+                        @if ($sellerId)
+                            <div class="grid gap-1 sm:grid-cols-[9rem_1fr] sm:items-center">
+                                <label class="text-xs font-semibold" style="color:#57534E;" for="sv-{{ $sellerId }}">Store voucher</label>
+                                <select id="sv-{{ $sellerId }}" name="seller_vouchers[{{ $sellerId }}]" class="co-select v-select" data-kind="seller">
+                                    <option value="">{{ count($storeVouchers) ? 'No store voucher' : 'No vouchers from this store' }}</option>
+                                    @foreach ($storeVouchers as $v)
+                                        <option value="{{ $v['code'] }}" @disabled($blocks($v)) @selected(($chosen['sellers'][$sellerId] ?? null) === $v['code'])>
+                                            {{ $optionText($v) }}{{ $v['reason'] ? ' — ' . $v['reason'] : '' }}
+                                        </option>
+                                    @endforeach
+                                    @if (($code = $chosen['sellers'][$sellerId] ?? null) && ! collect($storeVouchers)->contains('code', $code))
+                                        <option value="{{ $code }}" selected>{{ $code }}</option>
+                                    @endif
+                                </select>
+                            </div>
+                        @endif
+                        <div class="grid gap-1 sm:grid-cols-[9rem_1fr] sm:items-center">
+                            <label class="text-xs font-semibold" style="color:#57534E;" for="note-{{ $sellerId }}">Note to seller</label>
+                            <div>
+                                <input id="note-{{ $sellerId }}" type="text" name="buyer_notes[{{ $sellerId }}]" maxlength="200"
+                                       value="{{ old('buyer_notes.' . $sellerId) }}" class="co-select" placeholder="Optional, e.g. Paki-wrap po as gift"
+                                       oninput="this.nextElementSibling.textContent = this.value.length + '/200'">
+                                <span class="mt-0.5 block text-right text-[10px]" style="color:#a39890;">0/200</span>
+                            </div>
+                        </div>
+                        <div class="co-row" style="color:#57534E;">
+                            <span>Shipping <span class="text-xs" style="color:#a39890;" data-store-weight="{{ $sellerId }}">
+                                @if ($ship)({{ rtrim(rtrim(number_format($ship['weight'], 2), '0'), '.') }} kg → {{ $ship['chargeable'] }} kg)@endif</span></span>
+                            <span data-store-shipping="{{ $sellerId }}">{{ $ship ? $peso($ship['fee']) : '—' }}</span>
+                        </div>
+                        <div class="co-row co-off {{ ($q['seller_discounts'][$sellerId] ?? 0) > 0 ? '' : 'hidden' }}" data-store-discount-row="{{ $sellerId }}">
+                            <span>Store voucher</span><span data-store-discount="{{ $sellerId }}">−{{ $peso($q['seller_discounts'][$sellerId] ?? 0) }}</span>
+                        </div>
+                    </div>
+                </section>
+            @endforeach
 
-                    <div class="mt-5 space-y-2 border-t pt-4 text-sm" style="border-color:#EFEFEF;"
-                         id="checkoutTotals" data-subtotal="{{ $subtotal }}" data-shipping="{{ $shipping }}">
-                        <div class="flex justify-between" style="color:#555555;">
-                            <span>Subtotal</span>
-                            <span>₱{{ number_format($subtotal, 2) }}</span>
+            {{-- ── Payment ── --}}
+            <section class="co-card p-5">
+                <h2 class="mb-3 font-display text-lg font-extrabold" style="color:#222;">Payment method</h2>
+                <label class="co-addr mb-2">
+                    <input type="radio" name="payment_method" value="cod" class="mt-1 accent-orange-600" @checked(old('payment_method', 'cod') === 'cod') required>
+                    <span class="text-sm">
+                        <span class="font-semibold" style="color:#222;">Cash on Delivery (COD)</span>
+                        <span class="block text-xs" style="color:#8a7f78;">Pay in cash when each parcel arrives. No advance payment needed.</span>
+                    </span>
+                </label>
+                @foreach ($paymentMethods as $code => $label)
+                    <label class="co-addr mb-2">
+                        <input type="radio" name="payment_method" value="{{ $code }}" class="mt-1 accent-orange-600" @checked(old('payment_method') === $code)>
+                        <span class="text-sm">
+                            <span class="font-semibold" style="color:#222;">{{ $label }}</span>
+                            <span class="block text-xs" style="color:#8a7f78;">Pay now on the secure payment page. Unpaid orders are cancelled after {{ config('payments.unpaid_minutes') }} minutes.</span>
+                        </span>
+                    </label>
+                @endforeach
+                @if (config('payments.gateway') === 'sandbox')
+                    <p class="rounded-md px-3 py-2 text-xs font-semibold" style="background:#FEF3C7;color:#92400E;">TEST MODE: online payments use the test gateway — no real money moves.</p>
+                @endif
+            </section>
+        </div>
+
+        {{-- ── Summary ── --}}
+        <aside class="lg:sticky lg:top-24 lg:self-start">
+            <div class="co-card overflow-hidden">
+                <div class="px-5 py-4" style="background:#002b4d;">
+                    <h2 class="font-display text-lg font-extrabold text-white">Order summary</h2>
+                </div>
+                <div class="space-y-4 p-5">
+
+                    {{-- Vouchers --}}
+                    <div class="space-y-2">
+                        <p class="text-sm font-bold" style="color:#222;">Vouchers</p>
+                        @php $best = $vouchers['best']; @endphp
+                        @if ($best['discount'] > 0 && ! session()->has('checkout_vouchers') && $chosen['platform'] === $best['platform'])
+                            <p class="rounded-md px-2.5 py-1.5 text-xs font-semibold" style="background:#ECFDF5;color:#047857;">
+                                ✓ Best vouchers applied automatically — you save ₱{{ number_format($best['discount'], 2) }}.
+                                <span class="font-normal">You can change them below.</span>
+                            </p>
+                        @endif
+                        <div id="voucherNotices" class="space-y-1">
+                            @foreach ($q['notices'] as $notice)
+                                <p class="rounded-md px-2.5 py-1.5 text-xs" style="background:#FFFBEB;color:#92400E;">{{ $notice }}</p>
+                            @endforeach
                         </div>
-                        <div class="hidden justify-between" style="color:#059669;" id="rowSellerDiscount">
-                            <span>Store vouchers</span>
-                            <span id="sellerDiscount">−₱0.00</span>
+
+                        <label class="block text-xs font-semibold" style="color:#57534E;" for="platformVoucher">ALVY voucher</label>
+                        <select id="platformVoucher" name="platform_voucher" class="co-select v-select" data-kind="platform">
+                            <option value="">{{ count($vouchers['platform']) ? 'No ALVY voucher' : 'No ALVY vouchers right now' }}</option>
+                            @foreach ($vouchers['platform'] as $v)
+                                <option value="{{ $v['code'] }}" @disabled($blocks($v)) @selected($chosen['platform'] === $v['code'])>
+                                    {{ $optionText($v) }}{{ $blocks($v) ? ' — ' . $v['reason'] : '' }}
+                                </option>
+                            @endforeach
+                            @if ($chosen['platform'] && ! collect($vouchers['platform'])->contains('code', $chosen['platform']))
+                                <option value="{{ $chosen['platform'] }}" selected>{{ $chosen['platform'] }}</option>
+                            @endif
+                        </select>
+
+                        <label class="block text-xs font-semibold" style="color:#57534E;" for="shippingVoucher">Shipping voucher</label>
+                        <select id="shippingVoucher" name="shipping_voucher" class="co-select v-select" data-kind="shipping">
+                            <option value="">{{ count($vouchers['shipping']) ? 'No shipping voucher' : 'No shipping vouchers right now' }}</option>
+                            @foreach ($vouchers['shipping'] as $v)
+                                <option value="{{ $v['code'] }}" @disabled($blocks($v)) @selected($chosen['shipping'] === $v['code'])>
+                                    {{ $optionText($v) }}{{ $blocks($v) ? ' — ' . $v['reason'] : '' }}
+                                </option>
+                            @endforeach
+                            @if ($chosen['shipping'] && ! collect($vouchers['shipping'])->contains('code', $chosen['shipping']))
+                                <option value="{{ $chosen['shipping'] }}" selected>{{ $chosen['shipping'] }}</option>
+                            @endif
+                        </select>
+
+                        <div class="flex gap-2 pt-1">
+                            <input type="text" id="voucherCode" maxlength="30" placeholder="Have a code?" class="co-select uppercase" autocomplete="off">
+                            <button type="button" id="voucherApply" class="shrink-0 rounded-lg border px-3 text-sm font-semibold" style="border-color:#fa4e1c;color:#fa4e1c;">Apply</button>
                         </div>
-                        <div class="hidden justify-between" style="color:#059669;" id="rowPlatformDiscount">
-                            <span>ALVY voucher</span>
-                            <span id="platformDiscount">−₱0.00</span>
-                        </div>
-                        <div class="flex justify-between" style="color:#555555;">
-                            <span>Delivery Fee</span>
-                            <span>₱{{ number_format($shipping, 2) }}</span>
-                        </div>
+                        <p id="voucherCodeMsg" class="hidden text-xs"></p>
                     </div>
-                    <div class="mt-3 flex justify-between border-t pt-3 font-display text-xl font-extrabold"
-                         style="border-color:#EFEFEF;color:#222222;">
-                        <span>Total</span>
-                        <span style="color:#fa4e1c;" data-checkout-total>₱{{ number_format($total, 2) }}</span>
+
+                    {{-- Totals --}}
+                    <div class="space-y-1.5 border-t pt-4 text-sm" style="border-color:#F2EEEA;color:#57534E;">
+                        <div class="co-row"><span>Merchandise subtotal</span><span data-total="subtotal">{{ $peso($q['subtotal']) }}</span></div>
+                        <div class="co-row"><span>Shipping</span><span data-total="shipping_total">{{ $summary['unserviceable'] ? '—' : $peso($q['shipping_total']) }}</span></div>
+                        <div class="co-row co-off {{ $q['seller_discount'] > 0 ? '' : 'hidden' }}" data-row="seller_discount"><span>Store vouchers</span><span data-total="seller_discount">−{{ $peso($q['seller_discount']) }}</span></div>
+                        <div class="co-row co-off {{ $q['platform_discount'] > 0 ? '' : 'hidden' }}" data-row="platform_discount"><span>ALVY voucher</span><span data-total="platform_discount">−{{ $peso($q['platform_discount']) }}</span></div>
+                        <div class="co-row co-off {{ $q['shipping_discount'] > 0 ? '' : 'hidden' }}" data-row="shipping_discount"><span>Shipping voucher</span><span data-total="shipping_discount">−{{ $peso($q['shipping_discount']) }}</span></div>
                     </div>
-                    <div class="mt-3 rounded-lg p-2.5 text-xs text-center"
-                         style="background:#fff1ee;color:#d93d0e;">
-                        Includes ₱50.00 delivery fee
+                    <div class="co-row border-t pt-3 font-display text-xl font-extrabold" style="border-color:#F2EEEA;color:#222;">
+                        <span>Total</span><span style="color:#fa4e1c;" data-total="total">{{ $peso($q['total']) }}</span>
                     </div>
-                    <button type="submit"
-                            class="mt-5 w-full rounded-xl py-3.5 text-base font-bold text-white transition hover:opacity-90"
-                            style="background:#002b4d;">
-                        Place Order
-                    </button>
-                    <p class="mt-2 text-center text-[11px]" style="color:#999999;">🔒 Secure checkout</p>
+                    @if (count($summary['groups']) > 1)
+                        <p class="text-xs" style="color:#8a7f78;">Each store ships separately, so this becomes {{ count($summary['groups']) }} orders.</p>
+                    @endif
+
+                    <button type="submit" id="placeOrder" @disabled($summary['unserviceable'])
+                            class="w-full rounded-xl py-3.5 text-base font-bold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                            style="background:#002b4d;">Place Order</button>
+                    <p class="text-center text-[11px]" style="color:#a39890;">🔒 Secure checkout</p>
                 </div>
             </div>
-        </div>
+        </aside>
     </form>
 </div>
 
-<script>
-// Not "BASE": Buyer.js (loaded on every buyer page) already declares a global const with that name.
-const CHECKOUT_PSGC_BASE = '/api/psgc';
-
-function setLoading(selectEl, msg) {
-    selectEl.innerHTML = `<option value="">${msg}</option>`;
-    selectEl.disabled = true;
-}
-
-function populate(selectEl, items, placeholder) {
-    selectEl.innerHTML = `<option value="">${placeholder}</option>`;
-    items.forEach(item => {
-        const opt = document.createElement('option');
-        opt.value = item.name;
-        opt.dataset.code = item.code;
-        opt.textContent = item.name;
-        selectEl.appendChild(opt);
-    });
-    selectEl.disabled = false;
-}
-
-function resetSelect(selectEl, placeholder) {
-    selectEl.innerHTML = `<option value="">${placeholder}</option>`;
-    selectEl.disabled = true;
-    syncPsgcCodes();
-}
-
-// Copy the selected options' PSGC codes into the hidden inputs.
-function syncPsgcCodes() {
-    const pick = id => {
-        const s = document.getElementById(id);
-        const o = s && s.options[s.selectedIndex];
-        return (o && o.value && o.dataset.code) ? o.dataset.code : '';
-    };
-    const p = document.getElementById('province-code');
-    const m = document.getElementById('municipality-code');
-    if (p) p.value = pick('sel-province');
-    if (m) m.value = pick('sel-city');
-}
-document.addEventListener('change', e => {
-    if (e.target && (e.target.id === 'sel-province' || e.target.id === 'sel-city')) syncPsgcCodes();
-});
-document.addEventListener('submit', syncPsgcCodes, true);
-
-// ── Load regions on page load ──────────────────────────────────────
-window.addEventListener('DOMContentLoaded', function () {
-    const sel = document.getElementById('sel-region');
-    setLoading(sel, 'Loading regions…');
-    fetch(CHECKOUT_PSGC_BASE + '/regions')
-        .then(r => r.json())
-        .then(data => populate(sel, data, '— Select Region —'))
-        .catch(() => {
-            sel.innerHTML = '<option value="">Failed to load — try refreshing</option>';
-        });
-});
-
-// ── Region → Province ──────────────────────────────────────────────
-function loadProvinces(regionCode, regionName) {
-    resetSelect(document.getElementById('sel-province'), '— Select Province —');
-    resetSelect(document.getElementById('sel-city'),    '— Select City / Municipality —');
-    resetSelect(document.getElementById('sel-barangay'), '— Select Barangay —');
-    if (!regionCode) return;
-
-    // Get the PSGC code from the selected option's data-code attribute
-    const sel = document.getElementById('sel-region');
-    const selected = sel.options[sel.selectedIndex];
-    const code = selected.dataset.code;
-
-    const provSel = document.getElementById('sel-province');
-    setLoading(provSel, 'Loading provinces…');
-
-    fetch(CHECKOUT_PSGC_BASE + '/regions/' + code + '/provinces')
-        .then(r => r.json())
-        .then(data => {
-            if (data.length === 0) {
-                // NCR has no provinces — load municipalities directly
-                loadMunicipalitiesForRegion(code);
-            } else {
-                populate(provSel, data, '— Select Province —');
-            }
-        })
-        .catch(() => provSel.innerHTML = '<option value="">Failed to load</option>');
-}
-
-function loadMunicipalitiesForRegion(regionCode) {
-    // For NCR: skip province, load cities directly from region
-    const provSel = document.getElementById('sel-province');
-    provSel.innerHTML = '<option value="NCR">Metro Manila (NCR)</option>';
-    provSel.disabled = false;
-    // trigger municipality load with NCR code
-    loadMunicipalities(regionCode, 'Metro Manila');
-}
-
-// ── Province → City/Municipality ──────────────────────────────────
-function loadMunicipalities(provinceCode, provinceName) {
-    resetSelect(document.getElementById('sel-city'),     '— Select City / Municipality —');
-    resetSelect(document.getElementById('sel-barangay'), '— Select Barangay —');
-    if (!provinceCode) return;
-
-    const sel = document.getElementById('sel-province');
-    const selected = sel.options[sel.selectedIndex];
-    const code = selected.dataset.code || provinceCode;
-
-    const citySel = document.getElementById('sel-city');
-    setLoading(citySel, 'Loading cities…');
-
-    fetch(CHECKOUT_PSGC_BASE + '/provinces/' + code + '/municipalities')
-        .then(r => r.json())
-        .then(data => populate(citySel, data, '— Select City / Municipality —'))
-        .catch(() => citySel.innerHTML = '<option value="">Failed to load</option>');
-}
-
-// ── City/Municipality → Barangay ───────────────────────────────────
-function loadBarangays(cityCode, cityName) {
-    resetSelect(document.getElementById('sel-barangay'), '— Select Barangay —');
-    if (!cityCode) return;
-
-    const sel = document.getElementById('sel-city');
-    const selected = sel.options[sel.selectedIndex];
-    const code = selected.dataset.code || cityCode;
-
-    const brgySel = document.getElementById('sel-barangay');
-    setLoading(brgySel, 'Loading barangays…');
-
-    fetch(CHECKOUT_PSGC_BASE + '/municipalities/' + code + '/barangays')
-        .then(r => r.json())
-        .then(data => populate(brgySel, data, '— Select Barangay —'))
-        .catch(() => brgySel.innerHTML = '<option value="">Failed to load</option>');
-}
-</script>
-<script src="{{ asset('js/checkout-vouchers.js') }}"></script>
+<script src="{{ asset('js/checkout.js') }}?v=2"></script>
 </x-layout>

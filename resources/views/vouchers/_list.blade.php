@@ -46,14 +46,14 @@
                 <td class="px-4 py-3">{{ $v->used_count }}{{ $v->usage_limit ? ' / ' . $v->usage_limit : '' }}</td>
                 <td class="px-4 py-3"><span class="rounded-md px-2 py-0.5 text-xs font-semibold" style="{{ $stateStyle[$state] }}">{{ $state }}</span></td>
                 <td class="whitespace-nowrap px-4 py-3 text-right text-xs font-semibold">
-                    @if ($panel === 'seller' || $v->isPlatform())
+                    @if ($panel === 'seller' || $v->scope !== 'seller')
                         <a href="{{ route($panel . '.vouchers.edit', $v) }}" style="color:#fa4e1c;">Edit</a>
                         <span class="mx-1" style="color:#E7E5E4;">|</span>
                     @endif
                     <form method="POST" action="{{ route($panel . '.vouchers.toggle', $v) }}" class="inline">@csrf @method('PATCH')
                         <button style="color:#57534E;">{{ $v->is_active ? 'Turn off' : 'Turn on' }}</button>
                     </form>
-                    @if (($panel === 'seller' || $v->isPlatform()) && $v->used_count === 0)
+                    @if (($panel === 'seller' || $v->scope !== 'seller') && $v->used_count === 0)
                         <span class="mx-1" style="color:#E7E5E4;">|</span>
                         <form method="POST" action="{{ route($panel . '.vouchers.destroy', $v) }}" class="inline"
                               onsubmit="return confirm('Delete voucher {{ $v->code }}?')">@csrf @method('DELETE')

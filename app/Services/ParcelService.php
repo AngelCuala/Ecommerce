@@ -167,7 +167,7 @@ class ParcelService
     public function syncOrder(Parcel $parcel): void
     {
         $order = $parcel->order;
-        if (! $order || in_array($order->status, ['Cancelled', 'Delivered'], true)) {
+        if (! $order || in_array($order->status, \App\Models\Order::LOGISTICS_DONE, true)) {
             return;
         }
 

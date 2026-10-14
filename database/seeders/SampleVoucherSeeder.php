@@ -45,6 +45,16 @@ class SampleVoucherSeeder extends Seeder
             $this->save($v + ['scope' => Voucher::SCOPE_PLATFORM, 'seller_id' => null, 'created_by' => $admin]);
         }
 
+        // ── Shipping vouchers (ALVY pays part of the shipping) ──
+        foreach ([
+            ['code' => 'FREESHIP50', 'name' => 'Free shipping up to ₱50 (min ₱300)',
+             'discount_type' => 'fixed', 'discount_value' => 50, 'min_spend' => 300, 'per_user_limit' => 5],
+            ['code' => 'FREESHIP120', 'name' => 'Free shipping up to ₱120 (min ₱1,500)',
+             'discount_type' => 'fixed', 'discount_value' => 120, 'min_spend' => 1500, 'per_user_limit' => 2],
+        ] as $v) {
+            $this->save($v + ['scope' => Voucher::SCOPE_SHIPPING, 'seller_id' => null, 'created_by' => $admin]);
+        }
+
         // ── Store vouchers (only that seller's products, paid by the seller) ──
         $stores = [
             'seller@alvy.trade' => [

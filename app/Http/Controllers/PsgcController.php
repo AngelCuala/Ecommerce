@@ -95,9 +95,11 @@ class PsgcController extends Controller
     public function municipalities(string $code)
     {
         $data = Cache::remember("psgc_mun_{$code}", self::TTL, function () use ($code) {
+            // NCR has no provinces: its cities are listed under the region code (e.g. 130000000).
+            $parent = preg_match('/^\d{2}0{7}$/', $code) ? 'regions' : 'provinces';
             $response = Http::withOptions(['verify' => false])
                 ->timeout(15)
-                ->get(self::BASE . "/provinces/{$code}/cities-municipalities/");
+                ->get(self::BASE . "/{$parent}/{$code}/cities-municipalities/");
 
             if (! $response->successful()) {
                 return [];

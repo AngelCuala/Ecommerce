@@ -4,6 +4,9 @@
     $navItems = [
         'profile.show'          => ['icon' => 'user',  'label' => 'My Profile'],
         'profile.orders'        => ['icon' => 'box',   'label' => 'My Orders'],
+        'wishlist.index'        => ['icon' => 'heart', 'label' => 'Wishlist'],
+        'vouchers.wallet'       => ['icon' => 'tag',   'label' => 'My Vouchers'],
+        'stores.following'      => ['icon' => 'store', 'label' => 'Following'],
         'profile.notifications' => ['icon' => 'bell',  'label' => 'Notifications'],
         'profile.addresses'     => ['icon' => 'pin',   'label' => 'Addresses'],
         'profile.security'      => ['icon' => 'lock',  'label' => 'Accounts & Security'],
@@ -13,6 +16,9 @@
     $navIcons = [
         'user' => '<circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>',
         'box'  => '<path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/>',
+        'heart' => '<path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 000-7.78z"/>',
+        'tag'   => '<path d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z"/>',
+        'store' => '<path d="M3 9l1.5-5h15L21 9M3 9h18M3 9a3 3 0 006 0 3 3 0 006 0 3 3 0 006 0M5 12v8h14v-8"/>',
         'bell' => '<path d="M18 8a6 6 0 00-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 01-3.4 0"/>',
         'pin'  => '<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>',
         'lock' => '<rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
@@ -49,7 +55,7 @@
         {{-- Nav: horizontal pills on mobile, vertical list on desktop --}}
         <nav class="pf-nav pf-nav-scroll flex gap-1 overflow-x-auto border-t p-2 lg:flex-col lg:overflow-visible" style="border-color:#F0E4DC;">
             @foreach ($navItems as $routeName => $item)
-                @php $active = request()->routeIs($routeName); @endphp
+                @php $active = request()->routeIs($routeName) || request()->routeIs($routeName . '.*'); @endphp
                 <a href="{{ route($routeName) }}"
                    class="{{ $active ? 'is-active' : '' }} flex shrink-0 items-center gap-3 whitespace-nowrap rounded-xl px-2.5 py-2 text-sm font-medium transition">
                     <span class="pf-nav-icon">

@@ -182,7 +182,7 @@
                     </div>
                     <div class="flex-1">
                         <p class="text-sm font-bold" style="color:#222;">Profile photo</p>
-                        <input id="avatar-input" type="file" name="avatar" accept="image/jpg,image/jpeg,image/png,image/webp" class="hidden" onchange="previewProfileAvatar(this)">
+                        <input id="avatar-input" type="file" name="avatar" accept="image/jpeg,image/png" class="hidden" onchange="previewProfileAvatar(this)">
                         <label for="avatar-input" class="pf-btn-ghost mt-2 px-4 py-1.5 text-xs">Choose Photo</label>
                         <p id="avatar-filename" class="mt-1.5 text-[11px] pf-muted">JPG, PNG or WebP · max 2 MB</p>
                     </div>
@@ -210,13 +210,9 @@
                         <label class="pf-label">Date of Birth</label>
                         <input type="date" name="birthday" value="{{ old('birthday', optional($u->birthday)->format('Y-m-d')) }}" max="{{ now()->toDateString() }}" class="pf-input">
                     </div>
-                    <div>
-                        <label class="pf-label">Phone Number</label>
-                        <input type="text" name="phone" value="{{ old('phone', $u->phone) }}" class="pf-input" placeholder="+63 912 345 6789">
-                    </div>
-                    <div>
-                        <label class="pf-label">Email Address</label>
-                        <input type="email" name="email" value="{{ old('email', $u->email) }}" class="pf-input" required>
+                    <div class="sm:col-span-2">
+                        <p class="text-xs pf-muted">Email: <strong>{{ $u->email }}</strong> · Phone: <strong>{{ $u->phone ?: 'not set' }}</strong> —
+                            change them on <a href="{{ route('profile.security') }}" class="font-semibold" style="color:#fa4e1c;">Accounts &amp; Security</a> (we confirm them with a code).</p>
                     </div>
                 </div>
 

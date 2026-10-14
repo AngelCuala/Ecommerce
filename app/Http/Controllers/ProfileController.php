@@ -2,13 +2,24 @@
 
 namespace App\Http\Controllers;
 
+use App\Mail\ContactChangeMail;
+use App\Models\Order;
+use App\Models\UserNotification;
+use App\Support\PhoneNumber;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Rules\Password;
 
 class ProfileController extends Controller
 {
+    /** Minutes a code for an email / phone change is valid. */
+    private const CODE_MINUTES = 10;
+    private const CODE_ATTEMPTS = 5;
+
     /** Overview / landing */
     public function show()
     {
@@ -21,82 +32,57 @@ class ProfileController extends Controller
         return redirect()->route('profile.show');
     }
 
-    /** Orders page */
-    public function orders()
+    /** My Purchases, by tab (To Pay, To Ship, To Receive, Completed, Cancelled, Return/Refund). */
+    public function orders(Request $request)
     {
-        $orders = auth()->user()
-            ->orders()
-            ->with('items.product')
-            ->latest()
-            ->get();
+        $tab = array_key_exists($request->query('tab'), Order::TABS) ? $request->query('tab') : 'all';
 
-        return view('profile.orders', compact('orders'));
+        $base = auth()->user()->orders();
+        $counts = collect(Order::TABS)->map(fn ($t) => $t['statuses'] ? (clone $base)->whereIn('status', $t['statuses'])->count() : 0);
+
+        $orders = (clone $base)
+            ->when($tab !== 'all', fn ($q) => $q->whereIn('status', Order::TABS[$tab]['statuses'] ?: ['—']))
+            ->with(['items.product', 'items.review', 'seller.sellerApplication', 'returnRequests'])
+            ->latest()
+            ->paginate(10)->withQueryString();
+
+        return view('profile.orders', compact('orders', 'tab', 'counts'));
     }
 
-    /** Notifications page — admin announcements + order status updates */
+    /** One order: items, totals, timeline and the actions the buyer can take. */
+    public function orderShow(int $id)
+    {
+        $order = auth()->user()->orders()
+            ->with(['items.product', 'items.review', 'events', 'seller.sellerApplication', 'returnRequests', 'platformVoucher', 'shippingVoucher'])
+            ->findOrFail($id);
+
+        return view('profile.order-show', compact('order'));
+    }
+
+    /** Notifications: newest first. Opening one marks only that one as read. */
     public function notifications()
     {
-        $user = auth()->user();
-
-        // ── Stored notifications (e.g. admin announcements) ──────
-        $stored = $user->notifications()->latest()->get()->map(function ($n) {
-            $icon = match ($n->type) {
-                'warning'     => 'x',
-                'maintenance' => 'bell',
-                'promo'       => 'bell',
-                default       => 'bell',
-            };
-
-            return (object) [
-                'kind'       => 'announcement',
-                'order_id'   => null,
-                'title'      => $n->title,
-                'body'       => $n->body,
-                'icon'       => $icon,
-                'is_unread'  => is_null($n->read_at),
-                'thumbnail'  => null,
-                'item_name'  => null,
-                'at'         => $n->created_at,
-            ];
-        });
-
-        // ── Order status updates ─────────────────────────────────
-        $orders = $user->orders()->with('items.product')->latest('updated_at')->get();
-
-        $orderNotes = $orders->map(function ($order) {
-            $meta = match (strtolower($order->status)) {
-                'pending'    => ['title' => 'Order placed',      'body' => 'We have received your order and it is awaiting processing.',       'icon' => 'clock'],
-                'processing' => ['title' => 'Order confirmed',   'body' => 'Your order is being prepared by the seller.',                     'icon' => 'box'],
-                'shipped'    => ['title' => 'Order shipped',     'body' => 'Your order is on its way. Track its progress in My Purchases.',   'icon' => 'truck'],
-                'delivered'  => ['title' => 'Order delivered',   'body' => 'Your order has been delivered. Enjoy!',                           'icon' => 'check'],
-                'cancelled'  => ['title' => 'Order cancelled',   'body' => $order->cancellation_reason ?: 'Your order has been cancelled.',   'icon' => 'x'],
-                default      => ['title' => 'Order update',      'body' => 'There is an update on your order.',                               'icon' => 'bell'],
-            };
-
-            $firstItem = $order->items->first();
-
-            return (object) [
-                'kind'       => 'order',
-                'order_id'   => $order->id,
-                'title'      => $meta['title'],
-                'body'       => $meta['body'],
-                'icon'       => $meta['icon'],
-                'is_unread'  => false,
-                'thumbnail'  => $firstItem?->product?->image,
-                'item_name'  => $firstItem?->product?->title,
-                'at'         => $order->updated_at,
-            ];
-        });
-
-        // Merge, newest first
-        $notifications = $stored->concat($orderNotes)
-            ->sortByDesc('at')
-            ->values();
-
-        // Mark stored notifications as read now that they've been viewed
-        $user->notifications()->whereNull('read_at')->update(['read_at' => now()]);
+        $notifications = auth()->user()->notifications()->latest()->paginate(20);
 
         return view('profile.notifications', compact('notifications'));
+    }
+
+    /** Open a notification: mark it read and go to what it is about. */
+    public function openNotification(int $id)
+    {
+        $note = UserNotification::where('user_id', auth()->id())->findOrFail($id);
+        if ($note->isUnread()) {
+            $note->update(['read_at' => now()]);
+        }
+
+        return $note->link ? redirect($note->link) : redirect()->route('profile.notifications');
+    }
+
+    public function readAllNotifications()
+    {
+        auth()->user()->notifications()->whereNull('read_at')->update(['read_at' => now()]);
+
+        return back()->with('success', 'All notifications marked as read.');
     }
 
     /** Settings page */
@@ -119,9 +105,8 @@ class ProfileController extends Controller
     }
 
     /**
-     * Update profile info: profile picture, bio, gender (sex),
-     * birthday, phone, email. (Address fields intentionally excluded —
-     * addresses are managed on the dedicated Addresses page.)
+     * Update profile info: name, photo, bio, sex, birthday.
+     * The email address and phone number change on Accounts & Security, with a code.
      */
     public function update(Request $request)
     {
@@ -129,24 +114,22 @@ class ProfileController extends Controller
 
         $data = $request->validate([
             'name'     => 'required|string|max:255',
-            'email'    => ['required', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user->id)],
-            'phone'    => 'nullable|string|max:30',
             'bio'      => 'nullable|string|max:500',
             'sex'      => 'nullable|in:Male,Female',
             'birthday' => 'nullable|date|before:today',
-            'avatar'   => 'nullable|image|mimes:jpg,jpeg,png,webp|max:2048',
+            'avatar'   => 'nullable|file|mimes:jpg,jpeg,png|mimetypes:image/jpeg,image/png|max:5120',
+        ], [
+            'avatar.mimes'     => 'The profile photo must be a JPG or PNG image.',
+            'avatar.mimetypes' => 'The profile photo must be a real JPG or PNG image.',
+            'avatar.max'       => 'The profile photo can be at most 5 MB.',
         ]);
 
-        // Handle profile picture upload
         if ($request->hasFile('avatar')) {
-            // Remove the previous photo if it exists
             if ($user->profile_photo_path) {
                 Storage::disk('public')->delete($user->profile_photo_path);
             }
             $data['profile_photo_path'] = $request->file('avatar')->store('avatars', 'public');
         }
-
-        // avatar is not a DB column
         unset($data['avatar']);
 
         $user->update($data);
@@ -154,18 +137,13 @@ class ProfileController extends Controller
         return back()->with('success', 'Profile updated successfully.');
     }
 
-    /**
-     * Update account details: username, phone, email.
-     * (Password handled separately by changePassword.)
-     */
+    /** Username (the email and phone have their own verified flows). */
     public function updateAccount(Request $request)
     {
         $user = auth()->user();
 
         $data = $request->validate([
             'username' => ['nullable', 'string', 'max:50', 'alpha_dash', Rule::unique('users', 'username')->ignore($user->id)],
-            'phone'    => 'nullable|string|max:30',
-            'email'    => ['required', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user->id)],
         ]);
 
         $user->update($data);
@@ -173,12 +151,134 @@ class ProfileController extends Controller
         return back()->with('success', 'Account details updated successfully.');
     }
 
+    // ── Email / phone change (confirmed with a code) ─────────
+
+    /** Step 1: the new email gets a code; the old email keeps working until it is entered. */
+    public function changeEmail(Request $request)
+    {
+        $user = auth()->user();
+        $request->merge(['email' => strtolower(trim((string) $request->email))]);
+
+        $request->validate([
+            'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user->id), Rule::notIn([strtolower($user->email)])],
+        ], [
+            'email.unique' => 'That email address is already in use by another account.',
+            'email.not_in' => 'That is already your email address.',
+        ]);
+
+        $user->forceFill(['pending_email' => $request->email, 'pending_phone' => null])->save();
+
+        return $this->sendContactCode($request->email, 'email address', $request->email);
+    }
+
+    /** Step 1: a new phone number is confirmed with a code sent to the account's email. */
+    public function changePhone(Request $request)
+    {
+        $user = auth()->user();
+        $request->merge(['phone' => PhoneNumber::normalize($request->input('phone'))]);
+
+        $request->validate([
+            'phone' => ['required', 'regex:' . PhoneNumber::PATTERN, Rule::notIn([$user->phone])],
+        ], [
+            'phone.regex'  => 'Enter a valid PH mobile number: 09XXXXXXXXX (11 digits) or +639XXXXXXXXX.',
+            'phone.not_in' => 'That is already your phone number.',
+        ]);
+
+        $user->forceFill(['pending_phone' => $request->phone, 'pending_email' => null])->save();
+
+        return $this->sendContactCode($user->email, 'phone number', $request->phone);
+    }
+
+    /** Step 2: the code makes the change. */
+    public function verifyContact(Request $request)
+    {
+        $request->validate(['code' => 'required|digits:6']);
+        $user = auth()->user();
+
+        if (! $user->pending_email && ! $user->pending_phone) {
+            return back()->with('error', 'There is no change waiting for a code.');
+        }
+        if (! $user->contact_otp || ! $user->contact_otp_expires_at || $user->contact_otp_expires_at->isPast()) {
+            return back()->withErrors(['code' => 'This code has expired. Send a new one.']);
+        }
+        if ($user->contact_otp_attempts >= self::CODE_ATTEMPTS) {
+            return back()->withErrors(['code' => 'Too many wrong codes. Send a new one.']);
+        }
+        if (! Hash::check($request->code, $user->contact_otp)) {
+            $user->increment('contact_otp_attempts');
+            return back()->withErrors(['code' => 'That code is not correct.']);
+        }
+
+        if ($user->pending_email) {
+            // Someone may have taken the address while the code was on its way.
+            if (\App\Models\User::where('email', $user->pending_email)->whereKeyNot($user->id)->exists()) {
+                $user->forceFill(['pending_email' => null, 'contact_otp' => null])->save();
+                return back()->withErrors(['email' => 'That email address is already in use by another account.']);
+            }
+            $message = 'Your email address is now ' . $user->pending_email . '.';
+            $user->forceFill(['email' => $user->pending_email, 'email_verified_at' => now()]);
+        } else {
+            $message = 'Your phone number is now ' . $user->pending_phone . '.';
+            $user->forceFill(['phone' => $user->pending_phone, 'contact_no' => $user->pending_phone]);
+        }
+
+        $user->forceFill(['pending_email' => null, 'pending_phone' => null, 'contact_otp' => null,
+            'contact_otp_expires_at' => null, 'contact_otp_attempts' => 0])->save();
+
+        return back()->with('success', $message);
+    }
+
+    public function resendContactCode()
+    {
+        $user = auth()->user();
+        if ($user->pending_email) {
+            return $this->sendContactCode($user->pending_email, 'email address', $user->pending_email);
+        }
+        if ($user->pending_phone) {
+            return $this->sendContactCode($user->email, 'phone number', $user->pending_phone);
+        }
+        return back();
+    }
+
+    public function cancelContactChange()
+    {
+        auth()->user()->forceFill(['pending_email' => null, 'pending_phone' => null, 'contact_otp' => null,
+            'contact_otp_expires_at' => null, 'contact_otp_attempts' => 0])->save();
+
+        return back()->with('success', 'Change cancelled. Nothing was changed.');
+    }
+
+    private function sendContactCode(string $to, string $what, string $newValue)
+    {
+        $user = auth()->user();
+        $code = (string) random_int(100000, 999999);
+
+        $user->forceFill([
+            'contact_otp'            => Hash::make($code),
+            'contact_otp_expires_at' => now()->addMinutes(self::CODE_MINUTES),
+            'contact_otp_attempts'   => 0,
+        ])->save();
+
+        try {
+            Mail::to($to)->send(new ContactChangeMail($user, $code, $what, $newValue, self::CODE_MINUTES));
+        } catch (\Throwable $e) {
+            Log::error('Contact change code could not be sent: ' . $e->getMessage());
+            return back()->with('error', 'We could not send the code right now. Please try again in a moment.');
+        }
+
+        return back()->with('success', "We sent a 6-digit code to {$to}. Enter it below to confirm your new {$what}.");
+    }
+
     /** Change password */
     public function changePassword(Request $request)
     {
         $request->validate([
             'current_password' => 'required',
-            'password'         => 'required|string|min:8|confirmed',
+            'password'         => ['required', 'string', 'confirmed', 'different:current_password',
+                                   Password::min(8)->letters()->mixedCase()->numbers()->symbols()],
+        ], [
+            'password.confirmed' => 'The new password and its confirmation do not match.',
+            'password.different' => 'The new password must be different from your current one.',
         ]);
 
         $user = auth()->user();
