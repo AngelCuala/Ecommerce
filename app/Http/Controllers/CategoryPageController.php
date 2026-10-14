@@ -161,7 +161,7 @@ class CategoryPageController extends Controller
 
         // Fetch matching products from the books table
         $query = Product::with(['category', 'images'])
-            ->active()
+            ->published()
             ->where('stock', '>', 0);
 
         // Match by category name (approximate) or slug

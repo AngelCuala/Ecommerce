@@ -72,6 +72,17 @@
                     <span>Subtotal</span>
                     <span>₱{{ number_format($order->subtotal, 2) }}</span>
                 </div>
+                @if ($order->seller_discount > 0)
+                    <div class="flex justify-between" style="color:#059669;">
+                        <span>Store vouchers</span><span>−₱{{ number_format($order->seller_discount, 2) }}</span>
+                    </div>
+                @endif
+                @if ($order->platform_discount > 0)
+                    <div class="flex justify-between" style="color:#059669;">
+                        <span>ALVY voucher{{ $order->platformVoucher ? ' (' . $order->platformVoucher->code . ')' : '' }}</span>
+                        <span>−₱{{ number_format($order->platform_discount, 2) }}</span>
+                    </div>
+                @endif
                 <div class="flex justify-between" style="color:#555555;">
                     <span>Delivery Fee</span>
                     <span>₱{{ number_format($order->shipping_fee, 2) }}</span>

@@ -22,6 +22,7 @@ class Product extends Model
         'description', 'specs', 'image', 'video_path',
         'weight_kg', 'length_cm', 'width_cm', 'height_cm', 'address_id',
         'is_archived', 'archived_at',
+        'approval_status', 'approval_note', 'approval_reviewed_at', 'approval_reviewed_by',
     ];
 
     protected $casts = [
@@ -37,6 +38,7 @@ class Product extends Model
         'height_cm'        => 'float',
         'is_archived'      => 'boolean',
         'archived_at'      => 'datetime',
+        'approval_reviewed_at' => 'datetime',
     ];
 
     // ── Relationships ─────────────────────────────────────────
@@ -48,6 +50,11 @@ class Product extends Model
     public function seller(): BelongsTo
     {
         return $this->belongsTo(User::class, 'seller_id');
+    }
+
+    public function approvalReviewer(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'approval_reviewed_by');
     }
 
     public function variations(): HasMany
@@ -149,15 +156,34 @@ class Product extends Model
         return $query->where('stock', '>', 0)->where('stock', '<=', $threshold);
     }
 
-    /** Publicly visible listings (published + not archived). */
+    /** Publicly visible listings (published, approved by an admin, not archived). */
     public function scopePublished($query)
     {
-        return $query->where('is_archived', false)->where('status', 'active');
+        return $query->where('is_archived', false)
+            ->where('status', 'active')
+            ->where('approval_status', 'approved');
+    }
+
+    /** New seller products waiting for an admin (drafts are not submitted yet). */
+    public function scopeAwaitingApproval($query)
+    {
+        return $query->where('approval_status', 'pending')->where('status', '!=', 'draft');
     }
 
     public function scopeStatus($query, string $status)
     {
         return $query->where('status', $status);
+    }
+
+    // ── Admin approval (new seller products only) ───────────
+    public function isApproved(): bool        { return $this->approval_status === 'approved'; }
+    public function isPendingApproval(): bool { return $this->approval_status === 'pending'; }
+    public function isRejected(): bool        { return $this->approval_status === 'rejected'; }
+
+    /** Shoppers can see and buy it. */
+    public function isPublished(): bool
+    {
+        return ! $this->is_archived && $this->status === 'active' && $this->isApproved();
     }
 
     public function isDraft(): bool

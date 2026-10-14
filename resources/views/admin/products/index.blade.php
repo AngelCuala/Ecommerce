@@ -48,12 +48,17 @@
                             <div>
                                 <p class="font-semibold" style="color:#222222;">{{ $product->title }}</p>
                                 <p class="text-xs" style="color:#6b90aa;">{{ $product->author }} · {{ $product->format }}</p>
+                                @if ($product->isPendingApproval())
+                                    <a href="{{ route('admin.product-approvals.index') }}" class="mt-0.5 inline-block rounded px-1.5 py-0.5 text-[11px] font-semibold" style="background:#FFFBEB;color:#B45309;">Pending approval</a>
+                                @elseif ($product->isRejected())
+                                    <span class="mt-0.5 inline-block rounded px-1.5 py-0.5 text-[11px] font-semibold" style="background:#FEF2F2;color:#B91C1C;">Rejected</span>
+                                @endif
                             </div>
                         </div>
                     </td>
                     <td class="px-3 py-3" style="color:#555555;">{{ $product->category->name ?? '—' }}</td>
                     <td class="px-3 py-3 text-xs" style="color:#555555;">{{ $product->seller->name ?? 'Admin' }}</td>
-                    <td class="px-3 py-3 font-semibold" style="color:#222222;">${{ number_format($product->price, 2) }}</td>
+                    <td class="px-3 py-3 font-semibold" style="color:#222222;">₱{{ number_format($product->price, 2) }}</td>
                     <td class="px-3 py-3">
                         <span class="rounded-full px-2.5 py-1 text-xs font-semibold"
                               style="background:{{ $product->stock > 0 ? '#ECFDF5' : '#FEF2F2' }};

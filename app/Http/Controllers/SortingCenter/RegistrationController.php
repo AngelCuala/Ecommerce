@@ -36,7 +36,7 @@ class RegistrationController extends Controller
             'middle_initial'  => 'nullable|string|max:5',
             'sex'             => 'required|in:Male,Female',
             'email'           => 'required|string|email|max:255|unique:users,email',
-            'contact_no'      => 'required|string|max:20',
+            'contact_no'      => ['required', 'string', 'regex:/^09\d{9}$/'],
             'birthday'        => 'required|date|before:today',
             'password'        => 'required|string|min:8|confirmed',
             'business_name'   => 'required|string|max:150',
@@ -54,6 +54,7 @@ class RegistrationController extends Controller
             'municipality_code' => ['nullable', 'regex:/^\d{9,10}$/'],
         ]), [
             'business_permit.required' => 'Please upload your business / DTI permit.',
+            'contact_no.regex'         => 'Please enter a valid mobile number: 11 digits starting with 09 (e.g. 09171234567).',
         ]);
 
         // Validate the full address chain against the PSA PSGC dataset when that service is

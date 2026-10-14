@@ -261,6 +261,15 @@ Route::middleware(['auth', 'role:seller,admin', 'seller.approved', 'prevent.back
     // Reports
     Route::get('/reports',                   [SellerReportController::class, 'index'])->name('reports');
 
+    // Store vouchers (only for this seller's products)
+    Route::get('/vouchers',                    [\App\Http\Controllers\Seller\VoucherController::class, 'index'])->name('vouchers.index');
+    Route::get('/vouchers/create',             [\App\Http\Controllers\Seller\VoucherController::class, 'create'])->name('vouchers.create');
+    Route::post('/vouchers',                   [\App\Http\Controllers\Seller\VoucherController::class, 'store'])->name('vouchers.store');
+    Route::get('/vouchers/{voucher}/edit',     [\App\Http\Controllers\Seller\VoucherController::class, 'edit'])->name('vouchers.edit');
+    Route::put('/vouchers/{voucher}',          [\App\Http\Controllers\Seller\VoucherController::class, 'update'])->name('vouchers.update');
+    Route::patch('/vouchers/{voucher}/toggle', [\App\Http\Controllers\Seller\VoucherController::class, 'toggle'])->name('vouchers.toggle');
+    Route::delete('/vouchers/{voucher}',       [\App\Http\Controllers\Seller\VoucherController::class, 'destroy'])->name('vouchers.destroy');
+
     // Account management
     Route::get('/account',                   [SellerAccountController::class, 'index'])->name('account');
     Route::patch('/account',                 [SellerAccountController::class, 'update'])->name('account.update');
@@ -273,6 +282,20 @@ Route::middleware(['auth', 'role:admin', 'prevent.back'])
     ->prefix('admin')->name('admin.')->group(function () {
 
     Route::get('/', [AdminDashboardController::class, 'index'])->name('dashboard');
+
+    // ALVY (platform) vouchers; admins can also turn store vouchers off
+    Route::get('/vouchers',                    [\App\Http\Controllers\Admin\VoucherController::class, 'index'])->name('vouchers.index');
+    Route::get('/vouchers/create',             [\App\Http\Controllers\Admin\VoucherController::class, 'create'])->name('vouchers.create');
+    Route::post('/vouchers',                   [\App\Http\Controllers\Admin\VoucherController::class, 'store'])->name('vouchers.store');
+    Route::get('/vouchers/{voucher}/edit',     [\App\Http\Controllers\Admin\VoucherController::class, 'edit'])->name('vouchers.edit');
+    Route::put('/vouchers/{voucher}',          [\App\Http\Controllers\Admin\VoucherController::class, 'update'])->name('vouchers.update');
+    Route::patch('/vouchers/{voucher}/toggle', [\App\Http\Controllers\Admin\VoucherController::class, 'toggle'])->name('vouchers.toggle');
+    Route::delete('/vouchers/{voucher}',       [\App\Http\Controllers\Admin\VoucherController::class, 'destroy'])->name('vouchers.destroy');
+
+    // New seller products waiting for approval
+    Route::get('/product-approvals',                      [\App\Http\Controllers\Admin\ProductApprovalController::class, 'index'])->name('product-approvals.index');
+    Route::patch('/product-approvals/{product}/approve',  [\App\Http\Controllers\Admin\ProductApprovalController::class, 'approve'])->name('product-approvals.approve');
+    Route::patch('/product-approvals/{product}/reject',   [\App\Http\Controllers\Admin\ProductApprovalController::class, 'reject'])->name('product-approvals.reject');
 
     Route::get('/products',              [AdminProductController::class, 'index'])->name('products.index');
     Route::get('/products/create',       [AdminProductController::class, 'create'])->name('products.create');

@@ -5,6 +5,7 @@
         'draft'        => ['label' => 'Drafts',       'count' => $counts['draft'] ?? 0],
         'low_stock'    => ['label' => 'Low stock',    'count' => $counts['low_stock']],
         'out_of_stock' => ['label' => 'Out of stock', 'count' => $counts['out_of_stock']],
+        'review'       => ['label' => 'For approval', 'count' => $counts['review']],
         'archived'     => ['label' => 'Archived',     'count' => $counts['archived']],
     ];
     $listingStyle = [
@@ -139,6 +140,16 @@
                                     ? ['Archived', 'background:#F5F5F4;color:#78716C;']
                                     : ($listingStyle[$book->status] ?? [ucfirst((string) $book->status ?: 'Active'), 'background:#ECFDF5;color:#047857;']); @endphp
                                 <span class="rounded-md px-2 py-0.5 text-xs font-semibold" style="{{ $listCss }}">{{ $listLabel }}</span>
+                                @if (! $book->is_archived && $book->status !== 'draft')
+                                    @if ($book->isPendingApproval())
+                                        <span class="mt-1 block w-max rounded-md px-2 py-0.5 text-xs font-semibold" style="background:#FFFBEB;color:#B45309;">Pending approval</span>
+                                    @elseif ($book->isRejected())
+                                        <span class="mt-1 block w-max rounded-md px-2 py-0.5 text-xs font-semibold" style="background:#FEF2F2;color:#B91C1C;">Rejected</span>
+                                        @if ($book->approval_note)
+                                            <p class="mt-1 max-w-[220px] text-xs" style="color:#B91C1C;">{{ $book->approval_note }} — edit and save to resubmit.</p>
+                                        @endif
+                                    @endif
+                                @endif
                             </td>
                             <td class="whitespace-nowrap text-right">
                                 <a href="{{ route('seller.books.edit', $book->id) }}" class="inv-action">Edit</a>
@@ -169,6 +180,7 @@
                                 <p class="font-medium" style="color:#222;">
                                     @if (request('search')) No products match "{{ request('search') }}"
                                     @elseif ($status === 'archived') No archived products
+                                    @elseif ($status === 'review') Nothing waiting for approval
                                     @elseif ($status === 'draft') No drafts
                                     @elseif ($status === 'low_stock') Nothing is running low
                                     @elseif ($status === 'out_of_stock') Everything is in stock

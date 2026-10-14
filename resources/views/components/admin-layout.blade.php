@@ -115,6 +115,11 @@ $navSections = [
             'Overview' => [
                 'dashboard'           => ['route' => 'admin.dashboard',                 'label' => 'Dashboard',                    'icon' => 'grid'],
                 'analytics'           => ['route' => 'admin.analytics.index',           'label' => 'Analytics & Reports',          'icon' => 'chart'],
+                'reports'             => ['route' => 'admin.reports.index',             'label' => 'Sales Reports',                'icon' => 'orders'],
+            ],
+            'Catalog' => [
+                'products'            => ['route' => 'admin.products.index',            'label' => 'Products',                     'icon' => 'box'],
+                'vouchers'            => ['route' => 'admin.vouchers.index',            'label' => 'Vouchers',                     'icon' => 'ticket'],
             ],
             'People' => [
                 'customers'           => ['route' => 'admin.customers.index',           'label' => 'Buyers',                       'icon' => 'bag'],
@@ -122,6 +127,8 @@ $navSections = [
                 'users'               => ['route' => 'admin.users.index',               'label' => 'All User Accounts',            'icon' => 'users'],
             ],
             'Approvals' => [
+                'product-approvals'   => ['route' => 'admin.product-approvals.index',   'label' => 'Product Approvals',            'icon' => 'box',
+                                          'badge' => \App\Models\Product::awaitingApproval()->where('is_archived', false)->count()],
                 'seller-applications' => ['route' => 'admin.seller-applications.index', 'label' => 'Seller Applications',          'icon' => 'file'],
                 'sc-applications'     => ['route' => 'admin.sc-applications.index',     'label' => 'Sorting Center Registrations', 'icon' => 'truck'],
                 'compliance'          => ['route' => 'admin.compliance.index',          'label' => 'Reports & Complaints',         'icon' => 'flag'],

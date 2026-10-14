@@ -17,10 +17,17 @@
         <select name="type" class="input" style="width:180px;">
             <option value="sales"      @selected($type==='sales')>Sales Summary</option>
             <option value="commission" @selected($type==='commission')>Commission Report</option>
+            <option value="sellers"    @selected($type==='sellers')>Sales by Seller</option>
         </select>
     </div>
+    @if (request('seller') && $type === 'sellers')
+        <input type="hidden" name="seller" value="{{ request('seller') }}">
+    @endif
     <button class="btn-gold px-5 py-2 text-sm">Apply</button>
+    <a href="{{ route('admin.reports.index', array_filter(['type' => $type, 'from' => $from, 'to' => $to, 'seller' => request('seller'), 'export' => 'pdf'])) }}"
+       class="btn-outline inline-flex items-center gap-1.5 px-4 py-2 text-sm"><svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v12m0 0l-4-4m4 4l4-4M5 21h14"/></svg> Download PDF</a>
 </form>
+<p class="-mt-4 mb-6 text-xs" style="color:#6b90aa;">Cancelled orders are not counted as sales in any report.</p>
 
 {{-- ════════════════════════════════════════
      SALES SUMMARY
@@ -152,7 +159,7 @@
 {{-- ════════════════════════════════════════
      COMMISSION REPORT
 ════════════════════════════════════════ --}}
-@else
+@elseif($type === 'commission')
 
     {{-- Stat cards --}}
     <div class="grid gap-4 sm:grid-cols-3 mb-6">
@@ -233,6 +240,9 @@
             </table>
         </div>
     </div>
+
+@else
+    @include('admin.reports._sellers')
 
 @endif
 

@@ -23,6 +23,9 @@ class CartController extends Controller
     {
         $book = Product::findOrFail($bookId);
 
+        if (! $book->isPublished()) {
+            return back()->with('error', 'This item is not available right now.');
+        }
         if (! $book->inStock()) {
             return back()->with('error', 'This item is out of stock.');
         }

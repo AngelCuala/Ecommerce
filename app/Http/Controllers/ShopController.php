@@ -13,7 +13,7 @@ class ShopController extends Controller
         // If there's a search query, keep the shop page for search results
         if ($request->filled('search')) {
             $query = Product::with(['category', 'images'])
-                ->active()
+                ->published()
                 ->where('stock', '>', 0)
                 ->where(function ($q) use ($request) {
                     $q->where('title', 'like', '%' . $request->search . '%')

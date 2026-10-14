@@ -15,6 +15,10 @@ class ProductController extends Controller
         $product = Product::with(['category', 'seller', 'images', 'variations'])
             ->findOrFail($id);
 
+        // Drafts, archived products and products not (yet) approved by an admin aren't public.
+        // (Sellers and admins don't browse the storefront; they review products in their panels.)
+        abort_unless($product->isPublished(), 404);
+
         $related = Product::with(['category', 'images'])
             ->published()
             ->where('category_id', $product->category_id)

@@ -32,16 +32,20 @@ class Courier extends Model
     /** The sorting center (hub) the courier applied to; it reviews the application. */
     public function sortingCenter(): BelongsTo  { return $this->belongsTo(User::class, 'sorting_center_id'); }
 
+    private ?string $hubNameCache = null;
+
     /** Name of the sorting center reviewing this application, for messages to the courier. */
     public function hubName(): string
     {
-        $hub = $this->sortingCenter;
-        if (! $hub) {
-            return 'the Logistics team';
+        if ($this->hubNameCache !== null) {
+            return $this->hubNameCache;   // looked up once per courier; pages call this several times
         }
 
-        return SortingCenterApplication::where('user_id', $hub->id)->where('status', 'approved')->value('business_name')
-            ?: $hub->name;
+        $hub = $this->sortingCenter;
+
+        return $this->hubNameCache = $hub
+            ? (SortingCenterApplication::where('user_id', $hub->id)->where('status', 'approved')->value('business_name') ?: $hub->name)
+            : 'the Logistics team';
     }
 
     public function fullName(): string

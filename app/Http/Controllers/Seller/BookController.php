@@ -75,6 +75,8 @@ class BookController extends Controller
             $query->active()->lowStock();
         } elseif ($status === 'out_of_stock') {
             $query->active()->where('stock', 0);
+        } elseif ($status === 'review') {
+            $query->active()->whereIn('approval_status', ['pending', 'rejected'])->where('status', '!=', 'draft');
         } else {
             $query->active();
         }
@@ -95,6 +97,8 @@ class BookController extends Controller
             'low_stock'    => (clone $allBooks)->active()->lowStock()->count(),
             'out_of_stock' => (clone $allBooks)->active()->where('stock', 0)->count(),
             'archived'     => (clone $allBooks)->archived()->count(),
+            'review'       => (clone $allBooks)->active()->whereIn('approval_status', ['pending', 'rejected'])
+                ->where('status', '!=', 'draft')->count(),
         ];
 
         return view('seller.books.index', compact('books', 'status', 'counts'));
@@ -112,6 +116,8 @@ class BookController extends Controller
         $book = DB::transaction(function () use ($request, $data) {
             $payload = $this->buildPayload($request, $data);
             $payload['seller_id'] = auth()->id();
+            // New products wait for an admin before they appear in the shop.
+            $payload['approval_status'] = 'pending';
 
             if ($request->hasFile('cover_image')) {
                 $payload['image'] = $request->file('cover_image')->store('products', 'public');
@@ -156,6 +162,13 @@ class BookController extends Controller
             }
             if ($request->hasFile('video')) {
                 $payload['video_path'] = $request->file('video')->store('products/videos', 'public');
+            }
+
+            // Editing an approved product needs no new approval; fixing a rejected one
+            // sends it back to the admin.
+            if ($book->isRejected()) {
+                $payload += ['approval_status' => 'pending', 'approval_note' => null,
+                             'approval_reviewed_at' => null, 'approval_reviewed_by' => null];
             }
 
             $book->update($payload);
@@ -458,7 +471,10 @@ class BookController extends Controller
         if ($book->status === 'draft') {
             return 'Draft saved. Product ID: ' . $code;
         }
-        return 'Product published successfully. Product ID: ' . $code;
+        if ($book->isPendingApproval()) {
+            return 'Product submitted for admin approval. It will appear in the shop once approved. Product ID: ' . $code;
+        }
+        return 'Product saved successfully. Product ID: ' . $code;
     }
 
     private function authorizeBook(Product $book): void

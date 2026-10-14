@@ -17,6 +17,7 @@ class Order extends Model
         'municipality_code', 'province_code', // PSGC codes of the delivery address (used for routing)
         'shipping_address',
         'subtotal', 'shipping_fee', 'total_price',
+        'platform_voucher_id', 'platform_discount', 'seller_discount',
         'payment_method', 'payment_status',
         'status', 'cancellation_reason',
     ];
@@ -31,7 +32,35 @@ class Order extends Model
         'subtotal'     => 'decimal:2',
         'shipping_fee' => 'decimal:2',
         'total_price'  => 'decimal:2',
+        'platform_discount' => 'decimal:2',
+        'seller_discount'   => 'decimal:2',
     ];
+
+    protected static function booted(): void
+    {
+        // However an order gets cancelled (buyer, returned parcel, admin…), its vouchers come back.
+        static::updated(function (Order $order) {
+            if ($order->wasChanged('status') && $order->status === 'Cancelled') {
+                app(\App\Services\VoucherService::class)->release($order);
+            }
+        });
+    }
+
+    public function platformVoucher(): BelongsTo
+    {
+        return $this->belongsTo(Voucher::class, 'platform_voucher_id');
+    }
+
+    public function voucherRedemptions(): HasMany
+    {
+        return $this->hasMany(VoucherRedemption::class);
+    }
+
+    /** Everything taken off the item prices by vouchers. */
+    public function voucherDiscount(): float
+    {
+        return (float) $this->platform_discount + (float) $this->seller_discount;
+    }
 
     public function user(): BelongsTo
     {

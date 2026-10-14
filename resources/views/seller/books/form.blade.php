@@ -187,8 +187,11 @@
                             <input type="number" id="discount_percent" step="0.01" min="0" max="99" name="discount_percent" value="{{ old('discount_percent', $book->discount_percent ?? '') }}" class="input" placeholder="e.g. 10">
                         </div>
                         <div>
-                            <label class="pf-label" for="voucher_code">Voucher code <span class="opt">— optional</span></label>
-                            <input type="text" id="voucher_code" name="voucher_code" maxlength="50" value="{{ old('voucher_code', $book->voucher_code ?? '') }}" class="input" placeholder="e.g. SAVE20">
+                            <span class="pf-label">Vouchers</span>
+                            <p class="pf-note" style="margin-top:0;">
+                                Store vouchers (e.g. ₱150 off a ₱2,000 spend) apply to all your products.
+                                <a href="{{ route('seller.vouchers.index') }}" class="font-semibold" style="color:#fa4e1c;">Manage vouchers →</a>
+                            </p>
                         </div>
                     </div>
                 </section>

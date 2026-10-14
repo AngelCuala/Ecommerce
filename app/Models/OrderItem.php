@@ -10,6 +10,7 @@ class OrderItem extends Model
     protected $fillable = [
         'order_id', 'product_id', 'quantity', 'price',
         'commission_rate', 'commission_amount', 'seller_earning',
+        'seller_discount', 'platform_discount',   // this line's share of the order's vouchers
     ];
 
     protected $casts = [

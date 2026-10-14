@@ -141,7 +141,7 @@
                 </div>
                 <div class="mt-4 rounded-lg p-4 text-sm" style="background:#fff1ee;border:1px solid #fdb49e;">
                     💡 <span style="color:#555555;">Please prepare
-                    <strong style="color:#fa4e1c;">₱{{ number_format($total, 2) }}</strong>
+                    <strong style="color:#fa4e1c;" data-checkout-total>₱{{ number_format($total, 2) }}</strong>
                     upon delivery. No advance payment needed.</span>
                 </div>
             </div>
@@ -173,10 +173,21 @@
                         @endforeach
                     </div>
 
-                    <div class="mt-5 space-y-2 border-t pt-4 text-sm" style="border-color:#EFEFEF;">
+                    @include('checkout._vouchers')
+
+                    <div class="mt-5 space-y-2 border-t pt-4 text-sm" style="border-color:#EFEFEF;"
+                         id="checkoutTotals" data-subtotal="{{ $subtotal }}" data-shipping="{{ $shipping }}">
                         <div class="flex justify-between" style="color:#555555;">
                             <span>Subtotal</span>
                             <span>₱{{ number_format($subtotal, 2) }}</span>
+                        </div>
+                        <div class="hidden justify-between" style="color:#059669;" id="rowSellerDiscount">
+                            <span>Store vouchers</span>
+                            <span id="sellerDiscount">−₱0.00</span>
+                        </div>
+                        <div class="hidden justify-between" style="color:#059669;" id="rowPlatformDiscount">
+                            <span>ALVY voucher</span>
+                            <span id="platformDiscount">−₱0.00</span>
                         </div>
                         <div class="flex justify-between" style="color:#555555;">
                             <span>Delivery Fee</span>
@@ -186,7 +197,7 @@
                     <div class="mt-3 flex justify-between border-t pt-3 font-display text-xl font-extrabold"
                          style="border-color:#EFEFEF;color:#222222;">
                         <span>Total</span>
-                        <span style="color:#fa4e1c;">₱{{ number_format($total, 2) }}</span>
+                        <span style="color:#fa4e1c;" data-checkout-total>₱{{ number_format($total, 2) }}</span>
                     </div>
                     <div class="mt-3 rounded-lg p-2.5 text-xs text-center"
                          style="background:#fff1ee;color:#d93d0e;">
@@ -205,7 +216,8 @@
 </div>
 
 <script>
-const BASE = '/api/psgc';
+// Not "BASE": Buyer.js (loaded on every buyer page) already declares a global const with that name.
+const CHECKOUT_PSGC_BASE = '/api/psgc';
 
 function setLoading(selectEl, msg) {
     selectEl.innerHTML = `<option value="">${msg}</option>`;
@@ -221,6 +233,9 @@ function populate(selectEl, items, placeholder) {
         opt.textContent = item.name;
         selectEl.appendChild(opt);
     });
+    selectEl.disabled = false;
+}
+
 function resetSelect(selectEl, placeholder) {
     selectEl.innerHTML = `<option value="">${placeholder}</option>`;
     selectEl.disabled = true;
@@ -242,16 +257,13 @@ function syncPsgcCodes() {
 document.addEventListener('change', e => {
     if (e.target && (e.target.id === 'sel-province' || e.target.id === 'sel-city')) syncPsgcCodes();
 });
-document.addEventListener('submit', syncPsgcCodes, true);unction resetSelect(selectEl, placeholder) {
-    selectEl.innerHTML = `<option value="">${placeholder}</option>`;
-    selectEl.disabled = true;
-}
+document.addEventListener('submit', syncPsgcCodes, true);
 
 // ── Load regions on page load ──────────────────────────────────────
 window.addEventListener('DOMContentLoaded', function () {
     const sel = document.getElementById('sel-region');
     setLoading(sel, 'Loading regions…');
-    fetch(BASE + '/regions')
+    fetch(CHECKOUT_PSGC_BASE + '/regions')
         .then(r => r.json())
         .then(data => populate(sel, data, '— Select Region —'))
         .catch(() => {
@@ -274,7 +286,7 @@ function loadProvinces(regionCode, regionName) {
     const provSel = document.getElementById('sel-province');
     setLoading(provSel, 'Loading provinces…');
 
-    fetch(BASE + '/regions/' + code + '/provinces')
+    fetch(CHECKOUT_PSGC_BASE + '/regions/' + code + '/provinces')
         .then(r => r.json())
         .then(data => {
             if (data.length === 0) {
@@ -309,7 +321,7 @@ function loadMunicipalities(provinceCode, provinceName) {
     const citySel = document.getElementById('sel-city');
     setLoading(citySel, 'Loading cities…');
 
-    fetch(BASE + '/provinces/' + code + '/municipalities')
+    fetch(CHECKOUT_PSGC_BASE + '/provinces/' + code + '/municipalities')
         .then(r => r.json())
         .then(data => populate(citySel, data, '— Select City / Municipality —'))
         .catch(() => citySel.innerHTML = '<option value="">Failed to load</option>');
@@ -327,10 +339,11 @@ function loadBarangays(cityCode, cityName) {
     const brgySel = document.getElementById('sel-barangay');
     setLoading(brgySel, 'Loading barangays…');
 
-    fetch(BASE + '/municipalities/' + code + '/barangays')
+    fetch(CHECKOUT_PSGC_BASE + '/municipalities/' + code + '/barangays')
         .then(r => r.json())
         .then(data => populate(brgySel, data, '— Select Barangay —'))
         .catch(() => brgySel.innerHTML = '<option value="">Failed to load</option>');
 }
 </script>
+<script src="{{ asset('js/checkout-vouchers.js') }}"></script>
 </x-layout>

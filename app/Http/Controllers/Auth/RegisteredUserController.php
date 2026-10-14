@@ -71,6 +71,11 @@ class RegisteredUserController extends Controller
         // Came from "Continue with Google": the email is the Google one, whatever was typed.
         GoogleSignup::lockEmail($request);
 
+        // Emails are compared case-insensitively for duplicates (for every account type).
+        if (is_string($request->input('email'))) {
+            $request->merge(['email' => mb_strtolower(trim($request->input('email')))]);
+        }
+
         // Sellers use the same form but go through the seller sign-up (shop details,
         // TIN, business documents, email OTP). Map this form's field names to it.
         if ($role === 'seller') {
@@ -88,11 +93,6 @@ class RegisteredUserController extends Controller
             $request->merge(['sex' => ucfirst((string) $request->input('sex'))]);
 
             return app(\App\Http\Controllers\SortingCenter\RegistrationController::class)->store($request);
-        }
-
-        // Emails are compared case-insensitively for duplicates.
-        if (is_string($request->input('email'))) {
-            $request->merge(['email' => mb_strtolower(trim($request->input('email')))]);
         }
 
         $psgcAvailable = class_exists(\App\Services\PsgcDirectory::class);

@@ -99,6 +99,7 @@ $navSections = [
                 'orders'    => ['route' => 'seller.orders.index', 'label' => 'Order Management', 'icon' => 'orders'],
                 'products'  => ['route' => 'seller.books.index',  'label' => 'Inventory',        'icon' => 'box'],
                 'reports'   => ['route' => 'seller.reports',      'label' => 'Reports',          'icon' => 'chart'],
+                'vouchers'  => ['route' => 'seller.vouchers.index', 'label' => 'Vouchers',       'icon' => 'ticket'],
             ],
             'General' => [
                 'messages'  => ['route' => 'messages.inbox',      'label' => 'Messages',         'icon' => 'chat'],
