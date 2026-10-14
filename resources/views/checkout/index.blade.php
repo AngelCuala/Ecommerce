@@ -21,10 +21,22 @@
             <ul class="list-inside list-disc space-y-1">@foreach($errors->all() as $e)<li>{{ $e }}</li>@endforeach</ul>
         </div>
     @endif
+    @if (session('error'))
+        <div class="mt-5 rounded-lg border p-4 text-sm" style="background:rgba(208,2,27,.06);border-color:rgba(208,2,27,.2);color:#D0021B;">{{ session('error') }}</div>
+    @endif
+    @if (! empty($buyNow))
+        <div class="mt-5 rounded-lg border p-3 text-sm" style="background:#FFF8F4;border-color:#FDD5C8;color:#9A3412;">
+            <strong>Buy now:</strong> you're checking out only this item. Your cart stays as it is.
+            <a href="{{ route('checkout.index') }}" class="ml-1 font-semibold underline">Check out your whole cart instead</a>
+        </div>
+    @endif
 
     <form action="{{ route('checkout.store') }}" method="POST" class="mt-8 grid gap-8 lg:grid-cols-[1fr_380px]">
         @csrf
         <input type="hidden" name="payment_method" value="cod">
+        @if (! empty($buyNow))
+            <input type="hidden" name="buy_now" value="1">
+        @endif
 
         <div class="space-y-6">
 

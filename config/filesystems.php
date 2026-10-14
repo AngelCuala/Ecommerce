@@ -38,9 +38,11 @@ return [
             'report' => false,
         ],
 
+        // PUBLIC_STORAGE_PATH lets the web and the app API share one folder for uploads
+        // (product photos, IDs…), since they share one database. Defaults to this app's own folder.
         'public' => [
             'driver' => 'local',
-            'root' => storage_path('app/public'),
+            'root' => env('PUBLIC_STORAGE_PATH', storage_path('app/public')),
             'url' => rtrim(env('APP_URL', 'http://localhost'), '/').'/storage',
             'visibility' => 'public',
             'throw' => false,
@@ -74,7 +76,7 @@ return [
     */
 
     'links' => [
-        public_path('storage') => storage_path('app/public'),
+        public_path('storage') => env('PUBLIC_STORAGE_PATH', storage_path('app/public')),
     ],
 
 ];

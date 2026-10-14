@@ -145,6 +145,51 @@ class VoucherTest extends TestCase
             ->assertDontSee('LATER');                                                     // not started yet
     }
 
+    public function test_checkout_picks_the_cheapest_vouchers_automatically(): void
+    {
+        $this->storeVoucher();                                    // TABLE150: ₱150 off the ₱2,000 table
+        $this->saleVoucher();                                     // SALE1111: 10% up to ₱200
+        $this->voucher(['code' => 'SMALL20', 'scope' => 'platform', 'discount_value' => 20]);
+        $this->fillCart();                                        // ₱2,000 table + ₱500 novel
+
+        $res  = $this->actingAs($this->buyer)->get(route('checkout.index'))->assertOk()
+            ->assertSee('Best vouchers applied automatically')
+            ->assertSee('you save ₱350.00');
+        $best = $res->viewData('vouchers')['best'];
+        $this->assertSame('SALE1111', $best['platform']);         // 10% of 2,350 = 235 → ₱200 cap, beats ₱20
+        $this->assertSame([$this->furniture->id => 'TABLE150'], $best['sellers']);
+        $this->assertMatchesRegularExpression('/value="TABLE150"[^>]*selected/', $res->getContent());
+        $this->assertMatchesRegularExpression('/value="SALE1111"[^>]*selected/', $res->getContent());
+    }
+
+    public function test_auto_pick_skips_a_store_voucher_when_that_is_cheaper(): void
+    {
+        // ₱50 off the table, but using it drops the order under BIG300's ₱2,500 minimum.
+        $this->voucher(['code' => 'TABLE50', 'scope' => 'seller', 'seller_id' => $this->furniture->id, 'discount_value' => 50]);
+        $this->voucher(['code' => 'BIG300', 'scope' => 'platform', 'discount_value' => 300, 'min_spend' => 2500]);
+        $this->fillCart();
+
+        $best = $this->actingAs($this->buyer)->get(route('checkout.index'))->viewData('vouchers')['best'];
+        $this->assertSame('BIG300', $best['platform']);
+        $this->assertSame([], $best['sellers']);                  // ₱300 beats ₱50
+        $this->assertEquals(300, $best['discount']);
+    }
+
+    public function test_auto_pick_ignores_vouchers_the_buyer_cannot_use(): void
+    {
+        $this->storeVoucher(['min_spend' => 5000]);               // too high for this cart
+        $used = $this->saleVoucher();
+        \App\Models\VoucherRedemption::create(['voucher_id' => $used->id, 'user_id' => $this->buyer->id,
+            'order_id' => Order::create(['user_id' => $this->buyer->id, 'total_price' => 1, 'status' => 'Delivered', 'payment_method' => 'COD',
+                'payment_status' => 'Paid', 'full_name' => 'B', 'phone' => '0917', 'email' => 'b@x.test', 'address_line' => 'X',
+                'city' => 'QC', 'zip_code' => '1121', 'shipping_address' => 'X'])->id, 'discount_amount' => 10]);
+        $this->fillCart();
+
+        $res = $this->actingAs($this->buyer)->get(route('checkout.index'))->assertOk()
+            ->assertDontSee('Best vouchers applied automatically');
+        $this->assertSame(['platform' => null, 'sellers' => [], 'discount' => 0.0], $res->viewData('vouchers')['best']);
+    }
+
     public function test_store_and_alvy_vouchers_on_one_order(): void
     {
         $this->storeVoucher();

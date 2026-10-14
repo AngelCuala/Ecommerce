@@ -33,6 +33,16 @@ class CartController extends Controller
         $request->validate(['quantity' => 'nullable|integer|min:1|max:99']);
         $qty = max(1, (int) $request->input('quantity', 1));
 
+        // "Buy now": straight to checkout with just this item; the cart is left alone.
+        if ($request->input('action') === 'buy_now') {
+            if ($qty > $book->stock) {
+                return back()->with('error', 'Only ' . $book->stock . ' left in stock.');
+            }
+            session()->put('buy_now', ['product_id' => $book->id, 'quantity' => $qty]);
+
+            return redirect()->route('checkout.index', ['buy_now' => 1]);
+        }
+
         $item = CartItem::firstOrNew([
             'user_id' => auth()->id(),
             'product_id' => $book->id,

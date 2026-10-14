@@ -67,10 +67,79 @@ class VoucherService
             }
         }
 
-        $platform = Voucher::running()->where('scope', Voucher::SCOPE_PLATFORM)->orderBy('min_spend')->get()
-            ->map(fn ($v) => $describe($v, $subtotal))->values()->all();
+        $platformVouchers = Voucher::running()->where('scope', Voucher::SCOPE_PLATFORM)->orderBy('min_spend')->get();
+        $platform = $platformVouchers->map(fn ($v) => $describe($v, $subtotal))->values()->all();
 
-        return ['platform' => $platform, 'sellers' => $sellerOptions];
+        return [
+            'platform' => $platform,
+            'sellers'  => $sellerOptions,
+            'best'     => $this->best($groups, $subtotal, $sellerVouchers, $platformVouchers, $used),
+        ];
+    }
+
+    /**
+     * The vouchers that make the order cheapest for the buyer, picked automatically at checkout.
+     * Every combination is tried (one store voucher per seller or none, then the best ALVY
+     * voucher on what is left), because a bigger store discount can push the order under an
+     * ALVY voucher's minimum spend.
+     *
+     * @return array{platform: ?string, sellers: array<int,string>, discount: float}
+     */
+    private function best(Collection $groups, float $subtotal, Collection $sellerVouchers, Collection $platformVouchers, Collection $used): array
+    {
+        // Each seller's choices: no voucher, or one of their vouchers this cart can use.
+        $choices = [];
+        foreach ($groups as $sellerId => $group) {
+            $usable = collect($sellerVouchers->get($sellerId, []))
+                ->filter(fn ($v) => $this->unusableReason($v, $group['subtotal'], $used) === null)
+                ->map(fn ($v) => ['code' => $v->code, 'discount' => $v->discountFor($group['subtotal'])])
+                ->values()->all();
+            if ($sellerId && $usable) {
+                $choices[$sellerId] = array_merge([['code' => null, 'discount' => 0.0]], $usable);
+            }
+        }
+
+        $combos = [[]];
+        foreach ($choices as $sellerId => $options) {
+            $next = [];
+            foreach ($combos as $combo) {
+                foreach ($options as $option) {
+                    $next[] = $combo + [$sellerId => $option];
+                }
+            }
+            $combos = $next;
+            if (count($combos) > 5000) {
+                // Very many stores with vouchers: just take each store's biggest discount.
+                $combos = [collect($choices)->map(fn ($opts) => collect($opts)->sortByDesc('discount')->first())->all()];
+                break;
+            }
+        }
+
+        $best = ['platform' => null, 'sellers' => [], 'discount' => 0.0];
+        foreach ($combos as $combo) {
+            $storeOff = array_sum(array_column($combo, 'discount'));
+            $base     = round($subtotal - $storeOff, 2);
+
+            $platformCode = null;
+            $platformOff  = 0.0;
+            foreach ($platformVouchers as $v) {
+                if ($this->unusableReason($v, $base, $used) === null && $v->discountFor($base) > $platformOff) {
+                    $platformCode = $v->code;
+                    $platformOff  = $v->discountFor($base);
+                }
+            }
+
+            $total = round($storeOff + $platformOff, 2);
+            if ($total > $best['discount']) {
+                $best = [
+                    'platform' => $platformCode,
+                    'sellers'  => array_filter(array_map(fn ($o) => $o['code'], $combo)),
+                    'discount' => $total,
+                ];
+            }
+        }
+
+        return $best;
     }
 
     /**

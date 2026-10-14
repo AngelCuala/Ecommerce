@@ -8,6 +8,8 @@
         if ($v['min_spend'] > 0) $text .= ' · min ₱' . number_format($v['min_spend'], 0);
         return $text;
     };
+    // The cheapest combination for the buyer is picked automatically (they can still change it).
+    $best = $vouchers['best'] ?? ['platform' => null, 'sellers' => [], 'discount' => 0];
 @endphp
 
 <div class="mt-5 border-t pt-4" style="border-color:#EFEFEF;" id="voucherBox">
@@ -15,6 +17,12 @@
         <svg class="h-4 w-4" style="color:#fa4e1c;" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z"/></svg>
         Vouchers
     </p>
+    @if ($best['discount'] > 0)
+        <p class="mb-3 rounded-lg px-3 py-2 text-xs font-semibold" style="background:#ECFDF5;color:#047857;" id="bestVoucherNote">
+            ✓ Best vouchers applied automatically — you save ₱{{ number_format($best['discount'], 2) }}.
+            <span class="font-normal">You can change them below.</span>
+        </p>
+    @endif
 
     {{-- Store vouchers: one per seller, only on that seller's items --}}
     @foreach ($vouchers['sellers'] as $sellerId => $store)
@@ -24,7 +32,7 @@
             <option value="" data-discount="0">No store voucher</option>
             @foreach ($store['vouchers'] as $v)
                 <option value="{{ $v['code'] }}" data-discount="{{ $v['discount'] }}" @disabled($v['reason'])
-                        @selected(old("seller_vouchers.$sellerId") === $v['code'])>
+                        @selected(old("seller_vouchers.$sellerId", $best['sellers'][$sellerId] ?? null) === $v['code'])>
                     {{ $optionText($v) }}{{ $v['reason'] ? ' — ' . $v['reason'] : '' }}
                 </option>
             @endforeach
@@ -41,7 +49,7 @@
             <option value="{{ $v['code'] }}" data-type="{{ $v['type'] }}" data-value="{{ $v['value'] }}"
                     data-max="{{ $v['max'] }}" data-min="{{ $v['min_spend'] }}"
                     @disabled($v['reason'] && ! str_starts_with($v['reason'], 'needs a minimum'))
-                    @selected(old('platform_voucher') === $v['code'])>
+                    @selected(old('platform_voucher', $best['platform']) === $v['code'])>
                 {{ $optionText($v) }}{{ $v['reason'] && ! str_starts_with($v['reason'], 'needs a minimum') ? ' — ' . $v['reason'] : '' }}
             </option>
         @endforeach

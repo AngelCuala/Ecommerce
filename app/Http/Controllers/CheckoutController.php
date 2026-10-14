@@ -25,6 +25,37 @@ class CheckoutController extends Controller
             ->get();
     }
 
+    /**
+     * "Buy now" checks out just that one item (kept in the session), not the cart.
+     * Returns null when this isn't a Buy now checkout.
+     */
+    private function buyNowItems(bool $requested)
+    {
+        $buyNow = Session::get('buy_now');
+        if (! $requested || ! $buyNow) {
+            return null;
+        }
+
+        $product = Product::with('seller.sellerApplication')->find($buyNow['product_id']);
+        if (! $product) {
+            Session::forget('buy_now');
+            return collect();
+        }
+
+        // An unsaved cart line, so totals, vouchers and order lines work exactly as for the cart.
+        $line = new CartItem(['user_id' => auth()->id(), 'product_id' => $product->id, 'quantity' => $buyNow['quantity']]);
+        $line->id = 0;
+        $line->setRelation('product', $product);
+
+        return collect([$line]);
+    }
+
+    /** The items being checked out: the Buy now item, or else the whole cart. */
+    private function checkoutItems(bool $buyNowRequested)
+    {
+        return $this->buyNowItems($buyNowRequested) ?? $this->cartItems();
+    }
+
     /** Items that were unpublished (or never approved) after being added to the cart. */
     private function unavailableItems($items)
     {
@@ -48,11 +79,16 @@ class CheckoutController extends Controller
     }
 
     // ── Step 1: show checkout form ───────────────────────────
-    public function index()
+    public function index(Request $request)
     {
-        $items = $this->cartItems();
+        $buyNow = $request->boolean('buy_now') && Session::has('buy_now');
+        if (! $buyNow) {
+            Session::forget('buy_now');   // a normal checkout of the cart
+        }
+
+        $items = $this->checkoutItems($buyNow);
         if ($items->isEmpty()) {
-            return redirect()->route('cart.index')->with('error', 'Your cart is empty.');
+            return redirect()->route('cart.index')->with('error', $buyNow ? 'That item is no longer available.' : 'Your cart is empty.');
         }
         if ($blocked = $this->unavailableItems($items)) {
             return $blocked;
@@ -66,7 +102,7 @@ class CheckoutController extends Controller
         $vouchers = app(VoucherService::class)->options($items, $user);
 
         return view('checkout.index', compact(
-            'items', 'subtotal', 'shipping', 'total', 'user', 'vouchers'
+            'items', 'subtotal', 'shipping', 'total', 'user', 'vouchers', 'buyNow'
         ));
     }
 
@@ -93,13 +129,21 @@ class CheckoutController extends Controller
             'seller_vouchers.*' => 'nullable|string|max:30',
         ]);
 
-        $items = $this->cartItems();
+        $buyNow = $request->boolean('buy_now') && Session::has('buy_now');
+        $items  = $this->checkoutItems($buyNow);
         if ($items->isEmpty()) {
-            return redirect()->route('cart.index')->with('error', 'Your cart is empty.');
+            return redirect()->route('cart.index')->with('error', $buyNow ? 'That item is no longer available.' : 'Your cart is empty.');
         }
 
         if ($blocked = $this->unavailableItems($items)) {
             return $blocked;
+        }
+
+        // Don't sell more than is in stock.
+        foreach ($items as $item) {
+            if ($item->quantity > $item->product->stock) {
+                return back()->withInput()->with('error', 'Only ' . $item->product->stock . ' of "' . $item->product->title . '" left in stock.');
+            }
         }
 
         $vouchers = app(VoucherService::class);
@@ -179,8 +223,12 @@ class CheckoutController extends Controller
             return $order;
         });
 
-        // Clear cart
-        CartItem::where('user_id', auth()->id())->delete();
+        // Buy now leaves the cart as it was; a cart checkout empties it.
+        if ($buyNow) {
+            Session::forget('buy_now');
+        } else {
+            CartItem::where('user_id', auth()->id())->delete();
+        }
 
         // Pass order id via session for confirmation page
         Session::put('last_order_id', $order->id);
