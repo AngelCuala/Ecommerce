@@ -151,12 +151,29 @@ class B01AccountAndAddressTest extends TestCase
         $this->assertSame($this->addr2->id, $this->openCheckout($this->buyer1, [$line])->assertOk()->viewData('address')->id);
     }
 
-    /** BUY-ADDR-005 */
-    public function test_deleting_the_default_promotes_another(): void
+    /** BUY-ADDR-005 (A30: the default can't be deleted until another address is the default) */
+    public function test_default_address_is_deleted_only_after_another_is_default(): void
     {
         $this->assertTrue($this->addr1->is_default);
+        $this->actingAs($this->buyer1)->delete(route('addresses.destroy', $this->addr1))
+            ->assertSessionHas('error', 'This is your default address. Make another address your default first, then delete this one.');
+        $this->assertNotNull($this->addr1->fresh());
+
+        $this->actingAs($this->buyer1)->patch(route('addresses.set-default', $this->addr4));
         $this->actingAs($this->buyer1)->delete(route('addresses.destroy', $this->addr1))->assertSessionHas('success');
-        $this->assertSame(1, $this->buyer1->addresses()->where('is_default', true)->count());
+        $this->assertSame([$this->addr4->id], $this->buyer1->addresses()->where('is_default', true)->pluck('id')->all());
+    }
+
+    /** A30: up to 10 addresses per buyer. */
+    public function test_up_to_ten_addresses(): void
+    {
+        foreach (range(1, 10 - $this->buyer1->addresses()->count()) as $i) {
+            $this->addressFor($this->buyer1, self::QUEZON_CITY, ['label' => 'Extra ' . $i]);
+        }
+        $this->assertSame(10, $this->buyer1->addresses()->count());
+        $this->actingAs($this->buyer1)->post(route('addresses.store'), $this->addressForm(['label' => 'Eleventh']))
+            ->assertSessionHas('error', 'You can save up to 10 addresses. Delete one to add another.');
+        $this->assertSame(10, $this->buyer1->addresses()->count());
     }
 
     /** BUY-ADDR-006, 007 */

@@ -49,7 +49,7 @@
     </div>
     <div>
         <label class="{{ $label }}" style="color:#3a2f29;" for="discount_value">Discount *</label>
-        <input id="discount_value" name="discount_value" type="number" step="0.01" min="1"
+        <input id="discount_value" name="discount_value" type="number" step="0.01" min="1" max="{{ $type === 'percent' ? 99 : 1000000 }}"
                value="{{ old('discount_value', $voucher->discount_value) }}" placeholder="e.g. 150 or 10"
                class="{{ $input }} vf-input" @readonly($used) required>
         @if ($err('discount_value'))<p class="vf-err">{{ $err('discount_value') }}</p>@else<p class="vf-hint">Pesos for a fixed amount, or the percent for a % discount.</p>@endif
@@ -112,6 +112,26 @@
     <span>Show it to buyers (store page, product pages, checkout list)
         <span class="block text-xs" style="color:#8a7f78;">Untick for a code-only voucher: it is hidden and works only when the buyer types the code.</span></span>
 </label>
+
+@isset($sellerProducts)
+    @php $chosenProducts = array_map('intval', (array) old('product_ids', $voucher->product_ids ?? [])); @endphp
+    <div class="mt-4">
+        <span class="{{ $label }}" style="color:#3a2f29;">Products</span>
+        <p class="vf-hint" style="margin-top:0;">Leave all unticked for every product in your store, or tick the products it works on.</p>
+        <div class="mt-2 grid max-h-56 gap-1 overflow-y-auto rounded-lg border p-2 sm:grid-cols-2" style="border-color:#E6D9CF;">
+            @forelse ($sellerProducts as $sp)
+                <label class="flex items-center gap-2 text-sm" style="color:#3a2f29;">
+                    <input type="checkbox" name="product_ids[]" value="{{ $sp->id }}" @checked(in_array($sp->id, $chosenProducts, true)) style="accent-color:#fa4e1c;">
+                    <span class="truncate">{{ $sp->title }}</span>
+                </label>
+            @empty
+                <p class="text-xs" style="color:#8a7f78;">No products yet.</p>
+            @endforelse
+        </div>
+        @if ($err('product_ids'))<p class="vf-err">{{ $err('product_ids') }}</p>@endif
+        @if ($err('product_ids.0'))<p class="vf-err">{{ $err('product_ids.0') }}</p>@endif
+    </div>
+@endisset
 
 @if (! empty($allowShipping))
     @php $kind = old('scope', $voucher->scope ?? 'platform'); @endphp

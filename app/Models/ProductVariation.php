@@ -8,8 +8,12 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class ProductVariation extends Model
 {
     protected $fillable = [
-        'product_id', 'name', 'price', 'stock', 'sku', 'sort_order',
+        'product_id', 'name', 'price', 'stock', 'sku', 'image_path', 'sort_order',
     ];
+
+    /** Most option types per product and options per type (assumption A7). */
+    public const MAX_TYPES   = 2;
+    public const MAX_OPTIONS = 20;
 
     protected $casts = [
         'price'      => 'float',

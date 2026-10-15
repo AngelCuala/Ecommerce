@@ -6,7 +6,7 @@
         'low_stock'    => ['label' => 'Low stock',    'count' => $counts['low_stock']],
         'out_of_stock' => ['label' => 'Out of stock', 'count' => $counts['out_of_stock']],
         'review'       => ['label' => 'For approval', 'count' => $counts['review']],
-        'archived'     => ['label' => 'Archived',     'count' => $counts['archived']],
+        'archived'     => ['label' => 'Inactive',     'count' => $counts['archived']],
     ];
     $listingStyle = [
         'active'   => ['Active',   'background:#ECFDF5;color:#047857;'],
@@ -44,6 +44,12 @@
         </a>
     </div>
 
+    @if (session('warning'))
+        <div class="mb-4 rounded-md border px-4 py-3 text-sm" style="background:#FFFBEB;border-color:#FDE68A;color:#92400E;" role="alert">{{ session('warning') }}</div>
+    @endif
+    @unless (auth()->user()->isApproved() || auth()->user()->isAdmin())
+        <div class="mb-4 rounded-md border px-4 py-3 text-sm" style="background:#FFFBEB;border-color:#FDE68A;color:#92400E;">Your store is waiting for verification. You can prepare products as drafts; publishing opens once ALVY approves your store.</div>
+    @endunless
     @if ($errors->any())
         <div class="mb-4 rounded-md border px-4 py-3 text-sm" style="background:#FEF2F2;border-color:#FECACA;color:#B91C1C;">
             <ul class="list-inside list-disc">@foreach ($errors->all() as $e)<li>{{ $e }}</li>@endforeach</ul>
@@ -73,12 +79,26 @@
         </form>
     </div>
 
+    {{-- Bulk actions on the ticked products --}}
+    <form method="POST" action="{{ route('seller.books.bulk') }}" id="bulk-form" class="mb-2 flex flex-wrap items-center gap-2 text-sm"
+          onsubmit="if (!this.querySelector('select').value) { return false; } return this.querySelector('select').value !== 'delete' || confirm('Delete the selected products? Products with unfinished orders are skipped.');">
+        @csrf
+        <select name="action" class="rounded-md border px-2 py-1.5 text-sm" style="border-color:#E7E5E4;" aria-label="Bulk action">
+            <option value="">Bulk action…</option>
+            <option value="deactivate">Deactivate</option>
+            <option value="activate">Reactivate</option>
+            <option value="delete">Delete</option>
+        </select>
+        <button class="rounded-md border px-3 py-1.5 font-semibold" style="border-color:#E7E5E4;color:#44403C;">Apply to selected</button>
+    </form>
+
     {{-- Products --}}
     <div class="overflow-hidden rounded-xl border bg-white" style="border-color:#ECE7E3;">
         <div class="overflow-x-auto">
             <table class="inv-table w-full text-sm">
                 <thead>
                     <tr>
+                        <th class="!pr-0"><input type="checkbox" aria-label="Select all" onclick="document.querySelectorAll('[data-bulk]').forEach(c => c.checked = this.checked)"></th>
                         <th>Product</th>
                         <th>Category</th>
                         <th>Price</th>
@@ -90,6 +110,7 @@
                 <tbody>
                     @forelse ($books as $book)
                         <tr>
+                            <td class="!pr-0"><input type="checkbox" name="ids[]" value="{{ $book->id }}" form="bulk-form" data-bulk aria-label="Select {{ $book->title }}"></td>
                             <td>
                                 <div class="flex items-center gap-3">
                                     @if ($book->image)
@@ -117,27 +138,35 @@
                                 @if ($book->hasDiscount())
                                     <span class="block text-xs" style="color:#8a7f78;">
                                         <span class="line-through">₱{{ number_format($book->price, 2) }}</span>
-                                        @if ($book->discount_percent > 0) · {{ $book->discount_percent }}% off @endif
+                                        @if ($book->discount_percent > 0) · {{ rtrim(rtrim(number_format($book->discount_percent, 2), '0'), '.') }}% off @endif
                                     </span>
+                                @endif
+                                @if ($sale = $book->saleState())
+                                    <span class="mt-0.5 block text-[11px] font-semibold" style="color:{{ $sale === 'Ongoing' ? '#C2410C' : '#8a7f78' }};">Sale: {{ $sale }}</span>
+                                    @if (in_array($sale, ['Upcoming', 'Ongoing'], true))
+                                        <form action="{{ route('seller.books.end-sale', $book->id) }}" method="POST" class="inline">@csrf @method('PATCH')
+                                            <button class="text-[11px] font-semibold underline" style="color:#B91C1C;">End now</button>
+                                        </form>
+                                    @endif
                                 @endif
                             </td>
                             <td>
                                 <form action="{{ route('seller.books.stock', $book->id) }}" method="POST" class="flex items-center gap-1.5">
                                     @csrf @method('PATCH')
-                                    <input type="number" name="stock" value="{{ $book->stock }}" min="0" aria-label="Stock for {{ $book->title }}"
+                                    <input type="number" name="stock" value="{{ $book->stock }}" min="0" max="99999" step="1" @disabled($book->variations()->exists()) aria-label="Stock for {{ $book->title }}"
                                            class="w-16 rounded-md border px-2 py-1 text-center text-sm focus:outline-none focus:ring-2 focus:ring-orange-200"
                                            style="border-color:{{ $book->stock === 0 ? '#FCA5A5' : ($book->stock <= 5 ? '#FCD34D' : '#E7E5E4') }};color:#222;">
                                     <button type="submit" class="rounded-md border px-2 py-1 text-xs font-semibold transition hover:bg-stone-50" style="border-color:#E7E5E4;color:#57534E;">Save</button>
                                 </form>
                                 @if ($book->stock === 0)
-                                    <p class="mt-1 text-xs" style="color:#B91C1C;">Out of stock</p>
+                                    <p class="mt-1 text-xs font-semibold" style="color:#B91C1C;" data-out-of-stock>Out of Stock</p>
                                 @elseif ($book->stock <= 5)
                                     <p class="mt-1 text-xs" style="color:#B45309;">Low stock</p>
                                 @endif
                             </td>
                             <td>
                                 @php [$listLabel, $listCss] = $book->is_archived
-                                    ? ['Archived', 'background:#F5F5F4;color:#78716C;']
+                                    ? ['Inactive', 'background:#F5F5F4;color:#78716C;']
                                     : ($listingStyle[$book->status] ?? [ucfirst((string) $book->status ?: 'Active'), 'background:#ECFDF5;color:#047857;']); @endphp
                                 <span class="rounded-md px-2 py-0.5 text-xs font-semibold" style="{{ $listCss }}">{{ $listLabel }}</span>
                                 @if (! $book->is_archived && $book->status !== 'draft')
@@ -151,35 +180,39 @@
                                     @endif
                                 @endif
                             </td>
-                            <td class="whitespace-nowrap text-right">
+                            <td class="text-right" style="min-width:8.5rem;">
+                                <div class="flex flex-wrap justify-end gap-x-3 gap-y-1">
                                 <a href="{{ route('seller.books.edit', $book->id) }}" class="inv-action">Edit</a>
-                                <span class="mx-1.5" style="color:#E7E5E4;">|</span>
                                 @if ($book->is_archived)
                                     <form action="{{ route('seller.books.unarchive', $book->id) }}" method="POST" class="inline">
                                         @csrf @method('PATCH')
-                                        <button class="inv-action">Restore</button>
+                                        <button class="inv-action">Reactivate</button>
                                     </form>
                                 @else
                                     <form action="{{ route('seller.books.archive', $book->id) }}" method="POST" class="inline"
-                                          onsubmit="return confirm('Archive this product? Buyers won\'t see it until you restore it.')">
+                                          onsubmit="return confirm('Deactivate this product? Buyers won\'t see it until you reactivate it.')">
                                         @csrf @method('PATCH')
-                                        <button class="inv-action">Archive</button>
+                                        <button class="inv-action">Deactivate</button>
                                     </form>
                                 @endif
-                                <span class="mx-1.5" style="color:#E7E5E4;">|</span>
+                                <form action="{{ route('seller.books.duplicate', $book->id) }}" method="POST" class="inline">
+                                    @csrf
+                                    <button class="inv-action">Duplicate</button>
+                                </form>
                                 <form action="{{ route('seller.books.destroy', $book->id) }}" method="POST" class="inline"
                                       onsubmit="return confirm('Permanently delete this product? This can\'t be undone.')">
                                     @csrf @method('DELETE')
                                     <button class="inv-action !text-[#B91C1C]">Delete</button>
                                 </form>
+                                </div>
                             </td>
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="6" class="px-6 py-14 text-center">
+                            <td colspan="7" class="px-6 py-14 text-center">
                                 <p class="font-medium" style="color:#222;">
                                     @if (request('search')) No products match "{{ request('search') }}"
-                                    @elseif ($status === 'archived') No archived products
+                                    @elseif ($status === 'archived') No inactive products
                                     @elseif ($status === 'review') Nothing waiting for approval
                                     @elseif ($status === 'draft') No drafts
                                     @elseif ($status === 'low_stock') Nothing is running low

@@ -19,6 +19,11 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        //
+        // A rider who logs out is Offline and gets no more job offers.
+        \Illuminate\Support\Facades\Event::listen(\Illuminate\Auth\Events\Logout::class, function ($event) {
+            if ($event->user) {
+                \App\Models\Rider::where('user_id', $event->user->id)->update(['is_online' => false]);
+            }
+        });
     }
 }

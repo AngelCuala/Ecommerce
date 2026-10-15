@@ -8,9 +8,9 @@
             <label for="r{{ $action }}-{{ $star }}" class="cursor-pointer text-2xl leading-none text-stone-300 hover:text-amber-400 peer-checked:text-amber-400 [&:hover~label]:text-amber-400 peer-checked:[&~label]:text-amber-400" title="{{ $star }} star{{ $star > 1 ? 's' : '' }}">★</label>
         @endfor
     </div>
-    <textarea name="comment" rows="2" maxlength="1000" class="pf-input" placeholder="How was the item? e.g. Matibay at maganda!">{{ $review->comment ?? '' }}</textarea>
+    <textarea name="comment" rows="2" maxlength="{{ \App\Models\Review::MAX_TEXT }}" class="pf-input" placeholder="How was the item? e.g. Matibay at maganda!">{{ $review->comment ?? '' }}</textarea>
     <div class="flex flex-wrap items-center justify-between gap-2">
-        <input type="file" name="photo" accept="image/jpeg,image/png" class="text-xs" aria-label="Photo (JPG or PNG, up to 5 MB)">
+        <input type="file" name="photos[]" multiple accept="image/jpeg,image/png" class="text-xs" aria-label="Photos (up to 5, JPG or PNG, 5 MB each)" title="Up to 5 photos, JPG or PNG, 5 MB each">
         <button class="pf-btn !py-1.5 px-4 text-sm">{{ $review ? 'Save changes' : 'Submit review' }}</button>
     </div>
 </form>

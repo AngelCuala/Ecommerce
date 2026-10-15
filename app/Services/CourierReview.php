@@ -27,6 +27,21 @@ class CourierReview
         // Accounts that signed up as couriers are still "pending" until this approval.
         $courier->user->update(['role' => 'courier', 'approval_status' => 'approved']);
 
+        // The courier also becomes a rider of the logistics company that approved them,
+        // so they can take its pickup and delivery jobs (the app's rider features).
+        if ($courier->sorting_center_id) {
+            \App\Models\Rider::firstOrCreate(['user_id' => $courier->user_id, 'sorting_center_id' => $courier->sorting_center_id], [
+                'full_name'          => $courier->fullName(),
+                'phone'              => $courier->contact_no,
+                'vehicle_type'       => $courier->vehicle_type,
+                'plate_number'       => $courier->plate_number ? strtoupper(str_replace(' ', '', $courier->plate_number)) : null,
+                'application_status' => 'approved',
+                'approved_at'        => now(),
+                'approved_by'        => $reviewer->id,
+                'is_active'          => true,
+            ]);
+        }
+
         $this->notify($courier, 'Courier application approved',
             'Congratulations! Your courier application has been approved. You can now log in and start accepting deliveries.',
             'info', route('courier.dashboard'));

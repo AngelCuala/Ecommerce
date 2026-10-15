@@ -23,7 +23,7 @@ class Product extends Model
     }
 
     /** Most photos a single listing can have. */
-    public const MAX_IMAGES = 15;
+    public const MAX_IMAGES = 9;
 
     protected $fillable = [
         'category_id', 'subcategory', 'seller_id',
@@ -36,7 +36,7 @@ class Product extends Model
         'weight_kg', 'length_cm', 'width_cm', 'height_cm', 'address_id',
         'is_archived', 'archived_at',
         'approval_status', 'approval_note', 'approval_reviewed_at', 'approval_reviewed_by',
-        'variation_labels', 'purchase_limit', 'sale_ends_at',
+        'variation_labels', 'purchase_limit', 'sale_ends_at', 'sale_starts_at', 'condition',
     ];
 
     protected $casts = [
@@ -54,6 +54,7 @@ class Product extends Model
         'archived_at'      => 'datetime',
         'approval_reviewed_at' => 'datetime',
         'sale_ends_at'     => 'datetime',
+        'sale_starts_at'   => 'datetime',
         'purchase_limit'   => 'integer',
     ];
 
@@ -133,10 +134,47 @@ class Product extends Model
         return (int) $this->stock;
     }
 
-    /** A sale with an end date stops on that date. */
+    /** A sale runs from its start (if any) until its end (if any). */
     public function saleIsRunning(): bool
     {
-        return ! $this->sale_ends_at || $this->sale_ends_at->isFuture();
+        return (! $this->sale_starts_at || $this->sale_starts_at->lte(now()))
+            && (! $this->sale_ends_at || $this->sale_ends_at->isFuture());
+    }
+
+    /** "Upcoming", "Ongoing", "Ended" or null when the product has no sale. */
+    public function saleState(): ?string
+    {
+        $hasSale = ($this->sale_price !== null && $this->sale_price > 0) || $this->discount_percent > 0;
+        if (! $hasSale) {
+            return null;
+        }
+        return match (true) {
+            $this->sale_starts_at && $this->sale_starts_at->isFuture() => 'Upcoming',
+            $this->sale_ends_at && $this->sale_ends_at->lte(now())     => 'Ended',
+            default                                                    => 'Ongoing',
+        };
+    }
+
+    /** The seller's store is on vacation: still shown, but can't be bought. */
+    public function sellerOnVacation(): bool
+    {
+        return (bool) ($this->seller?->sellerApplication?->is_on_vacation);
+    }
+
+    /** Lowest and highest price a buyer pays across the options (or the one price). */
+    public function priceRange(): array
+    {
+        $variants = $this->variations->filter(fn ($v) => $v->price > 0);
+        if ($variants->isEmpty()) {
+            return [$this->effective_price, $this->effective_price];
+        }
+        $prices = $variants->map(fn ($v) => $this->priceFor((float) $v->price));
+        return [$prices->min(), $prices->max()];
+    }
+
+    public function storeCategories(): \Illuminate\Database\Eloquent\Relations\BelongsToMany
+    {
+        return $this->belongsToMany(StoreCategory::class, 'product_store_category');
     }
 
     /** Effective price: a running flash sale, else the sale price, else discount %, else the base price. */

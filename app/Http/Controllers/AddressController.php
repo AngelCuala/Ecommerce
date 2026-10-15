@@ -42,10 +42,16 @@ class AddressController extends Controller
         return $data;
     }
 
+    /** A30: a buyer keeps up to 10 addresses. */
+    public const MAX_ADDRESSES = 10;
+
     public function store(Request $request)
     {
-        $data = $this->validated($request);
         $user = auth()->user();
+        if ($user->addresses()->count() >= self::MAX_ADDRESSES) {
+            return back()->withInput()->with('error', 'You can save up to ' . self::MAX_ADDRESSES . ' addresses. Delete one to add another.');
+        }
+        $data = $this->validated($request);
         $data['user_id'] = $user->id;
 
         // The first address is always the default.
@@ -89,6 +95,11 @@ class AddressController extends Controller
     public function destroy(UserAddress $address)
     {
         abort_unless($address->user_id === auth()->id(), 403);
+
+        // A30: the default address stays until another one is made the default.
+        if ($address->is_default) {
+            return back()->with('error', 'This is your default address. Make another address your default first, then delete this one.');
+        }
 
         // Orders on their way keep a copy of the address, but the buyer may need it to follow up.
         $inUse = Order::where('address_id', $address->id)

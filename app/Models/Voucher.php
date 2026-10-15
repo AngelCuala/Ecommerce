@@ -20,7 +20,7 @@ class Voucher extends Model
     public const SCOPE_SHIPPING = 'shipping';
 
     protected $fillable = [
-        'code', 'name', 'scope', 'seller_id', 'discount_type', 'discount_value', 'max_discount',
+        'code', 'name', 'scope', 'seller_id', 'product_ids', 'discount_type', 'discount_value', 'max_discount',
         'min_spend', 'starts_at', 'ends_at', 'usage_limit', 'per_user_limit', 'is_active', 'is_claimable', 'created_by',
     ];
 
@@ -35,7 +35,14 @@ class Voucher extends Model
         'used_count'     => 'integer',
         'is_active'      => 'boolean',
         'is_claimable'   => 'boolean',
+        'product_ids'    => 'array',
     ];
+
+    /** A store voucher limited to some products works only on those; otherwise on all the store's items. */
+    public function appliesToProduct(int $productId): bool
+    {
+        return empty($this->product_ids) || in_array($productId, array_map('intval', $this->product_ids), true);
+    }
 
     public function seller(): BelongsTo        { return $this->belongsTo(User::class, 'seller_id'); }
     public function redemptions(): HasMany     { return $this->hasMany(VoucherRedemption::class); }
@@ -43,6 +50,17 @@ class Voucher extends Model
     public function isPlatform(): bool { return $this->scope === self::SCOPE_PLATFORM; }
     public function isShipping(): bool { return $this->scope === self::SCOPE_SHIPPING; }
     public function claims(): HasMany  { return $this->hasMany(VoucherClaim::class); }
+
+    /**
+     * End the voucher (A27): it stops working, and buyers who claimed but never used it
+     * no longer see it in their wallet. Orders already placed keep their discount.
+     */
+    public function end(bool $now = false): void
+    {
+        $this->update(['is_active' => false] + ($now ? ['ends_at' => now()] : []));
+        $usedBy = $this->redemptions()->pluck('user_id')->all();
+        $this->claims()->whereNotIn('user_id', $usedBy ?: [0])->delete();
+    }
 
     /** Codes are stored and matched in upper case. */
     public function setCodeAttribute($value): void

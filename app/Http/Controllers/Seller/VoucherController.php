@@ -22,12 +22,13 @@ class VoucherController extends Controller
 
     public function create()
     {
-        return view('seller.vouchers.form', ['voucher' => new Voucher(['per_user_limit' => 1, 'is_active' => true, 'discount_type' => 'fixed'])]);
+        return view('seller.vouchers.form', ['voucher' => new Voucher(['per_user_limit' => 1, 'is_active' => true, 'discount_type' => 'fixed']),
+            'sellerProducts' => $this->products()]);
     }
 
     public function store(Request $request)
     {
-        $data = VoucherRules::validate($request);
+        $data = VoucherRules::validate($request, null, auth()->id());
 
         Voucher::create($data + [
             'scope' => Voucher::SCOPE_SELLER, 'seller_id' => auth()->id(), 'created_by' => auth()->id(),
@@ -40,14 +41,14 @@ class VoucherController extends Controller
     {
         $this->authorizeOwn($voucher);
 
-        return view('seller.vouchers.form', compact('voucher'));
+        return view('seller.vouchers.form', ['voucher' => $voucher, 'sellerProducts' => $this->products()]);
     }
 
     public function update(Request $request, Voucher $voucher)
     {
         $this->authorizeOwn($voucher);
 
-        $voucher->update(VoucherRules::validate($request, $voucher));
+        $voucher->update(VoucherRules::validate($request, $voucher, auth()->id()));
 
         return redirect()->route('seller.vouchers.index')->with('success', 'Voucher ' . $voucher->code . ' updated.');
     }
@@ -55,7 +56,11 @@ class VoucherController extends Controller
     public function toggle(Voucher $voucher)
     {
         $this->authorizeOwn($voucher);
-        $voucher->update(['is_active' => ! $voucher->is_active]);
+        if ($voucher->is_active) {
+            $voucher->end();   // also leaves the wallets of buyers who never used it (A27)
+        } else {
+            $voucher->update(['is_active' => true]);
+        }
 
         return back()->with('success', 'Voucher ' . $voucher->code . ' turned ' . ($voucher->is_active ? 'on' : 'off') . '.');
     }
@@ -63,13 +68,22 @@ class VoucherController extends Controller
     public function destroy(Voucher $voucher)
     {
         $this->authorizeOwn($voucher);
-        if ($voucher->used_count > 0 || $voucher->redemptions()->exists()) {
-            return back()->with('error', 'Voucher ' . $voucher->code . ' has been used, so it can\'t be deleted. Turn it off instead.');
+        // Buyers claimed or used it: end it instead, so their wallets show it as ended.
+        if ($voucher->used_count > 0 || $voucher->redemptions()->exists() || $voucher->claims()->exists()) {
+            $voucher->end(true);
+
+            return back()->with('success', 'Buyers already claimed ' . $voucher->code . ', so it was ended instead of deleted. It no longer works at checkout.');
         }
 
         $voucher->delete();
 
         return back()->with('success', 'Voucher deleted.');
+    }
+
+    /** The seller's products, for limiting a voucher to some of them. */
+    private function products()
+    {
+        return \App\Models\Product::where('seller_id', auth()->id())->where('status', '!=', 'draft')->orderBy('title')->get(['id', 'title', 'product_code']);
     }
 
     /** Another seller's voucher (or an ALVY one) looks like a missing page. */

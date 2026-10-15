@@ -11,7 +11,8 @@ use App\Models\User;
 /**
  * Decides which ONE delivery route an order uses.
  *
- *   SAME municipality       Seller → Courier → Buyer                               (deliveries table)
+ *   SAME municipality       Seller → covering sorting center's riders → Buyer      (parcels table)
+ *                           or, when no company with riders covers it, Seller → Courier → Buyer (deliveries)
  *   DIFFERENT municipality  Seller → Sorting Center → Destination courier → Buyer  (parcels table)
  *
  * Source of truth for the comparison (PSGC municipality codes, never free text):
@@ -90,6 +91,21 @@ class DeliveryRoutingService
         }
 
         $same = $originCode === $destCode;
+
+        // Same municipality: the logistics company covering it picks up and delivers with its
+        // own riders (Ready for Pickup → Assigned → Picked Up → At Hub → Out for Delivery).
+        // Only where no company with active riders covers it does a direct courier take it.
+        if ($same) {
+            $sc = app(ParcelService::class)->routeSortingCenter($seller, $order);
+            if ($sc && \App\Models\Rider::where('sorting_center_id', $sc->id)->where('application_status', 'approved')->where('is_active', true)->exists()) {
+                return [
+                    'route'       => self::SORTING_CENTER,
+                    'reason'      => "Same municipality ({$destLabel}): picked up and delivered by {$sc->name}'s riders.",
+                    'origin'      => $originLabel,
+                    'destination' => $destLabel,
+                ];
+            }
+        }
 
         return [
             'route'       => $same ? self::COURIER : self::SORTING_CENTER,

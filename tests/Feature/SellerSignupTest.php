@@ -453,11 +453,13 @@ class SellerSignupTest extends TestCase
         $this->get(route('seller.status'))->assertOk()
             ->assertSee('Pending Approval')
             ->assertSee('Your application is under review.')
-            ->assertSee("you can't add products or receive orders", false);
+            ->assertSee("you can't publish products or receive orders", false);
 
         $this->get(route('seller.dashboard'))->assertRedirect(route('seller.status'));
-        $this->get(route('seller.books.create'))->assertRedirect(route('seller.status'));
-        $this->post(route('seller.books.store'), [])->assertRedirect(route('seller.status'));
+        // Products can be prepared as drafts only (assumption A18); publishing is blocked.
+        $this->get(route('seller.books.create'))->assertOk()->assertSee('Your store must be verified before you can publish');
+        $this->from(route('seller.books.create'))->post(route('seller.books.store'), ['action' => 'publish'])
+            ->assertSessionHasErrors(['publish' => 'Your store must be verified before you can publish products. You can save this product as a draft for now.']);
         $this->get(route('seller.orders.index'))->assertRedirect(route('seller.status'));
     }
 

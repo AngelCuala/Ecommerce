@@ -95,7 +95,7 @@
                                                 <button type="button" data-step="1" aria-label="Increase">+</button>
                                             </form>
                                             <div class="text-right">
-                                                <p class="text-xs" style="color:#8a7f78;">₱{{ number_format($item->unit_price, 2) }} each</p>
+                                                <p class="text-xs" style="color:#8a7f78;">@if (count($item->priceParts()) > 1)@foreach ($item->priceParts() as [$partQty, $partUnit, $isFlash]){{ $loop->first ? '' : ' + ' }}{{ $partQty }} × ₱{{ number_format($partUnit, 2) }}{{ $isFlash ? ' flash' : '' }}@endforeach @else ₱{{ number_format($item->unit_price, 2) }} each @endif</p>
                                                 <p class="text-base font-bold" style="color:#222;">₱{{ number_format($item->subtotal(), 2) }}</p>
                                             </div>
                                         </div>

@@ -43,7 +43,8 @@ class OrderNotifier
             Order::COMPLETED        => ['Order completed', "Order {$n} is complete. Rate your items to help other buyers.", 'success'],
             Order::CANCELLED        => ['Order cancelled', "Order {$n} was cancelled" . ($order->cancellation_reason ? ': ' . $order->cancellation_reason : '.'), 'warning'],
             Order::RETURN_REQUESTED => ['Return requested', "Your return request for order {$n} was sent to the seller.", 'info'],
-            Order::REFUNDED         => ['Refund approved', "The seller approved your return for order {$n}. Your refund is on its way.", 'success'],
+            Order::REFUNDED         => ['Refund approved', "Your return for order {$n} was approved. Your refund is on its way.", 'success'],
+            Order::IN_DISPUTE       => ['Return escalated', "Order {$n} is In Dispute. ALVY will review the return and decide.", 'info'],
             default                 => ['Order update', "Order {$n} is now {$order->status}.", 'info'],
         };
         $this->toBuyer($order, $buyerTitle, $buyerBody, $type);
@@ -51,6 +52,8 @@ class OrderNotifier
         $sellerMessage = match ($order->status) {
             Order::CANCELLED        => ["Order {$n} cancelled", 'The order was cancelled' . ($order->cancellation_reason ? ': ' . $order->cancellation_reason : '.') . ' Its stock has been put back.'],
             Order::RETURN_REQUESTED => ["Return request for {$n}", 'The buyer asked for a return. Please review it on the order page.'],
+            Order::IN_DISPUTE       => ["Order {$n} is In Dispute", 'The buyer escalated your rejected return to ALVY. ALVY will decide; you no longer need to act.'],
+            Order::REFUNDED         => ["Order {$n} refunded", 'The return was approved and the buyer refunded. The amount is removed from your earnings.'],
             Order::COMPLETED        => ["Order {$n} completed", 'The buyer received the order. Your earnings for it are now available.'],
             Order::DELIVERED        => $from === Order::RETURN_REQUESTED ? null : ["Order {$n} delivered", 'The parcel reached the buyer.'],
             default                 => null,

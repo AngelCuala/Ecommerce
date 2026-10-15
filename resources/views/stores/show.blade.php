@@ -6,10 +6,19 @@
     @if (session('error'))<div class="mb-4 rounded-lg px-4 py-2.5 text-sm" style="background:#FEF2F2;color:#B91C1C;">{{ session('error') }}</div>@endif
 
     {{-- Store header --}}
+    @if ($app?->banner_path)
+        <img src="{{ asset('storage/' . $app->banner_path) }}" alt="{{ $seller->storeName() }} banner" class="mb-3 h-32 w-full rounded-xl object-cover sm:h-44" data-store-banner>
+    @endif
     <div class="flex flex-wrap items-center gap-4 rounded-xl p-5 text-white" style="background:linear-gradient(120deg,#002b4d,#0b4a7a);">
-        <span class="flex h-16 w-16 items-center justify-center rounded-full text-2xl font-extrabold" style="background:#fa4e1c;">{{ strtoupper(substr($seller->storeName(), 0, 1)) }}</span>
+        @if ($app?->logo_path)
+            <img src="{{ asset('storage/' . $app->logo_path) }}" alt="{{ $seller->storeName() }} logo" class="h-16 w-16 rounded-full bg-white object-cover" data-store-logo>
+        @else
+            <span class="flex h-16 w-16 items-center justify-center rounded-full text-2xl font-extrabold" style="background:#fa4e1c;">{{ strtoupper(substr($seller->storeName(), 0, 1)) }}</span>
+        @endif
         <div class="min-w-0 flex-1">
-            <h1 class="font-display text-2xl font-extrabold">{{ $seller->storeName() }}</h1>
+            <h1 class="font-display text-2xl font-extrabold">{{ $seller->storeName() }}
+                @if ($app?->is_on_vacation)<span class="ml-2 rounded px-2 py-0.5 align-middle text-xs font-semibold" style="background:#FFFBEB;color:#B45309;">On vacation</span>@endif
+            </h1>
             <p class="text-sm opacity-80">
                 <span data-followers>{{ number_format($followers) }}</span> {{ \Illuminate\Support\Str::plural('follower', $followers) }}
                 · {{ $products->total() }} products
@@ -28,6 +37,13 @@
             <a href="{{ route('login') }}" class="rounded-lg bg-white px-5 py-2 text-sm font-semibold" style="color:#002b4d;">+ Follow</a>
         @endauth
     </div>
+
+    @if ($app?->description)
+        <p class="mt-3 whitespace-pre-line text-sm" style="color:#44403C;" data-store-description>{{ $app->description }}</p>
+    @endif
+    @if ($app?->is_on_vacation)
+        <p class="mt-3 rounded-lg px-4 py-2.5 text-sm font-semibold" style="background:#FFFBEB;color:#B45309;">This store is on vacation. You can browse, but orders are paused for now.</p>
+    @endif
 
     {{-- Vouchers --}}
     @if ($vouchers->isNotEmpty())
@@ -55,7 +71,24 @@
         <aside>
             <p class="mb-2 text-sm font-bold" style="color:#222;">Categories</p>
             <nav class="space-y-0.5 text-sm">
-                <a href="{{ route('stores.show', $seller->id) }}" class="block rounded px-2 py-1.5 {{ request('category') ? '' : 'font-semibold' }}" style="{{ request('category') ? 'color:#57534E;' : 'color:#fa4e1c;background:#FFF1EB;' }}">All products</a>
+                @php $filtered = request('category') || request('scat'); @endphp
+                <a href="{{ route('stores.show', $seller->id) }}" class="block rounded px-2 py-1.5 {{ $filtered ? '' : 'font-semibold' }}" style="{{ $filtered ? 'color:#57534E;' : 'color:#fa4e1c;background:#FFF1EB;' }}">All products</a>
+                @foreach ($storeCategories as $sc)
+                    @php $on = (string) request('scat') === (string) $sc->id; @endphp
+                    <a href="{{ route('stores.show', [$seller->id, 'scat' => $sc->id]) }}" class="flex justify-between rounded px-2 py-1.5 {{ $on ? 'font-semibold' : '' }}" style="{{ $on ? 'color:#fa4e1c;background:#FFF1EB;' : 'color:#44403C;' }}" data-store-category="{{ $sc->name }}">
+                        <span class="min-w-0 break-words">{{ $sc->name }}</span><span class="text-xs" style="color:#a39890;">{{ $sc->products_count }}</span>
+                    </a>
+                    @foreach ($sc->children as $child)
+                        <a href="{{ route('stores.show', [$seller->id, 'scat' => $child->id]) }}" class="ml-3 flex justify-between rounded px-2 py-1 text-xs" style="{{ (string) request('scat') === (string) $child->id ? 'color:#fa4e1c;font-weight:600;' : 'color:#78716C;' }}" data-store-category="{{ $child->name }}">
+                            <span class="min-w-0 break-words">{{ $child->name }}</span><span>{{ $child->products_count }}</span>
+                        </a>
+                    @endforeach
+                @endforeach
+                @if ($storeCategories->isNotEmpty() && $uncategorized > 0)
+                    <a href="{{ route('stores.show', [$seller->id, 'scat' => 'none']) }}" class="flex justify-between rounded px-2 py-1.5" style="{{ request('scat') === 'none' ? 'color:#fa4e1c;background:#FFF1EB;font-weight:600;' : 'color:#44403C;' }}" data-store-category="Uncategorized">
+                        <span>Uncategorized</span><span class="text-xs" style="color:#a39890;">{{ $uncategorized }}</span>
+                    </a>
+                @endif
                 @foreach ($categories as $name => $cat)
                     @php $active = request('category') === $name; @endphp
                     <a href="{{ route('stores.show', [$seller->id, 'category' => $name]) }}" class="flex justify-between rounded px-2 py-1.5 {{ $active && ! request('sub') ? 'font-semibold' : '' }}" style="{{ $active && ! request('sub') ? 'color:#fa4e1c;background:#FFF1EB;' : 'color:#44403C;' }}">

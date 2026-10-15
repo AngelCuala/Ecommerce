@@ -13,9 +13,11 @@ class ReviewController extends Controller
     private function rules(): array
     {
         return [
-            'rating'  => 'required|integer|between:1,5',
-            'comment' => 'nullable|string|max:1000',
-            'photo'   => 'nullable|file|mimes:jpg,jpeg,png|mimetypes:image/jpeg,image/png|max:5120',
+            'rating'   => 'required|integer|between:1,5',
+            'comment'  => 'nullable|string|max:' . Review::MAX_TEXT,
+            'photo'    => 'nullable|file|mimes:jpg,jpeg,png|mimetypes:image/jpeg,image/png|max:5120',
+            'photos'   => 'nullable|array|max:' . Review::MAX_PHOTOS,
+            'photos.*' => 'file|mimes:jpg,jpeg,png|mimetypes:image/jpeg,image/png|max:5120',
         ];
     }
 
@@ -27,7 +29,19 @@ class ReviewController extends Controller
             'photo.mimes'     => 'The photo must be a JPG or PNG image.',
             'photo.mimetypes' => 'The photo must be a real JPG or PNG image.',
             'photo.max'       => 'The photo can be at most 5 MB.',
+            'comment.max'     => 'A review can be up to ' . Review::MAX_TEXT . ' characters.',
+            'photos.max'      => 'You can add up to ' . Review::MAX_PHOTOS . ' photos.',
+            'photos.*.mimes'  => 'Each photo must be a JPG or PNG image.',
+            'photos.*.mimetypes' => 'Each photo must be a real JPG or PNG image.',
+            'photos.*.max'    => 'Each photo can be at most 5 MB.',
         ];
+    }
+
+    /** The uploaded photos (the single "photo" field still works), stored. */
+    private function storePhotos(Request $request): array
+    {
+        $files = array_values(array_filter(array_merge((array) $request->file('photos', []), [$request->file('photo')])));
+        return array_map(fn ($f) => $f->store('reviews', 'public'), array_slice($files, 0, Review::MAX_PHOTOS));
     }
 
     public function store(Request $request, OrderItem $item)
@@ -43,6 +57,10 @@ class ReviewController extends Controller
         }
 
         $data = $request->validate($this->rules(), $this->messages());
+        if (count((array) $request->file('photos', [])) + ($request->hasFile('photo') ? 1 : 0) > Review::MAX_PHOTOS) {
+            return back()->withErrors(['photos' => 'You can add up to ' . Review::MAX_PHOTOS . ' photos.']);
+        }
+        $paths = $this->storePhotos($request);
 
         Review::create([
             'product_id'     => $item->product_id,
@@ -51,7 +69,8 @@ class ReviewController extends Controller
             'order_item_id'  => $item->id,
             'rating'         => $data['rating'],
             'comment'        => $data['comment'] ?? null,
-            'photo_path'     => $request->file('photo')?->store('reviews', 'public'),
+            'photo_path'     => $paths[0] ?? null,
+            'photo_paths'    => $paths ?: null,
             'variation_name' => $item->variation_name,
         ]);
 
@@ -70,13 +89,15 @@ class ReviewController extends Controller
 
         $data = $request->validate($this->rules(), $this->messages());
 
-        if ($request->hasFile('photo')) {
-            if ($review->photo_path) {
-                Storage::disk('public')->delete($review->photo_path);
+        if ($request->hasFile('photo') || $request->hasFile('photos')) {
+            foreach ($review->photos() as $old) {
+                Storage::disk('public')->delete($old);
             }
-            $data['photo_path'] = $request->file('photo')->store('reviews', 'public');
+            $paths = $this->storePhotos($request);
+            $data['photo_path']  = $paths[0] ?? null;
+            $data['photo_paths'] = $paths ?: null;
         }
-        unset($data['photo']);
+        unset($data['photo'], $data['photos']);
 
         $review->update($data + ['edit_count' => $review->edit_count + 1]);
 

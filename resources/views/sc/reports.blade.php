@@ -12,6 +12,8 @@
                onchange="document.getElementById('date-form').submit()">
         <a href="{{ route('sc.reports', array_merge(request()->only('from','to','tab'), ['export'=>1])) }}"
            class="btn btn-orange">Export CSV</a>
+        <a href="{{ route('sc.reports', array_merge(request()->only('from','to','tab'), ['export'=>'xlsx'])) }}"
+           class="btn btn-orange">Export XLSX</a>
     </form>
 @endsection
 

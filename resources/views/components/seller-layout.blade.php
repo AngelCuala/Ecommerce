@@ -98,12 +98,21 @@ $navSections = [
                 'dashboard' => ['route' => 'seller.dashboard',    'label' => 'Dashboard',        'icon' => 'grid'],
                 'orders'    => ['route' => 'seller.orders.index', 'label' => 'Order Management', 'icon' => 'orders'],
                 'products'  => ['route' => 'seller.books.index',  'label' => 'Inventory',        'icon' => 'box'],
-                'reports'   => ['route' => 'seller.reports',      'label' => 'Reports',          'icon' => 'chart'],
+                'store-categories' => ['route' => 'seller.store-categories.index', 'label' => 'Store Categories', 'icon' => 'file'],
+                'reviews'   => ['route' => 'seller.reviews.index', 'label' => 'Reviews',         'icon' => 'chat'],
+            ],
+            'Marketing' => [
                 'vouchers'  => ['route' => 'seller.vouchers.index', 'label' => 'Vouchers',       'icon' => 'ticket'],
                 'flash'     => ['route' => 'seller.flash-sales.index', 'label' => 'Flash sales', 'icon' => 'ticket'],
+                'promotions'=> ['route' => 'seller.promotions.index', 'label' => 'Bundles & Promos', 'icon' => 'bag'],
+            ],
+            'Finance' => [
+                'reports'   => ['route' => 'seller.reports',      'label' => 'Sales Reports',    'icon' => 'chart'],
+                'earnings'  => ['route' => 'seller.earnings',     'label' => 'Earnings & Payouts', 'icon' => 'activity'],
             ],
             'General' => [
                 'messages'  => ['route' => 'messages.inbox',      'label' => 'Messages',         'icon' => 'chat'],
+                'store'     => ['route' => 'seller.store-settings', 'label' => 'Store Settings', 'icon' => 'store'],
                 'account'   => ['route' => 'seller.account',      'label' => 'Account',          'icon' => 'user'],
             ],
         ];

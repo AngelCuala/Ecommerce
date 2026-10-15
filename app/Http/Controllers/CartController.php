@@ -28,6 +28,9 @@ class CartController extends Controller
         if (! $product->isPublished()) {
             return back()->with('error', 'This item is not available right now.');
         }
+        if ($product->sellerOnVacation()) {
+            return back()->with('error', 'This store is on vacation and is not taking orders right now.');
+        }
 
         $request->validate([
             'quantity'     => 'nullable|integer|min:1|max:99999',

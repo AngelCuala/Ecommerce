@@ -45,6 +45,14 @@
 
         var v = current();
         if (hidden) hidden.value = v ? v.id : '';
+        showVariantImage();
+        if (!v && PD.range) {
+            // Nothing (or only part) chosen yet: show the lowest to highest option price.
+            document.getElementById('pd-price').textContent = PD.range;
+            var b0 = document.getElementById('pd-base'), p0 = document.getElementById('pd-pct');
+            if (b0) b0.style.display = 'none';
+            if (p0) p0.style.display = 'none';
+        }
         if (v) {
             document.getElementById('pd-price').textContent = peso(v.price);
             // The struck-through price and % only show when this option is actually discounted.
@@ -59,6 +67,16 @@
         }
         qty.max = limit();
         if (+qty.value > +qty.max) qty.value = qty.max;
+    }
+
+    // A variant (or first option, e.g. a color) with its own photo switches the main image.
+    var main = document.getElementById('main-img');
+    var mainDefault = main ? main.src : '';
+    function showVariantImage() {
+        if (!main) return;
+        var withImage = PD.variants.find(function (v) { return v.image && matches(v, chosen) && chosen.some(function (x) { return x !== undefined; }); });
+        var src = withImage ? withImage.image : mainDefault;
+        if (main.src !== src) main.src = src;
     }
 
     buttons.forEach(function (b) {
@@ -114,6 +132,14 @@
             cd.textContent = (d ? d + 'd ' : '') + pad(h) + ':' + pad(m) + ':' + pad(s);
         };
         tick();
-        setInterval(tick, 1000);
+        var timer = setInterval(function () {
+            tick();
+            // At 0 the sale is over: reload once so the normal price shows everywhere.
+            if (Date.now() >= ends) {
+                clearInterval(timer);
+                cd.textContent = 'ended';
+                setTimeout(function () { window.location.reload(); }, 1200);
+            }
+        }, 1000);
     }
 })();

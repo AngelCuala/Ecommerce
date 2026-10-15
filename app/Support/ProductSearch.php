@@ -26,7 +26,7 @@ class ProductSearch
     /** SQL for the price a buyer pays now (sale price, else discount %, else price). */
     public static function priceSql(): string
     {
-        $running = '(products.sale_ends_at IS NULL OR products.sale_ends_at > ' . self::nowSql() . ')';
+        $running = '((products.sale_ends_at IS NULL OR products.sale_ends_at > ' . self::nowSql() . ') AND (products.sale_starts_at IS NULL OR products.sale_starts_at <= ' . self::nowSql() . '))';
 
         return "ROUND(CASE
             WHEN {$running} AND products.sale_price > 0 AND products.sale_price < products.price THEN products.sale_price

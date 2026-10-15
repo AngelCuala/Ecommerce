@@ -52,7 +52,7 @@
                     <strong>Your application is under review.</strong>
                     Our team usually reviews applications within 1–3 business days, and we'll email
                     <strong>{{ $user->email }}</strong> once it's done.
-                    Until then you can't add products or receive orders.
+                    Until then you can't publish products or receive orders, but you can <a href="{{ route('seller.books.create') }}" class="font-semibold underline">prepare products as drafts</a>.
                 </div>
             @elseif ($status === 'rejected')
                 <div class="mt-5 rounded-xl p-4 text-sm" style="background:#FEF2F2;border:1px solid rgba(220,38,38,.2);color:#991B1B;">

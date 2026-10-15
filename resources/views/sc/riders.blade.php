@@ -84,8 +84,8 @@
         <table class="data-table">
             <thead>
                 <tr>
-                    <th>Rider ID</th><th>Name</th><th>Contact</th><th>Area</th>
-                    <th>Applied</th><th>Deliveries</th><th>Status</th><th>Actions</th>
+                    <th>Rider ID</th><th>Name</th><th>Vehicle</th><th>Area</th>
+                    <th>Availability</th><th>Deliveries</th><th>Status</th><th>Actions</th>
                 </tr>
             </thead>
             <tbody id="riders-tbody">
@@ -96,18 +96,20 @@
                     $isRejected = $rider->application_status === 'rejected';
                     $isInactive = $rider->application_status === 'approved' && !$rider->is_active;
                     $badgeClass = $isActive ? 'badge-green' : ($isPending ? 'badge-yellow' : ($isRejected ? 'badge-red' : 'badge-gray'));
-                    $badgeLabel = $isActive ? 'Active' : ($isPending ? 'Pending' : ($isRejected ? 'Rejected' : 'Inactive'));
+                    $badgeLabel = $isActive ? 'Active' : ($isPending ? 'Pending' : ($isRejected ? 'Rejected' : 'Suspended'));
                     $deliveries = $rider->parcelDeliveries()->where('status','delivered')->count();
                 @endphp
                 <tr>
                     <td><span class="id-link">RDR-{{ str_pad($rider->id,3,'0',STR_PAD_LEFT) }}</span></td>
                     <td>
-                        <div style="font-weight:600;">{{ $rider->full_name }}</div>
-                        <div class="text-muted text-sm">{{ $rider->user->email ?? '' }}</div>
+                        <a href="{{ route('sc.riders.show', $rider) }}" style="font-weight:600;color:var(--accent-blue);">{{ $rider->full_name }}</a>
+                        <div class="text-muted text-sm">{{ $rider->user->email ?? '' }}{{ $rider->phone ? ' · ' . $rider->phone : '' }}</div>
                     </td>
-                    <td>{{ $rider->phone ?? '—' }}</td>
+                    <td>{{ $rider->vehicle_type ?? '—' }}{{ $rider->plate_number ? ' · ' . $rider->plate_number : '' }}
+                        @if($rider->needs_reverification)<div><span class="badge badge-yellow" style="font-size:10px;">Re-verify vehicle</span></div>@endif
+                    </td>
                     <td><span class="text-orange">{{ $rider->area->name ?? '—' }}</span></td>
-                    <td>{{ $rider->created_at->format('Y-m-d') }}</td>
+                    <td>@if($rider->isOnlineNow())<span class="badge badge-green" data-online>Online</span>@else<span class="badge badge-gray">Offline</span>@endif</td>
                     <td>{{ $deliveries }}</td>
                     <td><span class="badge {{ $badgeClass }}">{{ $badgeLabel }}</span></td>
                     <td>
@@ -121,11 +123,11 @@
                                 </form>
                             @elseif($isActive)
                                 <form method="POST" action="{{ route('sc.riders.toggle',$rider) }}">@csrf
-                                    <button class="btn btn-red btn-sm">Deactivate</button>
+                                    <button class="btn btn-red btn-sm">Suspend</button>
                                 </form>
                             @elseif($isInactive)
                                 <form method="POST" action="{{ route('sc.riders.toggle',$rider) }}">@csrf
-                                    <button class="btn btn-green btn-sm">Activate</button>
+                                    <button class="btn btn-green btn-sm">Reactivate</button>
                                 </form>
                             @elseif($isRejected)
                                 <form method="POST" action="{{ route('sc.riders.approve',$rider) }}">@csrf

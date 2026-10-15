@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class OrderItem extends Model
 {
     protected $fillable = [
-        'order_id', 'product_id', 'variation_id', 'variation_name', 'flash_sale_id', 'quantity', 'price',
+        'order_id', 'product_id', 'variation_id', 'variation_name', 'flash_sale_id', 'quantity', 'price', 'promo_discount',
         'commission_rate', 'commission_amount', 'seller_earning',
         'seller_discount', 'platform_discount',   // this line's share of the order's vouchers
     ];

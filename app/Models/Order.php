@@ -28,6 +28,7 @@ class Order extends Model
     public const CANCELLED        = 'Cancelled';
     public const RETURN_REQUESTED = 'Return Requested';
     public const REFUNDED         = 'Refunded';
+    public const IN_DISPUTE       = 'In Dispute';
 
     /** Orders that don't count as sales (and don't use up a per-buyer purchase limit). */
     public const VOID_STATUSES = [self::CANCELLED, self::REFUNDED];
@@ -36,7 +37,19 @@ class Order extends Model
     public const NOT_SALES = [self::CANCELLED, self::REFUNDED, self::AWAITING_PAYMENT];
 
     /** Logistics is finished with these orders (nothing more to pick up or deliver). */
-    public const LOGISTICS_DONE = [self::CANCELLED, self::DELIVERED, self::COMPLETED, self::RETURN_REQUESTED, self::REFUNDED];
+    public const LOGISTICS_DONE = [self::CANCELLED, self::DELIVERED, self::COMPLETED, self::RETURN_REQUESTED, self::REFUNDED, self::IN_DISPUTE];
+
+    /** Seller panel tabs => statuses (the seller's own steps: New → Accepted → Packed → Ready for Pickup). */
+    public const SELLER_TABS = [
+        'new'           => ['label' => 'New',           'statuses' => [self::PENDING]],
+        'to_ship'       => ['label' => 'To Ship',       'statuses' => [self::PROCESSING]],
+        'shipping'      => ['label' => 'Shipping',      'statuses' => [self::SHIPPED, self::DELIVERED]],
+        'completed'     => ['label' => 'Completed',     'statuses' => [self::COMPLETED]],
+        'cancelled'     => ['label' => 'Cancelled',     'statuses' => [self::CANCELLED]],
+        'return_refund' => ['label' => 'Return/Refund', 'statuses' => [self::RETURN_REQUESTED, self::REFUNDED, self::IN_DISPUTE]],
+    ];
+
+    public const SELLER_CANCEL_REASONS = ['Out of stock', 'Item damaged before shipping', 'Wrong price listed', 'Cannot ship to this address', 'Buyer asked to cancel'];
 
     /** Days after delivery the buyer can ask for a return; after that the order completes by itself. */
     public const RETURN_DAYS = 7;
@@ -48,7 +61,7 @@ class Order extends Model
         'to_receive'    => ['label' => 'To Receive',    'statuses' => [self::SHIPPED, self::DELIVERED]],
         'completed'     => ['label' => 'Completed',     'statuses' => [self::COMPLETED]],
         'cancelled'     => ['label' => 'Cancelled',     'statuses' => [self::CANCELLED]],
-        'return_refund' => ['label' => 'Return/Refund', 'statuses' => [self::RETURN_REQUESTED, self::REFUNDED]],
+        'return_refund' => ['label' => 'Return/Refund', 'statuses' => [self::RETURN_REQUESTED, self::REFUNDED, self::IN_DISPUTE]],
     ];
 
     protected $fillable = [
@@ -63,6 +76,7 @@ class Order extends Model
         'payment_method', 'payment_status', 'pay_by', 'refunded_amount',
         'status', 'cancellation_reason',
         'delivered_at', 'completed_at', 'cancelled_at',
+        'accepted_at', 'packed_at', 'promo_discount',
     ];
 
     protected $casts = [
@@ -77,6 +91,9 @@ class Order extends Model
         'completed_at' => 'datetime',
         'cancelled_at' => 'datetime',
         'pay_by'       => 'datetime',
+        'accepted_at'  => 'datetime',
+        'packed_at'    => 'datetime',
+        'promo_discount' => 'decimal:2',
         'refunded_amount' => 'decimal:2',
     ];
 
@@ -144,6 +161,7 @@ class Order extends Model
             } else {
                 Product::withTrashed()->whereKey($item->product_id)->increment('stock', $item->quantity);
             }
+            Product::withTrashed()->whereKey($item->product_id)->where('stock', '>', 0)->update(['availability' => 'in_stock']);
         }
     }
 
@@ -205,6 +223,35 @@ class Order extends Model
         return $this->status === self::COMPLETED
             && $this->completed_at
             && now()->lte($this->completed_at->copy()->addDays(Review::REVIEW_DAYS));
+    }
+
+    /** The seller's step: new → accepted → packed → ready (pickup booked) → then logistics takes over. */
+    public function sellerStep(): string
+    {
+        return match (true) {
+            $this->status === self::PENDING                       => 'new',
+            $this->status !== self::PROCESSING                    => 'done',
+            $this->isReadyForPickup()                             => 'ready',
+            $this->packed_at !== null                             => 'packed',
+            default                                               => 'accepted',
+        };
+    }
+
+    /** The parcel has been handed to the courier / rider (or is further along). */
+    public function isPickedUp(): bool
+    {
+        if (! in_array($this->status, [self::PENDING, self::PROCESSING], true)) {
+            return true;
+        }
+        $delivery = Delivery::where('order_id', $this->id)->whereIn('status', ['picked_up', 'in_transit', 'delivered'])->exists();
+        $parcel   = Parcel::where('order_id', $this->id)->whereNotIn('status', array_merge(Parcel::CLOSED_STATUSES, ['pending_pickup', 'pickup_approved', 'pickup_rejected']))->exists();
+        return $delivery || $parcel;
+    }
+
+    /** A seller can cancel until the parcel is picked up (assumption A6). */
+    public function isCancellableBySeller(): bool
+    {
+        return in_array($this->status, [self::PENDING, self::PROCESSING], true) && ! $this->isPickedUp();
     }
 
     /** The My Purchases tab this order belongs in. */

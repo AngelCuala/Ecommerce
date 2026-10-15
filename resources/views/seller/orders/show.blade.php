@@ -10,6 +10,11 @@
     $openReturn = $order->returnRequests->firstWhere('status', 'requested');
     $lastReturn = $order->returnRequests->first();
     $currIdx   = array_search($order->status, $steps);
+    $sellerStep = $order->sellerStep();
+    $promo     = $order->sellerItems->sum('promo_discount');
+    $storeOff  = $order->sellerItems->sum('seller_discount');
+    $storeVoucher = $order->voucherRedemptions()->with('voucher')->get()->first(fn ($r) => $r->voucher && $r->voucher->scope === 'seller');
+    $sellerSteps = ['new' => 'New', 'accepted' => 'Accepted', 'packed' => 'Packed', 'ready' => 'Ready for Pickup'];
 @endphp
 
 <div class="mx-auto max-w-5xl">
@@ -23,6 +28,7 @@
         </div>
         <p class="mt-0.5 text-sm pl-muted">Placed {{ $order->created_at->format('M j, Y · g:i A') }}</p>
     </div>
+
 
     @if ($order->status === 'Completed')
         <div class="mb-5 rounded-md border px-4 py-3 text-sm" style="background:#F0FDF4;border-color:#BBF7D0;color:#166534;">
@@ -39,15 +45,21 @@
     @if ($openReturn || $lastReturn)
         @php $rr = $openReturn ?? $lastReturn; @endphp
         <section class="pl-card mb-5" style="border-color:#BFDBFE;">
-            <div class="pl-head"><h2>Return / refund request</h2><span class="pl-tag pending">{{ ucfirst($rr->status) }}</span></div>
+            <div class="pl-head"><h2>Return / refund request</h2><span class="pl-tag pending">{{ $rr->status === 'disputed' ? 'In Dispute' : ucfirst($rr->status) }}</span></div>
             <div class="pl-body space-y-2 text-sm">
                 <p><strong>Reason:</strong> {{ $rr->reason }}</p>
                 @if ($rr->details)<p class="pl-muted">{{ $rr->details }}</p>@endif
-                <a href="{{ asset('storage/' . $rr->evidence_path) }}" target="_blank" class="inline-block">
-                    <img src="{{ asset('storage/' . $rr->evidence_path) }}" alt="Evidence photo" class="h-28 rounded-md border object-cover" style="border-color:#ECE7E3;">
-                </a>
+                <div class="flex flex-wrap gap-2">
+                    @foreach ($rr->photos() as $ph)
+                        <a href="{{ asset('storage/' . $ph) }}" target="_blank" class="inline-block"><img src="{{ asset('storage/' . $ph) }}" alt="Evidence photo" class="h-28 rounded-md border object-cover" style="border-color:#ECE7E3;"></a>
+                    @endforeach
+                </div>
+                @if ($rr->status === 'requested')<p class="text-xs" style="color:#B45309;">Answer by {{ $rr->created_at->addDays(\App\Models\ReturnRequest::RESPOND_DAYS)->format('M j, Y g:i A') }}, or it is approved automatically.</p>@endif
                 <p class="text-xs pl-muted">Requested {{ $rr->created_at->format('M j, Y · g:i A') }} · refund ₱{{ number_format($rr->refund_amount, 2) }}</p>
                 @if ($rr->seller_note)<p class="text-xs"><strong>Your note:</strong> {{ $rr->seller_note }}</p>@endif
+                @if ($rr->status === 'disputed')
+                    <p class="rounded-md px-3 py-2 text-xs" style="background:#FEF2F2;color:#B91C1C;">The buyer escalated this to ALVY on {{ $rr->escalated_at?->format('M j, Y') }}. ALVY will decide; your decision can no longer be changed.@if ($rr->dispute_note) Buyer: “{{ $rr->dispute_note }}”@endif</p>
+                @endif
                 @if ($openReturn)
                     <form action="{{ route('seller.orders.return', $order->id) }}" method="POST" class="space-y-2 border-t pt-3" style="border-color:#F2EEEA;">
                         @csrf
@@ -108,6 +120,10 @@
                 @endforeach
                 <dl class="pl-dl border-t px-5 py-3" style="border-color:#F2EEEA;background:#FCFBFA;border-radius:0 0 .75rem .75rem;">
                     <div><dt>Subtotal</dt><dd>₱{{ number_format($gross, 2) }}</dd></div>
+                    @if ($promo > 0)<div><dt>Bundle deals &amp; promos (you pay)</dt><dd>−₱{{ number_format($promo, 2) }}</dd></div>@endif
+                    @if ($storeOff > 0)<div><dt>Store voucher{{ $storeVoucher ? ' ' . $storeVoucher->voucher->code : '' }} (you pay)</dt><dd>−₱{{ number_format($storeOff, 2) }}</dd></div>@endif
+                    @if ($order->platform_discount > 0)<div><dt>ALVY voucher (ALVY pays)</dt><dd class="pl-muted">₱{{ number_format($order->platform_discount, 2) }}</dd></div>@endif
+                    <div><dt>Shipping fee (buyer pays)</dt><dd>₱{{ number_format($order->shipping_fee, 2) }}@if ($order->shipping_discount > 0) <span class="pl-muted">(−₱{{ number_format($order->shipping_discount, 2) }} shipping voucher)</span>@endif</dd></div>
                     <div><dt>Platform fee</dt><dd>−₱{{ number_format($fees, 2) }}</dd></div>
                     <div class="font-semibold"><dt style="color:#222;">You earn</dt><dd style="color:#047857;">₱{{ number_format($earned, 2) }}</dd></div>
                 </dl>
@@ -138,21 +154,43 @@
         {{-- ═══ Right ═══ --}}
         <div class="space-y-5">
 
-            {{-- Update status --}}
-            @if (! in_array($order->status, \App\Models\Order::LOGISTICS_DONE))
-                <section class="pl-card pl-body">
-                    <form action="{{ route('seller.orders.update', $order->id) }}" method="POST">
-                        @csrf @method('PATCH')
-                        <label for="status" class="pl-label">Order status</label>
-                        <div class="flex gap-2">
-                            <select id="status" name="status" class="input flex-1 !py-1.5 text-sm">
-                                @foreach ($steps as $s)
-                                    <option value="{{ $s }}" @selected($order->status === $s)>{{ $s }}</option>
-                                @endforeach
-                            </select>
-                            <button type="submit" class="pl-btn !px-3">Save</button>
-                        </div>
-                    </form>
+            {{-- Seller steps: New → Accepted → Packed → Ready for Pickup --}}
+            @if (in_array($order->status, ['Pending', 'Processing'], true))
+                <section class="pl-card pl-body space-y-3">
+                    <ol class="flex flex-wrap gap-1 text-[11px] font-semibold">
+                        @foreach ($sellerSteps as $key => $label)
+                            @php $reached = array_search($key, array_keys($sellerSteps)) <= array_search($sellerStep, array_keys($sellerSteps)); @endphp
+                            <li class="rounded px-2 py-0.5" style="{{ $reached ? 'background:#FFF1EB;color:#C2410C;' : 'background:#F5F5F4;color:#a39890;' }}">{{ $label }}</li>
+                        @endforeach
+                    </ol>
+                    @if ($sellerStep === 'new')
+                        <form method="POST" action="{{ route('seller.orders.accept', $order->id) }}">@csrf<button class="pl-btn w-full">Accept order</button></form>
+                    @elseif ($sellerStep === 'accepted')
+                        <form method="POST" action="{{ route('seller.orders.pack', $order->id) }}">@csrf<button class="pl-btn w-full">Mark as packed</button></form>
+                    @elseif ($sellerStep === 'packed')
+                        <p class="text-xs pl-muted">Packed. Book the pickup below to mark it Ready for Pickup.</p>
+                    @endif
+                    @if (in_array($sellerStep, ['packed', 'ready'], true))
+                        <a href="{{ route('seller.orders.waybill', $order->id) }}" target="_blank" class="pl-btn-ghost block rounded-md border px-3 py-1.5 text-center text-sm font-semibold" style="border-color:#E7E5E4;">Print waybill</a>
+                    @endif
+
+                    @if ($order->isCancellableBySeller())
+                        <details class="border-t pt-3" style="border-color:#F2EEEA;" @if ($errors->has('reason')) open @endif>
+                            <summary class="cursor-pointer text-sm font-semibold" style="color:#B91C1C;">Cancel order</summary>
+                            <form method="POST" action="{{ route('seller.orders.cancel', $order->id) }}" class="mt-2 space-y-2">
+                                @csrf
+                                <label class="pl-label" for="cancel-reason">Reason *</label>
+                                <select id="cancel-reason" name="reason" class="input text-sm">
+                                    <option value="">Choose a reason</option>
+                                    @foreach (\App\Models\Order::SELLER_CANCEL_REASONS as $r)<option value="{{ $r }}" @selected(old('reason') === $r)>{{ $r }}</option>@endforeach
+                                </select>
+                                @error('reason')<p class="text-xs" style="color:#B91C1C;">{{ $message }}</p>@enderror
+                                <textarea name="details" rows="2" maxlength="300" class="input text-sm" placeholder="Message to the buyer (optional)">{{ old('details') }}</textarea>
+                                <button class="w-full rounded-md border px-3 py-1.5 text-sm font-semibold" style="border-color:#FCA5A5;color:#B91C1C;" onclick="return confirm('Cancel this order? The buyer will be told why.')">Cancel order</button>
+                                <p class="text-[11px] pl-muted">Stock goes back, vouchers are returned to the buyer, and an online payment is refunded in full.</p>
+                            </form>
+                        </details>
+                    @endif
                 </section>
             @endif
 
@@ -178,9 +216,9 @@
             @if (! in_array($order->status, \App\Models\Order::LOGISTICS_DONE))
 
                 {{-- One route per order: a sorting-center parcel replaces the courier cards below. --}}
-                @if ((! $delivery && ! $parcel) || ($delivery && $delivery->status === 'available' && ! $delivery->pickup_scheduled_at) || ($parcel && $parcel->status === 'pickup_rejected'))
+                @if (in_array($sellerStep, ['packed', 'ready'], true) && ((! $delivery && ! $parcel) || ($delivery && $delivery->status === 'available' && ! $delivery->pickup_scheduled_at) || ($parcel && $parcel->status === 'pickup_rejected')))
                     <section class="pl-card">
-                        <div class="pl-head"><h2>Schedule courier pickup</h2></div>
+                        <div class="pl-head"><h2>Ready for pickup — book the courier</h2></div>
                         <form action="{{ route('seller.orders.handover', $order->id) }}" method="POST" class="pl-body space-y-3">
                             @csrf
                             <div>

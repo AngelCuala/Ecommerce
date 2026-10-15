@@ -56,6 +56,9 @@
                 <div class="flex justify-between" style="color:#555555;">
                     <span>Subtotal</span><span>₱{{ number_format($order->subtotal, 2) }}</span>
                 </div>
+                @if ($order->promo_discount > 0)
+                    <div class="flex justify-between"><span>Bundle deals &amp; promos (paid by sellers)</span><span>−₱{{ number_format($order->promo_discount, 2) }}</span></div>
+                @endif
                 @if ($order->seller_discount > 0)
                     <div class="flex justify-between" style="color:#059669;">
                         <span>Store vouchers (paid by sellers)</span><span>−₱{{ number_format($order->seller_discount, 2) }}</span>
@@ -146,6 +149,24 @@
                     <span class="text-xs" style="color:#222222;">{{ $order->created_at->format('M d, Y H:i') }}</span>
                 </div>
             </div>
+
+            @if ($order->status === \App\Models\Order::IN_DISPUTE)
+                @php $dispute = $order->returnRequests()->where('status', 'disputed')->latest()->first(); @endphp
+                <div class="mt-5 rounded-lg border p-3 text-sm" style="border-color:#FECACA;background:#FEF2F2;">
+                    <p class="font-semibold" style="color:#B91C1C;">Return in dispute</p>
+                    @if ($dispute)
+                        <p class="mt-1 text-xs">Reason: {{ $dispute->reason }} · Seller: {{ $dispute->seller_note }}@if ($dispute->dispute_note) · Buyer: {{ $dispute->dispute_note }}@endif</p>
+                    @endif
+                    <form method="POST" action="{{ route('admin.orders.dispute', $order->id) }}" class="mt-2 space-y-2">
+                        @csrf
+                        <input name="note" maxlength="500" class="input text-sm" placeholder="Decision note (optional)">
+                        <div class="flex gap-2">
+                            <button name="decision" value="refund" class="btn-gold flex-1 !py-1.5 text-xs" style="background:#fa4e1c;border-color:#fa4e1c;color:#fff;">Refund buyer</button>
+                            <button name="decision" value="close" class="flex-1 rounded-md border px-2 py-1.5 text-xs font-semibold">Close (no refund)</button>
+                        </div>
+                    </form>
+                </div>
+            @endif
 
             {{-- Update status form --}}
             <form action="{{ route('admin.orders.update', $order->id) }}" method="POST" class="mt-5 space-y-3">

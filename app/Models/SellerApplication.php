@@ -25,12 +25,14 @@ class SellerApplication extends Model
         'government_id_path', 'business_permit_path', 'dti_certificate_path', 'sec_certificate_path', 'bir_2303_path',
         'description', 'status', 'rejection_reason', 'id_check_status', 'id_check_note',
         'shop_name_changes_this_month', 'shop_name_last_changed_at',
+        'logo_path', 'banner_path', 'is_on_vacation',
     ];
 
     protected $casts = [
         'birthday'                    => 'date',
         'shop_name_last_changed_at'   => 'datetime',
         'shop_name_changes_this_month'=> 'integer',
+        'is_on_vacation'              => 'boolean',
     ];
 
     public function user(): BelongsTo { return $this->belongsTo(User::class); }

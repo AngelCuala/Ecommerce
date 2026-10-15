@@ -31,9 +31,11 @@ class OrderController extends Controller
         }
 
         $request->validate([
-            'cancellation_reason' => ['required', 'string', 'max:500'],
+            'cancellation_reason' => ['required', 'string', 'min:10', 'max:300'],
         ], [
             'cancellation_reason.required' => 'Please choose a reason for cancelling.',
+            'cancellation_reason.min'      => 'The reason must be 10 to 300 characters.',
+            'cancellation_reason.max'      => 'The reason must be 10 to 300 characters.',
         ]);
 
         $order->update([
@@ -101,6 +103,28 @@ class OrderController extends Controller
     }
 
     /** Return / refund request: within Order::RETURN_DAYS of delivery, before the order is completed. */
+    /** A rejected return can be escalated to ALVY: the order is In Dispute until an admin decides. */
+    public function escalateReturn(Request $request, int $id)
+    {
+        $order  = Order::where('user_id', auth()->id())->findOrFail($id);
+        $return = $order->returnRequests()->latest()->first();
+        if (! $return || $return->status !== 'rejected' || $order->status !== Order::DELIVERED) {
+            return back()->with('error', 'Only a rejected return request on a delivered order can be escalated.');
+        }
+        if ($return->resolved_at && $return->resolved_at->lt(now()->subDays(\App\Models\ReturnRequest::ESCALATE_DAYS))) {
+            return back()->with('error', 'A rejected request can be escalated within ' . \App\Models\ReturnRequest::ESCALATE_DAYS . ' days of the rejection.');
+        }
+        $data = $request->validate(['dispute_note' => 'nullable|string|max:500']);
+
+        \Illuminate\Support\Facades\DB::transaction(function () use ($order, $return, $data) {
+            $return->update(['status' => 'disputed', 'escalated_at' => now(), 'dispute_note' => $data['dispute_note'] ?? null]);
+            $order->update(['status' => Order::IN_DISPUTE]);
+        });
+        \App\Models\ActivityLog::note('Order ' . $order->number() . ' return escalated to a dispute', $order);
+
+        return back()->with('success', 'Your request was escalated. ALVY will review it and decide; the order is now In Dispute.');
+    }
+
     public function requestReturn(Request $request, int $id)
     {
         $order = Order::where('user_id', auth()->id())->findOrFail($id);
@@ -116,21 +140,37 @@ class OrderController extends Controller
 
         $data = $request->validate([
             'reason'   => ['required', Rule::in(ReturnRequest::REASONS)],
-            'details'  => 'nullable|string|max:1000',
-            'evidence' => 'required|file|mimes:jpg,jpeg,png|mimetypes:image/jpeg,image/png|max:5120',
+            'details'  => 'required|string|min:10|max:500',
+            'evidence' => 'required_without:evidence_photos|nullable|file|mimes:jpg,jpeg,png|mimetypes:image/jpeg,image/png|max:5120',
+            'evidence_photos'   => 'nullable|array|max:' . \App\Models\ReturnRequest::MAX_PHOTOS,
+            'evidence_photos.*' => 'file|mimes:jpg,jpeg,png|mimetypes:image/jpeg,image/png|max:5120',
         ], [
-            'evidence.required'  => 'Please add a photo of the item as evidence.',
+            'evidence.required_without' => 'Please add at least one photo of the item as evidence.',
+            'details.required'   => 'Please describe the problem (10 to 500 characters).',
+            'details.min'        => 'Please describe the problem (10 to 500 characters).',
+            'details.max'        => 'Please describe the problem (10 to 500 characters).',
+            'evidence_photos.max' => 'You can add up to ' . \App\Models\ReturnRequest::MAX_PHOTOS . ' photos.',
+            'evidence_photos.*.mimes' => 'Each photo must be a JPG or PNG image.',
+            'evidence_photos.*.mimetypes' => 'Each photo must be a real JPG or PNG image.',
+            'evidence_photos.*.max' => 'Each photo can be at most 5 MB.',
             'evidence.mimes'     => 'The evidence must be a JPG or PNG photo.',
             'evidence.mimetypes' => 'The evidence must be a real JPG or PNG photo.',
             'evidence.max'       => 'The photo can be at most 5 MB.',
         ]);
+
+        $files = array_values(array_filter(array_merge([$request->file('evidence')], (array) $request->file('evidence_photos', []))));
+        if (count($files) > \App\Models\ReturnRequest::MAX_PHOTOS) {
+            return back()->withInput()->withErrors(['evidence_photos' => 'You can add up to ' . \App\Models\ReturnRequest::MAX_PHOTOS . ' photos.']);
+        }
+        $paths = array_map(fn ($f) => $f->store('returns', 'public'), $files);
 
         $order->returnRequests()->create([
             'user_id'       => auth()->id(),
             'seller_id'     => $order->seller_id ?? $order->items()->with('product')->first()?->product?->seller_id,
             'reason'        => $data['reason'],
             'details'       => $data['details'] ?? null,
-            'evidence_path' => $request->file('evidence')->store('returns', 'public'),
+            'evidence_path' => $paths[0],
+            'evidence_paths' => $paths,
             'refund_amount' => $order->total_price,
             'status'        => 'requested',
         ]);

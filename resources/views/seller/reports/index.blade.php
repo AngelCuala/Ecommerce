@@ -1,6 +1,8 @@
 <x-seller-layout title="Sales Reports" active="reports">
 @php
     $presets = [
+        'Today'        => [now()->toDateString(), now()->toDateString()],
+        'Last 7 days'  => [now()->subDays(6)->toDateString(), now()->toDateString()],
         'This month'   => [now()->startOfMonth()->toDateString(), now()->toDateString()],
         'Last month'   => [now()->subMonthNoOverflow()->startOfMonth()->toDateString(), now()->subMonthNoOverflow()->endOfMonth()->toDateString()],
         'Last 30 days' => [now()->subDays(29)->toDateString(), now()->toDateString()],
@@ -30,6 +32,8 @@
         <p class="mt-0.5 text-sm" style="color:#8a7f78;">{{ $rangeLabel }}</p>
     </div>
 
+    @if ($errors->any())<div class="mb-4 rounded-lg px-4 py-2.5 text-sm" style="background:#FEF2F2;color:#B91C1C;">{{ $errors->first() }}</div>@endif
+
     {{-- Date range --}}
     <form method="GET" class="rp-card mb-5 flex flex-wrap items-end gap-3 px-5 py-4">
         <div>
@@ -41,6 +45,8 @@
             <input type="date" id="to" name="to" value="{{ $to }}" class="input mt-1 !py-1.5 text-sm">
         </div>
         <button type="submit" class="rounded-md px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90" style="background:#222;">Apply</button>
+        <a href="{{ route('seller.reports', ['from' => $from, 'to' => $to, 'export' => 'csv']) }}" class="rp-preset">Export CSV</a>
+        <a href="{{ route('seller.reports', ['from' => $from, 'to' => $to, 'export' => 'xlsx']) }}" class="rp-preset">Export XLSX</a>
         <div class="ml-auto flex flex-wrap gap-2">
             @foreach ($presets as $label => [$pFrom, $pTo])
                 <a href="{{ route('seller.reports', ['from' => $pFrom, 'to' => $pTo]) }}"
@@ -52,8 +58,8 @@
     {{-- Summary --}}
     <div class="rp-card mb-5 grid grid-cols-2 lg:grid-cols-4">
         @foreach ([
-            ['Gross sales',   '₱' . number_format($totalRevenue, 2),    'Before fees',                                '#222'],
-            ['Platform fees', '−₱' . number_format($totalCommission, 2), $commissionRate . '% of each sale',           '#57534E'],
+            ['Gross sales',   '₱' . number_format($totalRevenue, 2),    'Cancelled & refunded orders excluded',       '#222'],
+            ['Fees & discounts', '−₱' . number_format($totalCommission + $totalSellerFunded, 2), '₱' . number_format($totalCommission, 2) . ' fees (' . $commissionRate . '%) · ₱' . number_format($totalSellerFunded, 2) . ' store vouchers & promos', '#57534E'],
             ['Net earnings',  '₱' . number_format($totalEarnings, 2),   'What you take home',                         '#047857'],
             ['Orders',        number_format($totalOrders),               $byProduct->sum('qty') . ' units sold',       '#222'],
         ] as $i => [$label, $value, $note, $color])

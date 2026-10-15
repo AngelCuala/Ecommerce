@@ -10,7 +10,7 @@ use Illuminate\Support\Collection;
  * Sales per seller for a date range. Used by Sales Reports and by the seller list on
  * Analytics & Reports, so both pages always show the same numbers.
  *
- * Counted: orders placed in the range that were not cancelled. Gross sales are after store
+ * Counted: orders placed in the range that were not cancelled. Gross sales are after promotions and store
  * vouchers (paid by the seller); ALVY vouchers are paid by ALVY and don't change these.
  */
 class SellerSales
@@ -33,7 +33,7 @@ class SellerSales
             ->selectRaw('products.seller_id,
                 COUNT(DISTINCT order_items.order_id) as orders,
                 SUM(order_items.quantity) as units,
-                SUM(order_items.quantity * order_items.price - order_items.seller_discount) as gross,
+                SUM(order_items.quantity * order_items.price - order_items.seller_discount - order_items.promo_discount) as gross,
                 SUM(order_items.commission_amount) as commission,
                 SUM(order_items.seller_earning) as payout')
             ->get()

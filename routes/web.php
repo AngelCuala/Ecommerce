@@ -62,6 +62,16 @@ Route::middleware(['auth', 'is_sc', 'prevent.back'])->prefix('sc')->name('sc.')-
     Route::post('/riders/{rider}/approve', [\App\Http\Controllers\SortingCenterController::class, 'approveRider'])->name('riders.approve');
     Route::post('/riders/{rider}/reject',  [\App\Http\Controllers\SortingCenterController::class, 'rejectRider'])->name('riders.reject');
     Route::post('/riders/{rider}/toggle',  [\App\Http\Controllers\SortingCenterController::class, 'toggleRider'])->name('riders.toggle');
+    Route::get('/riders/{rider}',          [\App\Http\Controllers\SortingCenter\RiderWorkController::class, 'showRider'])->name('riders.show');
+    Route::get('/riders/{rider}/documents/{document}', [\App\Http\Controllers\SortingCenter\RiderWorkController::class, 'riderDocument'])->whereIn('document', ['license', 'or-cr'])->name('riders.document');
+    Route::post('/riders/{rider}/verify',  [\App\Http\Controllers\SortingCenter\RiderWorkController::class, 'verifyRider'])->name('riders.verify');
+
+    // Rider dispatch (auto-assign offers, manual assignment, Unassigned queue) and COD remittances
+    Route::get('/dispatch',                  [\App\Http\Controllers\SortingCenter\RiderWorkController::class, 'dispatchBoard'])->name('dispatch');
+    Route::post('/dispatch/{parcel}/auto',   [\App\Http\Controllers\SortingCenter\RiderWorkController::class, 'autoAssign'])->name('dispatch.auto');
+    Route::post('/dispatch/{parcel}/assign', [\App\Http\Controllers\SortingCenter\RiderWorkController::class, 'manualAssign'])->name('dispatch.assign');
+    Route::get('/remittances',               [\App\Http\Controllers\SortingCenter\RiderWorkController::class, 'remittances'])->name('remittances');
+    Route::post('/remittances/{remittance}/confirm', [\App\Http\Controllers\SortingCenter\RiderWorkController::class, 'confirmRemittance'])->name('remittances.confirm');
 
     // Courier applications sent to this sorting center
     Route::get('/courier-applications',                        [\App\Http\Controllers\SortingCenter\CourierApplicationController::class, 'index'])->name('courier-applications.index');
@@ -208,6 +218,7 @@ Route::middleware(['auth', 'buyer_only', 'prevent.back'])->group(function () {
     // ── Buyer modules (B1–B14) ──
     Route::get('/profile/orders/{id}',            [ProfileController::class, 'orderShow'])->whereNumber('id')->name('profile.orders.show');
     Route::post('/orders/{id}/return',            [\App\Http\Controllers\OrderController::class, 'requestReturn'])->name('orders.return');
+    Route::post('/orders/{id}/escalate',          [\App\Http\Controllers\OrderController::class, 'escalateReturn'])->name('orders.escalate');
     Route::post('/reviews/item/{item}',           [\App\Http\Controllers\ReviewController::class, 'store'])->name('reviews.store');
     Route::patch('/reviews/{review}',             [\App\Http\Controllers\ReviewController::class, 'update'])->name('reviews.update');
 
@@ -284,10 +295,41 @@ Route::middleware(['auth', 'role:seller,admin', 'seller.approved', 'prevent.back
     Route::patch('/books/{book}/archive',    [SellerBookController::class, 'archive'])->name('books.archive');
     Route::patch('/books/{book}/unarchive',  [SellerBookController::class, 'unarchive'])->name('books.unarchive');
     Route::patch('/books/{book}/stock',      [SellerBookController::class, 'updateStock'])->name('books.stock');
+    Route::post('/books/bulk',               [SellerBookController::class, 'bulk'])->name('books.bulk');
+    Route::post('/books/{book}/duplicate',   [SellerBookController::class, 'duplicate'])->name('books.duplicate');
+    Route::patch('/books/{book}/end-sale',   [SellerBookController::class, 'endSale'])->name('books.end-sale');
+
+    // Store settings (profile, pickup address, vacation mode) and store categories
+    Route::get('/store-settings',            [\App\Http\Controllers\Seller\StoreSettingsController::class, 'edit'])->name('store-settings');
+    Route::patch('/store-settings',          [\App\Http\Controllers\Seller\StoreSettingsController::class, 'update'])->name('store-settings.update');
+    Route::get('/store-categories',          [\App\Http\Controllers\Seller\StoreCategoryController::class, 'index'])->name('store-categories.index');
+    Route::post('/store-categories',         [\App\Http\Controllers\Seller\StoreCategoryController::class, 'store'])->name('store-categories.store');
+    Route::post('/store-categories/reorder', [\App\Http\Controllers\Seller\StoreCategoryController::class, 'reorder'])->name('store-categories.reorder');
+    Route::put('/store-categories/{storeCategory}',          [\App\Http\Controllers\Seller\StoreCategoryController::class, 'update'])->name('store-categories.update');
+    Route::patch('/store-categories/{storeCategory}/toggle', [\App\Http\Controllers\Seller\StoreCategoryController::class, 'toggle'])->name('store-categories.toggle');
+    Route::delete('/store-categories/{storeCategory}',       [\App\Http\Controllers\Seller\StoreCategoryController::class, 'destroy'])->name('store-categories.destroy');
+
+    // Bundle deals and buy-X-get-Y promotions
+    Route::get('/promotions',                [\App\Http\Controllers\Seller\PromotionController::class, 'index'])->name('promotions.index');
+    Route::post('/promotions',               [\App\Http\Controllers\Seller\PromotionController::class, 'store'])->name('promotions.store');
+    Route::patch('/promotions/{promotion}/toggle', [\App\Http\Controllers\Seller\PromotionController::class, 'toggle'])->name('promotions.toggle');
+    Route::delete('/promotions/{promotion}', [\App\Http\Controllers\Seller\PromotionController::class, 'destroy'])->name('promotions.destroy');
+
+    // Reviews of the seller's products (reply once, edit the reply; no delete)
+    Route::get('/reviews',                   [\App\Http\Controllers\Seller\ReviewController::class, 'index'])->name('reviews.index');
+    Route::post('/reviews/{review}/reply',   [\App\Http\Controllers\Seller\ReviewController::class, 'reply'])->name('reviews.reply');
+    Route::put('/reviews/{review}/reply',    [\App\Http\Controllers\Seller\ReviewController::class, 'updateReply'])->name('reviews.reply.update');
+
+    // Earnings and payouts
+    Route::get('/earnings',                  [\App\Http\Controllers\Seller\EarningsController::class, 'index'])->name('earnings');
+    Route::post('/earnings/payouts',         [\App\Http\Controllers\Seller\EarningsController::class, 'requestPayout'])->name('earnings.payout');
 
     Route::get('/orders',                    [SellerOrderController::class, 'index'])->name('orders.index');
     Route::get('/orders/{id}',               [SellerOrderController::class, 'show'])->name('orders.show');
-    Route::patch('/orders/{id}',             [SellerOrderController::class, 'update'])->name('orders.update');
+    Route::post('/orders/{id}/accept',       [SellerOrderController::class, 'accept'])->name('orders.accept');
+    Route::post('/orders/{id}/pack',         [SellerOrderController::class, 'pack'])->name('orders.pack');
+    Route::post('/orders/{id}/cancel',       [SellerOrderController::class, 'cancel'])->name('orders.cancel');
+    Route::get('/orders/{id}/waybill',       [SellerOrderController::class, 'waybill'])->name('orders.waybill');
     Route::post('/orders/{id}/handover',     [SellerOrderController::class, 'handover'])->name('orders.handover');
     Route::post('/orders/{id}/handed-over',  [SellerOrderController::class, 'markHandedOver'])->name('orders.handed-over');
     Route::post('/orders/{id}/return',       [SellerOrderController::class, 'decideReturn'])->name('orders.return');
@@ -349,6 +391,7 @@ Route::middleware(['auth', 'role:admin', 'prevent.back'])
     Route::get('/orders',                [AdminOrderController::class, 'index'])->name('orders.index');
     Route::get('/orders/{id}',           [AdminOrderController::class, 'show'])->name('orders.show');
     Route::patch('/orders/{id}',         [AdminOrderController::class, 'update'])->name('orders.update');
+    Route::post('/orders/{id}/dispute',  [AdminOrderController::class, 'resolveDispute'])->name('orders.dispute');
 
     // Buyer management
     Route::get('/customers',                        [AdminCustomerController::class, 'index'])->name('customers.index');
@@ -491,6 +534,25 @@ Route::middleware(['auth', 'role:courier,admin', 'prevent.back'])
     Route::post('/deliveries/{id}/pickup',     [CourierDeliveryController::class, 'pickup'])->name('deliveries.pickup');
     Route::post('/deliveries/{id}/in-transit', [CourierDeliveryController::class, 'inTransit'])->name('deliveries.in-transit');
     Route::post('/deliveries/{id}/complete',   [CourierDeliveryController::class, 'complete'])->name('deliveries.complete');
+
+    // Rider work for a logistics company (from the mobile app): offers, pickups, deliveries, pay, COD
+    Route::get('/rider',                           [\App\Http\Controllers\Courier\RiderController::class, 'index'])->name('rider');
+    Route::post('/rider/online',                   [\App\Http\Controllers\Courier\RiderController::class, 'toggleOnline'])->name('rider.online');
+    Route::post('/rider/offers/{offer}/accept',    [\App\Http\Controllers\Courier\RiderController::class, 'accept'])->whereNumber('offer')->name('rider.offers.accept');
+    Route::post('/rider/offers/{offer}/decline',   [\App\Http\Controllers\Courier\RiderController::class, 'decline'])->whereNumber('offer')->name('rider.offers.decline');
+    Route::get('/rider/pickups/{pickup}',          [\App\Http\Controllers\Courier\RiderController::class, 'pickup'])->whereNumber('pickup')->name('rider.pickups.show');
+    Route::post('/rider/pickups/{pickup}/confirm', [\App\Http\Controllers\Courier\RiderController::class, 'confirmPickup'])->whereNumber('pickup')->name('rider.pickups.confirm');
+    Route::get('/rider/deliveries/{delivery}',          [\App\Http\Controllers\Courier\RiderController::class, 'delivery'])->whereNumber('delivery')->name('rider.deliveries.show');
+    Route::post('/rider/deliveries/{delivery}/start',   [\App\Http\Controllers\Courier\RiderController::class, 'startDelivery'])->whereNumber('delivery')->name('rider.deliveries.start');
+    Route::post('/rider/deliveries/{delivery}/deliver', [\App\Http\Controllers\Courier\RiderController::class, 'deliver'])->whereNumber('delivery')->name('rider.deliveries.deliver');
+    Route::post('/rider/deliveries/{delivery}/fail',    [\App\Http\Controllers\Courier\RiderController::class, 'fail'])->whereNumber('delivery')->name('rider.deliveries.fail');
+    Route::get('/rider/profile/{rider?}',          [\App\Http\Controllers\Courier\RiderController::class, 'profile'])->whereNumber('rider')->name('rider.profile');
+    Route::put('/rider/profile',                   [\App\Http\Controllers\Courier\RiderController::class, 'updateProfile'])->name('rider.profile.update');
+    Route::get('/rider/{rider}/documents/{document}', [\App\Http\Controllers\Courier\RiderController::class, 'document'])->whereNumber('rider')->whereIn('document', ['license', 'or-cr'])->name('rider.document');
+    Route::get('/rider/history',                   [\App\Http\Controllers\Courier\RiderController::class, 'history'])->name('rider.history');
+    Route::get('/rider/earnings',                  [\App\Http\Controllers\Courier\RiderController::class, 'earnings'])->name('rider.earnings');
+    Route::get('/rider/cod',                       [\App\Http\Controllers\Courier\RiderController::class, 'cod'])->name('rider.cod');
+    Route::post('/rider/cod/remit',                [\App\Http\Controllers\Courier\RiderController::class, 'remit'])->name('rider.cod.remit');
 
     // Account + security
     Route::get('/account',           [CourierAccountController::class, 'index'])->name('account');

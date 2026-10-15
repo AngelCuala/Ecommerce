@@ -11,6 +11,7 @@
         'Cancelled'        => 'Order cancelled',
         'Return Requested' => 'Return requested',
         'Refunded'         => 'Return approved — refunded',
+        'In Dispute'       => 'Escalated — ALVY is reviewing the return',
         default            => $status,
     };
 @endphp
@@ -96,6 +97,25 @@
                 @endforeach
             </section>
 
+            {{-- Rider delivery: the OTP to give the rider, then the proof of delivery --}}
+            @php
+                $riderDelivery = \App\Models\ParcelDelivery::whereHas('parcel', fn ($q) => $q->where('order_id', $order->id))
+                    ->whereIn('status', ['out_for_delivery', 'delivered'])->with('rider')->latest('id')->first();
+            @endphp
+            @if ($riderDelivery && $riderDelivery->status === 'out_for_delivery')
+                <section class="pf-card p-5" data-delivery-otp>
+                    <h2 class="text-sm font-bold" style="color:#222;">Out for delivery</h2>
+                    <p class="mt-1 text-sm" style="color:#57534E;">Rider {{ $riderDelivery->rider->full_name ?? '' }} is on the way. Give this code to the rider when you receive your parcel:</p>
+                    <p class="mt-2 font-display text-3xl font-extrabold tracking-[.3em]" style="color:#fa4e1c;">{{ $riderDelivery->otp_code }}</p>
+                    @if ((float) $riderDelivery->cod_amount > 0)<p class="mt-1 text-xs" style="color:#8a7f78;">Cash on delivery: ₱{{ number_format($riderDelivery->cod_amount, 2) }}</p>@endif
+                </section>
+            @elseif ($riderDelivery && $riderDelivery->status === 'delivered' && $riderDelivery->pod_path)
+                <section class="pf-card p-5" data-proof-of-delivery>
+                    <h2 class="text-sm font-bold" style="color:#222;">Delivered {{ $riderDelivery->delivered_at?->format('M j, Y g:i A') }}</h2>
+                    <img src="{{ asset('storage/' . $riderDelivery->pod_path) }}" alt="Proof of delivery" class="mt-2 h-32 rounded-md object-cover">
+                </section>
+            @endif
+
             {{-- Timeline --}}
             <section class="pf-card p-5">
                 <h2 class="mb-3 text-sm font-bold" style="color:#222;">Order timeline</h2>
@@ -116,7 +136,15 @@
                     <h2 class="text-sm font-bold" style="color:#222;">Return / refund</h2>
                     <p class="mt-1 text-sm" style="color:#57534E;"><strong>{{ $return->statusLabel() }}</strong> · {{ $return->reason }}</p>
                     @if ($return->seller_note)<p class="mt-1 text-sm"><strong>Seller:</strong> {{ $return->seller_note }}</p>@endif
-                    <img src="{{ asset('storage/' . $return->evidence_path) }}" class="mt-2 h-20 rounded-md object-cover" alt="Evidence">
+                    @if ($return->status === 'rejected' && $order->status === \App\Models\Order::DELIVERED)
+                        <form method="POST" action="{{ route('orders.escalate', $order->id) }}" class="mt-3 space-y-2 rounded-lg border p-3" style="border-color:#FECACA;">
+                            @csrf
+                            <p class="text-xs" style="color:#57534E;">Don't agree with the seller? Ask ALVY to review it.</p>
+                            <input name="dispute_note" maxlength="500" class="w-full rounded-md border px-3 py-1.5 text-sm" style="border-color:#E7E5E4;" placeholder="Why you disagree (optional)">
+                            <button class="rounded-md px-4 py-1.5 text-sm font-semibold text-white" style="background:#B91C1C;">Escalate</button>
+                        </form>
+                    @endif
+                    <div class="mt-2 flex flex-wrap gap-2">@foreach ($return->photos() as $ph)<img src="{{ asset('storage/' . $ph) }}" class="h-20 rounded-md object-cover" alt="Evidence">@endforeach</div>
                 </section>
             @endif
 
@@ -135,12 +163,15 @@
                                 </select>
                             </div>
                             <div>
-                                <label class="pf-label">Details <span class="pf-muted">— optional</span></label>
-                                <textarea name="details" rows="2" maxlength="1000" class="pf-input">{{ old('details') }}</textarea>
+                                <label class="pf-label">Describe the problem <span class="pf-muted">— 10 to 500 characters</span></label>
+                                <textarea name="details" rows="2" minlength="10" maxlength="500" required class="pf-input">{{ old('details') }}</textarea>
+                                @error('details')<p class="text-xs" style="color:#B91C1C;">{{ $message }}</p>@enderror
                             </div>
                             <div>
-                                <label class="pf-label">Photo evidence (JPG or PNG, up to 5 MB)</label>
-                                <input type="file" name="evidence" accept="image/jpeg,image/png" required class="text-sm">
+                                <label class="pf-label">Photo evidence (1 to 5 photos, JPG or PNG, up to 5 MB each)</label>
+                                <input type="file" name="evidence_photos[]" multiple accept="image/jpeg,image/png" required class="text-sm">
+                                @error('evidence')<p class="text-xs" style="color:#B91C1C;">{{ $message }}</p>@enderror
+                                @error('evidence_photos')<p class="text-xs" style="color:#B91C1C;">{{ $message }}</p>@enderror
                             </div>
                             <button class="pf-btn px-5">Submit request</button>
                         </form>
@@ -156,6 +187,7 @@
                 <dl class="space-y-1" style="color:#57534E;">
                     <div class="flex justify-between"><dt>Merchandise</dt><dd>₱{{ number_format($order->subtotal, 2) }}</dd></div>
                     <div class="flex justify-between"><dt>Shipping{{ $order->shipping_weight_kg ? ' (' . (float) $order->shipping_weight_kg . ' kg)' : '' }}</dt><dd>₱{{ number_format($order->shipping_fee, 2) }}</dd></div>
+                    @if ($order->promo_discount > 0)<div class="flex justify-between" style="color:#059669;"><dt>Bundle deals &amp; promos</dt><dd>−₱{{ number_format($order->promo_discount, 2) }}</dd></div>@endif
                     @if ($order->seller_discount > 0)<div class="flex justify-between" style="color:#059669;"><dt>Store voucher</dt><dd>−₱{{ number_format($order->seller_discount, 2) }}</dd></div>@endif
                     @if ($order->platform_discount > 0)<div class="flex justify-between" style="color:#059669;"><dt>ALVY voucher {{ $order->platformVoucher?->code }}</dt><dd>−₱{{ number_format($order->platform_discount, 2) }}</dd></div>@endif
                     @if ($order->shipping_discount > 0)<div class="flex justify-between" style="color:#059669;"><dt>Shipping voucher {{ $order->shippingVoucher?->code }}</dt><dd>−₱{{ number_format($order->shipping_discount, 2) }}</dd></div>@endif

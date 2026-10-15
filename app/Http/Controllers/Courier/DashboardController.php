@@ -9,6 +9,11 @@ class DashboardController extends Controller
 {
     public function index()
     {
+        // A rider of a logistics company without a direct-courier profile works from Hub Jobs.
+        $c = auth()->user()->courier;
+        if ((! $c || ! $c->isApproved()) && \App\Models\Rider::where('user_id', auth()->id())->where('application_status', 'approved')->exists()) {
+            return redirect()->route('courier.rider');
+        }
         $courier = DeliveryController::currentCourier();
 
         $with = ['order.user', 'order.items.product.seller'];

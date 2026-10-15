@@ -264,8 +264,10 @@ class CheckoutController extends Controller
                 'weight'     => $summary['shipping'][$sellerId]['weight'] ?? null,
                 'chargeable' => $summary['shipping'][$sellerId]['chargeable'] ?? null,
                 'discount'   => $q['seller_discounts'][$sellerId] ?? 0,
+                'promo'      => $g['promo'] ?? 0,
             ])->all(),
-            'subtotal'          => $q['subtotal'],
+            'subtotal'          => $q['merchandise'],
+            'promo_discount'    => $q['promo_discount'],
             'shipping_total'    => $q['shipping_total'],
             'seller_discount'   => $q['seller_discount'],
             'platform_discount' => $q['platform_discount'],
@@ -407,7 +409,7 @@ class CheckoutController extends Controller
         foreach ($lines as $line) {
             if ($flash = $line->flashSale()) {
                 $locked = FlashSale::whereKey($flash->id)->lockForUpdate()->first();
-                if ($locked->remaining() < $line->quantity) {
+                if ($locked->remaining() < $line->flashUnits()) {
                     throw new \App\Exceptions\CheckoutProblem('The flash sale for "' . $line->product->title . '" just sold out, so the price is back to ₱'
                         . number_format($line->product->regular_price, 2) . '. Please check your order again.');
                 }
@@ -434,7 +436,8 @@ class CheckoutController extends Controller
             $shipOff   = $shippingShares[$sellerId] ?? 0;
             $storeOff  = $quote['seller_discounts'][$sellerId] ?? 0;
             $alvyOff   = round($storeGroup['items']->sum(fn ($l) => $shares[$l->id]['platform'] ?? 0), 2);
-            $subtotal  = $storeGroup['subtotal'];
+            $subtotal  = $storeGroup['gross'];
+            $promoOff  = $storeGroup['promo'];
 
             $order = Order::create([
                 'user_id'           => $user->id,
@@ -459,11 +462,12 @@ class CheckoutController extends Controller
                 'shipping_fee'      => $fee,
                 'shipping_weight_kg'=> $summary['shipping'][$sellerId]['weight'] ?? null,
                 'seller_discount'   => $storeOff,
+                'promo_discount'    => $promoOff,
                 'platform_voucher_id' => $alvyOff > 0 ? $quote['platform_voucher']?->id : null,
                 'platform_discount' => $alvyOff,
                 'shipping_voucher_id' => $shipOff > 0 ? $quote['shipping_voucher']?->id : null,
                 'shipping_discount' => $shipOff,
-                'total_price'       => round(max(0, $subtotal - $storeOff - $alvyOff) + max(0, $fee - $shipOff), 2),
+                'total_price'       => round(max(0, $subtotal - $promoOff - $storeOff - $alvyOff) + max(0, $fee - $shipOff), 2),
                 'payment_method'    => strtoupper($method),
                 'payment_status'    => $online ? 'Unpaid' : 'Pending',
                 'pay_by'            => $online ? now()->addMinutes((int) config('payments.unpaid_minutes', 60)) : null,
@@ -471,37 +475,58 @@ class CheckoutController extends Controller
             ]);
 
             foreach ($storeGroup['items'] as $line) {
-                $lineTotal = round($line->quantity * $line->unit_price, 2);
-                $share     = $shares[$line->id] ?? ['seller' => 0.0, 'platform' => 0.0];
+                $share = $shares[$line->id] ?? ['seller' => 0.0, 'platform' => 0.0, 'promo' => 0.0];
+                $parts = $line->priceParts();
+                $lineTotal = $line->subtotal();
 
-                // A store voucher comes out of the seller's sale (commission is on what was
-                // actually charged for the item); ALVY vouchers are paid by ALVY.
-                $charged    = round($lineTotal - $share['seller'], 2);
-                $commission = round($charged * ($rate / 100), 2);
+                // Part flash, part regular price: one order item for each, so the order shows
+                // exactly what was charged. Discounts are shared in proportion to each part.
+                $left = ['seller' => $share['seller'], 'platform' => $share['platform'], 'promo' => $share['promo'] ?? 0.0];
+                foreach ($parts as $n => [$qty, $unit, $isFlash]) {
+                    $partTotal = round($qty * $unit, 2);
+                    $last = $n === count($parts) - 1;
+                    $part = [];
+                    foreach ($left as $k => $amount) {
+                        $part[$k] = $last ? round($amount, 2) : round(($share[$k] ?? 0) * ($lineTotal > 0 ? $partTotal / $lineTotal : 0), 2);
+                    }
+                    foreach ($part as $k => $amount) {
+                        $left[$k] -= $amount;
+                    }
 
-                OrderItem::create([
-                    'order_id'          => $order->id,
-                    'product_id'        => $line->product_id,
-                    'variation_id'      => $line->variation_id,
-                    'variation_name'    => $line->variation?->name,
-                    'flash_sale_id'     => isset($flashUse[$line->id]) ? $flashUse[$line->id]->id : null,
-                    'quantity'          => $line->quantity,
-                    'price'             => $line->unit_price,
-                    'seller_discount'   => $share['seller'],
-                    'platform_discount' => $share['platform'],
-                    'commission_rate'   => $rate,
-                    'commission_amount' => $commission,
-                    'seller_earning'    => round($charged - $commission, 2),
-                ]);
+                    // Seller-funded discounts (promotion, store voucher) come out of the seller's
+                    // sale; commission is on what was actually charged. ALVY vouchers are paid by ALVY.
+                    $charged    = round($partTotal - $part['promo'] - $part['seller'], 2);
+                    $commission = round($charged * ($rate / 100), 2);
+
+                    OrderItem::create([
+                        'order_id'          => $order->id,
+                        'product_id'        => $line->product_id,
+                        'variation_id'      => $line->variation_id,
+                        'variation_name'    => $line->variation?->name,
+                        'flash_sale_id'     => $isFlash && isset($flashUse[$line->id]) ? $flashUse[$line->id]->id : null,
+                        'quantity'          => $qty,
+                        'price'             => $unit,
+                        'promo_discount'    => $part['promo'],
+                        'seller_discount'   => $part['seller'],
+                        'platform_discount' => $part['platform'],
+                        'commission_rate'   => $rate,
+                        'commission_amount' => $commission,
+                        'seller_earning'    => round($charged - $commission, 2),
+                    ]);
+                }
 
                 if (isset($flashUse[$line->id])) {
-                    $flashUse[$line->id]->increment('sold', $line->quantity);
+                    $flashUse[$line->id]->increment('sold', $line->flashUnits());
                 }
                 if ($line->variation_id) {
+                    $before = (int) $variations[$line->variation_id]->stock;
                     $variations[$line->variation_id]->decrement('stock', $line->quantity);
                     Product::whereKey($line->product_id)->update(['stock' => ProductVariation::where('product_id', $line->product_id)->sum('stock')]);
+                    \App\Services\LowStockAlert::check($line->product, $before, $before - $line->quantity, $variations[$line->variation_id]);
                 } else {
+                    $before = (int) $products[$line->product_id]->stock;
                     Product::whereKey($line->product_id)->decrement('stock', $line->quantity);
+                    \App\Services\LowStockAlert::check($line->product, $before, $before - $line->quantity);
                 }
             }
 

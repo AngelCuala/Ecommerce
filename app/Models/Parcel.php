@@ -21,6 +21,7 @@ class Parcel extends Model
     ];
 
     protected $casts = [
+        'unassigned_at'       => 'datetime',
         'verified_at'         => 'datetime',
         'received_at'         => 'datetime',
         'sorted_at'           => 'datetime',
@@ -32,6 +33,7 @@ class Parcel extends Model
     public const STATUS_LABELS = [
         'pending_pickup'  => 'Ready for Pickup',
         'pickup_approved' => 'Pickup Confirmed',
+        'in_transit_to_hub' => 'Picked Up by Rider',
         'pickup_rejected' => 'Pickup Rejected',
         'picked_up'       => 'At Sorting Center',
         'sorted'          => 'Sorted',
@@ -39,6 +41,7 @@ class Parcel extends Model
         'in_transit'      => 'Out for Delivery',
         'delivered'       => 'Delivered',
         'failed'          => 'Delivery Failed',
+        'return_to_sender' => 'Return to Sender',
         'returned'        => 'Returned to Seller',
         'cancelled'       => 'Cancelled',
     ];
@@ -62,6 +65,22 @@ class Parcel extends Model
     public function deliveries(): HasMany
     {
         return $this->hasMany(ParcelDelivery::class, 'parcel_id');
+    }
+
+    /** First-mile rider trips (seller → sorting center). */
+    public function pickups(): HasMany
+    {
+        return $this->hasMany(ParcelPickup::class, 'parcel_id');
+    }
+
+    public function pickup(): HasOne
+    {
+        return $this->hasOne(ParcelPickup::class, 'parcel_id')->latestOfMany();
+    }
+
+    public function jobOffers(): HasMany
+    {
+        return $this->hasMany(RiderJobOffer::class, 'parcel_id');
     }
 
     public function transfers(): HasMany

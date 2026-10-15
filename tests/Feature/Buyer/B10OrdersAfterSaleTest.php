@@ -137,11 +137,11 @@ class B10OrdersAfterSaleTest extends TestCase
     public function test_return_request_with_evidence(): void
     {
         $toShip = $this->orderIn('Processing');
-        $this->actingAs($this->buyer1)->post(route('orders.return', $toShip->id), ['reason' => 'Damaged item'])->assertSessionHas('error');
+        $this->actingAs($this->buyer1)->post(route('orders.return', $toShip->id), ['reason' => 'Damaged item', 'details' => 'The basket arrived crushed and torn.'])->assertSessionHas('error');
 
         $order = $this->orderIn('Delivered');
         $order->forceFill(['delivered_at' => now()->subDays(2)])->save();
-        $return = fn ($file) => $this->actingAs($this->buyer1)->post(route('orders.return', $order->id), array_filter(['reason' => 'Damaged item', 'evidence' => $file]));
+        $return = fn ($file) => $this->actingAs($this->buyer1)->post(route('orders.return', $order->id), array_filter(['reason' => 'Damaged item', 'details' => 'The basket arrived crushed and torn.', 'evidence' => $file]));
 
         $return(null)->assertSessionHasErrors('evidence');
         $return(UploadedFile::fake()->image('size_5.1MB.jpg')->size(5121))->assertSessionHasErrors('evidence');
@@ -161,7 +161,7 @@ class B10OrdersAfterSaleTest extends TestCase
         $this->assertTrue($order->fresh()->returnWindowOpen());
         $order->forceFill(['delivered_at' => now()->subDays(8)])->save();
         $this->assertFalse($order->fresh()->returnWindowOpen());
-        $this->actingAs($this->buyer1)->post(route('orders.return', $order->id), ['reason' => 'Damaged item'])->assertSessionHas('error');
+        $this->actingAs($this->buyer1)->post(route('orders.return', $order->id), ['reason' => 'Damaged item', 'details' => 'The basket arrived crushed and torn.'])->assertSessionHas('error');
 
         $done = $this->orderIn('Completed');
         $this->assertFalse($done->returnWindowOpen());
@@ -171,7 +171,7 @@ class B10OrdersAfterSaleTest extends TestCase
     public function test_seller_decides_and_the_buyer_sees_it(): void
     {
         $order = $this->orderIn('Delivered');
-        $this->actingAs($this->buyer1)->post(route('orders.return', $order->id), ['reason' => 'Damaged item', 'evidence' => UploadedFile::fake()->image('p.jpg')]);
+        $this->actingAs($this->buyer1)->post(route('orders.return', $order->id), ['reason' => 'Damaged item', 'details' => 'The basket arrived crushed and torn.', 'evidence' => UploadedFile::fake()->image('p.jpg')]);
 
         $this->actingAs($this->seller1)->post(route('seller.orders.return', $order->id), ['decision' => 'reject'])->assertSessionHasErrors('seller_note');
         $this->actingAs($this->seller1)->post(route('seller.orders.return', $order->id), ['decision' => 'reject', 'seller_note' => 'Item was not damaged in the photo.'])
@@ -180,7 +180,7 @@ class B10OrdersAfterSaleTest extends TestCase
         $this->actingAs($this->buyer1)->get(route('profile.orders.show', $order->id))->assertSee('Rejected by the seller')->assertSee('Item was not damaged in the photo.');
 
         $other = $this->orderIn('Delivered');
-        $this->actingAs($this->buyer1)->post(route('orders.return', $other->id), ['reason' => 'Wrong item received', 'evidence' => UploadedFile::fake()->image('p.jpg')]);
+        $this->actingAs($this->buyer1)->post(route('orders.return', $other->id), ['reason' => 'Wrong item received', 'details' => 'This is not the item I ordered.', 'evidence' => UploadedFile::fake()->image('p.jpg')]);
         $this->actingAs($this->seller1)->post(route('seller.orders.return', $other->id), ['decision' => 'approve'])->assertSessionHas('success');
         $this->assertSame('Refunded', $other->fresh()->status);
         $this->actingAs($this->buyer1)->get(route('profile.orders.show', $other->id))->assertSee('Approved');

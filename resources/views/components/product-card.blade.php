@@ -13,6 +13,15 @@
     // One query per page for the hearts, not one per card.
     $wishedIds = auth()->check() ? once(fn () => \App\Models\WishlistItem::where('user_id', auth()->id())->pluck('product_id')->all()) : [];
     $wished = in_array($product->id, $wishedIds);
+    // Stores on vacation and option price ranges: one query per page, not one per card.
+    $vacationSellers = once(fn () => \App\Models\SellerApplication::where('is_on_vacation', true)->pluck('user_id')->all());
+    $onVacation = $isProduct && in_array($product->seller_id, $vacationSellers);
+    $variantPrices = once(fn () => \App\Models\ProductVariation::where('price', '>', 0)->groupBy('product_id')
+        ->selectRaw('product_id, MIN(price) as min_price, MAX(price) as max_price')->get()->keyBy('product_id'));
+    $range = null;
+    if ($isProduct && ($vp = $variantPrices->get($product->id)) && (float) $vp->min_price != (float) $vp->max_price && ! $product->runningFlashSale()) {
+        $range = [$product->priceFor((float) $vp->min_price), $product->priceFor((float) $vp->max_price)];
+    }
 @endphp
 
 @once
@@ -92,14 +101,20 @@
         {{-- Price + cart --}}
         <div class="mt-auto flex items-center justify-between gap-2 pt-2">
             <div class="min-w-0">
-                <p class="text-base font-bold leading-tight" style="color:#fa4e1c;">₱{{ number_format($price, 2) }}</p>
-                @if ($hasDiscount)
+                @if ($range)
+                    <p class="text-sm font-bold leading-tight" style="color:#fa4e1c;">₱{{ number_format($range[0], 0) }} – ₱{{ number_format($range[1], 0) }}</p>
+                @else
+                    <p class="text-base font-bold leading-tight" style="color:#fa4e1c;">₱{{ number_format($price, 2) }}</p>
+                @endif
+                @if ($hasDiscount && ! $range)
                     <p class="text-[11px] line-through" style="color:#a8a29e;">₱{{ number_format($product->price, 2) }}</p>
                 @endif
             </div>
 
-            @if ($outOfStock)
-                <span class="text-[11px] font-medium" style="color:#8a7f78;">Out of stock</span>
+            @if ($onVacation)
+                <span class="rounded px-1.5 py-0.5 text-[11px] font-semibold" style="background:#FFFBEB;color:#B45309;">On vacation</span>
+            @elseif ($outOfStock)
+                <span class="text-[11px] font-medium" style="color:#8a7f78;">Sold out</span>
             @else
                 <form action="{{ route('cart.store', $product->id) }}" method="POST">
                     @csrf

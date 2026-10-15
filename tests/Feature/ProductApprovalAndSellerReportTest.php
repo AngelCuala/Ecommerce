@@ -49,7 +49,8 @@ class ProductApprovalAndSellerReportTest extends TestCase
         return array_merge([
             'title' => 'Premium Dog Food', 'category_id' => $this->cat->id,
             'price' => 250, 'stock' => 10, 'status' => 'active', 'action' => 'publish',
-            'language' => 'English', 'format' => 'Standard',
+            'language' => 'English', 'format' => 'Standard', 'weight_kg' => 1, 'description' => 'A sturdy handmade item, made to last for years.',
+            'images' => [\Illuminate\Http\UploadedFile::fake()->create('front.jpg', 50, 'image/jpeg')],
         ], $data);
     }
 

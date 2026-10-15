@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Order;
+use App\Models\Promotion;
 use App\Models\User;
 use App\Models\Voucher;
 use App\Models\VoucherRedemption;
@@ -17,6 +18,10 @@ use Illuminate\Validation\ValidationException;
  *  - one shipping voucher, on the shipping fees (ALVY pays for it).
  * Choosing another voucher of the same kind replaces the first. Every amount is worked out
  * here on the server; the checkout page only shows it.
+ *
+ * Before any voucher, each store's running promotions (bundle deals and buy-X-get-Y) come off
+ * that store's items; the seller pays for them. A store voucher limited to some products only
+ * counts (and discounts) those products.
  */
 class VoucherService
 {
@@ -26,12 +31,83 @@ class VoucherService
      */
     public function groupBySeller(Collection $items): Collection
     {
+        $sellerIds  = $items->map(fn ($i) => (int) ($i->product->seller_id ?? 0))->filter()->unique()->values();
+        $promotions = $sellerIds->isEmpty() ? collect() : Promotion::running()->whereIn('seller_id', $sellerIds)->orderBy('id')->get()->groupBy('seller_id');
+
         return $items->groupBy(fn ($i) => (int) ($i->product->seller_id ?? 0))
-            ->map(fn ($group, $sellerId) => [
-                'name'     => $sellerId ? ($group->first()->product->seller?->storeName() ?? 'Seller') : 'ALVY',
-                'subtotal' => round($group->sum(fn ($i) => $i->quantity * $i->unit_price), 2),
-                'items'    => $group,
-            ]);
+            ->map(function ($group, $sellerId) use ($promotions) {
+                $gross = round($group->sum(fn ($i) => $i->subtotal()), 2);
+                [$promoLines, $promoLabels] = $this->promotionDiscounts($group, $promotions->get($sellerId, collect()));
+                $promo = round(array_sum($promoLines), 2);
+
+                return [
+                    'name'         => $sellerId ? ($group->first()->product->seller?->storeName() ?? 'Seller') : 'ALVY',
+                    'gross'        => $gross,
+                    'promo'        => $promo,
+                    'promo_lines'  => $promoLines,
+                    'promo_labels' => $promoLabels,
+                    // What the store's items cost after its promotions; vouchers work on this.
+                    'subtotal'     => round($gross - $promo, 2),
+                    'items'        => $group,
+                ];
+            });
+    }
+
+    /**
+     * Discounts from a store's running promotions: [[lineId => amount], [labels]].
+     * Bundle: at least min_qty units of the listed products (any mix of options) → % off them.
+     * Buy X get Y: every min_qty units of the listed product → free_qty of the free product at ₱0.
+     * A line gets at most one promotion.
+     */
+    public function promotionDiscounts(Collection $lines, Collection $promotions): array
+    {
+        $off = [];
+        $labels = [];
+        foreach ($promotions as $promo) {
+            $ids = array_map('intval', (array) $promo->product_ids);
+            $buyLines = $lines->filter(fn ($l) => in_array((int) $l->product_id, $ids, true));
+
+            if ($promo->type === Promotion::BUNDLE) {
+                $eligible = $buyLines->filter(fn ($l) => ! isset($off[$l->id]));
+                if ($eligible->sum('quantity') >= $promo->min_qty && $promo->discount_percent > 0) {
+                    foreach ($eligible as $l) {
+                        $off[$l->id] = round($l->subtotal() * $promo->discount_percent / 100, 2);
+                    }
+                    $labels[] = $promo->name . ' (' . $promo->label() . ')';
+                }
+                continue;
+            }
+
+            // Buy X get Y: when the free item is the same product, a set needs X + Y units.
+            $same = in_array((int) $promo->free_product_id, $ids, true);
+            $sets = intdiv((int) $buyLines->sum('quantity'), max(1, $promo->min_qty + ($same ? $promo->free_qty : 0)));
+            $freeUnits = $sets * max(1, $promo->free_qty);
+            $given = 0.0;
+            foreach ($lines->filter(fn ($l) => (int) $l->product_id === (int) $promo->free_product_id && ! isset($off[$l->id]))->sortBy(fn ($l) => $l->unit_price) as $l) {
+                if ($freeUnits <= 0) {
+                    break;
+                }
+                $n = min($freeUnits, (int) $l->quantity);
+                $off[$l->id] = round(min($l->subtotal(), $n * $l->unit_price), 2);
+                $given += $off[$l->id];
+                $freeUnits -= $n;
+            }
+            if ($given > 0) {
+                $labels[] = $promo->name . ' (' . $promo->label() . ')';
+            }
+        }
+
+        return [$off, $labels];
+    }
+
+    /** What a store voucher counts and discounts: the store's items after promotions, or only its chosen products. */
+    public function voucherBase(Voucher $voucher, array $group): float
+    {
+        if (empty($voucher->product_ids)) {
+            return $group['subtotal'];
+        }
+        return round($group['items']->filter(fn ($l) => $voucher->appliesToProduct((int) $l->product_id))
+            ->sum(fn ($l) => $l->subtotal() - ($group['promo_lines'][$l->id] ?? 0)), 2);
     }
 
     /**
@@ -66,7 +142,7 @@ class VoucherService
             $sellerOptions[$sellerId] = [
                 'name'     => $group['name'],
                 'subtotal' => $group['subtotal'],
-                'vouchers' => collect($sellerVouchers->get($sellerId, []))->map(fn ($v) => $describe($v, $group['subtotal']))->values()->all(),
+                'vouchers' => collect($sellerVouchers->get($sellerId, []))->map(fn ($v) => $this->describeStoreVoucher($describe, $v, $group))->values()->all(),
             ];
         }
 
@@ -84,6 +160,17 @@ class VoucherService
         ];
     }
 
+    /** A store voucher limited to products that aren't in this order can't be used. */
+    private function describeStoreVoucher(callable $describe, Voucher $v, array $group): array
+    {
+        $out = $describe($v, $this->voucherBase($v, $group));
+        if (! empty($v->product_ids) && $this->voucherBase($v, $group) <= 0) {
+            $out['reason'] = 'only for selected products that are not in this order.';
+            $out['discount'] = 0.0;
+        }
+        return $out;
+    }
+
     /**
      * The store + ALVY vouchers that make the order cheapest, picked automatically at checkout.
      * Every combination is tried (one store voucher per seller or none, then the best ALVY
@@ -97,8 +184,8 @@ class VoucherService
         $choices = [];
         foreach ($groups as $sellerId => $group) {
             $usable = collect($sellerVouchers->get($sellerId, []))
-                ->filter(fn ($v) => $this->unusableReason($v, $group['subtotal'], $used) === null)
-                ->map(fn ($v) => ['code' => $v->code, 'discount' => $v->discountFor($group['subtotal'])])
+                ->filter(fn ($v) => $this->voucherBase($v, $group) > 0 && $this->unusableReason($v, $this->voucherBase($v, $group), $used) === null)
+                ->map(fn ($v) => ['code' => $v->code, 'discount' => $v->discountFor($this->voucherBase($v, $group))])
                 ->values()->all();
             if ($sellerId && $usable) {
                 $choices[$sellerId] = array_merge([['code' => null, 'discount' => 0.0]], $usable);
@@ -226,12 +313,17 @@ class VoucherService
                 $fail($field, "Voucher {$code} can't be used on this store's items.");
                 continue;
             }
-            if ($reason = $this->unusableReason($voucher, $group['subtotal'], $used, true)) {
+            $base = $this->voucherBase($voucher, $group);
+            if (! empty($voucher->product_ids) && $base <= 0) {
+                $fail($field, "{$code} can't be used: it is only for selected products that are not in this order.");
+                continue;
+            }
+            if ($reason = $this->unusableReason($voucher, $base, $used, true)) {
                 $fail($field, "{$code} was removed: {$reason}");
                 continue;
             }
             $sellerVouchers[$sellerId] = $voucher;
-            $sellerDiscount[$sellerId] = $voucher->discountFor($group['subtotal']);
+            $sellerDiscount[$sellerId] = $voucher->discountFor($base);
         }
 
         $subtotal    = round($groups->sum('subtotal'), 2);
@@ -273,7 +365,9 @@ class VoucherService
 
         return [
             'groups'            => $groups,
-            'subtotal'          => $subtotal,
+            'subtotal'          => $subtotal,                                  // after promotions
+            'merchandise'       => round($groups->sum('gross'), 2),             // before promotions
+            'promo_discount'    => round($groups->sum('promo'), 2),
             'seller_vouchers'   => $sellerVouchers,
             'seller_discounts'  => $sellerDiscount,
             'seller_discount'   => round(array_sum($sellerDiscount), 2),
@@ -298,24 +392,42 @@ class VoucherService
         $shares = [];
         $allLines = collect();
 
+        $promo = [];
         foreach ($quote['groups'] as $sellerId => $group) {
             $lines = $group['items'];
             $allLines = $allLines->concat($lines);
-            foreach ($this->split($quote['seller_discounts'][$sellerId] ?? 0, $lines) as $id => $amount) {
+            foreach ($lines as $l) {
+                $promo[$l->id] = $group['promo_lines'][$l->id] ?? 0.0;
+            }
+            // A store voucher for chosen products is shared over those products only.
+            $voucher = $quote['seller_vouchers'][$sellerId] ?? null;
+            $eligible = $voucher ? $lines->filter(fn ($l) => $voucher->appliesToProduct((int) $l->product_id))->values() : $lines;
+            $weights = $eligible->mapWithKeys(fn ($l) => [$l->id => $l->subtotal() - $promo[$l->id]]);
+            foreach ($this->split($quote['seller_discounts'][$sellerId] ?? 0, $eligible, $weights) as $id => $amount) {
                 $shares[$id]['seller'] = $amount;
             }
         }
 
-        // The ALVY voucher is shared over what each line costs after its store voucher.
-        $afterSeller = $allLines->mapWithKeys(fn ($i) => [
-            $i->id => $i->quantity * $i->unit_price - ($shares[$i->id]['seller'] ?? 0),
-        ]);
-        foreach ($this->split($quote['platform_discount'], $allLines, $afterSeller) as $id => $amount) {
-            $shares[$id]['platform'] = $amount;
+        // A8: the ALVY voucher is split across the stores in proportion to each store's merchandise
+        // subtotal, rounded to the centavo, with any rounding remainder given to the largest store;
+        // within a store, across its lines by price.
+        $platform = round((float) $quote['platform_discount'], 2);
+        if ($platform > 0) {
+            $groups = collect($quote['groups']);
+            $total  = max(0.01, (float) $groups->sum('gross'));
+            $storeShare = $groups->map(fn ($g) => round($platform * (float) $g['gross'] / $total, 2));
+            $largest = $groups->sortByDesc('gross')->keys()->first();
+            $storeShare[$largest] = round($storeShare[$largest] + $platform - $storeShare->sum(), 2);
+            foreach ($quote['groups'] as $sellerId => $group) {
+                foreach ($this->split($storeShare[$sellerId], $group['items']) as $id => $amount) {
+                    $shares[$id]['platform'] = $amount;
+                }
+            }
         }
 
         foreach ($allLines as $line) {
             $shares[$line->id] = ($shares[$line->id] ?? []) + ['seller' => 0.0, 'platform' => 0.0];
+            $shares[$line->id]['promo'] = $promo[$line->id];
         }
 
         return $shares;
@@ -394,6 +506,10 @@ class VoucherService
                     $use->update(['order_id' => $stillUsedBy->id]);
                     continue;
                 }
+                // An expired voucher isn't given back (A21).
+                if ($use->voucher && $use->voucher->ends_at && $use->voucher->ends_at->isPast()) {
+                    continue;
+                }
                 Voucher::whereKey($use->voucher_id)->where('used_count', '>', 0)->decrement('used_count');
                 $use->delete();
             }
@@ -434,7 +550,7 @@ class VoucherService
             return $lines->mapWithKeys(fn ($l) => [$l->id => 0.0])->all();
         }
 
-        $weights ??= $lines->mapWithKeys(fn ($l) => [$l->id => $l->quantity * $l->unit_price]);
+        $weights ??= $lines->mapWithKeys(fn ($l) => [$l->id => $l->subtotal()]);
         $total = max(0.01, $weights->sum());
         $out = [];
         $left = $amount;

@@ -62,7 +62,7 @@
 
         setText('[data-total="subtotal"]', peso(d.subtotal));
         setText('[data-total="shipping_total"]', d.unserviceable ? '—' : peso(d.shipping_total));
-        ['seller_discount', 'platform_discount', 'shipping_discount'].forEach(function (k) {
+        ['promo_discount', 'seller_discount', 'platform_discount', 'shipping_discount'].forEach(function (k) {
             setText('[data-total="' + k + '"]', '−' + peso(d[k]));
             toggleRow('[data-row="' + k + '"]', d[k] > 0);
         });

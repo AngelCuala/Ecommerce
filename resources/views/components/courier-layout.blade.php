@@ -30,6 +30,16 @@
         'notifications' => ['route' => 'courier.notifications', 'label' => 'Notifications', 'icon' => 'bell'],
         'account'       => ['route' => 'courier.account',       'label' => 'Account',       'icon' => 'user'],
     ];
+    // Riders of a logistics company also get the hub jobs (pickups and deliveries) from the app.
+    if (auth()->check() && \App\Models\Rider::where('user_id', auth()->id())->where('application_status', 'approved')->exists()) {
+        $links = array_slice($links, 0, 1, true) + [
+            'rider'          => ['route' => 'courier.rider',          'label' => 'Hub Jobs',       'icon' => 'parcel'],
+            'rider-history'  => ['route' => 'courier.rider.history',  'label' => 'Job History',    'icon' => 'history'],
+            'rider-earnings' => ['route' => 'courier.rider.earnings', 'label' => 'Rider Pay',      'icon' => 'earnings'],
+            'rider-cod'      => ['route' => 'courier.rider.cod',      'label' => 'COD Remittance', 'icon' => 'truck'],
+            'rider-profile'  => ['route' => 'courier.rider.profile',  'label' => 'Rider Profile',  'icon' => 'user'],
+        ] + array_slice($links, 1, null, true);
+    }
 @endphp
 
 <div class="top-bar"></div>

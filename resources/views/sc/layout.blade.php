@@ -67,6 +67,14 @@
                 <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
                 Delivery Assignment
             </a>
+            <a href="{{ route('sc.dispatch') }}" class="nav-link {{ request()->routeIs('sc.dispatch*') ? 'active' : '' }}">
+                <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+                Rider Dispatch
+            </a>
+            <a href="{{ route('sc.remittances') }}" class="nav-link {{ request()->routeIs('sc.remittances*') ? 'active' : '' }}">
+                <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/></svg>
+                COD Remittances
+            </a>
             <a href="{{ route('sc.delivery-monitoring') }}" class="nav-link {{ request()->routeIs('sc.delivery-monitoring') ? 'active' : '' }}">
                 <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
                 Delivery Monitoring

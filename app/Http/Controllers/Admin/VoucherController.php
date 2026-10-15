@@ -76,7 +76,11 @@ class VoucherController extends Controller
     /** Turn any voucher on or off (also store vouchers, e.g. one that breaks the rules). */
     public function toggle(Voucher $voucher)
     {
-        $voucher->update(['is_active' => ! $voucher->is_active]);
+        if ($voucher->is_active) {
+            $voucher->end();   // also leaves the wallets of buyers who never used it (A27)
+        } else {
+            $voucher->update(['is_active' => true]);
+        }
 
         return back()->with('success', 'Voucher ' . $voucher->code . ' turned ' . ($voucher->is_active ? 'on' : 'off') . '.');
     }

@@ -10,7 +10,13 @@
         'price' => $v->price > 0 ? $product->priceFor((float) $v->price) : $product->effective_price,
         'base'  => $v->price > 0 ? (float) $v->price : (float) $product->price,
         'stock' => (int) $v->stock,
+        'image' => $v->image_path ? asset('storage/' . $v->image_path) : null,
     ])->values();
+    [$minPrice, $maxPrice] = $product->priceRange();
+    $priceRange = $product->variations->isNotEmpty() && $minPrice != $maxPrice
+        ? '₱' . number_format($minPrice, 2) . ' – ₱' . number_format($maxPrice, 2) : null;
+    $onVacation = $product->sellerOnVacation();
+    $canBuy = $inStock && ! $onVacation;
     $groups = $product->variationGroups();
     $groupLabels = $product->variationGroupLabels();
 
@@ -124,8 +130,8 @@
 
             {{-- Price --}}
             <div class="mt-5 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                <span id="pd-price" class="font-display text-3xl font-extrabold" style="color:#fa4e1c;">₱{{ number_format($product->effective_price, 2) }}</span>
-                @if ($hasDiscount)
+                <span id="pd-price" class="font-display text-3xl font-extrabold" style="color:#fa4e1c;">{{ $priceRange ?? '₱' . number_format($product->effective_price, 2) }}</span>
+                @if ($hasDiscount && ! $priceRange)
                     <span id="pd-base" class="text-base line-through" style="color:#a8a29e;">₱{{ number_format($product->price, 2) }}</span>
                     <span id="pd-pct" class="text-sm font-semibold" style="color:#E0431A;">-{{ $pct }}%</span>
                 @endif
@@ -162,9 +168,14 @@
                         <span class="rounded px-1.5 py-0.5 text-[11px] font-semibold" style="background:#EFF6FF;color:#1D4ED8;">Limit {{ $product->purchase_limit }} per buyer{{ $allowance !== null && $allowance < $product->purchase_limit ? ' · ' . $allowance . ' left for you' : '' }}</span>
                     @endif
                 @else
-                    <span style="color:#B91C1C;">Out of stock</span>
+                    <span style="color:#B91C1C;">Sold out</span>
                 @endif
             </p>
+            @if ($onVacation)
+                <p class="mt-3 rounded-lg px-3 py-2 text-sm font-semibold" style="background:#FFFBEB;color:#B45309;" data-vacation>
+                    On vacation — this store isn't taking orders right now. You can still browse and add it to your wishlist.
+                </p>
+            @endif
 
             <div class="my-5 h-px" style="background:#ECE7E3;"></div>
 
@@ -225,14 +236,14 @@
                 <p id="pd-qty-msg" class="mt-1 hidden text-xs font-semibold" style="color:#B91C1C;"></p>
 
                 <div class="mt-4 flex gap-3">
-                    <button type="submit" name="action" value="cart" class="pd-btn pd-btn-line" {{ $inStock ? '' : 'disabled' }}>
+                    <button type="submit" name="action" value="cart" class="pd-btn pd-btn-line" {{ $canBuy ? '' : 'disabled' }}>
                         <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M3 3h1.6l1.7 10.4a2 2 0 002 1.6h8.6a2 2 0 002-1.6L20.4 7H6"/>
                             <circle cx="9.5" cy="20" r="1.3" fill="currentColor" stroke="none"/><circle cx="17" cy="20" r="1.3" fill="currentColor" stroke="none"/>
                         </svg>
                         Add to cart
                     </button>
-                    <button type="submit" name="action" value="buy_now" class="pd-btn pd-btn-solid" {{ $inStock ? '' : 'disabled' }}>
+                    <button type="submit" name="action" value="buy_now" class="pd-btn pd-btn-solid" {{ $canBuy ? '' : 'disabled' }}>
                         Buy now
                     </button>
                 </div>
@@ -322,8 +333,8 @@
                             <span class="text-xs" style="color:#a39890;">{{ $review->created_at->format('M j, Y') }}@if ($review->variation_name) · {{ $review->variation_name }}@endif @if ($review->edit_count) · edited @endif</span>
                         </div>
                         @if ($review->comment)<p class="mt-2 whitespace-pre-line text-sm" style="color:#44403C;">{{ $review->comment }}</p>@endif
-                        @if ($review->photo_path)
-                            <a href="{{ asset('storage/' . $review->photo_path) }}" target="_blank"><img src="{{ asset('storage/' . $review->photo_path) }}" alt="Review photo" class="mt-2 h-24 w-24 rounded-md border object-cover" style="border-color:#ECE7E3;" loading="lazy"></a>
+                        @if ($review->photos())
+                            <div class="mt-2 flex flex-wrap gap-2">@foreach ($review->photos() as $ph)<a href="{{ asset('storage/' . $ph) }}" target="_blank"><img src="{{ asset('storage/' . $ph) }}" alt="Review photo" class="h-24 w-24 rounded-md border object-cover" style="border-color:#ECE7E3;" loading="lazy"></a>@endforeach</div>
                         @endif
                         @if ($review->seller_reply)
                             <div class="mt-3 rounded-md px-3 py-2 text-sm" style="background:#F5F2EF;color:#44403C;"><strong>Seller:</strong> {{ $review->seller_reply }}</div>
@@ -356,9 +367,9 @@
 </div>
 
 <script>
-window.PD = { variants: @json($variantData), groups: {{ count($groups) }}, maxQty: {{ $maxQty }}, allowance: @json($allowance) };
+window.PD = { variants: @json($variantData), groups: {{ count($groups) }}, maxQty: {{ $maxQty }}, allowance: @json($allowance), range: @json($priceRange) };
 </script>
-<script src="{{ asset('js/product-page.js') }}?v=3"></script>
+<script src="{{ asset('js/product-page.js') }}?v=4"></script>
 <script>
 // Gallery thumbnails and quantity stepper
 (function () {

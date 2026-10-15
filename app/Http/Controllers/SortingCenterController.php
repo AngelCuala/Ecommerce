@@ -254,8 +254,13 @@ class SortingCenterController extends Controller
     public function toggleRider(Rider $rider)
     {
         $this->guardRider($rider);
-        $rider->update(['is_active' => !$rider->is_active]);
-        return back()->with('success', "{$rider->full_name} " . ($rider->is_active ? 'activated' : 'deactivated') . '.');
+        $suspending = $rider->is_active;
+        $rider->update(['is_active' => !$rider->is_active] + ($suspending ? ['is_online' => false] : []));
+        if ($suspending) {
+            app(\App\Services\RiderDispatch::class)->releaseJobs($rider);
+        }
+        \App\Models\ActivityLog::note($rider->full_name . ($rider->is_active ? ' reactivated' : ' suspended'), $rider);
+        return back()->with('success', "{$rider->full_name} " . ($rider->is_active ? 'reactivated. They can go Online again.' : 'suspended. They are Offline and get no jobs.'));
     }
 
     // ── Pickup Requests ───────────────────────────────────────
@@ -355,7 +360,7 @@ class SortingCenterController extends Controller
 
         $query = $this->myParcels()->with(['seller', 'area', 'order']);
         if ($tab !== 'all') $query->where('status', $tab);
-        else $query->whereIn('status', ['pickup_approved', 'picked_up', 'sorted', 'assigned']);
+        else $query->whereIn('status', ['pickup_approved', 'in_transit_to_hub', 'picked_up', 'sorted', 'assigned']);
 
         if ($request->search) {
             $q = $request->search;
@@ -378,7 +383,7 @@ class SortingCenterController extends Controller
     /** Receive a parcel at the sorting center (row button). */
     public function advanceParcel(Parcel $parcel)
     {
-        $this->guardParcel($parcel, ['pickup_approved']);
+        $this->guardParcel($parcel, ['pickup_approved', 'in_transit_to_hub']);
         return $this->markReceived($parcel);
     }
 
@@ -392,7 +397,7 @@ class SortingCenterController extends Controller
         if (! $parcel) {
             return back()->with('error', "No parcel {$data['tracking_number']} is expected at your sorting center.");
         }
-        if ($parcel->status !== 'pickup_approved') {
+        if (! in_array($parcel->status, ['pickup_approved', 'in_transit_to_hub'], true)) {
             return back()->with('error', "{$parcel->tracking_number} is already {$parcel->statusLabel()}.");
         }
 
@@ -402,6 +407,10 @@ class SortingCenterController extends Controller
     private function markReceived(Parcel $parcel)
     {
         $parcel->update(['status' => 'picked_up', 'received_at' => now()]);
+        // The rider who brought it in has finished the pickup ("At Hub").
+        \App\Models\ParcelPickup::where('parcel_id', $parcel->id)->whereIn('status', \App\Models\ParcelPickup::OPEN)
+            ->update(['status' => 'received', 'received_at' => now(), 'received_by' => auth()->id()]);
+        \App\Models\ParcelPickup::where('parcel_id', $parcel->id)->where('status', 'received')->whereNull('picked_up_at')->update(['picked_up_at' => now()]);
 
         $svc = $this->parcels();
         $svc->syncOrder($parcel);
@@ -603,6 +612,9 @@ class SortingCenterController extends Controller
     {
         $parcel = $delivery->parcel;
         $this->guardParcel($parcel, ['failed']);
+        if ($parcel->deliveries()->count() >= ParcelDelivery::MAX_ATTEMPTS) {
+            return back()->with('error', "{$parcel->tracking_number} already had " . ParcelDelivery::MAX_ATTEMPTS . ' delivery attempts. Return it to the seller.');
+        }
 
         $parcel->update(['status' => 'sorted']);
 
@@ -710,8 +722,9 @@ class SortingCenterController extends Controller
             ];
         })->sortByDesc('delivered');
 
-        if ($request->boolean('export')) {
-            return $this->exportReport($request->get('tab', 'daily'), $from, $to, $days, $riderPerformance, $areaSummary);
+        if ($request->filled('export')) {
+            $format = $request->get('export') === 'xlsx' ? 'xlsx' : 'csv';   // export=1 / csv / xlsx
+            return $this->exportReport($request->get('tab', 'daily'), $from, $to, $days, $riderPerformance, $areaSummary, $format);
         }
 
         return view('sc.reports', compact('from', 'to', 'riderPerformance', 'areaSummary')
@@ -719,7 +732,7 @@ class SortingCenterController extends Controller
     }
 
     /** Download the current report tab as CSV. */
-    private function exportReport(string $tab, $from, $to, $days, $riders, $areas)
+    private function exportReport(string $tab, $from, $to, $days, $riders, $areas, string $format = 'csv')
     {
         [$header, $rows] = match ($tab) {
             'rider' => [
@@ -736,14 +749,9 @@ class SortingCenterController extends Controller
             ],
         };
 
-        $name = sprintf('sc-%s-report_%s_to_%s.csv', $tab, $from->toDateString(), $to->toDateString());
+        $name = sprintf('sc-%s-report_%s_to_%s', $tab, $from->toDateString(), $to->toDateString());
 
-        return response()->streamDownload(function () use ($header, $rows) {
-            $out = fopen('php://output', 'w');
-            fputcsv($out, $header);
-            foreach ($rows as $row) fputcsv($out, $row);
-            fclose($out);
-        }, $name, ['Content-Type' => 'text/csv']);
+        return \App\Support\TableExport::download($name, $header, $rows->all(), $format);
     }
 
     // ── Chat ──────────────────────────────────────────────────

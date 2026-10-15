@@ -101,9 +101,9 @@
                                 <div class="min-w-0 flex-1">
                                     <p class="truncate text-sm font-medium" style="color:#222;">{{ $line->product->title }}</p>
                                     @if ($line->variation)<p class="text-xs" style="color:#8a7f78;">{{ $line->variation->name }}</p>@endif
-                                    <p class="text-xs" style="color:#8a7f78;">{{ $peso($line->unit_price) }} × {{ $line->quantity }}</p>
+                                    <p class="text-xs" style="color:#8a7f78;">@foreach ($line->priceParts() as [$partQty, $partUnit, $isFlash]){{ $loop->first ? '' : ' + ' }}{{ $peso($partUnit) }} × {{ $partQty }}{{ $isFlash && count($line->priceParts()) > 1 ? ' (flash)' : '' }}@endforeach</p>
                                 </div>
-                                <p class="text-sm font-semibold" style="color:#222;">{{ $peso($line->quantity * $line->unit_price) }}</p>
+                                <p class="text-sm font-semibold" style="color:#222;">{{ $peso($line->subtotal()) }}</p>
                             </div>
                         @endforeach
                     </div>
@@ -230,7 +230,8 @@
 
                     {{-- Totals --}}
                     <div class="space-y-1.5 border-t pt-4 text-sm" style="border-color:#F2EEEA;color:#57534E;">
-                        <div class="co-row"><span>Merchandise subtotal</span><span data-total="subtotal">{{ $peso($q['subtotal']) }}</span></div>
+                        <div class="co-row"><span>Merchandise subtotal</span><span data-total="subtotal">{{ $peso($q['merchandise']) }}</span></div>
+                        <div class="co-row co-off {{ $q['promo_discount'] > 0 ? '' : 'hidden' }}" data-row="promo_discount"><span>Bundle deals &amp; promos</span><span data-total="promo_discount">−{{ $peso($q['promo_discount']) }}</span></div>
                         <div class="co-row"><span>Shipping</span><span data-total="shipping_total">{{ $summary['unserviceable'] ? '—' : $peso($q['shipping_total']) }}</span></div>
                         <div class="co-row co-off {{ $q['seller_discount'] > 0 ? '' : 'hidden' }}" data-row="seller_discount"><span>Store vouchers</span><span data-total="seller_discount">−{{ $peso($q['seller_discount']) }}</span></div>
                         <div class="co-row co-off {{ $q['platform_discount'] > 0 ? '' : 'hidden' }}" data-row="platform_discount"><span>ALVY voucher</span><span data-total="platform_discount">−{{ $peso($q['platform_discount']) }}</span></div>
@@ -253,5 +254,5 @@
     </form>
 </div>
 
-<script src="{{ asset('js/checkout.js') }}?v=2"></script>
+<script src="{{ asset('js/checkout.js') }}?v=3"></script>
 </x-layout>

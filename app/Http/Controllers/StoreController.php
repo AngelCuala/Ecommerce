@@ -17,14 +17,28 @@ class StoreController extends Controller
 
         $base = Product::published()->where('seller_id', $seller->id);
 
-        // Store categories, two levels: category → subcategories.
-        $categories = (clone $base)->with('category')->get(['id', 'category_id', 'subcategory'])
+        // The seller's own store categories (two levels; hidden ones are left out). Products in
+        // no visible category are "Uncategorized". Stores without any fall back to platform categories.
+        $storeCategories = \App\Models\StoreCategory::where('seller_id', $seller->id)->whereNull('parent_id')->where('is_hidden', false)
+            ->with(['children' => fn ($q) => $q->where('is_hidden', false)->withCount(['products' => fn ($p) => $p->published()])])
+            ->withCount(['products' => fn ($p) => $p->published()])
+            ->orderBy('sort_order')->orderBy('name')->get();
+        $visibleIds = $storeCategories->pluck('id')->merge($storeCategories->flatMap(fn ($c) => $c->children->pluck('id')))->all();
+        $uncategorized = $storeCategories->isNotEmpty()
+            ? (clone $base)->whereDoesntHave('storeCategories', fn ($q) => $q->whereIn('store_categories.id', $visibleIds))->count() : 0;
+
+        $categories = $storeCategories->isNotEmpty() ? collect() : (clone $base)->with('category')->get(['id', 'category_id', 'subcategory'])
             ->groupBy(fn ($p) => $p->category->name ?? 'Other')
             ->map(fn ($ps) => ['count' => $ps->count(), 'subs' => $ps->pluck('subcategory')->filter()->countBy()->sortKeys()->all()])
             ->sortKeys();
 
+        $chosen = $request->filled('scat') && $request->scat !== 'none'
+            ? \App\Models\StoreCategory::where('seller_id', $seller->id)->where('is_hidden', false)->find((int) $request->scat) : null;
+
         $products = (clone $base)
             ->with('category')->withAvg('reviews', 'rating')
+            ->when($chosen, fn ($q) => $q->whereHas('storeCategories', fn ($c) => $c->whereIn('store_categories.id', $chosen->children()->where('is_hidden', false)->pluck('id')->push($chosen->id))))
+            ->when($request->scat === 'none' && $storeCategories->isNotEmpty(), fn ($q) => $q->whereDoesntHave('storeCategories', fn ($c) => $c->whereIn('store_categories.id', $visibleIds)))
             ->when($request->filled('category'), fn ($q) => $q->whereHas('category', fn ($c) => $c->where('name', $request->category)))
             ->when($request->filled('sub'), fn ($q) => $q->where('subcategory', $request->sub))
             ->latest()->paginate(24)->withQueryString();
@@ -36,7 +50,7 @@ class StoreController extends Controller
         $followers = $seller->followers()->count();
         $following = auth()->check() && StoreFollow::where('user_id', auth()->id())->where('seller_id', $seller->id)->exists();
 
-        return view('stores.show', compact('seller', 'categories', 'products', 'vouchers', 'claimed', 'followers', 'following'));
+        return view('stores.show', compact('seller', 'categories', 'storeCategories', 'uncategorized', 'chosen', 'products', 'vouchers', 'claimed', 'followers', 'following'));
     }
 
     public function toggleFollow(int $sellerId)

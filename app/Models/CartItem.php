@@ -33,16 +33,47 @@ class CartItem extends Model
         if ($this->variation && $this->variation->price > 0) {
             return $this->product->priceFor((float) $this->variation->price);
         }
-        // The flash price only while enough flash units are left for this line.
-        $flash = $this->flashSale();
-        return $flash ? $this->product->effective_price : $this->product->regular_price;
+        // Part flash, part regular: the average (the line total is exact, see subtotal()).
+        $flashUnits = $this->flashUnits();
+        if ($flashUnits === 0) {
+            return $this->product->regular_price;
+        }
+        if ($flashUnits >= $this->quantity) {
+            return $this->product->effective_price;
+        }
+        return round($this->subtotal() / max(1, $this->quantity), 2);
     }
 
-    /** The running flash sale this line gets its price from, or null. */
+    /** The running flash sale this line gets (some of) its units from, or null. */
     public function flashSale(): ?FlashSale
     {
+        return $this->flashUnits() > 0 ? $this->product->runningFlashSale() : null;
+    }
+
+    /**
+     * Units of this line charged at the flash price: as many as the flash sale has left.
+     * The rest are charged at the normal (or store sale) price (assumption A5).
+     */
+    public function flashUnits(): int
+    {
         $flash = $this->product?->runningFlashSale();
-        return $flash && ! $this->variation_id && $this->quantity <= $flash->remaining() ? $flash : null;
+        if (! $flash || $this->variation_id || $this->product->effective_price >= $this->product->regular_price) {
+            return 0;
+        }
+        return max(0, min((int) $this->quantity, $flash->remaining()));
+    }
+
+    /** [[qty, unit price, flash?], ...]: one part, or a flash part plus a regular part. */
+    public function priceParts(): array
+    {
+        $flashUnits = $this->flashUnits();
+        if ($flashUnits > 0 && $flashUnits < $this->quantity) {
+            return [
+                [$flashUnits, $this->product->effective_price, true],
+                [$this->quantity - $flashUnits, $this->product->regular_price, false],
+            ];
+        }
+        return [[(int) $this->quantity, $this->unit_price, $flashUnits > 0]];
     }
 
     /** Units in stock for this line (the variant's own stock when it is a variant). */
@@ -60,11 +91,12 @@ class CartItem extends Model
         if (! $this->product || ! $this->product->isPublished()) {
             return 'No longer available';
         }
-        if ($this->variation_id && ! $this->variation) {
-            return 'This option is no longer available';
+        if ($this->product->sellerOnVacation()) {
+            return 'On vacation — the store is not taking orders right now';
         }
-        if (! $this->variation_id && $this->product->variations->isNotEmpty()) {
-            return 'Please choose an option';
+        // The seller removed this option (its row is gone, so the line lost its option).
+        if (($this->variation_id && ! $this->variation) || (! $this->variation_id && $this->product->variations->isNotEmpty())) {
+            return 'This option is no longer available';
         }
         $stock = $this->availableStock();
         if ($stock <= 0) {
@@ -78,6 +110,10 @@ class CartItem extends Model
 
     public function subtotal(): float
     {
+        $flashUnits = $this->flashUnits();
+        if ($flashUnits > 0 && $flashUnits < $this->quantity) {
+            return round($flashUnits * $this->product->effective_price + ($this->quantity - $flashUnits) * $this->product->regular_price, 2);
+        }
         return round($this->quantity * $this->unit_price, 2);
     }
 }

@@ -290,15 +290,15 @@ class VoucherTest extends TestCase
         $this->actingAs($this->admin)->delete(route('admin.vouchers.destroy', $v))->assertSessionHas('error');
         $this->assertDatabaseHas('vouchers', ['id' => $v->id]);
 
-        // The code and discount are locked once used; other details can change.
-        $this->actingAs($this->admin)->put(route('admin.vouchers.update', $v), [
-            'code' => 'SALE1111', 'name' => 'Renamed', 'discount_type' => 'percent', 'discount_value' => 10,
-            'per_user_limit' => 1, 'usage_limit' => 50, 'is_active' => '1',
-        ])->assertSessionHasNoErrors();
-        $this->assertSame('Renamed', $v->fresh()->name);
-        $this->actingAs($this->admin)->put(route('admin.vouchers.update', $v), [
-            'code' => 'SALE1111', 'name' => 'Renamed', 'discount_type' => 'percent', 'discount_value' => 50,
-            'per_user_limit' => 1, 'is_active' => '1',
-        ])->assertSessionHasErrors('discount_value');
+        // A27: once used, only the end date can be extended and the usage limit raised.
+        $v->refresh();
+        $form = ['code' => $v->code, 'name' => $v->name, 'discount_type' => $v->discount_type, 'discount_value' => $v->discount_value,
+            'max_discount' => $v->max_discount, 'min_spend' => $v->min_spend, 'starts_at' => $v->starts_at?->format('Y-m-d\TH:i'),
+            'ends_at' => $v->ends_at?->format('Y-m-d\TH:i'), 'per_user_limit' => $v->per_user_limit, 'is_active' => '1'];
+        $this->actingAs($this->admin)->put(route('admin.vouchers.update', $v), ['usage_limit' => 50] + $form)->assertSessionHasNoErrors();
+        $this->assertSame(50, $v->fresh()->usage_limit);
+        $this->actingAs($this->admin)->put(route('admin.vouchers.update', $v), ['usage_limit' => 50, 'name' => 'Renamed'] + $form)->assertSessionHasErrors('name');
+        $this->actingAs($this->admin)->put(route('admin.vouchers.update', $v), ['usage_limit' => 50, 'discount_value' => 50] + $form)->assertSessionHasErrors('discount_value');
+        $this->actingAs($this->admin)->put(route('admin.vouchers.update', $v), ['usage_limit' => 10] + $form)->assertSessionHasErrors('usage_limit');
     }
 }
