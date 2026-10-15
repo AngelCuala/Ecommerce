@@ -14,10 +14,10 @@
     </x-slot:head>
 
     <div class="px-6 pb-8 pt-6 sm:px-10 sm:pb-10">
-        @if ($errors->any())
+        @if ($errors->any() || session('error'))
             <div class="mb-5 flex items-start gap-2 rounded-xl border p-3 text-sm" style="background:#FEF2F2;border-color:rgba(220,38,38,.2);color:#DC2626;">
                 <svg class="mt-0.5 h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                <p class="flex-1">{{ $errors->first() }}</p>
+                <p class="flex-1">{{ $errors->first() ?: session('error') }}</p>
             </div>
         @endif
         @if (session('success'))

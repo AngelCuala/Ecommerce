@@ -209,7 +209,7 @@
 @include('partials.nav')
 
 {{-- Toast notifications (pop-up, auto-dismiss) --}}
-@if (session('success') || $errors->any())
+@if (session('success') || session('error') || $errors->any())
     <div id="toast-stack" class="fixed right-4 top-20 z-[100] flex w-full max-w-sm flex-col gap-2 px-2 sm:px-0">
         @if (session('success'))
             <div class="toast flex items-start gap-3 rounded-xl border p-4 shadow-lg"
@@ -219,11 +219,11 @@
                 <button type="button" data-toast-close class="shrink-0 text-lg leading-none btn-hover-danger" style="color:#9CA3AF;" aria-label="Dismiss">&times;</button>
             </div>
         @endif
-        @if ($errors->any())
+        @if ($errors->any() || session('error'))
             <div class="toast flex items-start gap-3 rounded-xl border p-4 shadow-lg"
                  style="background:#fff;border-color:rgba(208,2,27,.25);">
                 <svg class="mt-0.5 h-5 w-5 shrink-0" fill="none" stroke="#D0021B" stroke-width="2.2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path stroke-linecap="round" d="M12 8v5M12 16h.01"/></svg>
-                <p class="flex-1 text-sm font-semibold" style="color:#B91C1C;">{{ $errors->first() }}</p>
+                <p class="flex-1 text-sm font-semibold" style="color:#B91C1C;">{{ $errors->first() ?: session('error') }}</p>
                 <button type="button" data-toast-close class="shrink-0 text-lg leading-none btn-hover-danger" style="color:#9CA3AF;" aria-label="Dismiss">&times;</button>
             </div>
         @endif

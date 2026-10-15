@@ -29,5 +29,22 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
-        //
+        // A form left open past the 30-minute session (or after logging out in another tab):
+        // instead of the bare "419 Page Expired", go back with what was typed and a fresh token.
+        // (Laravel has already turned the TokenMismatchException into an HTTP 419 by now.)
+        $exceptions->render(function (\Symfony\Component\HttpKernel\Exception\HttpException $e, \Illuminate\Http\Request $request) {
+            if (! $e->getPrevious() instanceof \Illuminate\Session\TokenMismatchException) {
+                return null;
+            }
+            if ($request->expectsJson()) {
+                return response()->json(['message' => 'Your session expired. Please reload the page and try again.'], 419);
+            }
+            if ($request->routeIs('logout') || str_ends_with($request->path(), 'logout')) {
+                return redirect()->route('login');
+            }
+
+            return redirect()->back(fallback: route('login'))
+                ->withInput($request->except(['_token', 'password', 'password_confirmation', 'current_password']))
+                ->with('error', 'Your session expired, so that was not saved. Please try again.');
+        });
     })->create();
