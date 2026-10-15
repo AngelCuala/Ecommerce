@@ -72,6 +72,9 @@ class LogUserActivity
             'description'  => Str::limit((string) $description, 500, '…'),
             'status'       => $status,
             'ip_address'   => ActivityLog::clientIp(),
+            'old_value'    => Str::limit((string) $request->attributes->get('activity.old'), 250, '…') ?: null,
+            'new_value'    => Str::limit((string) $request->attributes->get('activity.new'), 250, '…') ?: null,
+            'reason'       => $request->attributes->get('activity.reason'),
         ]);
     }
 

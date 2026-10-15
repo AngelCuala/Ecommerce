@@ -122,7 +122,8 @@
                                     <button class="btn btn-red btn-sm">Reject</button>
                                 </form>
                             @elseif($isActive)
-                                <form method="POST" action="{{ route('sc.riders.toggle',$rider) }}">@csrf
+                                <form method="POST" action="{{ route('sc.riders.toggle',$rider) }}" style="display:flex;gap:4px;">@csrf
+                                    <input name="reason" class="form-input" style="padding:4px 6px;font-size:11px;width:150px;" placeholder="Reason (10–300)" minlength="10" maxlength="300" required aria-label="Reason for suspending {{ $rider->full_name }}">
                                     <button class="btn btn-red btn-sm">Suspend</button>
                                 </form>
                             @elseif($isInactive)

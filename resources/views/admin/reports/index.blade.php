@@ -26,6 +26,10 @@
     <button class="btn-gold px-5 py-2 text-sm">Apply</button>
     <a href="{{ route('admin.reports.index', array_filter(['type' => $type, 'from' => $from, 'to' => $to, 'seller' => request('seller'), 'export' => 'pdf'])) }}"
        class="btn-outline inline-flex items-center gap-1.5 px-4 py-2 text-sm"><svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v12m0 0l-4-4m4 4l4-4M5 21h14"/></svg> Download PDF</a>
+    @if ($type === 'sellers')
+        <a href="{{ route('admin.reports.index', array_filter(['type' => $type, 'from' => $from, 'to' => $to, 'seller' => request('seller'), 'export' => 'csv'])) }}" class="btn-outline inline-flex items-center px-4 py-2 text-sm">CSV</a>
+        <a href="{{ route('admin.reports.index', array_filter(['type' => $type, 'from' => $from, 'to' => $to, 'seller' => request('seller'), 'export' => 'xlsx'])) }}" class="btn-outline inline-flex items-center px-4 py-2 text-sm">XLSX</a>
+    @endif
 </form>
 <p class="-mt-4 mb-6 text-xs" style="color:#6b90aa;">Cancelled orders are not counted as sales in any report.</p>
 

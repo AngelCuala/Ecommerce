@@ -15,6 +15,7 @@ class ActivityLog extends Model
     protected $fillable = [
         'admin_id', 'admin_name', 'user_role', 'action', 'action_label',
         'subject_type', 'subject_id', 'description', 'status', 'ip_address',
+        'old_value', 'new_value', 'reason',
     ];
 
     /** The visitor's real IP: Cloudflare's header when behind Cloudflare, else the proxy-aware IP. */
@@ -35,6 +36,14 @@ class ActivityLog extends Model
         if ($subject instanceof Model) {
             request()->attributes->set('activity.subject', $subject);
         }
+    }
+
+    /** A35: record what changed (old → new) and why, for overrides, approvals, suspensions and confirmations. */
+    public static function change(?string $old, ?string $new, ?string $reason = null): void
+    {
+        request()->attributes->set('activity.old', $old);
+        request()->attributes->set('activity.new', $new);
+        request()->attributes->set('activity.reason', $reason);
     }
 
     public function admin(): BelongsTo

@@ -67,7 +67,7 @@
                                 @else
                                     <p class="text-sm font-medium" style="color:#222;">{{ $item->product->title ?? 'Removed product' }}</p>
                                 @endif
-                                <p class="text-xs pf-muted">@if ($item->variation_name){{ $item->variation_name }} · @endif₱{{ number_format($item->price, 2) }} × {{ $item->quantity }}</p>
+                                <p class="text-xs pf-muted">@if ($item->variation_name){{ $item->variation_name }} · @endif₱{{ number_format($item->price, 2) }} × {{ $item->quantity }}@if ($item->refunded_at) · <span style="color:#059669;font-weight:600;">Refunded ₱{{ number_format($item->refund_amount, 2) }}</span>@endif</p>
                             </div>
                             <p class="text-sm font-semibold" style="color:#222;">₱{{ number_format($item->price * $item->quantity, 2) }}</p>
                         </div>
@@ -161,6 +161,14 @@
                                     <option value="">Choose a reason</option>
                                     @foreach (\App\Models\ReturnRequest::REASONS as $reason)<option @selected(old('reason') === $reason)>{{ $reason }}</option>@endforeach
                                 </select>
+                            </div>
+                            <div>
+                                <span class="pf-label">Items to return</span>
+                                @foreach ($order->items as $ri)
+                                    <label class="flex items-center gap-2 text-sm"><input type="checkbox" name="items[]" value="{{ $ri->id }}" checked>
+                                        {{ $ri->product->title ?? 'Item' }}@if ($ri->variation_name) ({{ $ri->variation_name }})@endif × {{ $ri->quantity }}</label>
+                                @endforeach
+                                <p class="text-xs pf-muted">Untick items you are keeping. Each item's refund is its price minus its share of the vouchers.</p>
                             </div>
                             <div>
                                 <label class="pf-label">Describe the problem <span class="pf-muted">— 10 to 500 characters</span></label>

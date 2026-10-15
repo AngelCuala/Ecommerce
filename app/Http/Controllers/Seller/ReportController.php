@@ -30,7 +30,7 @@ class ReportController extends Controller
         // Deleted listings still count: their past sales happened.
         $productIds = Product::withTrashed()->where('seller_id', auth()->id())->pluck('id');
 
-        $items = OrderItem::whereIn('product_id', $productIds)
+        $items = OrderItem::whereIn('product_id', $productIds)->whereNull('refunded_at')
             ->whereHas('order', fn ($q) => $q->whereNotIn('status', Order::NOT_SALES)
                 ->whereBetween('created_at', [$from . ' 00:00:00', $to . ' 23:59:59']))
             ->with('product', 'order')

@@ -240,6 +240,8 @@ class SortingCenterController extends Controller
     public function approveRider(Rider $rider)
     {
         $this->guardRider($rider);
+        \App\Models\ActivityLog::change($rider->statusLabel(), 'Active', null);
+        \App\Models\ActivityLog::note($rider->full_name . ' approved', $rider);
         $rider->update(['application_status' => 'approved', 'is_active' => true, 'approved_at' => now(), 'approved_by' => auth()->id()]);
         return back()->with('success', "{$rider->full_name} approved.");
     }
@@ -251,9 +253,17 @@ class SortingCenterController extends Controller
         return back()->with('success', "{$rider->full_name} rejected.");
     }
 
-    public function toggleRider(Rider $rider)
+    public function toggleRider(Request $request, Rider $rider)
     {
         $this->guardRider($rider);
+        if ($rider->is_active) {
+            $request->validate(['reason' => 'required|string|min:10|max:300'], [
+                'reason.required' => 'Give the reason for suspending this rider (10 to 300 characters).',
+                'reason.min'      => 'The reason must be 10 to 300 characters.',
+                'reason.max'      => 'The reason must be 10 to 300 characters.',
+            ]);
+        }
+        \App\Models\ActivityLog::change($rider->statusLabel(), $rider->is_active ? 'Suspended' : 'Active', $request->input('reason'));
         $suspending = $rider->is_active;
         $rider->update(['is_active' => !$rider->is_active] + ($suspending ? ['is_online' => false] : []));
         if ($suspending) {
@@ -568,11 +578,15 @@ class SortingCenterController extends Controller
         $allowed = self::DELIVERY_FLOW[$delivery->status] ?? [];
         $data = $request->validate([
             'status'  => ['required', \Illuminate\Validation\Rule::in($allowed)],
-            'remarks' => 'nullable|string|max:500|required_if:status,failed',
+            'remarks' => 'required|string|min:10|max:300',
         ], [
-            'status.in'           => 'That status change is not allowed for this delivery.',
-            'remarks.required_if' => 'Record the reason the delivery failed.',
+            'status.in'        => 'That status change is not allowed for this delivery.',
+            'remarks.required' => 'This is a logistics override: give the reason (10 to 300 characters).',
+            'remarks.min'      => 'The reason must be 10 to 300 characters.',
+            'remarks.max'      => 'The reason must be 10 to 300 characters.',
         ]);
+        \App\Models\ActivityLog::change($delivery->statusLabel(), \App\Models\ParcelDelivery::STATUS_LABELS[$data['status']] ?? $data['status'], $data['remarks']);
+        \App\Models\ActivityLog::note('Logistics override on ' . $parcel->tracking_number, $parcel);
 
         $svc = $this->parcels();
         $ref = $svc->orderRef($parcel);

@@ -20,7 +20,7 @@ class ReportController extends Controller
             'to'     => 'nullable|date',
             'type'   => 'nullable|in:sales,commission,sellers',
             'seller' => 'nullable|integer',
-            'export' => 'nullable|in:csv,pdf',
+            'export' => 'nullable|in:csv,xlsx,pdf',
         ]);
 
         $from = Carbon::parse($request->input('from', now()->startOfMonth()))->toDateString();
@@ -193,6 +193,16 @@ class ReportController extends Controller
 
         if ($request->query('export') === 'csv') {
             return $this->sellerCsv($from, $to, $sellers, $seller, $products);
+        }
+        if ($request->query('export') === 'xlsx') {
+            [$header, $rows] = $seller
+                ? [['Product code', 'Product', 'Units sold', 'Gross sales', 'Commission', 'Seller earnings'],
+                   collect($products)->map(fn ($p) => [$p->product_code, $p->title, $p->units, $p->gross, $p->commission, $p->payout])
+                       ->push(['', 'Total', $seller->units, $seller->gross, $seller->commission, $seller->payout])->all()]
+                : [['Seller', 'Shop', 'Email', 'Orders', 'Units sold', 'Gross sales', 'Commission', 'Seller earnings'],
+                   collect($sellers)->map(fn ($s) => [$s->name, $s->shop, $s->email, $s->orders, $s->units, $s->gross, $s->commission, $s->payout])
+                       ->push(['Total', '', '', $sellers->sum('orders'), $sellers->sum('units'), $sellers->sum('gross'), $sellers->sum('commission'), $sellers->sum('payout')])->all()];
+            return \App\Support\TableExport::download('seller-sales-' . ($seller ? Str::slug($seller->name) . '-' : '') . "{$from}-to-{$to}", $header, $rows, 'xlsx');
         }
 
         $data = compact('from', 'to', 'type', 'sellers', 'seller', 'products', 'daily');

@@ -153,6 +153,27 @@ class OrderController extends Controller
             . ($order->fresh()->isPaidOnline() ? '; their payment is being refunded in full.' : '.'));
     }
 
+    /** The seller got a Return-to-Sender parcel back: the order is cancelled and its stock restored (A3). */
+    public function returnedReceived(int $id)
+    {
+        $order  = $this->ownOrder($id);
+        $parcel = \App\Models\Parcel::where('order_id', $order->id)->where('seller_id', auth()->id())->where('status', 'return_to_sender')->first();
+        if (! $parcel) {
+            return back()->with('error', 'There is no returning parcel to confirm for this order.');
+        }
+
+        \Illuminate\Support\Facades\DB::transaction(function () use ($parcel) {
+            \App\Models\ParcelDelivery::where('parcel_id', $parcel->id)->latest('id')->first()?->update(['status' => 'returned']);
+            $parcel->update(['status' => 'returned']);
+            // Every parcel back with the seller → the order is cancelled; Order::booted() restocks it.
+            app(\App\Services\ParcelService::class)->syncOrder($parcel->fresh());
+        });
+        \App\Models\ActivityLog::change('Return to Sender', 'Returned to seller', $parcel->failure_reason);
+        \App\Models\ActivityLog::note('Returned parcel ' . $parcel->tracking_number . ' received', $parcel);
+
+        return back()->with('success', 'Returned parcel received. Its stock is back in your inventory.');
+    }
+
     /** Printable waybill for the parcel. */
     public function waybill(int $id)
     {
@@ -198,6 +219,30 @@ class OrderController extends Controller
             'seller_note' => $data['seller_note'] ?? null,
             'resolved_at' => now(),
         ]);
+        \App\Models\ActivityLog::change('Return requested', $approved ? 'Return approved' : 'Return rejected', $data['seller_note'] ?? null);
+
+        if ($approved && $return->isPartial()) {
+            // A8: only these items are refunded; the rest of the order goes on as delivered.
+            \Illuminate\Support\Facades\DB::transaction(function () use ($order, $return) {
+                foreach (OrderItem::where('order_id', $order->id)->whereIn('id', $return->item_ids)->get() as $item) {
+                    $item->forceFill(['refunded_at' => now(), 'refund_amount' => \App\Models\ReturnRequest::itemRefund($item)])->save();
+                }
+                $order->forceFill(['status' => Order::DELIVERED])->saveQuietly();
+                $order->events()->create(['status' => Order::DELIVERED, 'note' => 'Partial refund of ₱' . number_format($return->refund_amount, 2) . ' approved', 'created_at' => now()]);
+                if ($order->isPaidOnline()) {
+                    app(\App\Services\PaymentService::class)->refund($order, 'Partial return approved', (float) $return->refund_amount);
+                } else {
+                    $order->forceFill(['refunded_amount' => (float) $order->refunded_amount + (float) $return->refund_amount])->saveQuietly();
+                }
+                \App\Models\UserNotification::create(['user_id' => $order->user_id, 'title' => 'Partial refund approved', 'type' => 'success',
+                    'body' => 'The seller approved your return for order ' . $order->number() . '. ₱' . number_format($return->refund_amount, 2)
+                        . ($order->isPaidOnline() ? ' goes back to your payment method.' : ' goes to your refund account.'),
+                    'link' => route('profile.orders.show', $order->id, false)]);
+            });
+
+            return back()->with('success', 'Partial return approved. The buyer will be refunded ₱' . number_format($return->refund_amount, 2) . '.');
+        }
+
         // Approved: refunded. Rejected: back to Delivered, so the buyer can still confirm it.
         $order->update(['status' => $approved ? Order::REFUNDED : Order::DELIVERED]);
 

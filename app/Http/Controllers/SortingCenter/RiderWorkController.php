@@ -143,6 +143,8 @@ class RiderWorkController extends Controller
             return back()->with('error', 'This remittance is already confirmed.');
         }
         $remittance->update(['status' => 'confirmed', 'confirmed_by' => $this->scId(), 'confirmed_at' => now()]);
+        \App\Models\ActivityLog::change('Pending ₱' . number_format($remittance->amount, 2), 'Confirmed ₱' . number_format($remittance->amount, 2),
+            $remittance->shortfall() > 0 ? 'Short by ₱' . number_format($remittance->shortfall(), 2) : null);
         $rider = $remittance->rider;
         UserNotification::create(['user_id' => $rider->user_id, 'title' => 'COD remittance confirmed',
             'body' => 'Your remittance of ₱' . number_format($remittance->amount, 2) . ' was confirmed.'

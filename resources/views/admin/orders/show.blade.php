@@ -177,6 +177,8 @@
                         <option value="{{ $s }}" {{ $order->status === $s ? 'selected' : '' }}>{{ $s }}</option>
                     @endforeach
                 </select>
+                <input name="reason" class="input text-sm" placeholder="Reason for the override (10–300 characters)" minlength="10" maxlength="300" required>
+                @error('reason')<p class="text-xs" style="color:#DC2626;">{{ $message }}</p>@enderror
                 <button type="submit" class="btn-gold w-full !py-2 text-sm" style="background:#fa4e1c;border-color:#fa4e1c;color:#FFFFFF;">Save Status</button>
             </form>
         </div>

@@ -142,6 +142,8 @@ class OrderController extends Controller
             'reason'   => ['required', Rule::in(ReturnRequest::REASONS)],
             'details'  => 'required|string|min:10|max:500',
             'evidence' => 'required_without:evidence_photos|nullable|file|mimes:jpg,jpeg,png|mimetypes:image/jpeg,image/png|max:5120',
+            'items'             => 'nullable|array',
+            'items.*'           => ['integer', Rule::in($order->items()->pluck('id')->all())],
             'evidence_photos'   => 'nullable|array|max:' . \App\Models\ReturnRequest::MAX_PHOTOS,
             'evidence_photos.*' => 'file|mimes:jpg,jpeg,png|mimetypes:image/jpeg,image/png|max:5120',
         ], [
@@ -164,6 +166,14 @@ class OrderController extends Controller
         }
         $paths = array_map(fn ($f) => $f->store('returns', 'public'), $files);
 
+        // All items (or none ticked) = the whole order; some items = refund those items only (A8).
+        $allIds = $order->items()->pluck('id')->map(fn ($id) => (int) $id)->sort()->values()->all();
+        $chosen = collect($data['items'] ?? [])->map(fn ($id) => (int) $id)->unique()->sort()->values()->all();
+        $partial = $chosen && $chosen !== $allIds;
+        $refund = $partial
+            ? round($order->items()->whereIn('id', $chosen)->get()->sum(fn ($i) => ReturnRequest::itemRefund($i)), 2)
+            : (float) $order->total_price;
+
         $order->returnRequests()->create([
             'user_id'       => auth()->id(),
             'seller_id'     => $order->seller_id ?? $order->items()->with('product')->first()?->product?->seller_id,
@@ -171,7 +181,8 @@ class OrderController extends Controller
             'details'       => $data['details'] ?? null,
             'evidence_path' => $paths[0],
             'evidence_paths' => $paths,
-            'refund_amount' => $order->total_price,
+            'item_ids'      => $partial ? $chosen : null,
+            'refund_amount' => $refund,
             'status'        => 'requested',
         ]);
         $order->update(['status' => Order::RETURN_REQUESTED]);

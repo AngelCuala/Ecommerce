@@ -119,9 +119,10 @@ class PaymentService
     }
 
     /** Refund an order paid online (cancelled before pickup, or return approved). */
-    public function refund(Order $order, string $reason = 'Order cancelled'): void
+    public function refund(Order $order, string $reason = 'Order cancelled', ?float $only = null): void
     {
-        $amount = round((float) $order->total_price - (float) $order->refunded_amount, 2);
+        $left = round((float) $order->total_price - (float) $order->refunded_amount, 2);
+        $amount = $only !== null ? round(min($only, $left), 2) : $left;   // part of the order (A8) or the rest of it
         $payment = Payment::where('checkout_group', $order->checkout_group)->where('status', 'paid')->latest('id')->first();
         if ($amount <= 0 || ! $payment) {
             return;
@@ -130,7 +131,7 @@ class PaymentService
         $ok = $this->gateway($payment->provider)->refund($payment, $amount, $reason . ' (' . $order->number() . ')');
         $order->forceFill([
             'refunded_amount' => $ok ? (float) $order->refunded_amount + $amount : $order->refunded_amount,
-            'payment_status'  => $ok ? 'Refunded' : 'Refund pending',
+            'payment_status'  => $ok ? ($only !== null && $amount < $left ? 'Partially refunded' : 'Refunded') : 'Refund pending',
         ])->saveQuietly();
     }
 

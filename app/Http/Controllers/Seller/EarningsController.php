@@ -26,7 +26,7 @@ class EarningsController extends Controller
         $productIds = Product::withTrashed()->where('seller_id', auth()->id())->pluck('id');
         $orders = Order::whereHas('items', fn ($q) => $q->whereIn('product_id', $productIds))
             ->whereNotIn('status', Order::NOT_SALES)
-            ->with(['items' => fn ($q) => $q->whereIn('product_id', $productIds)])
+            ->with(['items' => fn ($q) => $q->whereIn('product_id', $productIds)->whereNull('refunded_at')])
             ->latest()->paginate(20);
 
         $payouts = SellerPayout::where('seller_id', auth()->id())->latest()->take(20)->get();
@@ -80,7 +80,7 @@ class EarningsController extends Controller
     public function balances(int $sellerId): array
     {
         $productIds = Product::withTrashed()->where('seller_id', $sellerId)->pluck('id');
-        $sum = fn (callable $scope) => (float) OrderItem::whereIn('product_id', $productIds)
+        $sum = fn (callable $scope) => (float) OrderItem::whereIn('product_id', $productIds)->whereNull('refunded_at')
             ->whereHas('order', $scope)->sum('seller_earning');
 
         $completed = $sum(fn ($q) => $q->where('status', Order::COMPLETED));

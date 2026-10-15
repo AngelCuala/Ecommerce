@@ -18,7 +18,7 @@ class ReturnRequest extends Model
     public const ESCALATE_DAYS = 3;
 
     protected $fillable = [
-        'order_id', 'user_id', 'seller_id', 'reason', 'details', 'evidence_path', 'evidence_paths',
+        'order_id', 'user_id', 'seller_id', 'reason', 'details', 'evidence_path', 'evidence_paths', 'item_ids',
         'status', 'seller_note', 'refund_amount', 'resolved_at', 'escalated_at', 'dispute_note',
     ];
 
@@ -27,7 +27,21 @@ class ReturnRequest extends Model
         'resolved_at'   => 'datetime',
         'escalated_at'  => 'datetime',
         'evidence_paths' => 'array',
+        'item_ids'       => 'array',
     ];
+
+    /** Only some items of the order are returned (A8). */
+    public function isPartial(): bool
+    {
+        return ! empty($this->item_ids);
+    }
+
+    /** What the buyer paid for an item: its price minus its share of the promotions and vouchers. */
+    public static function itemRefund(OrderItem $item): float
+    {
+        return round(max(0, $item->quantity * (float) $item->price - (float) $item->promo_discount
+            - (float) $item->seller_discount - (float) $item->platform_discount), 2);
+    }
 
     /** Every evidence photo (older requests have just one). */
     public function photos(): array

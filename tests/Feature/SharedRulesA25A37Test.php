@@ -166,7 +166,10 @@ class SharedRulesA25A37Test extends TestCase
         $carrying->update(['status' => 'picked_up', 'picked_up_at' => now()]);
         $toDeliver = $this->deliveryFor($this->rider1);
 
-        $this->actingAs($this->logistics1)->post(route('sc.riders.toggle', $this->rider1))->assertSessionHas('success');
+        $this->actingAs($this->logistics1)->post(route('sc.riders.toggle', $this->rider1))->assertSessionHasErrors('reason');   // A25: reason required
+        $this->actingAs($this->logistics1)->post(route('sc.riders.toggle', $this->rider1), ['reason' => 'Repeated late deliveries this week'])->assertSessionHas('success');
+        $log = \App\Models\ActivityLog::where('action', 'sc.riders.toggle')->where('status', 'success')->latest('id')->first();
+        $this->assertSame(['Active', 'Suspended', 'Repeated late deliveries this week'], [$log->old_value, $log->new_value, $log->reason]);
         $this->assertTrue($this->rider1->fresh()->isSuspended());
         $this->assertSame('cancelled', $waiting->fresh()->status);
         $this->assertSame('picked_up', $carrying->fresh()->status);   // stays with the rider
@@ -211,5 +214,88 @@ class SharedRulesA25A37Test extends TestCase
         $this->publish(['form_token' => $token])->assertSessionHasNoErrors();
         $this->publish(['form_token' => $token])->assertSessionHas('success', 'This product was already saved.');
         $this->assertSame(1, Product::where('title', 'Buri Placemat Set')->count());
+    }
+
+    /** A8: a return of only some items refunds each item's price minus its voucher shares. */
+    public function test_a8_partial_return_refunds_only_the_chosen_items(): void
+    {
+        $order = $this->placeOrder($this->buyer1, [$this->cart($this->buyer1, $this->p01, 1, 'Natural / M'), $this->cart($this->buyer1, $this->p02)], null,
+            ['seller_vouchers' => [$this->seller1->id => 'MCH50']])->first();
+        $order = $this->moveTo($order, Order::DELIVERED);
+        $basket = OrderItem::where('order_id', $order->id)->where('product_id', $this->p02->id)->sole();
+        // MCH50 is shared by price: the basket carries 50 × 450/699 = ₱32.19 of it.
+        $this->assertEquals(32.19, (float) $basket->seller_discount);
+
+        $this->actingAs($this->buyer1)->post(route('orders.return', $order->id), ['reason' => 'Damaged item', 'details' => 'The basket arrived crushed.',
+            'items' => [$basket->id], 'evidence_photos' => [UploadedFile::fake()->image('e.jpg')]])->assertSessionHas('success');
+        $return = ReturnRequest::sole();
+        $this->assertEquals(417.81, (float) $return->refund_amount);   // 450 − 32.19
+        $this->assertTrue($return->isPartial());
+
+        $this->actingAs($this->seller1)->post(route('seller.orders.return', $order->id), ['decision' => 'approve'])
+            ->assertSessionHas('success', fn ($m) => str_contains($m, '₱417.81'));
+        $order->refresh();
+        $this->assertSame(Order::DELIVERED, $order->status);   // the tote is kept
+        $this->assertEquals(417.81, (float) $order->refunded_amount);
+        $this->assertNotNull($basket->fresh()->refunded_at);
+        $this->assertNull(OrderItem::where('order_id', $order->id)->where('product_id', $this->p01->id)->value('refunded_at'));
+
+        // The refunded basket no longer counts in the seller's earnings.
+        $order->update(['status' => Order::COMPLETED]);
+        $tote = OrderItem::where('order_id', $order->id)->where('product_id', $this->p01->id)->sole();
+        $this->assertEquals((float) $tote->seller_earning, app(\App\Http\Controllers\Seller\EarningsController::class)->balances($this->seller1->id)['completed']);
+    }
+
+    /** A3: a Return-to-Sender parcel's stock comes back when the seller confirms receipt. */
+    public function test_a3_return_to_sender_restocks_on_seller_receipt(): void
+    {
+        $d = $this->deliveryFor($this->rider1, 'out_for_delivery');
+        $this->assertSame(19, $this->p02->fresh()->stock);
+        $this->actingAs($this->rider1->user)->post(route('courier.rider.deliveries.fail', $d->id), ['reason' => 'Refused']);
+        $this->assertSame(19, $this->p02->fresh()->stock);   // not yet: the parcel is on its way back
+
+        $order = $d->parcel->order;
+        $this->actingAs($this->seller1)->get(route('seller.orders.show', $order->id))->assertSee('Confirm returned parcel received');
+        $this->actingAs($this->seller1)->post(route('seller.orders.returned-received', $order->id))->assertSessionHas('success');
+        $this->assertSame('returned', $d->parcel->fresh()->status);
+        $this->assertSame(Order::CANCELLED, $order->fresh()->status);
+        $this->assertSame(20, $this->p02->fresh()->stock);
+    }
+
+    /** A10, A35: manual status changes are overrides with a reason, logged with old and new value. */
+    public function test_a35_overrides_are_logged_with_old_new_and_reason(): void
+    {
+        $d = $this->deliveryFor($this->rider1);
+        $this->actingAs($this->logistics1)->post(route('sc.deliveries.update-status', $d), ['status' => 'out_for_delivery'])
+            ->assertSessionHasErrors(['remarks' => 'This is a logistics override: give the reason (10 to 300 characters).']);
+        $this->actingAs($this->logistics1)->post(route('sc.deliveries.update-status', $d), ['status' => 'out_for_delivery', 'remarks' => 'Rider phone is broken, updating for him'])
+            ->assertSessionHas('success');
+        $log = \App\Models\ActivityLog::where('action', 'sc.deliveries.update-status')->where('status', 'success')->latest('id')->first();
+        $this->assertSame(['Assigned', 'Out for Delivery', 'Rider phone is broken, updating for him'], [$log->old_value, $log->new_value, $log->reason]);
+
+        $admin = $this->account('admin', 'admin@alvy.test', 'Admin');
+        $order = $d->parcel->order;
+        $this->actingAs($admin)->patch(route('admin.orders.update', $order->id), ['status' => 'Delivered'])->assertSessionHasErrors('reason');
+        $this->actingAs($admin)->patch(route('admin.orders.update', $order->id), ['status' => 'Delivered', 'reason' => 'Buyer confirmed by phone call'])->assertSessionHas('success');
+        $log = \App\Models\ActivityLog::where('action', 'admin.orders.update')->latest('id')->first();
+        $this->assertSame([Order::SHIPPED, 'Delivered', 'Buyer confirmed by phone call'], [$log->old_value, $log->new_value, $log->reason]);
+
+        // The log has no edit or delete routes.
+        $this->assertFalse(\Illuminate\Support\Facades\Route::has('admin.activity.destroy'));
+        $this->assertFalse(\Illuminate\Support\Facades\Route::has('admin.activity.update'));
+        $this->actingAs($admin)->get(route('admin.activity.index'))->assertOk()->assertSee('Buyer confirmed by phone call');
+    }
+
+    /** A36: the admin seller-sales report exports as CSV and XLSX. */
+    public function test_a36_admin_report_exports(): void
+    {
+        $this->moveTo($this->placeOrder($this->buyer1, [$this->cart($this->buyer1, $this->p02)])->first(), Order::COMPLETED);
+        $admin = $this->account('admin', 'admin@alvy.test', 'Admin');
+        $range = ['type' => 'sellers', 'from' => now()->subDay()->toDateString(), 'to' => now()->toDateString()];
+        $this->actingAs($admin)->get(route('admin.reports.index', $range + ['export' => 'csv']))->assertOk();
+        $xlsx = $this->actingAs($admin)->get(route('admin.reports.index', $range + ['export' => 'xlsx']))->assertOk();
+        $zip = new \ZipArchive();
+        $zip->open($xlsx->getFile()->getPathname());
+        $this->assertStringContainsString('Maria Clara Santos', $zip->getFromName('xl/worksheets/sheet1.xml'));
     }
 }

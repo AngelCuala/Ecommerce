@@ -330,6 +330,7 @@ Route::middleware(['auth', 'role:seller,admin', 'seller.approved', 'prevent.back
     Route::post('/orders/{id}/pack',         [SellerOrderController::class, 'pack'])->name('orders.pack');
     Route::post('/orders/{id}/cancel',       [SellerOrderController::class, 'cancel'])->name('orders.cancel');
     Route::get('/orders/{id}/waybill',       [SellerOrderController::class, 'waybill'])->name('orders.waybill');
+    Route::post('/orders/{id}/returned-received', [SellerOrderController::class, 'returnedReceived'])->name('orders.returned-received');
     Route::post('/orders/{id}/handover',     [SellerOrderController::class, 'handover'])->name('orders.handover');
     Route::post('/orders/{id}/handed-over',  [SellerOrderController::class, 'markHandedOver'])->name('orders.handed-over');
     Route::post('/orders/{id}/return',       [SellerOrderController::class, 'decideReturn'])->name('orders.return');

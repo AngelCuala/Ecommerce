@@ -105,7 +105,10 @@
                             @endif
                         </td>
                         <td class="font-medium" style="color:#222;">{{ $log->action_label ?: $log->action }}</td>
-                        <td class="text-sm">{{ $log->description ?? '—' }}</td>
+                        <td class="text-sm">{{ $log->description ?? '—' }}
+                            @if ($log->old_value || $log->new_value)<span class="mt-0.5 block text-xs pl-muted">{{ $log->old_value ?? '—' }} → {{ $log->new_value ?? '—' }}</span>@endif
+                            @if ($log->reason)<span class="mt-0.5 block text-xs pl-muted">Reason: {{ $log->reason }}</span>@endif
+                        </td>
                         <td><span class="pl-tag {{ $tag }}">{{ ucfirst($log->status) }}</span></td>
                         <td class="whitespace-nowrap text-xs">
                             @if ($log->ip_address)

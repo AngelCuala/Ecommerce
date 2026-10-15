@@ -55,7 +55,7 @@
                     @endforeach
                 </div>
                 @if ($rr->status === 'requested')<p class="text-xs" style="color:#B45309;">Answer by {{ $rr->created_at->addDays(\App\Models\ReturnRequest::RESPOND_DAYS)->format('M j, Y g:i A') }}, or it is approved automatically.</p>@endif
-                <p class="text-xs pl-muted">Requested {{ $rr->created_at->format('M j, Y · g:i A') }} · refund ₱{{ number_format($rr->refund_amount, 2) }}</p>
+                <p class="text-xs pl-muted">Requested {{ $rr->created_at->format('M j, Y · g:i A') }} · refund ₱{{ number_format($rr->refund_amount, 2) }}{{ $rr->isPartial() ? ' · ' . count($rr->item_ids) . ' item(s) only' : ' · whole order' }}</p>
                 @if ($rr->seller_note)<p class="text-xs"><strong>Your note:</strong> {{ $rr->seller_note }}</p>@endif
                 @if ($rr->status === 'disputed')
                     <p class="rounded-md px-3 py-2 text-xs" style="background:#FEF2F2;color:#B91C1C;">The buyer escalated this to ALVY on {{ $rr->escalated_at?->format('M j, Y') }}. ALVY will decide; your decision can no longer be changed.@if ($rr->dispute_note) Buyer: “{{ $rr->dispute_note }}”@endif</p>
@@ -113,7 +113,7 @@
                         @endif
                         <div class="min-w-0 flex-1">
                             <p class="truncate text-sm font-medium" style="color:#222;">{{ $item->product->title ?? 'Removed product' }}</p>
-                            <p class="text-xs pl-muted">@if ($item->variation_name){{ $item->variation_name }} · @endif₱{{ number_format($item->price, 2) }} × {{ $item->quantity }}</p>
+                            <p class="text-xs pl-muted">@if ($item->variation_name){{ $item->variation_name }} · @endif₱{{ number_format($item->price, 2) }} × {{ $item->quantity }}@if ($item->refunded_at) · <span style="color:#B91C1C;font-weight:600;">Refunded ₱{{ number_format($item->refund_amount, 2) }}</span>@endif</p>
                         </div>
                         <p class="text-sm font-medium" style="color:#222;">₱{{ number_format($item->price * $item->quantity, 2) }}</p>
                     </div>
@@ -191,6 +191,16 @@
                             </form>
                         </details>
                     @endif
+                </section>
+            @endif
+
+            {{-- A parcel coming back to the seller (Return to Sender) --}}
+            @if ($parcel && $parcel->status === 'return_to_sender')
+                <section class="pl-card pl-body space-y-2">
+                    <p class="text-sm font-semibold" style="color:#B91C1C;">Return to Sender</p>
+                    <p class="text-xs pl-muted">{{ $parcel->failure_reason ?: 'The parcel could not be delivered.' }} Confirm when it is back with you; its stock is then restored.</p>
+                    <form method="POST" action="{{ route('seller.orders.returned-received', $order->id) }}">@csrf
+                        <button class="pl-btn w-full">Confirm returned parcel received</button></form>
                 </section>
             @endif
 

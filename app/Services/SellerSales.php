@@ -29,6 +29,7 @@ class SellerSales
             ->join('products', 'products.id', '=', 'order_items.product_id')
             ->whereBetween('orders.created_at', $dateFilter)
             ->whereNotIn('orders.status', \App\Models\Order::NOT_SALES)
+            ->whereNull('order_items.refunded_at')
             ->groupBy('products.seller_id')
             ->selectRaw('products.seller_id,
                 COUNT(DISTINCT order_items.order_id) as orders,

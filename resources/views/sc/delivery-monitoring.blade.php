@@ -107,7 +107,8 @@
                                     <button class="btn btn-blue btn-sm">Save</button>
                                 </div>
                                 <input type="text" name="remarks" class="form-input" style="padding:5px 8px;font-size:12px;"
-                                       placeholder="Remarks (required if failed)" maxlength="500">
+                                       placeholder="Override reason (10–300 characters, logged)" minlength="10" maxlength="300" required>
+                                @error('remarks')<span style="color:#DC2626;font-size:11px;">{{ $message }}</span>@enderror
                             </form>
                         @elseif($isCurrent && $d->status === 'failed')
                             <div style="display:flex;gap:5px;flex-wrap:wrap;">
