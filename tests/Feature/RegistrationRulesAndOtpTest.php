@@ -42,7 +42,9 @@ class RegistrationRulesAndOtpTest extends TestCase
             'birthday'     => '2000-01-15',
             'region'       => 'CALABARZON',
             'province'     => 'Laguna',
+            'province_code' => '043400000',
             'municipality' => 'Magdalena',
+            'municipality_code' => '043415000',
             'barangay'     => 'Poblacion',
             'house_number' => '12B',
             'street'       => 'Rizal Street',
@@ -68,13 +70,6 @@ class RegistrationRulesAndOtpTest extends TestCase
             'contact_no'      => '09998887777',
             'approval_status' => 'approved',
         ], $attrs));
-    }
-
-    private function skipIfPsgcServiceInstalled(): void
-    {
-        if (class_exists(\App\Services\PsgcDirectory::class)) {
-            $this->markTestSkipped('Full PSGC validation is installed; this payload uses plain address names.');
-        }
     }
 
     // ── Names ───────────────────────────────────────────────
@@ -163,7 +158,6 @@ class RegistrationRulesAndOtpTest extends TestCase
 
     public function test_valid_registration_creates_an_unverified_account_and_emails_a_code(): void
     {
-        $this->skipIfPsgcServiceInstalled();
 
         $this->register()->assertRedirect(route('otp.show'))->assertSessionHasNoErrors();
 
@@ -177,7 +171,6 @@ class RegistrationRulesAndOtpTest extends TestCase
 
     public function test_entering_the_sign_up_code_moves_the_account_to_pending_approval(): void
     {
-        $this->skipIfPsgcServiceInstalled();
 
         $this->register();
         $code = null;

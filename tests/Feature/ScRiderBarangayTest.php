@@ -156,7 +156,7 @@ class ScRiderBarangayTest extends TestCase
         ]);
 
         $this->actingAs($sc)->get(route('sc.riders'))->assertOk()->assertSee('Legacy Rider')->assertSee('In your coverage');
-        $this->actingAs($sc)->post(route('sc.riders.toggle', $riderId))->assertSessionHas('success');
+        $this->actingAs($sc)->post(route('sc.riders.toggle', $riderId), ['reason' => 'Rider asked for leave this week.'])->assertSessionHas('success');
         $this->assertFalse(Rider::find($riderId)->is_active);
         $this->assertNull(Rider::find($riderId)->barangay_code, 'legacy riders keep null codes');
     }

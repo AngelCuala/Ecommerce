@@ -117,7 +117,7 @@ class B01AccountAndAddressTest extends TestCase
         return $over + ['label' => 'Office', 'full_name' => 'Juan Miguel Dela Cruz', 'phone' => '09171234567',
             'region' => 'NCR', 'province' => 'Metro Manila', 'city' => 'City of Makati', 'barangay' => 'San Lorenzo',
             'address_line' => '12F Pacific Tower, 6750 Ayala Ave.', 'zip' => '1223',
-            'municipality_code' => '137602000', 'barangay_code' => '137602021'];
+            'municipality_code' => '137602000', 'barangay_code' => '137602025'];
     }
 
     /** BUY-ADDR-001, 002, 003 (002 is checked on the server here, the dropdowns in the browser) */

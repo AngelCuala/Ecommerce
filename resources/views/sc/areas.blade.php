@@ -17,28 +17,39 @@
         <div class="card" style="padding:16px 18px;margin-bottom:18px;">
             <div style="font-size:12px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px;font-weight:600;">Assigned Municipality</div>
             <div style="font-size:18px;font-weight:700;color:var(--text);margin-top:2px;">{{ $sc->assigned_municipality }}</div>
-            <div style="font-size:12.5px;color:var(--text-muted);">{{ $sc->assigned_province }}</div>
+            <div style="font-size:12.5px;color:var(--text-muted);">
+                {{ $sc->assigned_province }} · {{ $sc->name }} ·
+                {{ $areas->count() }} of {{ $barangayTotal }} PSA barangays covered
+            </div>
         </div>
 
         <div style="display:grid;grid-template-columns:320px 1fr;gap:18px;align-items:start;">
 
-            {{-- Add a barangay --}}
+            {{-- Add a barangay (PSA PSGC barangays of the assigned municipality only) --}}
             <div class="card" style="padding:18px;">
                 <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:12px;">Add Barangay</div>
-                <form method="POST" action="{{ route('sc.areas.store') }}" id="area-form">
+                <form method="POST" action="{{ route('sc.areas.store') }}">
                     @csrf
-                    <label class="form-label">Barangay</label>
-                    <select id="brgy_select" class="form-select" style="margin-bottom:14px;">
-                        <option value="">Loading barangays…</option>
+                    <label class="form-label" for="brgy_select">Barangay</label>
+                    <select id="brgy_select" name="barangay_psgc" class="form-select" style="margin-bottom:14px;" required
+                            @disabled(empty($barangays))>
+                        @if($barangayTotal === 0)
+                            <option value="">Municipality not found in the PSA dataset</option>
+                        @elseif(empty($barangays))
+                            <option value="">All barangays already added</option>
+                        @else
+                            <option value="">Select barangay…</option>
+                            @foreach($barangays as $b)
+                                <option value="{{ $b['psgc'] }}" @selected(old('barangay_psgc') === $b['psgc'])>{{ $b['name'] }}</option>
+                            @endforeach
+                        @endif
                     </select>
-                    <input type="hidden" name="barangay"      id="brgy_name">
-                    <input type="hidden" name="barangay_code" id="brgy_code">
-                    <button type="submit" class="btn btn-blue" style="width:100%;justify-content:center;gap:6px;">
+                    <button type="submit" class="btn btn-blue" style="width:100%;justify-content:center;gap:6px;" @disabled(empty($barangays))>
                         @include('sc.partials.icon', ['name' => 'location', 'size' => 15, 'sw' => 2]) Add to Coverage
                     </button>
                 </form>
                 <p style="font-size:11.5px;color:var(--text-muted);margin-top:10px;">
-                    Only barangays within {{ $sc->assigned_municipality }} can be added.
+                    Official PSA PSGC barangays of {{ $sc->assigned_municipality }} only.
                 </p>
             </div>
 
@@ -72,58 +83,6 @@
             </div>
         </div>
 
-        <script>
-        (function () {
-            const municipalityCode = @json($sc->assigned_municipality_code);
-            const sel  = document.getElementById('brgy_select');
-            const name = document.getElementById('brgy_name');
-            const code = document.getElementById('brgy_code');
-            const existing = @json($areas->pluck('name')->map(fn($n) => strtolower($n))->values());
-
-            function opt(v, label, c) {
-                const o = document.createElement('option');
-                o.value = v; o.textContent = label; if (c) o.dataset.code = c;
-                return o;
-            }
-
-            async function loadBarangays() {
-                sel.innerHTML = '';
-                if (!municipalityCode) { sel.appendChild(opt('', 'No municipality code on file')); return; }
-                sel.appendChild(opt('', 'Loading…'));
-                try {
-                    const res = await fetch(`/api/psgc/municipalities/${municipalityCode}/barangays`);
-                    const list = await res.json();
-                    sel.innerHTML = '';
-                    sel.appendChild(opt('', 'Select barangay…'));
-                    list.forEach(b => {
-                        if (existing.includes(b.name.toLowerCase())) return; // hide already-added
-                        sel.appendChild(opt(b.name, b.name, b.code));
-                    });
-                    if (sel.options.length === 1) {
-                        sel.innerHTML = '';
-                        sel.appendChild(opt('', 'All barangays already added'));
-                    }
-                    sync();
-                } catch (e) {
-                    sel.innerHTML = '';
-                    sel.appendChild(opt('', 'Failed to load barangays'));
-                }
-            }
-
-            function sync() {
-                const o = sel.options[sel.selectedIndex];
-                name.value = sel.value;
-                code.value = o ? (o.dataset.code || '') : '';
-            }
-
-            sel.addEventListener('change', sync);
-            document.getElementById('area-form').addEventListener('submit', function (e) {
-                if (!name.value) { e.preventDefault(); alert('Please select a barangay.'); }
-            });
-
-            loadBarangays();
-        })();
-        </script>
     @endif
 </div>
 @endsection

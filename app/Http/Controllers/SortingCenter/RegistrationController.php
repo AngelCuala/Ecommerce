@@ -29,6 +29,7 @@ class RegistrationController extends Controller
     {
         GoogleSignup::lockEmail($request);
         $psgcAvailable = class_exists(PsgcDirectory::class);
+        if ($psgcAvailable) PsgcDirectory::normalizeCodes($request);
 
         $data = $request->validate([
             'last_name'       => 'required|string|max:100',

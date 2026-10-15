@@ -122,6 +122,7 @@ class PsgcDirectoryTest extends TestCase
         ]);
         $this->actingAs($user)->post(route('addresses.store'), [
             'label' => 'Home', 'full_name' => 'PSGC Test', 'address_line' => '1 Test St',
+            'phone' => '09171234567', 'region' => 'CALABARZON', 'barangay' => 'Alipit',
             'province' => 'Cavite', 'province_code' => '042100000',
             'city' => 'Magdalena', 'municipality_code' => '043415000',
         ])->assertSessionHasErrors('province');
@@ -129,6 +130,7 @@ class PsgcDirectoryTest extends TestCase
 
         $this->actingAs($user)->post(route('addresses.store'), [
             'label' => 'Home', 'full_name' => 'PSGC Test', 'address_line' => '1 Test St',
+            'phone' => '09171234567', 'region' => 'CALABARZON',
             'province' => 'Laguna', 'province_code' => '043400000',
             'city' => 'Magdalena', 'municipality_code' => '043415000', 'barangay' => 'Alipit',
         ])->assertSessionHasNoErrors();

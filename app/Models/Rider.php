@@ -20,6 +20,7 @@ class Rider extends Model
         'user_id', 'sorting_center_id', 'full_name', 'phone',
         'vehicle_type', 'license_number', 'id_document_path',
         'area_id',
+        'region_code', 'province_code', 'municipality_code', 'barangay_code',
         'application_status', 'rejection_reason', 'approved_at', 'approved_by',
         'is_active',
         'plate_number', 'license_expiry', 'license_path', 'or_cr_path', 'needs_reverification',

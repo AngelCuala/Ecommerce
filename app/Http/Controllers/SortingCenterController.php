@@ -96,6 +96,83 @@ class SortingCenterController extends Controller
         return view('sc.dashboard', compact('stats', 'recentParcels', 'areaRates'));
     }
 
+    // ── PSGC barangays of the SC municipality ─────────────────
+
+    private function psgc(): \App\Services\PsgcDirectory
+    {
+        return app(\App\Services\PsgcDirectory::class);
+    }
+
+    /** Every PSA barangay of this SC's assigned municipality ([] when none / unknown). */
+    private function municipalityBarangays(User $sc): array
+    {
+        return $sc->hasAssignedMunicipality()
+            ? ($this->psgc()->barangaysByMunicipality($sc->assigned_municipality_code) ?? [])
+            : [];
+    }
+
+    /** Form rules for the barangay dropdown (value = 10-digit PSGC; optional 9-digit code). */
+    private function barangayRules(): array
+    {
+        return [
+            'barangay_psgc' => ['required', 'regex:/^\d{10}$/'],
+            'barangay_code' => ['nullable', 'regex:/^\d{9}$/'],
+        ];
+    }
+
+    private function barangayMessages(): array
+    {
+        return [
+            'barangay_psgc.required' => 'Please select a barangay.',
+            'barangay_psgc.regex'    => 'Please select a barangay from the list.',
+            'barangay_code.regex'    => 'The barangay code is not valid.',
+        ];
+    }
+
+    /**
+     * Server-side check of a submitted barangay: it must be a PSA barangay whose parent is
+     * this SC's assigned municipality (never a municipality taken from the request).
+     */
+    private function resolveScBarangay(User $sc, array $data): array
+    {
+        $addr = $this->psgc()->resolveBarangayIn($sc->assigned_municipality_code, $data, 'barangay_psgc');
+
+        if ((string) $addr['municipality_code'] !== (string) $sc->assigned_municipality_code) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'barangay_psgc' => 'That barangay is outside your municipality coverage.',
+            ]);
+        }
+        if (! $addr['barangay_code']) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'barangay_psgc' => "{$addr['barangay']} has no PSA correspondence code yet, so it cannot be used.",
+            ]);
+        }
+        return $addr;
+    }
+
+    /** This SC's coverage area for a barangay: by PSGC code, or a legacy name-only row. */
+    private function findCoverageArea(User $sc, array $addr): ?DeliveryArea
+    {
+        return DeliveryArea::where('sorting_center_id', $sc->id)->where('barangay_code', $addr['barangay_code'])->first()
+            ?? DeliveryArea::where('sorting_center_id', $sc->id)->whereNull('barangay_code')
+                ->whereRaw('LOWER(name) = ?', [strtolower($addr['barangay'])])->first();
+    }
+
+    private function createCoverageArea(User $sc, array $addr): DeliveryArea
+    {
+        return DeliveryArea::create([
+            'sorting_center_id' => $sc->id,
+            'name'              => $addr['barangay'],
+            'code'              => 'BGY-' . $addr['barangay_code'] . '-' . $sc->id,
+            'description'       => $addr['barangay'] . ', ' . $addr['municipality'],
+            'municipality'      => $addr['municipality'],
+            'region_code'       => $addr['region_code'],
+            'province_code'     => $addr['province_code'],
+            'municipality_code' => $addr['municipality_code'],
+            'barangay_code'     => $addr['barangay_code'],
+        ]);
+    }
+
     // ── Coverage: barangays / delivery areas within the SC municipality ──
     public function areas()
     {
@@ -106,7 +183,15 @@ class SortingCenterController extends Controller
             ->orderBy('name')
             ->get();
 
-        return view('sc.areas', compact('sc', 'areas'));
+        // PSA barangays of the municipality that are not yet in coverage.
+        $coveredCodes = $areas->pluck('barangay_code')->filter()->all();
+        $legacyNames  = $areas->whereNull('barangay_code')->pluck('name')->map(fn ($n) => strtolower($n))->all();
+        $allBarangays = $this->municipalityBarangays($sc);
+        $barangays    = array_values(array_filter($allBarangays, fn ($b) =>
+            ! in_array($b['code'], $coveredCodes, true) && ! in_array(strtolower($b['name']), $legacyNames, true)));
+        $barangayTotal = count($allBarangays);
+
+        return view('sc.areas', compact('sc', 'areas', 'barangays', 'barangayTotal'));
     }
 
     public function storeArea(Request $request)
@@ -117,31 +202,16 @@ class SortingCenterController extends Controller
             return back()->with('error', 'Your account has not been assigned a municipality yet. Contact an administrator.');
         }
 
-        $data = $request->validate([
-            'barangay'      => 'required|string|max:120',
-            'barangay_code' => 'nullable|string|max:40',
-        ]);
+        $data = $request->validate($this->barangayRules(), $this->barangayMessages());
+        $addr = $this->resolveScBarangay($sc, $data);
 
-        // Prevent duplicates within this SC
-        $exists = DeliveryArea::where('sorting_center_id', $sc->id)
-            ->whereRaw('LOWER(name) = ?', [strtolower($data['barangay'])])
-            ->exists();
-
-        if ($exists) {
-            return back()->with('error', $data['barangay'] . ' is already in your coverage list.');
+        if ($this->findCoverageArea($sc, $addr)) {
+            return back()->with('error', $addr['barangay'] . ' is already in your coverage list.');
         }
 
-        DeliveryArea::create([
-            'sorting_center_id' => $sc->id,
-            'name'              => $data['barangay'],
-            'code'              => strtoupper(substr(preg_replace('/[^A-Za-z0-9]/', '', $data['barangay']), 0, 6)) . '-' . $sc->id,
-            'description'       => $data['barangay'] . ', ' . $sc->assigned_municipality,
-            'municipality'      => $sc->assigned_municipality,
-            'municipality_code' => $sc->assigned_municipality_code,
-            'barangay_code'     => $data['barangay_code'] ?? null,
-        ]);
+        $this->createCoverageArea($sc, $addr);
 
-        return back()->with('success', $data['barangay'] . ' added to your coverage.');
+        return back()->with('success', $addr['barangay'] . ' added to your coverage.');
     }
 
     public function destroyArea(DeliveryArea $area)
@@ -190,10 +260,18 @@ class SortingCenterController extends Controller
         $sc    = $this->sc();
         $areas = DeliveryArea::where('sorting_center_id', $scId)->orderBy('name')->get();
 
-        return view('sc.riders', compact('riders', 'counts', 'sc', 'areas'));
+        // Every PSA barangay of the SC municipality; the ones already in coverage are marked.
+        $barangays    = $this->municipalityBarangays($sc);
+        $coveredCodes = $areas->pluck('barangay_code')->filter()->values()->all();
+
+        return view('sc.riders', compact('riders', 'counts', 'sc', 'areas', 'barangays', 'coveredCodes'));
     }
 
-    /** Add a rider under this sorting center, scoped to one of its barangays. */
+    /**
+     * Add a rider under this sorting center for one PSA barangay of its municipality.
+     * The rider is linked to that barangay's coverage area (created if missing), which is
+     * what parcel sorting and delivery assignment match on.
+     */
     public function storeRider(Request $request)
     {
         $sc = $this->sc();
@@ -202,31 +280,42 @@ class SortingCenterController extends Controller
             return back()->with('error', 'Assign a municipality to your account before adding riders.');
         }
 
-        $myAreas = $this->myAreaIds();
-
         $data = $request->validate([
             'full_name'    => 'required|string|max:150',
             'phone'        => 'nullable|string|max:30',
             'vehicle_type' => 'nullable|string|max:60',
-            'area_id'      => ['required', 'integer', \Illuminate\Validation\Rule::in($myAreas)],
-        ], [
-            'area_id.in' => 'That barangay is outside your municipality coverage.',
-        ]);
+        ] + $this->barangayRules(), $this->barangayMessages());
 
-        Rider::create([
-            'user_id'            => $sc->id, // owner reference; SC-managed rider
-            'sorting_center_id'  => $sc->id,
-            'full_name'          => $data['full_name'],
-            'phone'              => $data['phone'] ?? null,
-            'vehicle_type'       => $data['vehicle_type'] ?? null,
-            'area_id'            => $data['area_id'],
-            'application_status' => 'approved',
-            'is_active'          => true,
-            'approved_at'        => now(),
-            'approved_by'        => $sc->id,
-        ]);
+        $addr = $this->resolveScBarangay($sc, $data);
 
-        return back()->with('success', $data['full_name'] . ' added as a rider.');
+        $addedToCoverage = false;
+        DB::transaction(function () use ($sc, $data, $addr, &$addedToCoverage) {
+            $area = $this->findCoverageArea($sc, $addr);
+            if (! $area) {
+                $area = $this->createCoverageArea($sc, $addr);
+                $addedToCoverage = true;
+            }
+
+            Rider::create([
+                'user_id'            => $sc->id, // owner reference; SC-managed rider
+                'sorting_center_id'  => $sc->id,
+                'full_name'          => $data['full_name'],
+                'phone'              => $data['phone'] ?? null,
+                'vehicle_type'       => $data['vehicle_type'] ?? null,
+                'area_id'            => $area->id,
+                'region_code'        => $addr['region_code'],
+                'province_code'      => $addr['province_code'],
+                'municipality_code'  => $addr['municipality_code'],
+                'barangay_code'      => $addr['barangay_code'],
+                'application_status' => 'approved',
+                'is_active'          => true,
+                'approved_at'        => now(),
+                'approved_by'        => $sc->id,
+            ]);
+        });
+
+        return back()->with('success', "{$data['full_name']} added as a rider for {$addr['barangay']}."
+            . ($addedToCoverage ? " {$addr['barangay']} was added to your coverage areas." : ''));
     }
 
     /** Ensure the rider belongs to the current sorting center. */

@@ -43,7 +43,7 @@ class ScCourierApplicationsTest extends TestCase
         return $this->from(route('register'))->post(route('register'), array_merge([
             'role' => 'courier', 'first_name' => 'Mario', 'last_name' => 'Santos', 'email' => 'mario@example.com',
             'sex' => 'male', 'contact_no' => '09181234568', 'birthday' => '1995-05-20',
-            'region' => 'CALABARZON', 'province' => 'Laguna', 'municipality' => 'Magdalena', 'barangay' => 'Poblacion',
+            'region' => 'CALABARZON', 'province' => 'Laguna', 'province_code' => '043400000', 'municipality' => 'Magdalena', 'municipality_code' => '043415000', 'barangay' => 'Poblacion',
             'house_number' => '12', 'street' => 'Rizal St', 'password' => 'secret123', 'password_confirmation' => 'secret123',
             'vehicle_type' => 'motorcycle', 'plate_number' => 'ABC 1234', 'terms' => '1',
             'or_cr_image'       => UploadedFile::fake()->image('license.jpg'),
@@ -179,7 +179,7 @@ class ScCourierApplicationsTest extends TestCase
         ]);
         $payload = [
             'last_name' => 'Cruz', 'first_name' => 'Ana', 'sex' => 'Female', 'contact_no' => '09170000000',
-            'birthday' => '1998-01-01', 'province' => 'Laguna', 'municipality' => 'Magdalena', 'barangay' => 'Poblacion',
+            'birthday' => '1998-01-01', 'province' => 'Laguna', 'province_code' => '043400000', 'municipality' => 'Magdalena', 'municipality_code' => '043415000', 'barangay' => 'Poblacion',
             'vehicle_type' => 'Truck', 'plate_number' => 'XYZ 987',
             'or_cr'     => UploadedFile::fake()->create('orcr.pdf', 100, 'application/pdf'),
             'id_upload' => UploadedFile::fake()->image('id.jpg'),

@@ -96,6 +96,7 @@ class RegisteredUserController extends Controller
         }
 
         $psgcAvailable = class_exists(\App\Services\PsgcDirectory::class);
+        if ($psgcAvailable) \App\Services\PsgcDirectory::normalizeCodes($request);
 
         // Letters (any language, e.g. ñ) and single spaces between words only — no numbers or symbols.
         $nameRule = ['required', 'string', 'min:2', 'max:50', 'regex:/^\pL+( \pL+)*$/u'];

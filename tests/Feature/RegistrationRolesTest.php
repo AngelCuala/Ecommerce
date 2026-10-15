@@ -34,7 +34,7 @@ class RegistrationRolesTest extends TestCase
             'first_name' => 'Mario', 'last_name' => 'Santos', 'email' => 'mario@example.com',
             'sex' => 'male', 'contact_no' => '09181234568', 'birthday' => '1995-05-20',
             'region' => 'CALABARZON', 'province' => 'Laguna', 'province_code' => '0403400000',
-            'municipality' => 'Magdalena', 'municipality_code' => '0403417000', 'barangay' => 'Poblacion',
+            'municipality' => 'Magdalena', 'municipality_code' => '0403415000', 'barangay' => 'Poblacion',
             'house_number' => '12', 'street' => 'Rizal St', 'zip_code' => '4007',
             'password' => 'secret123', 'password_confirmation' => 'secret123', 'terms' => '1',
         ], $overrides);
@@ -124,7 +124,7 @@ class RegistrationRolesTest extends TestCase
         $app = SortingCenterApplication::where('user_id', $user->id)->firstOrFail();
         $this->assertSame('pending', $app->status);
         $this->assertSame('ALVY Hub Magdalena', $app->business_name);
-        $this->assertSame('0403417000', $app->municipality_code);
+        $this->assertSame('043415000', $app->municipality_code);   // stored as the 9-digit correspondence code
         $this->assertSame('4007', $app->zip_code);
     }
 

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Order;
 use App\Models\UserAddress;
+use App\Services\PsgcDirectory;
 use App\Support\PhoneNumber;
 use Illuminate\Http\Request;
 
@@ -38,6 +39,19 @@ class AddressController extends Controller
             'address_line.required'      => 'Please enter the house number and street.',
         ]);
         $data['country'] = 'Philippines';
+
+        // Region → province → city → barangay must be one real PSA chain (no tampered codes);
+        // the official names replace what was submitted. A 10-digit value is a PSGC code.
+        PsgcDirectory::normalizeCodes($request);
+        $in   = $request->only(['region_code', 'province_code', 'municipality_code', 'barangay_code', 'region_psgc', 'province_psgc', 'municipality_psgc', 'barangay_psgc']);
+        $addr = app(PsgcDirectory::class)->resolve($in, true, $data['barangay'], ['municipality' => 'city']);
+        $data['region']            = $addr['region'];
+        $data['province']          = $addr['province_display'];
+        $data['city']              = $addr['municipality'];
+        $data['barangay']          = $addr['barangay'];
+        $data['province_code']     = $addr['province_code'] ?? $addr['province_psgc'];
+        $data['municipality_code'] = $addr['municipality_code'] ?? $addr['municipality_psgc'];
+        $data['barangay_code']     = $addr['barangay_code'] ?? $addr['barangay_psgc'];
 
         return $data;
     }
