@@ -128,10 +128,7 @@ Route::middleware(['auth', 'is_sc', 'prevent.back'])->prefix('sc')->name('sc.')-
     Route::post('/transfers/{transfer}/cancel',                 [\App\Http\Controllers\SortingCenterController::class, 'cancelTransfer'])->name('transfers.cancel');
 });
 
-// ── Sorting Center Portal ────────────────────────────────────
-Route::get('/sorting-center/login',  [\App\Http\Controllers\SortingCenter\LoginController::class, 'create'])->name('sorting-center.login.old')->middleware('guest');
-Route::post('/sorting-center/login', [\App\Http\Controllers\SortingCenter\LoginController::class, 'store'])->name('sorting-center.login.store.old')->middleware('guest');
-// The old hub route pointed at a method that never existed; redirect it instead.
+// Old sorting-center links go to the current login.
 Route::redirect('/sorting-center', '/sc/login');
 
 // ── Public ───────────────────────────────────────────────────

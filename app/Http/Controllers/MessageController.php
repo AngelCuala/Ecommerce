@@ -90,6 +90,7 @@ class MessageController extends Controller
     public function directShow(string $threadKey)
     {
         $userId = auth()->id();
+        abort_unless(preg_match('/^\d+_\d+$/', $threadKey) === 1, 404);
         [$a, $b] = explode('_', $threadKey);
 
         // Ensure current user is part of this thread
@@ -124,6 +125,7 @@ class MessageController extends Controller
     public function directStore(Request $request, string $threadKey)
     {
         $userId = auth()->id();
+        abort_unless(preg_match('/^\d+_\d+$/', $threadKey) === 1, 404);
         [$a, $b] = explode('_', $threadKey);
 
         if ((int)$a !== $userId && (int)$b !== $userId) {
@@ -302,6 +304,8 @@ class MessageController extends Controller
 
             $title = 'Order #' . str_pad($order->id, 6, '0', STR_PAD_LEFT);
         } else {
+            // Direct threads are "userId_userId"; anything else is not a thread.
+            abort_unless(preg_match('/^\d+_\d+$/', $id) === 1, 404);
             [$a, $b] = explode('_', $id);
             if ((int) $a !== $userId && (int) $b !== $userId) abort(403);
             $otherId   = (int) $a === $userId ? (int) $b : (int) $a;
@@ -319,7 +323,7 @@ class MessageController extends Controller
             'title'    => $title,
             'messages' => $messages->map(fn ($m) => [
                 'body'  => $m->body,
-                'mine'  => $m->sender_id === $userId,
+                'mine'  => (int) $m->sender_id === (int) $userId,
                 'name'  => $m->sender->name ?? '',
                 'at'    => $m->created_at->format('M d, H:i'),
                 // Used by the full-page inbox to group messages by day.
@@ -344,7 +348,7 @@ class MessageController extends Controller
             $lastFromOther = Message::where('order_id', $order->id)
                 ->where('sender_id', '!=', $userId)->latest()->first();
             $receiverId = $lastFromOther?->sender_id
-                ?? ($order->user_id === $userId ? optional($order->items()->with('product')->first())->product->seller_id : $order->user_id);
+                ?? ((int) $order->user_id === (int) $userId ? optional($order->items()->with('product')->first())->product->seller_id : $order->user_id);
 
             Message::create([
                 'order_id'    => $order->id,
@@ -353,6 +357,7 @@ class MessageController extends Controller
                 'body'        => $request->body,
             ]);
         } else {
+            abort_unless(preg_match('/^\d+_\d+$/', $id) === 1, 404);
             [$a, $b] = explode('_', $id);
             if ((int) $a !== $userId && (int) $b !== $userId) abort(403);
             $otherId   = (int) $a === $userId ? (int) $b : (int) $a;

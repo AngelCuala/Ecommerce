@@ -51,6 +51,16 @@ class S09OrdersReturnsReviewsEarningsTest extends TestCase
         return $this->actingAs($this->seller1)->from(route('seller.orders.show', $order->id))->{$method}(route($route, $order->id), $data);
     }
 
+    /** A logistics company (sorting center) with one active rider, for Ready for Pickup. */
+    private function company(): \App\Models\User
+    {
+        $sc = $this->account('sorting_center', 'operations@bilishatid.example.com', 'Bilis Hatid Express Inc.');
+        $rider = $this->account('courier', 'pedrojose.garcia@example.com', 'Pedro Jose Garcia');
+        \App\Models\Rider::create(['user_id' => $rider->id, 'sorting_center_id' => $sc->id, 'full_name' => 'Pedro Jose Garcia',
+            'application_status' => 'approved', 'is_active' => true, 'is_online' => true, 'last_seen_at' => now()]);
+        return $sc;
+    }
+
     private function delivered(): Order
     {
         $order = $this->moveTo($this->newOrder(), Order::DELIVERED);
@@ -109,13 +119,19 @@ class S09OrdersReturnsReviewsEarningsTest extends TestCase
         $this->seller('post', 'seller.orders.pack', $order)->assertSessionHas('success');
         $this->assertSame('packed', $order->fresh()->sellerStep());
 
-        $this->actingAs($this->seller1)->post(route('seller.orders.handover', $order->id), ['courier_name' => 'Bilis Hatid Express', 'pickup_scheduled_at' => now()->addHour()->format('Y-m-d H:i')])
-            ->assertSessionHas('success');
+        $company = $this->company();
+        $this->actingAs($this->seller1)->get(route('seller.orders.show', $order->id))->assertSee('choose the logistics company')->assertSee('Bilis Hatid Express Inc.');
+        $this->actingAs($this->seller1)->post(route('seller.orders.handover', $order->id), ['sorting_center_id' => $company->id, 'pickup_scheduled_at' => now()->addHour()->format('Y-m-d H:i')])
+            ->assertSessionHas('success', fn ($m) => str_contains($m, 'offered to Pedro Jose Garcia'));
         $this->assertSame('ready', $order->fresh()->sellerStep());
-        $this->assertSame('available', Delivery::where('order_id', $order->id)->value('status'));   // logistics sees it as ready
+        // The chosen company sees it as ready for pickup, and its rider got the job offer.
+        $parcel = \App\Models\Parcel::where('order_id', $order->id)->sole();
+        $this->assertSame(['pickup_approved', $company->id], [$parcel->status, (int) $parcel->current_sorting_center_id]);
+        $this->assertSame(1, \App\Models\RiderJobOffer::where('parcel_id', $parcel->id)->count());
+        $this->assertFalse(Delivery::where('order_id', $order->id)->exists());
 
         $this->actingAs($this->seller1)->get(route('seller.orders.waybill', $order->id))->assertOk()
-            ->assertSee('data-tracking', false)->assertSee($order->full_name)->assertSee('45 Kalayaan Ave.')
+            ->assertSee($parcel->tracking_number)->assertSee($order->full_name)->assertSee('45 Kalayaan Ave.')
             ->assertSee('12 Tandang Sora Ave., Commonwealth')->assertSee('1.6 kg')->assertSee('₱' . number_format($order->total_price, 2));
     }
 
@@ -123,12 +139,12 @@ class S09OrdersReturnsReviewsEarningsTest extends TestCase
     public function test_sel_ord_003_steps_cannot_be_skipped(): void
     {
         $order = $this->newOrder();
-        $this->actingAs($this->seller1)->post(route('seller.orders.handover', $order->id), ['courier_name' => 'X', 'pickup_scheduled_at' => now()->addHour()->format('Y-m-d H:i')])
+        $this->actingAs($this->seller1)->post(route('seller.orders.handover', $order->id), ['sorting_center_id' => $this->company()->id, 'pickup_scheduled_at' => now()->addHour()->format('Y-m-d H:i')])
             ->assertSessionHas('error', 'Accept the order first, then pack it, before booking the pickup.');
         $this->seller('post', 'seller.orders.pack', $order)->assertSessionHas('error', 'Accept the order before packing it.');
         $this->actingAs($this->seller1)->get(route('seller.orders.waybill', $order->id))->assertRedirect(route('seller.orders.show', $order->id));
         $this->assertSame('new', $order->fresh()->sellerStep());
-        $this->assertFalse(Delivery::where('order_id', $order->id)->exists());
+        $this->assertFalse(\App\Models\Parcel::where('order_id', $order->id)->exists());
 
         // Only the next valid action is offered.
         $this->actingAs($this->seller1)->get(route('seller.orders.show', $order->id))->assertSee('Accept order')->assertDontSee('Mark as packed')->assertDontSee('book the courier');

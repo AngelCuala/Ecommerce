@@ -821,7 +821,7 @@ class BookController extends Controller
 
     private function authorizeBook(Product $book): void
     {
-        if ($book->seller_id !== auth()->id()) {
+        if ((int) $book->seller_id !== (int) auth()->id()) {
             abort(403, 'You can only manage your own products.');
         }
     }

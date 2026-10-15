@@ -416,6 +416,12 @@ class SortingCenterController extends Controller
 
     private function markReceived(Parcel $parcel)
     {
+        if ($parcel->order && $parcel->order->status === \App\Models\Order::CANCELLED) {
+            $parcel->update(['status' => 'cancelled', 'failure_reason' => 'Order was cancelled.']);
+            $this->parcels()->notifySeller($parcel, 'Pickup cancelled', "{$parcel->tracking_number}: the order was cancelled, so the parcel was not received.", 'warning');
+            return back()->with('error', "{$parcel->tracking_number}: the order was cancelled, so it can't be received.");
+        }
+
         $parcel->update(['status' => 'picked_up', 'received_at' => now()]);
         // The rider who brought it in has finished the pickup ("At Hub").
         \App\Models\ParcelPickup::where('parcel_id', $parcel->id)->whereIn('status', \App\Models\ParcelPickup::OPEN)
@@ -509,6 +515,9 @@ class SortingCenterController extends Controller
     public function assignParcel(Request $request, Parcel $parcel)
     {
         $this->guardParcel($parcel, ['sorted']);
+        if ($parcel->transfer_status === 'outgoing') {
+            return back()->with('error', "{$parcel->tracking_number} is being transferred to another sorting center.");
+        }
 
         $request->validate(['rider_id' => 'required|exists:riders,id'], [
             'rider_id.required' => 'Select a rider for this parcel.',
@@ -938,7 +947,7 @@ class SortingCenterController extends Controller
         $me     = auth()->id();
 
         // Guard: only the SC currently holding the parcel can transfer it
-        if ($parcel->current_sorting_center_id !== $me) {
+        if ((int) $parcel->current_sorting_center_id !== (int) $me) {
             return back()->withErrors(['parcel_id' => 'You can only transfer parcels currently held by your sorting center.']);
         }
 
@@ -946,10 +955,20 @@ class SortingCenterController extends Controller
         if ($parcel->transfer_status === 'outgoing') {
             return back()->withErrors(['parcel_id' => 'This parcel already has a pending outgoing transfer.']);
         }
+        // Only a parcel at this hub (received or sorted, no rider on it) can move to another hub.
+        if (! in_array($parcel->status, ['picked_up', 'sorted'], true)) {
+            return back()->withErrors(['parcel_id' => "{$parcel->tracking_number} is {$parcel->statusLabel()}; only parcels at your hub can be transferred."]);
+        }
 
         $destination = User::where('id', $request->to_sorting_center_id)
             ->where('role', 'sorting_center')
-            ->firstOrFail();
+            ->first();
+        if (! $destination || (int) $destination->id === (int) $me) {
+            return back()->withErrors(['to_sorting_center_id' => 'Choose another sorting center.']);
+        }
+        if (! $destination->hasAssignedMunicipality()) {
+            return back()->withErrors(['to_sorting_center_id' => "{$destination->name} has no municipality assigned yet, so it can't receive parcels."]);
+        }
 
         // Create transfer record
         ParcelTransfer::create([
@@ -976,7 +995,7 @@ class SortingCenterController extends Controller
         $me = auth()->id();
 
         // Only the destination SC can accept
-        if ($transfer->to_sorting_center_id !== $me) {
+        if ((int) $transfer->to_sorting_center_id !== (int) $me) {
             abort(403, 'Only the destination sorting center can accept this transfer.');
         }
 
@@ -993,12 +1012,17 @@ class SortingCenterController extends Controller
             'received_at' => now(),
         ]);
 
-        // Hand parcel ownership to destination SC, clear transfer flag
+        // Hand parcel ownership to destination SC, clear transfer flag; it is sorted again there.
         $parcel->update([
             'current_sorting_center_id' => $me,
             'transfer_status'           => null,
             'status'                    => 'picked_up', // back to picked_up at new SC, ready for sorting
+            'area_id'                   => null,
+            'sorted_at'                 => null,
         ]);
+        $svc = $this->parcels();
+        $svc->syncOrder($parcel);
+        $svc->notifyBuyer($parcel, 'Parcel transferred', "{$svc->orderRef($parcel)} moved to {$this->sc()->name}, the hub nearest you.");
 
         return back()->with('success',
             "Parcel {$parcel->tracking_number} received from {$transfer->fromSortingCenter->name}. It is now in your queue.");
@@ -1011,7 +1035,7 @@ class SortingCenterController extends Controller
     {
         $me = auth()->id();
 
-        if ($transfer->to_sorting_center_id !== $me) {
+        if ((int) $transfer->to_sorting_center_id !== (int) $me) {
             abort(403, 'Only the destination sorting center can reject this transfer.');
         }
 
@@ -1041,7 +1065,7 @@ class SortingCenterController extends Controller
     {
         $me = auth()->id();
 
-        if ($transfer->from_sorting_center_id !== $me) {
+        if ((int) $transfer->from_sorting_center_id !== (int) $me) {
             abort(403, 'Only the originating sorting center can cancel this transfer.');
         }
 

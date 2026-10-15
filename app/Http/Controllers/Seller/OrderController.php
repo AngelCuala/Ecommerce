@@ -80,7 +80,9 @@ class OrderController extends Controller
             ->where('status', '!=', 'cancelled') // closed duplicates are kept for history, not shown
             ->first();
 
-        return view('seller.orders.show', compact('order', 'parcel'));
+        $sortingCenters = self::sortingCenterChoices(auth()->user());
+
+        return view('seller.orders.show', compact('order', 'parcel', 'sortingCenters'));
     }
 
     /** The order, if it has this seller's products. */
@@ -250,16 +252,41 @@ class OrderController extends Controller
     }
 
     /** Schedule courier pickup & create/update delivery record */
+    /** Logistics companies a seller can choose for the pickup: those covering the seller's city first. */
+    public static function sortingCenterChoices(\App\Models\User $seller): \Illuminate\Support\Collection
+    {
+        $origin = app(\App\Services\DeliveryRoutingService::class)->sellerOrigin($seller);
+        $names = \App\Models\SortingCenterApplication::where('status', 'approved')->pluck('business_name', 'user_id');
+
+        return \App\Models\User::where('role', 'sorting_center')->where('approval_status', 'approved')->get()
+            ->map(function ($sc) use ($origin, $names) {
+                $sc->display_name = $names[$sc->id] ?? $sc->name;
+                $sc->covers_seller = $origin && $origin->municipality_code && $sc->assigned_municipality_code === $origin->municipality_code;
+                $sc->rider_count = \App\Models\Rider::where('sorting_center_id', $sc->id)->where('application_status', 'approved')->where('is_active', true)->count();
+                return $sc;
+            })
+            ->sortBy(fn ($sc) => [$sc->covers_seller ? 0 : 1, $sc->rider_count > 0 ? 0 : 1, $sc->display_name])
+            ->values();
+    }
+
+    /**
+     * Ready for Pickup: the seller chooses the logistics company (sorting center); that company's
+     * riders pick the parcel up. The job goes straight to its Rider Dispatch and is offered to
+     * an Online rider right away.
+     */
     public function handover(Request $request, int $id)
     {
         $request->validate([
-            'courier_name'        => 'required|string|max:100',
-            'tracking_number'     => 'nullable|string|max:100',
+            'sorting_center_id'   => ['required', 'integer', \Illuminate\Validation\Rule::exists('users', 'id')->where('role', 'sorting_center')->where('approval_status', 'approved')],
             'pickup_scheduled_at' => 'required|date',
             'notes'               => 'nullable|string|max:500',
+        ], [
+            'sorting_center_id.required' => 'Choose the logistics company whose rider will pick up the parcel.',
+            'sorting_center_id.exists'   => 'Choose one of the listed logistics companies.',
+            'pickup_scheduled_at.required' => 'Choose the pickup date and time.',
         ]);
 
-        $order   = $this->ownOrder($id);
+        $order = $this->ownOrder($id);
         // Steps can't be skipped: New → Accepted → Packed → Ready for Pickup.
         $step = $order->sellerStep();
         if ($step === 'new' || $step === 'accepted') {
@@ -268,107 +295,37 @@ class OrderController extends Controller
         if ($order->status !== Order::PROCESSING) {
             return back()->with('error', 'This order is no longer waiting for pickup.');
         }
-        $routing = app(\App\Services\DeliveryRoutingService::class);
-
-        // Records created before the routing rule may have both workflows open — never add to that.
-        if ($routing->hasConflictingRoutes($order)) {
-            return back()->with('error', 'This order has both a courier delivery and a sorting-center request open. Please contact the admin to close the duplicate before rescheduling.');
+        // Older orders booked with a direct courier keep that courier.
+        if (\App\Models\Delivery::where('order_id', $order->id)->whereIn('status', \App\Models\Delivery::OPEN_STATUSES)->exists()) {
+            return back()->with('error', 'This order is already booked with a direct courier.');
+        }
+        $existing = \App\Models\Parcel::where('order_id', $order->id)->where('seller_id', auth()->id())->first();
+        if ($existing && \App\Models\ParcelPickup::where('parcel_id', $existing->id)->whereIn('status', \App\Models\ParcelPickup::OPEN)->exists()) {
+            return back()->with('error', 'A rider is already assigned to pick up this parcel. Contact the logistics company to change it.');
+        }
+        if ($existing && ! in_array($existing->status, ['pending_pickup', 'pickup_approved', 'pickup_rejected', 'cancelled'], true)) {
+            return back()->with('error', "{$existing->tracking_number} is already {$existing->statusLabel()}.");
         }
 
-        // ONE route per order: keep an existing route; otherwise decide from the PSGC codes.
-        $route    = $routing->activeRoute($order);
-        $decision = null;
-        if (! $route) {
-            $decision = $routing->decide($order, auth()->user());
-            $route    = $decision['route'];
-            if (! $route) {
-                return back()->with('error', $decision['reason'] . ' The pickup was not scheduled.');
-            }
-        }
+        $sc = \App\Models\User::findOrFail($request->sorting_center_id);
+        $svc = app(\App\Services\ParcelService::class);
 
-        $msg = $route === \App\Services\DeliveryRoutingService::COURIER
-            ? $this->scheduleCourierRoute($request, $order)
-            : $this->scheduleSortingCenterRoute($request, $order, $decision);
+        $offer = \Illuminate\Support\Facades\DB::transaction(function () use ($order, $sc, $request, $svc) {
+            $parcel = $svc->createForSeller($order, auth()->user(), $request->pickup_scheduled_at, $request->notes, $sc);
+            // The seller chose the company, so the pickup is confirmed for it right away.
+            $parcel->update(['status' => 'pickup_approved', 'current_sorting_center_id' => $sc->id, 'verified_at' => now(), 'failure_reason' => null]);
+            $svc->syncOrder($parcel);
+            $svc->notify($sc->id, 'New pickup', "{$parcel->tracking_number} from " . auth()->user()->storeName() . ' is ready for pickup'
+                . ' (' . \Carbon\Carbon::parse($request->pickup_scheduled_at)->format('M j, g:i A') . ').', 'info', route('sc.dispatch'));
 
-        if ($decision) {
-            $msg = $decision['reason'] . ' ' . $msg;
-        }
+            return app(\App\Services\RiderDispatch::class)->offer($parcel->fresh());
+        });
 
-        return back()->with('success', $msg);
-    }
+        $name = \App\Models\SortingCenterApplication::where('user_id', $sc->id)->where('status', 'approved')->value('business_name') ?: $sc->name;
+        \App\Models\ActivityLog::note('Order ' . $order->number() . ' ready for pickup by ' . $name, $order);
 
-    /** SAME municipality: an "available" courier delivery that an approved courier can claim. */
-    private function scheduleCourierRoute(Request $request, Order $order): string
-    {
-        $id = $order->id;
-
-        // Ready for pickup: the delivery becomes "available" so an approved courier can claim it.
-        // A job a courier already claimed keeps its courier and status; only the schedule changes.
-        $delivery = \App\Models\Delivery::firstOrNew(['order_id' => $id]);
-        $claimed  = $delivery->exists && (
-            $delivery->status === 'delivered'
-            || ($delivery->courier_id && in_array($delivery->status, ['accepted', 'picked_up', 'in_transit'], true))
-        );
-
-        $delivery->fill([
-            'tracking_number'     => $request->tracking_number,
-            'pickup_scheduled_at' => $request->pickup_scheduled_at,
-            'notes'               => $request->notes,
-        ]);
-        if (! $claimed) {
-            $delivery->fill([
-                'courier_id'   => null,
-                'courier_name' => $request->courier_name,
-                'status'       => 'available',
-                'delivery_fee' => 50,
-                'accepted_at'  => null,
-            ]);
-        }
-        $newlyAvailable = ! $claimed && ($delivery->isDirty('status') || ! $delivery->exists);
-        $delivery->save();
-
-        $deliveryService = app(\App\Services\DeliveryService::class);
-        if ($newlyAvailable) {
-            $deliveryService->notifyAvailableCouriers($delivery);
-        } elseif ($claimed && $delivery->status !== 'delivered') {
-            $delivery->load('courier');
-            $deliveryService->notifyCourier($delivery, 'Pickup schedule updated',
-                $deliveryService->ref($delivery) . ' pickup is now set for '
-                . \Carbon\Carbon::parse($request->pickup_scheduled_at)->format('M d, Y h:i A') . '.');
-        }
-
-        return 'Courier pickup scheduled for ' . \Carbon\Carbon::parse($request->pickup_scheduled_at)->format('M d, Y h:i A')
-            . '. The request is open to couriers.';
-    }
-
-    /** DIFFERENT municipalities: a sorting-center pickup request (no courier delivery is created). */
-    private function scheduleSortingCenterRoute(Request $request, Order $order, ?array $decision): string
-    {
-        $isNew = ! \App\Models\Parcel::where('order_id', $order->id)->where('seller_id', auth()->id())->exists();
-
-        $parcel = app(\App\Services\ParcelService::class)->createForSeller(
-            $order, auth()->user(), $request->pickup_scheduled_at, $request->notes
-        );
-
-        if ($parcel->current_sorting_center_id) {
-            return "Pickup request {$parcel->tracking_number} sent to {$parcel->currentSortingCenter->name}.";
-        }
-
-        // Needs a sorting center, but none is assigned to the seller's or buyer's municipality yet.
-        $where = $decision
-            ? "{$decision['origin']} or {$decision['destination']}"
-            : "the seller's or buyer's municipality";
-        if ($isNew) {
-            \Illuminate\Support\Facades\Log::warning("Order #{$order->id}: parcel {$parcel->tracking_number} needs sorting-center handling but no sorting center covers {$where}.");
-            $svc = app(\App\Services\ParcelService::class);
-            \App\Models\User::where('role', 'admin')->pluck('id')->each(fn ($adminId) => $svc->notify(
-                (int) $adminId, 'Unrouted sorting-center pickup',
-                "Order #" . str_pad($order->id, 6, '0', STR_PAD_LEFT) . " ({$parcel->tracking_number}) needs a sorting center, but none is assigned to {$where}.",
-                'warning'
-            ));
-        }
-
-        return "Pickup request {$parcel->tracking_number} created. No sorting center is assigned to {$where} yet, so the request is open to all sorting centers.";
+        return back()->with('success', "Ready for Pickup. A rider from {$name} will pick it up"
+            . ($offer ? ' (offered to ' . $offer->rider->full_name . ').' : '; the job is waiting in their dispatch for an available rider.'));
     }
 
     /** Mark as handed over to courier → status becomes Shipped */

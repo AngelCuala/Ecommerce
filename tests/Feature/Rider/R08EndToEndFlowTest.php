@@ -33,23 +33,23 @@ class R08EndToEndFlowTest extends TestCase
 
     public function test_same_city_order_goes_through_the_hub_and_its_riders(): void
     {
+        $this->online($this->rider1);
         $order = $this->placeOrder($this->buyer1, [$this->cart($this->buyer1, $this->p02)])->first();
         $this->assertEquals(500, $order->total_price);
 
         // Seller: accept, pack, Ready for Pickup.
         $this->actingAs($this->seller1)->post(route('seller.orders.accept', $order->id));
         $this->actingAs($this->seller1)->post(route('seller.orders.pack', $order->id));
-        $this->actingAs($this->seller1)->post(route('seller.orders.handover', $order->id), ['courier_name' => 'Bilis Hatid Express', 'pickup_scheduled_at' => now()->addHour()->format('Y-m-d H:i')])
-            ->assertSessionHas('success', fn ($m) => str_contains($m, "riders"));
+        $this->actingAs($this->seller1)->post(route('seller.orders.handover', $order->id), ['sorting_center_id' => $this->logistics1->id, 'pickup_scheduled_at' => now()->addHour()->format('Y-m-d H:i')])
+            ->assertSessionHas('success', fn ($m) => str_contains($m, 'Bilis Hatid Express Inc.'));
         $this->assertFalse(Delivery::where('order_id', $order->id)->exists());   // not the direct courier
         $parcel = Parcel::where('order_id', $order->id)->sole();
         $this->assertSame($this->logistics1->id, (int) $parcel->current_sorting_center_id);
 
-        // Logistics confirms the pickup and auto-assigns; Rider 1 accepts and scans the waybill.
-        $this->actingAs($this->logistics1)->post(route('sc.pickup-requests.approve', $parcel))->assertSessionHas('success');
-        $this->online($this->rider1);
-        $this->actingAs($this->logistics1)->post(route('sc.dispatch.auto', $parcel))->assertSessionHas('success');
+        // The seller chose Logistics 1: the pickup goes straight to its dispatch and Rider 1 (Online) gets the offer.
+        $this->assertSame('pickup_approved', $parcel->status);
         $offer = $parcel->jobOffers()->sole();
+        $this->assertSame($this->rider1->id, $offer->rider_id);
         $this->actingAs($this->rider1->user)->post(route('courier.rider.offers.accept', $offer->id))->assertSessionHas('success');
         $pickup = ParcelPickup::sole();
         $this->actingAs($this->rider1->user)->post(route('courier.rider.pickups.confirm', $pickup->id), ['tracking_number' => $parcel->tracking_number])->assertSessionHas('success');
@@ -79,15 +79,25 @@ class R08EndToEndFlowTest extends TestCase
         $this->assertEquals(500, $wallet->codBalance($this->rider1));
     }
 
-    public function test_without_a_covering_company_the_direct_courier_still_takes_same_city_orders(): void
+    public function test_the_seller_chooses_which_logistics_company_picks_up(): void
     {
-        $this->logistics1->update(['assigned_municipality' => null, 'assigned_municipality_code' => null]);
         $order = $this->placeOrder($this->buyer1, [$this->cart($this->buyer1, $this->p02)])->first();
         $this->actingAs($this->seller1)->post(route('seller.orders.accept', $order->id));
         $this->actingAs($this->seller1)->post(route('seller.orders.pack', $order->id));
-        $this->actingAs($this->seller1)->post(route('seller.orders.handover', $order->id), ['courier_name' => 'X', 'pickup_scheduled_at' => now()->addHour()->format('Y-m-d H:i')])
+
+        $this->actingAs($this->seller1)->post(route('seller.orders.handover', $order->id), ['pickup_scheduled_at' => now()->addHour()->format('Y-m-d H:i')])
+            ->assertSessionHasErrors(['sorting_center_id' => 'Choose the logistics company whose rider will pick up the parcel.']);
+        $this->actingAs($this->seller1)->post(route('seller.orders.handover', $order->id), ['sorting_center_id' => $this->buyer2->id, 'pickup_scheduled_at' => now()->addHour()->format('Y-m-d H:i')])
+            ->assertSessionHasErrors('sorting_center_id');
+
+        // Agila Cargo doesn't cover Quezon City, but the seller may still choose it; its riders get the job.
+        $this->online($this->agilaRider);
+        $this->actingAs($this->seller1)->post(route('seller.orders.handover', $order->id), ['sorting_center_id' => $this->logistics2->id, 'pickup_scheduled_at' => now()->addHour()->format('Y-m-d H:i')])
             ->assertSessionHas('success');
-        $this->assertTrue(Delivery::where('order_id', $order->id)->exists());
-        $this->assertFalse(Parcel::where('order_id', $order->id)->exists());
+        $parcel = Parcel::where('order_id', $order->id)->sole();
+        $this->assertSame($this->logistics2->id, (int) $parcel->current_sorting_center_id);
+        $this->assertSame($this->agilaRider->id, $parcel->jobOffers()->sole()->rider_id);
+        $this->assertFalse(Delivery::where('order_id', $order->id)->exists());
+        $this->actingAs($this->logistics2)->get(route('sc.dispatch'))->assertSee($parcel->tracking_number);
     }
 }

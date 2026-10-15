@@ -27,7 +27,7 @@ class ParcelService
      * Create (or refresh) the pickup request for a seller's part of an order.
      * One parcel per order + seller. A rejected request is re-opened.
      */
-    public function createForSeller(Order $order, User $seller, $pickupAt = null, ?string $notes = null): Parcel
+    public function createForSeller(Order $order, User $seller, $pickupAt = null, ?string $notes = null, ?User $chosen = null): Parcel
     {
         $parcel = Parcel::firstOrNew(['order_id' => $order->id, 'seller_id' => $seller->id]);
 
@@ -37,7 +37,8 @@ class ParcelService
             return $parcel;
         }
 
-        $sc = $this->routeSortingCenter($seller, $order);
+        // The seller's chosen logistics company, else the one covering the route.
+        $sc = $chosen ?? $this->routeSortingCenter($seller, $order);
 
         $parcel->fill([
             'tracking_number'           => $parcel->tracking_number ?: Parcel::generateTracking(),

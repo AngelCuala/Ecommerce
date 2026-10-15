@@ -47,7 +47,7 @@ class ReviewController extends Controller
     public function store(Request $request, OrderItem $item)
     {
         $order = $item->order;
-        abort_unless($order && $order->user_id === auth()->id(), 404);
+        abort_unless($order && (int) $order->user_id === (int) auth()->id(), 404);
 
         if (! $order->reviewWindowOpen()) {
             return back()->with('error', 'You can rate items once the order is completed, within ' . Review::REVIEW_DAYS . ' days.');
@@ -79,7 +79,7 @@ class ReviewController extends Controller
 
     public function update(Request $request, Review $review)
     {
-        abort_unless($review->user_id === auth()->id(), 404);
+        abort_unless((int) $review->user_id === (int) auth()->id(), 404);
 
         if (! $review->canBeEdited()) {
             return back()->with('error', $review->edit_count >= Review::MAX_EDITS

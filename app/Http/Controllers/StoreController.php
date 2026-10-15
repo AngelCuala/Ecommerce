@@ -56,7 +56,7 @@ class StoreController extends Controller
     public function toggleFollow(int $sellerId)
     {
         $seller = User::where('role', 'seller')->findOrFail($sellerId);
-        if ($seller->id === auth()->id()) {
+        if ((int) $seller->id === (int) auth()->id()) {
             return back()->with('error', 'You can\'t follow your own store.');
         }
 

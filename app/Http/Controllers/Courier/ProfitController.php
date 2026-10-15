@@ -32,16 +32,16 @@ class ProfitController extends Controller
         $avgPerDelivery = $totalDeliveries > 0 ? $totalEarnings / $totalDeliveries : 0.0;
 
         // Earnings per month for the chart + table
-        $earningsByMonth = $base()
-            ->selectRaw("DATE_FORMAT(delivered_at, '%Y-%m') as ym, COUNT(*) as count, SUM(delivery_fee) as total")
-            ->groupByRaw("DATE_FORMAT(delivered_at, '%Y-%m')")
-            ->orderByRaw("DATE_FORMAT(delivered_at, '%Y-%m')")
-            ->get()
-            ->map(function ($row) {
-                [$year, $mon] = explode('-', $row->ym);
-                $row->month = Carbon::createFromDate($year, (int) $mon, 1)->format('M Y');
-                return $row;
-            });
+        // Grouped in PHP so it works on any database (not only MySQL's DATE_FORMAT).
+        $earningsByMonth = $base()->whereNotNull('delivered_at')->get(['delivered_at', 'delivery_fee'])
+            ->groupBy(fn ($d) => $d->delivered_at->format('Y-m'))
+            ->sortKeys()
+            ->map(fn ($rows, $ym) => (object) [
+                'ym'    => $ym,
+                'count' => $rows->count(),
+                'total' => (float) $rows->sum('delivery_fee'),
+                'month' => Carbon::createFromFormat('Y-m-d', $ym . '-01')->format('M Y'),
+            ])->values();
 
         $recentDeliveries = Delivery::where('courier_id', $courier->id)
             ->where('status', 'delivered')

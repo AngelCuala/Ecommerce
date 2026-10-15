@@ -228,16 +228,21 @@
                 {{-- One route per order: a sorting-center parcel replaces the courier cards below. --}}
                 @if (in_array($sellerStep, ['packed', 'ready'], true) && ((! $delivery && ! $parcel) || ($delivery && $delivery->status === 'available' && ! $delivery->pickup_scheduled_at) || ($parcel && $parcel->status === 'pickup_rejected')))
                     <section class="pl-card">
-                        <div class="pl-head"><h2>Ready for pickup — book the courier</h2></div>
+                        <div class="pl-head"><h2>Ready for pickup — choose the logistics company</h2></div>
                         <form action="{{ route('seller.orders.handover', $order->id) }}" method="POST" class="pl-body space-y-3">
                             @csrf
                             <div>
-                                <label for="courier_name" class="pl-label">Courier or rider</label>
-                                <input type="text" id="courier_name" name="courier_name" class="input text-sm" required placeholder="e.g. J&T Express or rider's name">
-                            </div>
-                            <div>
-                                <label for="tracking_number" class="pl-label">Tracking number <span style="color:#a39890;font-weight:400;">— optional</span></label>
-                                <input type="text" id="tracking_number" name="tracking_number" class="input text-sm" placeholder="e.g. JT12345678">
+                                <label for="sorting_center_id" class="pl-label">Logistics company (sorting center)</label>
+                                <select id="sorting_center_id" name="sorting_center_id" class="input text-sm" required>
+                                    <option value="">Choose…</option>
+                                    @foreach ($sortingCenters as $sc)
+                                        <option value="{{ $sc->id }}" @selected((string) old('sorting_center_id') === (string) $sc->id)>
+                                            {{ $sc->display_name }}{{ $sc->assigned_municipality ? ' · ' . $sc->assigned_municipality : '' }}{{ $sc->covers_seller ? ' · covers your area' : '' }}{{ $sc->rider_count ? ' · ' . $sc->rider_count . ' ' . \Illuminate\Support\Str::plural('rider', $sc->rider_count) : ' · no riders yet' }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                                @error('sorting_center_id')<p class="text-xs" style="color:#B91C1C;">{{ $message }}</p>@enderror
+                                <p class="mt-1 text-xs pl-muted">One of their riders picks the parcel up from you and brings it to their hub.</p>
                             </div>
                             <div>
                                 <label for="pickup_scheduled_at" class="pl-label">Pickup date and time</label>
@@ -245,9 +250,9 @@
                             </div>
                             <div>
                                 <label for="notes" class="pl-label">Notes <span style="color:#a39890;font-weight:400;">— optional</span></label>
-                                <textarea id="notes" name="notes" rows="2" class="input text-sm" placeholder="Instructions for the courier"></textarea>
+                                <textarea id="notes" name="notes" rows="2" class="input text-sm" placeholder="Instructions for the rider"></textarea>
                             </div>
-                            <button type="submit" class="pl-btn w-full">Schedule pickup</button>
+                            <button type="submit" class="pl-btn w-full">Ready for pickup</button>
                         </form>
                     </section>
 

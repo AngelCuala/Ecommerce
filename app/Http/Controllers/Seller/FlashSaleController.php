@@ -59,7 +59,7 @@ class FlashSaleController extends Controller
 
     public function destroy(FlashSale $flashSale)
     {
-        abort_unless($flashSale->seller_id === auth()->id(), 404);
+        abort_unless((int) $flashSale->seller_id === (int) auth()->id(), 404);
         if ($flashSale->sold > 0) {
             return back()->with('error', 'Units were already sold in this flash sale, so it can\'t be deleted. It ends on its own.');
         }

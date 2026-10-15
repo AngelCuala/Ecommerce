@@ -51,7 +51,7 @@ class PaymentController extends Controller
     /** Back from the gateway (paid, or the buyer pressed Cancel / Back). */
     public function back(Request $request, Payment $payment)
     {
-        abort_unless($payment->user_id === auth()->id(), 404);
+        abort_unless((int) $payment->user_id === (int) auth()->id(), 404);
 
         $payment = $this->payments->sync($payment);
         if ($request->boolean('cancelled') && $payment->isPending()) {
@@ -73,14 +73,14 @@ class PaymentController extends Controller
 
     public function sandbox(Payment $payment)
     {
-        abort_unless($payment->provider === 'sandbox' && $payment->user_id === auth()->id() && config('payments.gateway') === 'sandbox', 404);
+        abort_unless($payment->provider === 'sandbox' && (int) $payment->user_id === (int) auth()->id() && config('payments.gateway') === 'sandbox', 404);
 
         return view('payments.sandbox', ['payment' => $payment, 'orders' => $payment->orders()->get()]);
     }
 
     public function sandboxAction(Request $request, Payment $payment)
     {
-        abort_unless($payment->provider === 'sandbox' && $payment->user_id === auth()->id() && config('payments.gateway') === 'sandbox', 404);
+        abort_unless($payment->provider === 'sandbox' && (int) $payment->user_id === (int) auth()->id() && config('payments.gateway') === 'sandbox', 404);
         $request->validate(['result' => 'required|in:pay,decline,cancel']);
 
         if ($payment->isPending()) {

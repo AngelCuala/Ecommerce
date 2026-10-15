@@ -130,6 +130,7 @@ class Order extends Model
             // However an order gets cancelled (buyer, seller, returned parcel, admin…),
             // its stock and vouchers come back — once.
             if ($order->status === self::CANCELLED && $from !== self::CANCELLED) {
+                $order->closeOpenPickups();
                 $order->restock();
                 app(\App\Services\VoucherService::class)->release($order);
                 // Paid online: the money goes back.
@@ -144,6 +145,21 @@ class Order extends Model
 
             app(\App\Services\OrderNotifier::class)->statusChanged($order, $from);
         });
+    }
+
+    /** The order was cancelled before pickup: close its pickup requests, rider pickups and offers, and tell the hub. */
+    public function closeOpenPickups(): void
+    {
+        $svc = app(\App\Services\ParcelService::class);
+        foreach (Parcel::where('order_id', $this->id)->whereIn('status', ['pending_pickup', 'pickup_approved'])->get() as $parcel) {
+            $parcel->update(['status' => 'cancelled', 'failure_reason' => 'Order was cancelled.']);
+            ParcelPickup::where('parcel_id', $parcel->id)->where('status', 'assigned')->update(['status' => 'cancelled', 'remarks' => 'Order cancelled.']);
+            RiderJobOffer::where('parcel_id', $parcel->id)->where('status', 'pending')->update(['status' => 'cancelled']);
+            if ($parcel->current_sorting_center_id) {
+                $svc->notify((int) $parcel->current_sorting_center_id, 'Pickup cancelled',
+                    "{$parcel->tracking_number}: order " . $this->number() . ' was cancelled. No pickup needed.', 'warning');
+            }
+        }
     }
 
     /** Put the order's units back on the shelf (and on their variants and flash sales). */

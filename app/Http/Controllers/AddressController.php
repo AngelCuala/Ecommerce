@@ -74,7 +74,7 @@ class AddressController extends Controller
 
     public function update(Request $request, UserAddress $address)
     {
-        abort_unless($address->user_id === auth()->id(), 403);
+        abort_unless((int) $address->user_id === (int) auth()->id(), 403);
 
         $data = $this->validated($request);
 
@@ -94,7 +94,7 @@ class AddressController extends Controller
 
     public function destroy(UserAddress $address)
     {
-        abort_unless($address->user_id === auth()->id(), 403);
+        abort_unless((int) $address->user_id === (int) auth()->id(), 403);
 
         // A30: the default address stays until another one is made the default.
         if ($address->is_default) {
@@ -121,7 +121,7 @@ class AddressController extends Controller
 
     public function setDefault(UserAddress $address)
     {
-        abort_unless($address->user_id === auth()->id(), 403);
+        abort_unless((int) $address->user_id === (int) auth()->id(), 403);
 
         auth()->user()->addresses()->update(['is_default' => false]);
         $address->update(['is_default' => true]);

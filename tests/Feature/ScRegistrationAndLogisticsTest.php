@@ -58,7 +58,7 @@ class ScRegistrationAndLogisticsTest extends TestCase
 
     private function admin(): User
     {
-        return User::forceCreate(['name' => 'Admin', 'email' => 'admin@e.com', 'password' => bcrypt('x'),
+        return User::where('email', 'admin@e.com')->first() ?? User::forceCreate(['name' => 'Admin', 'email' => 'admin@e.com', 'password' => bcrypt('x'),
             'role' => 'admin', 'approval_status' => 'approved']);
     }
 
@@ -316,7 +316,7 @@ class ScRegistrationAndLogisticsTest extends TestCase
         $this->assertDatabaseHas('user_notifications', ['user_id' => $seller->id, 'title' => 'Pickup cancelled']);
     }
 
-    public function test_buyer_cancel_closes_pending_and_approved_parcels(): void
+    public function test_cancelling_closes_pending_and_approved_parcels(): void
     {
         $sc    = $this->sc('sc@e.com');
         $buyer = $this->buyer();
@@ -326,8 +326,8 @@ class ScRegistrationAndLogisticsTest extends TestCase
             $order  = $this->order($buyer, 'Processing');
             $parcel = $this->parcel($sc, $seller, $order, $status);
 
-            $this->actingAs($buyer)->post(route('orders.cancel', $order->id), ['cancellation_reason' => 'Changed mind'])
-                ->assertSessionHas('success');
+            // A6: once Ready for Pickup only the seller (or an auto-cancel) can cancel; any cancellation closes the pickup.
+            $order->update(['status' => 'Cancelled', 'cancellation_reason' => 'Cancelled by the seller: Out of stock']);
             $this->assertSame('Cancelled', $order->fresh()->status);
             $this->assertSame('cancelled', $parcel->fresh()->status, "status=$status");
         }

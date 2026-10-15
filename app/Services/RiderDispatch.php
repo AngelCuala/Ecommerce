@@ -34,6 +34,9 @@ class RiderDispatch
     /** The job the parcel is waiting for: 'pickup', 'delivery' or null. */
     public function jobKind(Parcel $parcel): ?string
     {
+        if ($parcel->transfer_status === 'outgoing' || ($parcel->order && $parcel->order->status === \App\Models\Order::CANCELLED)) {
+            return null;   // moving to another hub, or nothing to deliver any more
+        }
         if ($parcel->status === 'pickup_approved' && ! $parcel->pickups()->whereIn('status', ParcelPickup::OPEN)->exists()) {
             return RiderJobOffer::PICKUP;
         }
