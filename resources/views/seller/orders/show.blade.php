@@ -195,10 +195,13 @@
             @endif
 
             {{-- A parcel coming back to the seller (Return to Sender) --}}
-            @if ($parcel && $parcel->status === 'return_to_sender')
-                <section class="pl-card pl-body space-y-2">
-                    <p class="text-sm font-semibold" style="color:#B91C1C;">Return to Sender</p>
-                    <p class="text-xs pl-muted">{{ $parcel->failure_reason ?: 'The parcel could not be delivered.' }} Confirm when it is back with you; its stock is then restored.</p>
+            @php $awaitingReceipt = $parcel && $parcel->status === 'returned' && $parcel->returned_at && ! $parcel->returned_received_at; @endphp
+            @if ($parcel && ($parcel->status === 'return_to_sender' || $awaitingReceipt))
+                <section class="pl-card pl-body space-y-2" data-rts-seller>
+                    <p class="text-sm font-semibold" style="color:#B91C1C;">{{ $awaitingReceipt ? 'Returned, awaiting confirmation' : 'Return to Sender' }}</p>
+                    <p class="text-xs pl-muted">{{ $parcel->failure_reason ?: 'The parcel could not be delivered.' }}
+                        @if ($awaitingReceipt) The rider handed it back {{ $parcel->returned_at->format('M j, g:i A') }}. @endif
+                        Confirm when it is back with you; its stock is then restored.</p>
                     <form method="POST" action="{{ route('seller.orders.returned-received', $order->id) }}">@csrf
                         <button class="pl-btn w-full">Confirm returned parcel received</button></form>
                 </section>

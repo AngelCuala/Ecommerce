@@ -24,14 +24,26 @@
         </div>
     </div>
 
+    {{-- L3: bulk assignment — tick the parcels below, then pick one rider. --}}
+    <form id="bulk-assign" method="POST" action="{{ route('sc.dispatch.bulk') }}" class="card" style="padding:12px 18px;margin-bottom:16px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;">@csrf
+        <strong style="font-size:13px;">Bulk assign</strong>
+        <span class="text-muted" style="font-size:12px;">Tick parcels in the lists below, then choose a rider. Parcels the rider can't take stay in the queue.</span>
+        <select name="rider_id" class="form-select" style="min-width:170px;margin-left:auto;" aria-label="Rider for the selected parcels">
+            <option value="">Choose rider…</option>
+            @foreach($eligible as $r)<option value="{{ $r->id }}">{{ $r->full_name }} ({{ $r->activeJobsCount() }} jobs)</option>@endforeach
+        </select>
+        <button class="btn btn-green btn-sm">Assign selected</button>
+    </form>
+
     @foreach (['Waiting for a rider' => $jobs, 'Unassigned queue — assign manually' => $unassigned] as $heading => $list)
         <div class="card" style="margin-bottom:16px;" @if($loop->last) id="unassigned" @endif>
             <div style="padding:14px 18px;font-weight:700;">{{ $heading }} <span class="badge badge-gray">{{ $list->count() }}</span></div>
             <table class="data-table">
-                <thead><tr><th>Tracking</th><th>Job</th><th>From</th><th>To</th><th>COD</th><th>Offer</th><th>Assign</th></tr></thead>
+                <thead><tr><th></th><th>Tracking</th><th>Job</th><th>From</th><th>To</th><th>COD</th><th>Offer</th><th>Assign</th></tr></thead>
                 <tbody>
                 @forelse($list as $p)
                     <tr data-job="{{ $p->tracking_number }}">
+                        <td><input type="checkbox" form="bulk-assign" name="parcel_ids[]" value="{{ $p->id }}" aria-label="Select {{ $p->tracking_number }}"></td>
                         <td><span class="id-link">{{ $p->tracking_number }}</span></td>
                         <td>{{ ucfirst($p->job_kind) }}{{ $p->job_kind === 'delivery' ? ' · attempt ' . ($p->deliveries()->count() + 1) : '' }}</td>
                         <td style="font-size:12px;">{{ $p->seller->name ?? '—' }}<div class="text-muted">{{ \Illuminate\Support\Str::limit($p->pickup_address, 40) }}</div></td>
@@ -57,12 +69,40 @@
                         </td>
                     </tr>
                 @empty
-                    <tr><td colspan="7" style="text-align:center;padding:24px;color:var(--text-muted);">Nothing here.</td></tr>
+                    <tr><td colspan="8" style="text-align:center;padding:24px;color:var(--text-muted);">Nothing here.</td></tr>
                 @endforelse
                 </tbody>
             </table>
         </div>
     @endforeach
+
+    <div class="card" style="margin-bottom:16px;" id="reassign">
+        <div style="padding:14px 18px;font-weight:700;">Assigned, not started — can be reassigned <span class="badge badge-gray">{{ $notStarted->count() }}</span></div>
+        <table class="data-table">
+            <thead><tr><th>Tracking</th><th>Job</th><th>Rider</th><th>Assigned</th><th>Reassign to</th></tr></thead>
+            <tbody>
+            @forelse($notStarted as $j)
+                <tr data-reassign="{{ $j->parcel->tracking_number }}">
+                    <td>{{ $j->parcel->tracking_number }}</td>
+                    <td>{{ ucfirst($j->kind) }}</td>
+                    <td>{{ $j->rider->full_name ?? '—' }}</td>
+                    <td>{{ $j->since?->format('M j, g:i A') }}</td>
+                    <td>
+                        <form method="POST" action="{{ route('sc.dispatch.reassign', $j->parcel) }}" style="display:flex;gap:6px;">@csrf
+                            <select name="rider_id" class="form-select" style="min-width:150px;" aria-label="New rider for {{ $j->parcel->tracking_number }}">
+                                <option value="">Choose rider…</option>
+                                @foreach($eligible as $r)@if($r->id !== $j->rider?->id)<option value="{{ $r->id }}">{{ $r->full_name }} ({{ $r->activeJobsCount() }} jobs)</option>@endif @endforeach
+                            </select>
+                            <button class="btn btn-blue btn-sm">Reassign</button>
+                        </form>
+                    </td>
+                </tr>
+            @empty
+                <tr><td colspan="5" style="text-align:center;padding:24px;color:var(--text-muted);">No jobs waiting on a rider to start.</td></tr>
+            @endforelse
+            </tbody>
+        </table>
+    </div>
 
     <div class="card">
         <div style="padding:14px 18px;font-weight:700;">Pickups with riders</div>

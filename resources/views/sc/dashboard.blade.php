@@ -10,6 +10,25 @@
 <div class="page-body">
 
     @php $me = auth()->user(); @endphp
+
+    {{-- Shipments by status (L1): each count opens the same filtered list. --}}
+    <div class="card" style="padding:14px 18px;margin-bottom:18px;">
+        <form method="GET" action="{{ route('sc.dashboard') }}" style="display:flex;flex-wrap:wrap;gap:8px;align-items:end;margin-bottom:12px;">
+            <div><label class="form-label" for="dash-from">From</label><input type="date" id="dash-from" name="from" value="{{ request('from') }}" class="form-input"></div>
+            <div><label class="form-label" for="dash-to">To</label><input type="date" id="dash-to" name="to" value="{{ request('to') }}" class="form-input"></div>
+            <button class="btn btn-blue btn-sm">Filter</button>
+            @if(request('from') || request('to'))<a href="{{ route('sc.dashboard') }}" class="btn btn-sm">Clear</a>@endif
+        </form>
+        @error('to')<p style="color:var(--accent-red);font-size:12px;margin:-6px 0 10px;">{{ $message }}</p>@enderror
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;">
+            @foreach(['pending' => 'Pending pickup', 'in_transit' => 'In transit', 'delivered' => 'Delivered', 'failed' => 'Failed / exceptions', 'returned' => 'Returned / cancelled'] as $bucket => $label)
+                <a href="{{ route('sc.shipments', array_filter(['status' => $bucket, 'from' => request('from'), 'to' => request('to')])) }}" class="card" style="padding:12px;display:block;" data-count="{{ $bucket }}">
+                    <div style="font-size:11px;text-transform:uppercase;color:var(--text-muted);font-weight:600;">{{ $label }}</div>
+                    <div style="font-size:22px;font-weight:700;color:var(--text);">{{ $shipmentCounts[$bucket] }}</div>
+                </a>
+            @endforeach
+        </div>
+    </div>
     @if(! $me->assigned_municipality)
         <div class="card" style="padding:14px 18px;margin-bottom:18px;border-left:3px solid var(--accent-red);">
             <div style="font-weight:700;color:var(--accent-red);">No municipality assigned</div>

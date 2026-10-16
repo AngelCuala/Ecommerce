@@ -7,10 +7,52 @@ use Illuminate\Support\Collection;
 
 /**
  * Per-store shipping fees: weight-based, by zone (NCR / Luzon / Visayas / Mindanao).
- * See config/shipping.php for the rate table.
+ * See config/shipping.php for the default rate table; the logistics team can change a rate
+ * (shipping_rates) and add a zone for a province no zone covered (shipping_zones).
  */
 class ShippingService
 {
+    /** Rates and zones saved by logistics, loaded once per request. */
+    private ?array $savedRates = null;
+    private ?array $savedZones = null;
+
+    public function forget(): void
+    {
+        $this->savedRates = $this->savedZones = null;
+    }
+
+    /** [route => [first, additional]] saved by logistics. */
+    public function savedRates(): array
+    {
+        return $this->savedRates ??= \App\Models\ShippingRate::all()
+            ->mapWithKeys(fn ($r) => [$r->route => [(float) $r->first_kg, (float) $r->additional_kg]])->all();
+    }
+
+    /** [province code => ShippingZone] added by logistics. */
+    public function savedZones(): array
+    {
+        return $this->savedZones ??= \App\Models\ShippingZone::all()->keyBy('province_code')->all();
+    }
+
+    /** The 9-digit province code ("RRPP00000") of any PSGC code. */
+    public function provinceOf(?string $psgcCode): ?string
+    {
+        $code = preg_replace('/\D/', '', (string) $psgcCode);
+        if ($code === '') {
+            return null;
+        }
+        return strlen($code) === 10 ? substr($code, 0, 2) . substr($code, 3, 2) . '00000' : substr($code, 0, 4) . '00000';
+    }
+
+    /** Every route of the rate table with its current rate (saved by logistics, else the default). */
+    public function rateTable(): array
+    {
+        $out = [];
+        foreach (config('shipping.rates') as $route => $rate) {
+            $out[$route] = $this->savedRates()[$route] ?? $rate;
+        }
+        return $out;
+    }
     private const ZONES = [
         'NCR'      => ['13'],
         'Luzon'    => ['01', '02', '03', '04', '05', '14', '17'],
@@ -21,6 +63,10 @@ class ShippingService
     /** Zone of a PSGC code (any level: region, province, city, barangay), or null. */
     public function zoneOf(?string $psgcCode): ?string
     {
+        // A zone logistics added for this province (e.g. "Batanes") comes first.
+        if (($province = $this->provinceOf($psgcCode)) && ($zone = $this->savedZones()[$province] ?? null)) {
+            return 'zone:' . $zone->province_code;
+        }
         $region = substr(preg_replace('/\D/', '', (string) $psgcCode), 0, 2);
         foreach (self::ZONES as $zone => $regions) {
             if (in_array($region, $regions, true)) {
@@ -42,7 +88,12 @@ class ShippingService
     /** [first kg, each additional kg] between two zones. */
     public function rate(string $from, string $to): array
     {
-        $rates = config('shipping.rates');
+        foreach ([$from, $to] as $z) {
+            if (str_starts_with($z, 'zone:') && ($zone = $this->savedZones()[substr($z, 5)] ?? null)) {
+                return [(float) $zone->first_kg, (float) $zone->additional_kg];
+            }
+        }
+        $rates = $this->rateTable();
         return $rates["$from-$to"] ?? $rates["$to-$from"] ?? [120, 40];
     }
 
@@ -79,7 +130,7 @@ class ShippingService
         $province = strlen($code) === 10
             ? substr($code, 0, 2) . substr($code, 3, 2) . '00000'   // 10-digit PSGC → 9-digit province code
             : substr($code, 0, 4) . '00000';
-        if ($name = config('shipping.unserviceable_provinces')[$province] ?? null) {
+        if (($name = config('shipping.unserviceable_provinces')[$province] ?? null) && ! isset($this->savedZones()[$province])) {
             return "Sorry, we don't deliver to {$name} yet. Please choose another address.";
         }
 

@@ -5,6 +5,38 @@
 @section('content')
 <div class="page-header"><h1>COD Remittances</h1></div>
 <div class="page-body">
+    <div class="card" style="margin-bottom:16px;" id="reconciliation">
+        <form method="GET" action="{{ route('sc.remittances') }}" style="padding:14px 18px;display:flex;flex-wrap:wrap;gap:8px;align-items:end;">
+            <div style="font-weight:700;margin-right:auto;">Daily reconciliation · {{ $date->format('M j, Y') }}</div>
+            <div><label class="form-label" for="rec-date">Date</label><input type="date" id="rec-date" name="date" value="{{ $date->toDateString() }}" class="form-input"></div>
+            <button class="btn btn-blue btn-sm">Show</button>
+        </form>
+        <table class="data-table">
+            <thead><tr><th>Rider</th><th>COD collected</th><th>Remitted</th><th>Difference</th><th>Orders</th></tr></thead>
+            <tbody>
+            @forelse($daily as $row)
+                <tr data-reconcile="{{ $row['rider']->full_name }}" @if($row['difference'] < 0) style="background:rgba(239,68,68,.08);" @endif>
+                    <td>{{ $row['rider']->full_name }}</td>
+                    <td>₱{{ number_format($row['collected'], 2) }}</td>
+                    <td>₱{{ number_format($row['remitted'], 2) }}</td>
+                    <td>
+                        @if($row['difference'] < 0)<span class="badge badge-red" data-day-shortfall>−₱{{ number_format(-$row['difference'], 2) }} shortfall</span>
+                        @elseif($row['difference'] > 0)<span class="badge badge-yellow">+₱{{ number_format($row['difference'], 2) }} over</span>
+                        @else<span class="badge badge-green">₱0.00</span>@endif
+                    </td>
+                    <td style="font-size:12px;">
+                        @foreach($row['orders'] as $d)
+                            <div>{{ $d->parcel?->order?->number() ?? $d->parcel?->tracking_number }} · ₱{{ number_format($d->cod_collected, 2) }}</div>
+                        @endforeach
+                    </td>
+                </tr>
+            @empty
+                <tr><td colspan="5" style="text-align:center;padding:24px;color:var(--text-muted);">No COD collected or remitted on this date.</td></tr>
+            @endforelse
+            </tbody>
+        </table>
+    </div>
+
     <div class="card" style="margin-bottom:16px;">
         <div style="padding:14px 18px;font-weight:700;">COD per rider</div>
         <table class="data-table">

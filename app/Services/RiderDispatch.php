@@ -107,6 +107,9 @@ class RiderDispatch
                 $n++;
             }
             RiderJobOffer::where('rider_id', $rider->id)->where('status', 'pending')->update(['status' => 'cancelled']);
+            // Returns not yet handed back go back to the Return-to-Sender queue.
+            $n += Parcel::where('rts_rider_id', $rider->id)->where('status', 'return_to_sender')->whereNull('returned_at')
+                ->update(['rts_rider_id' => null, 'rts_assigned_at' => null]);
             return $n;
         });
     }
@@ -142,8 +145,9 @@ class RiderDispatch
         $alreadyAsked = RiderJobOffer::where('parcel_id', $parcel->id)->where('kind', $kind)->where('attempt', $attempt)->pluck('rider_id')->all();
         $rider = $this->eligibleRiders($scId)
             ->reject(fn (Rider $r) => in_array($r->id, $alreadyAsked, true))
-            // Nearest first: a rider covering the parcel's barangay, then the least busy.
-            ->sortBy(fn (Rider $r) => [($kind === RiderJobOffer::DELIVERY && $parcel->area_id && (int) $r->area_id === (int) $parcel->area_id) ? 0 : 1, $r->activeJobsCount(), $r->id])
+            // Nearest first: a rider covering the barangay of the job (the buyer's for a delivery, the seller's
+            // pickup address for a pickup), then the least busy.
+            ->sortBy(fn (Rider $r) => [$this->isNear($r, $parcel, $kind) ? 0 : 1, $r->activeJobsCount(), $r->id])
             ->first();
         if (! $rider) {
             return null;
@@ -217,13 +221,25 @@ class RiderDispatch
     }
 
     /** Logistics assigns the parcel's waiting job to a rider. Throws \RuntimeException with the reason when not allowed. */
+    /** The rider covers the barangay where the job starts. */
+    private function isNear(Rider $rider, Parcel $parcel, string $kind): bool
+    {
+        if ($kind === RiderJobOffer::DELIVERY) {
+            return $parcel->area_id && (int) $rider->area_id === (int) $parcel->area_id;
+        }
+        $barangay = $rider->area?->name;
+        return $barangay && $parcel->pickup_address && stripos($parcel->pickup_address, $barangay) !== false;
+    }
+
     public function assignManually(Parcel $parcel, Rider $rider, User $by): string
     {
         return DB::transaction(function () use ($parcel, $rider, $by) {
             $parcel = Parcel::lockForUpdate()->findOrFail($parcel->id);
             $kind = $this->jobKind($parcel);
             if (! $kind) {
-                throw new \RuntimeException("{$parcel->tracking_number} is already assigned to a rider.");
+                throw new \RuntimeException(in_array($parcel->status, ['pickup_approved', 'sorted'], true)
+                    ? "{$parcel->tracking_number} is already assigned to a rider."
+                    : "{$parcel->tracking_number} is not ready for a rider ({$parcel->statusLabel()}).");
             }
             if ($reason = $this->ineligibleReason($rider, (int) $by->id)) {
                 throw new \RuntimeException($reason);
@@ -240,6 +256,9 @@ class RiderDispatch
     {
         $svc = app(ParcelService::class);
         $parcel->forceFill(['unassigned_at' => null])->save();
+        if ($parcel->order_id) {
+            $parcel->timeline('Rider ' . $rider->full_name . ' assigned for ' . $kind);
+        }
 
         if ($kind === RiderJobOffer::PICKUP) {
             ParcelPickup::create([

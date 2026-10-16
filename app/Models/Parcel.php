@@ -18,6 +18,7 @@ class Parcel extends Model
         'area_id', 'status', 'transfer_status',
         'current_sorting_center_id',
         'verified_by', 'verified_at', 'received_at', 'sorted_at', 'failure_reason',
+        'rts_rider_id', 'rts_assigned_at', 'returned_at', 'returned_received_at', 'exception_photo_path',
     ];
 
     protected $casts = [
@@ -25,6 +26,9 @@ class Parcel extends Model
         'verified_at'         => 'datetime',
         'received_at'         => 'datetime',
         'sorted_at'           => 'datetime',
+        'rts_assigned_at'     => 'datetime',
+        'returned_at'         => 'datetime',
+        'returned_received_at' => 'datetime',
         'pickup_scheduled_at' => 'datetime',
         'weight_kg'           => 'decimal:2',
     ];
@@ -44,10 +48,39 @@ class Parcel extends Model
         'return_to_sender' => 'Return to Sender',
         'returned'        => 'Returned to Seller',
         'cancelled'       => 'Cancelled',
+        'lost'            => 'Lost',
+        'damaged'         => 'Damaged',
     ];
 
     /** Statuses after which the sorting-center workflow is finished (no longer an active route). */
-    public const CLOSED_STATUSES = ['delivered', 'returned', 'cancelled'];
+    public const CLOSED_STATUSES = ['delivered', 'returned', 'cancelled', 'lost', 'damaged'];
+
+    /** Dashboard / shipment-list groups (L1): every status is in exactly one. */
+    public const BUCKETS = [
+        'pending'    => ['pending_pickup', 'pickup_approved'],
+        'in_transit' => ['in_transit_to_hub', 'picked_up', 'sorted', 'assigned', 'in_transit'],
+        'delivered'  => ['delivered'],
+        'failed'     => ['failed', 'return_to_sender', 'lost', 'damaged'],
+        'returned'   => ['returned', 'pickup_rejected', 'cancelled'],
+    ];
+
+    public function rtsRider(): BelongsTo { return $this->belongsTo(Rider::class, 'rts_rider_id'); }
+
+    /** Shipment steps on the buyer's order timeline (rider assignment is written by the dispatcher). */
+    protected static function booted(): void
+    {
+        static::updated(function (Parcel $parcel) {
+            if ($parcel->wasChanged('status') && $parcel->order_id && $parcel->status !== 'assigned') {
+                $parcel->timeline($parcel->statusLabel() . ($parcel->status === 'picked_up' && $parcel->received_at ? ' — received ' . $parcel->received_at->format('M j, g:i A') : ''));
+            }
+        });
+    }
+
+    /** Add a shipment step to the order timeline. */
+    public function timeline(string $note): void
+    {
+        OrderStatusEvent::create(['order_id' => $this->order_id, 'status' => 'Shipment', 'note' => $this->tracking_number . ': ' . $note, 'created_at' => now()]);
+    }
 
     public function order(): BelongsTo       { return $this->belongsTo(Order::class); }
     public function seller(): BelongsTo      { return $this->belongsTo(User::class, 'seller_id'); }

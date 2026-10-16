@@ -159,16 +159,24 @@ class OrderController extends Controller
     public function returnedReceived(int $id)
     {
         $order  = $this->ownOrder($id);
-        $parcel = \App\Models\Parcel::where('order_id', $order->id)->where('seller_id', auth()->id())->where('status', 'return_to_sender')->first();
+        $parcel = \App\Models\Parcel::where('order_id', $order->id)->where('seller_id', auth()->id())
+            ->where(fn ($q) => $q->where('status', 'return_to_sender')
+                ->orWhere(fn ($r) => $r->where('status', 'returned')->whereNotNull('returned_at')->whereNull('returned_received_at')))
+            ->first();
         if (! $parcel) {
             return back()->with('error', 'There is no returning parcel to confirm for this order.');
         }
 
-        \Illuminate\Support\Facades\DB::transaction(function () use ($parcel) {
+        \Illuminate\Support\Facades\DB::transaction(function () use ($parcel, $order) {
             \App\Models\ParcelDelivery::where('parcel_id', $parcel->id)->latest('id')->first()?->update(['status' => 'returned']);
-            $parcel->update(['status' => 'returned']);
-            // Every parcel back with the seller → the order is cancelled; Order::booted() restocks it.
-            app(\App\Services\ParcelService::class)->syncOrder($parcel->fresh());
+            $broughtBack = $parcel->status === 'returned';   // a rider already handed it back; the order is cancelled
+            $parcel->update(['status' => 'returned', 'returned_received_at' => now()] + ($broughtBack ? [] : ['returned_at' => now()]));
+            if ($broughtBack && $order->fresh()->status === Order::CANCELLED) {
+                $order->restock();   // stock comes back only now (A3)
+            } else {
+                // Every parcel back with the seller → the order is cancelled; Order::booted() restocks it.
+                app(\App\Services\ParcelService::class)->syncOrder($parcel->fresh());
+            }
         });
         \App\Models\ActivityLog::change('Return to Sender', 'Returned to seller', $parcel->failure_reason);
         \App\Models\ActivityLog::note('Returned parcel ' . $parcel->tracking_number . ' received', $parcel);

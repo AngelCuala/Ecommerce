@@ -63,6 +63,22 @@
                 <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M3 6h18M7 12h10M11 18h2"/></svg>
                 Parcel Sorting
             </a>
+            <a href="{{ route('sc.shipments') }}" class="nav-link {{ request()->routeIs('sc.shipments') ? 'active' : '' }}">
+                <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M21 16V8l-9-5-9 5v8l9 5 9-5z"/><path d="M3.3 7L12 12l8.7-5M12 22V12"/></svg>
+                Shipments
+            </a>
+            <a href="{{ route('sc.rts') }}" class="nav-link {{ request()->routeIs('sc.rts*') ? 'active' : '' }}">
+                <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M9 14L4 9l5-5"/><path d="M4 9h11a5 5 0 010 10h-3"/></svg>
+                Return to Sender
+            </a>
+            <a href="{{ route('sc.rates') }}" class="nav-link {{ request()->routeIs('sc.rates*') ? 'active' : '' }}">
+                <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+                Zones &amp; Rates
+            </a>
+            <a href="{{ route('sc.activity') }}" class="nav-link {{ request()->routeIs('sc.activity') ? 'active' : '' }}">
+                <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M9 5h11M9 12h11M9 19h11M4 5h.01M4 12h.01M4 19h.01"/></svg>
+                Activity Log
+            </a>
             <a href="{{ route('sc.delivery-assignment') }}" class="nav-link {{ request()->routeIs('sc.delivery-assignment') ? 'active' : '' }}">
                 <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
                 Delivery Assignment

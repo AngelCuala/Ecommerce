@@ -79,7 +79,17 @@
             </div>
         </a>
     @endforeach
-    @if($pickups->isEmpty() && $deliveries->isEmpty())
+    @foreach($returns as $rp)
+        <div class="card cx-item" data-return="{{ $rp->tracking_number }}">
+            <div class="cx-item-row">
+                <div><p class="cx-item-title">Return to seller · {{ $rp->tracking_number }}</p><p class="cx-item-meta">{{ $rp->seller->name ?? '' }} — {{ $rp->pickup_address }}</p></div>
+                <form method="POST" action="{{ route('courier.rider.returns.returned', $rp->id) }}">@csrf
+                    <button class="cx-pill cx-pill-blue" style="border:0;cursor:pointer;">Handed back to seller</button>
+                </form>
+            </div>
+        </div>
+    @endforeach
+    @if($pickups->isEmpty() && $deliveries->isEmpty() && $returns->isEmpty())
         <div class="card cx-empty"><p class="cx-empty-title">No active jobs</p></div>
     @endif
 </div>

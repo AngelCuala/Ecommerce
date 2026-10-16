@@ -11,7 +11,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        // One per request, so the logistics rates and zones it loads are read once and reset after a change.
+        $this->app->scoped(\App\Services\ShippingService::class);
     }
 
     /**

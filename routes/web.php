@@ -73,6 +73,18 @@ Route::middleware(['auth', 'is_sc', 'prevent.back'])->prefix('sc')->name('sc.')-
     Route::get('/remittances',               [\App\Http\Controllers\SortingCenter\RiderWorkController::class, 'remittances'])->name('remittances');
     Route::post('/remittances/{remittance}/confirm', [\App\Http\Controllers\SortingCenter\RiderWorkController::class, 'confirmRemittance'])->name('remittances.confirm');
 
+    // Logistics workbook (L1–L8): shipment list, reassign / bulk assign, exceptions, Return to Sender, rates and zones
+    Route::get('/shipments',                  [\App\Http\Controllers\SortingCenter\LogisticsController::class, 'shipments'])->name('shipments');
+    Route::post('/dispatch/bulk',             [\App\Http\Controllers\SortingCenter\LogisticsController::class, 'bulkAssign'])->name('dispatch.bulk');
+    Route::post('/dispatch/{parcel}/reassign', [\App\Http\Controllers\SortingCenter\LogisticsController::class, 'reassign'])->name('dispatch.reassign');
+    Route::post('/parcels/{parcel}/exception', [\App\Http\Controllers\SortingCenter\LogisticsController::class, 'markException'])->name('parcels.exception');
+    Route::get('/rts',                        [\App\Http\Controllers\SortingCenter\LogisticsController::class, 'rtsQueue'])->name('rts');
+    Route::post('/rts/{parcel}/assign',     [\App\Http\Controllers\SortingCenter\LogisticsController::class, 'assignRts'])->name('rts.assign');
+    Route::get('/rates',                      [\App\Http\Controllers\SortingCenter\LogisticsController::class, 'rates'])->name('rates');
+    Route::post('/rates',                     [\App\Http\Controllers\SortingCenter\LogisticsController::class, 'updateRate'])->name('rates.update');
+    Route::post('/zones',                     [\App\Http\Controllers\SortingCenter\LogisticsController::class, 'storeZone'])->name('zones.store');
+    Route::get('/activity',                   [\App\Http\Controllers\SortingCenter\LogisticsController::class, 'activity'])->name('activity');
+
     // Courier applications sent to this sorting center
     Route::get('/courier-applications',                        [\App\Http\Controllers\SortingCenter\CourierApplicationController::class, 'index'])->name('courier-applications.index');
     Route::get('/courier-applications/{courier}',              [\App\Http\Controllers\SortingCenter\CourierApplicationController::class, 'show'])->name('courier-applications.show');
@@ -543,6 +555,7 @@ Route::middleware(['auth', 'role:courier,admin', 'prevent.back'])
     Route::get('/rider/deliveries/{delivery}',          [\App\Http\Controllers\Courier\RiderController::class, 'delivery'])->whereNumber('delivery')->name('rider.deliveries.show');
     Route::post('/rider/deliveries/{delivery}/start',   [\App\Http\Controllers\Courier\RiderController::class, 'startDelivery'])->whereNumber('delivery')->name('rider.deliveries.start');
     Route::post('/rider/deliveries/{delivery}/deliver', [\App\Http\Controllers\Courier\RiderController::class, 'deliver'])->whereNumber('delivery')->name('rider.deliveries.deliver');
+    Route::post('/rider/returns/{parcel}/returned', [\App\Http\Controllers\Courier\RiderController::class, 'returnedToSeller'])->whereNumber('parcel')->name('rider.returns.returned');
     Route::post('/rider/deliveries/{delivery}/fail',    [\App\Http\Controllers\Courier\RiderController::class, 'fail'])->whereNumber('delivery')->name('rider.deliveries.fail');
     Route::get('/rider/profile/{rider?}',          [\App\Http\Controllers\Courier\RiderController::class, 'profile'])->whereNumber('rider')->name('rider.profile');
     Route::put('/rider/profile',                   [\App\Http\Controllers\Courier\RiderController::class, 'updateProfile'])->name('rider.profile.update');

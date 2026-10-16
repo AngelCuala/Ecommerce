@@ -53,8 +53,28 @@ class RiderController extends Controller
             ->with('parcel.order', 'parcel.seller')->latest()->get();
         $pickups = ParcelPickup::where('rider_id', $rider->id)->whereIn('status', ParcelPickup::OPEN)->with('parcel.seller')->oldest()->get();
         $deliveries = ParcelDelivery::where('rider_id', $rider->id)->whereIn('status', ParcelDelivery::OPEN)->with('parcel.order')->oldest()->get();
+        $returns = \App\Models\Parcel::where('rts_rider_id', $rider->id)->where('status', 'return_to_sender')->whereNull('returned_at')->with('seller')->oldest('rts_assigned_at')->get();
 
-        return view('courier.rider.jobs', compact('rider', 'offers', 'pickups', 'deliveries'));
+        return view('courier.rider.jobs', compact('rider', 'offers', 'pickups', 'deliveries', 'returns'));
+    }
+
+    /** Return to Sender: the rider handed the parcel back to the seller (A10). The seller then confirms receipt. */
+    public function returnedToSeller(int $parcel)
+    {
+        $rider  = $this->rider();
+        $parcel = \App\Models\Parcel::where('rts_rider_id', $rider->id)->findOrFail($parcel);
+        if ($parcel->status !== 'return_to_sender' || $parcel->returned_at) {
+            return back()->with('error', "{$parcel->tracking_number} was already handed back.");
+        }
+
+        $parcel->update(['status' => 'returned', 'returned_at' => now()]);
+        $svc = app(\App\Services\ParcelService::class);
+        $svc->syncOrder($parcel->fresh());   // buyer: order Cancelled (failed delivery); stock waits for the seller
+        $svc->notifySeller($parcel, 'Returned parcel delivered',
+            "{$parcel->tracking_number} was brought back to you. Please confirm you received it so its stock returns to your inventory.", 'warning');
+        \App\Models\ActivityLog::note($parcel->tracking_number . ' handed back to the seller by ' . $rider->full_name, $parcel);
+
+        return back()->with('success', "{$parcel->tracking_number} handed back to the seller.");
     }
 
     public function toggleOnline(Request $request)

@@ -118,7 +118,7 @@
             <thead>
                 <tr>
                     <th>Rider ID</th><th>Name</th><th>Vehicle</th><th>Area</th>
-                    <th>Availability</th><th>Deliveries</th><th>Status</th><th>Actions</th>
+                    <th>Availability</th><th>Active jobs</th><th>Delivered today</th><th>Deliveries</th><th>Status</th><th>Actions</th>
                 </tr>
             </thead>
             <tbody id="riders-tbody">
@@ -131,6 +131,8 @@
                     $badgeClass = $isActive ? 'badge-green' : ($isPending ? 'badge-yellow' : ($isRejected ? 'badge-red' : 'badge-gray'));
                     $badgeLabel = $isActive ? 'Active' : ($isPending ? 'Pending' : ($isRejected ? 'Rejected' : 'Suspended'));
                     $deliveries = $rider->parcelDeliveries()->where('status','delivered')->count();
+                    $todayDelivered = $rider->parcelDeliveries()->where('status','delivered')->where('updated_at', '>=', today())->count();
+                    $activeJobs = $rider->activeJobsCount();
                 @endphp
                 <tr>
                     <td><span class="id-link">RDR-{{ str_pad($rider->id,3,'0',STR_PAD_LEFT) }}</span></td>
@@ -143,6 +145,8 @@
                     </td>
                     <td><span class="text-orange">{{ $rider->area->name ?? '—' }}</span></td>
                     <td>@if($rider->isOnlineNow())<span class="badge badge-green" data-online>Online</span>@else<span class="badge badge-gray">Offline</span>@endif</td>
+                    <td data-active-jobs="{{ $activeJobs }}"><span class="badge {{ $activeJobs >= \App\Services\RiderDispatch::MAX_ACTIVE ? 'badge-red' : 'badge-gray' }}">{{ $activeJobs }} / {{ \App\Services\RiderDispatch::MAX_ACTIVE }}</span></td>
+                    <td data-today="{{ $todayDelivered }}">{{ $todayDelivered }}</td>
                     <td>{{ $deliveries }}</td>
                     <td><span class="badge {{ $badgeClass }}">{{ $badgeLabel }}</span></td>
                     <td>
@@ -172,7 +176,7 @@
                     </td>
                 </tr>
             @empty
-                <tr><td colspan="8" style="text-align:center;padding:30px;color:var(--text-muted);">No riders found.</td></tr>
+                <tr><td colspan="10" style="text-align:center;padding:30px;color:var(--text-muted);">No riders found.</td></tr>
             @endforelse
             </tbody>
         </table>

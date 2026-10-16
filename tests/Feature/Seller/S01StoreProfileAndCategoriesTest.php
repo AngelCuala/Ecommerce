@@ -63,6 +63,16 @@ class S01StoreProfileAndCategoriesTest extends TestCase
     }
 
     /** SEL-PROF-002 (A25) */
+    /** Regression: an approved seller with no application on file gets a message, not a 404. */
+    public function test_store_settings_without_an_application_explains_instead_of_404(): void
+    {
+        $demo = $this->account('seller', 'demo.seller@example.com', 'Demo Seller');
+
+        $this->actingAs($demo)->get(route('seller.store-settings'))->assertRedirect(route('seller.dashboard'))
+            ->assertSessionHas('error', fn ($m) => str_contains($m, 'no seller application on file'));
+        $this->actingAs($demo)->patch(route('seller.store-settings.update'), ['store_name' => 'Demo Store'])->assertRedirect(route('seller.dashboard'));
+    }
+
     public function test_sel_prof_002_each_required_field_left_blank(): void
     {
         foreach (['shop_name' => 'Please enter your store name.', 'phone' => 'Please enter a contact number.',

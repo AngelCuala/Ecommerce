@@ -131,7 +131,10 @@ class Order extends Model
             // its stock and vouchers come back — once.
             if ($order->status === self::CANCELLED && $from !== self::CANCELLED) {
                 $order->closeOpenPickups();
-                $order->restock();
+                // A parcel brought back to the seller restocks only when the seller confirms receipt (A3).
+                if (! $order->awaitingReturnReceipt()) {
+                    $order->restock();
+                }
                 app(\App\Services\VoucherService::class)->release($order);
                 // Paid online: the money goes back.
                 if ($order->isPaidOnline()) {
@@ -160,6 +163,13 @@ class Order extends Model
                     "{$parcel->tracking_number}: order " . $this->number() . ' was cancelled. No pickup needed.', 'warning');
             }
         }
+    }
+
+    /** A rider handed a returned parcel back to the seller, who hasn't confirmed receiving it yet. */
+    public function awaitingReturnReceipt(): bool
+    {
+        return Parcel::where('order_id', $this->id)->where('status', 'returned')
+            ->whereNotNull('returned_at')->whereNull('returned_received_at')->exists();
     }
 
     /** Put the order's units back on the shelf (and on their variants and flash sales). */

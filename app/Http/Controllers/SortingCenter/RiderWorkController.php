@@ -49,6 +49,13 @@ class RiderWorkController extends Controller
             });
         $eligible = $this->dispatch->eligibleRiders($this->scId());
         $withRiders = ParcelPickup::where('sorting_center_id', $this->scId())->whereIn('status', ParcelPickup::OPEN)->with('parcel', 'rider')->latest()->get();
+        // L3: jobs given to a rider who hasn't started them yet — these can still be reassigned.
+        $mine = fn ($q) => $q->where('current_sorting_center_id', $this->scId());
+        $notStarted = ParcelPickup::where('status', 'assigned')->whereHas('parcel', $mine)->with('parcel', 'rider')->get()
+            ->map(fn ($j) => (object) ['kind' => 'pickup', 'parcel' => $j->parcel, 'rider' => $j->rider, 'since' => $j->created_at])
+            ->concat(\App\Models\ParcelDelivery::where('status', 'assigned')->whereHas('parcel', $mine)->with('parcel', 'rider')->get()
+                ->map(fn ($j) => (object) ['kind' => 'delivery', 'parcel' => $j->parcel, 'rider' => $j->rider, 'since' => $j->created_at]))
+            ->sortBy('since')->values();
 
         return view('sc.dispatch', [
             'jobs'       => $parcels->reject->unassigned->values(),
@@ -56,6 +63,7 @@ class RiderWorkController extends Controller
             'riders'     => $riders,
             'eligible'   => $eligible,
             'withRiders' => $withRiders,
+            'notStarted' => $notStarted,
         ]);
     }
 
@@ -126,13 +134,26 @@ class RiderWorkController extends Controller
 
     // ── COD remittances ─────────────────────────────────────────
 
-    public function remittances()
+    public function remittances(Request $request)
     {
-        $remittances = RiderRemittance::where('sorting_center_id', $this->scId())->with('rider')->latest()->paginate(20);
-        $riders = Rider::where('sorting_center_id', $this->scId())->where('application_status', 'approved')->orderBy('full_name')->get()
-            ->map(fn ($r) => ['rider' => $r, 'collected' => $this->wallet->codCollected($r), 'balance' => $this->wallet->codBalance($r), 'pending' => $this->wallet->pendingRemittance($r)]);
+        $request->validate(['date' => 'nullable|date'], ['date.date' => 'Choose a valid date.']);
+        $date = $request->filled('date') ? \Carbon\Carbon::parse($request->date) : today();
 
-        return view('sc.remittances', compact('remittances', 'riders'));
+        $remittances = RiderRemittance::where('sorting_center_id', $this->scId())->with('rider')->latest()->paginate(20);
+        $approved = Rider::where('sorting_center_id', $this->scId())->where('application_status', 'approved')->orderBy('full_name')->get();
+        $riders = $approved->map(fn ($r) => ['rider' => $r, 'collected' => $this->wallet->codCollected($r), 'balance' => $this->wallet->codBalance($r), 'pending' => $this->wallet->pendingRemittance($r)]);
+
+        // L8: the day's reconciliation — COD each rider collected on the date vs what they remitted that day.
+        $day = [$date->copy()->startOfDay(), $date->copy()->endOfDay()];
+        $daily = $approved->map(function ($r) use ($day) {
+            $orders = \App\Models\ParcelDelivery::where('rider_id', $r->id)->where('status', 'delivered')->where('cod_collected', '>', 0)
+                ->whereBetween('delivered_at', $day)->with('parcel.order')->orderBy('delivered_at')->get();
+            $collected = round((float) $orders->sum('cod_collected'), 2);
+            $remitted  = round((float) RiderRemittance::where('rider_id', $r->id)->whereBetween('created_at', $day)->sum('amount'), 2);
+            return ['rider' => $r, 'orders' => $orders, 'collected' => $collected, 'remitted' => $remitted, 'difference' => round($remitted - $collected, 2)];
+        })->filter(fn ($row) => $row['collected'] > 0 || $row['remitted'] > 0)->values();
+
+        return view('sc.remittances', compact('remittances', 'riders', 'daily', 'date'));
     }
 
     /** Only the logistics company confirms a remittance; any shortfall stays on the rider's balance. */

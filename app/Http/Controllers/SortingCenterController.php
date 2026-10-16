@@ -69,8 +69,16 @@ class SortingCenterController extends Controller
     }
 
     // ── Dashboard ─────────────────────────────────────────────
-    public function dashboard()
+    public function dashboard(Request $request)
     {
+        // L1: shipment counts by status for the chosen dates (both days included); each links to the same list.
+        $logistics = app(\App\Http\Controllers\SortingCenter\LogisticsController::class);
+        $request->validate(['from' => 'nullable|date', 'to' => 'nullable|date' . ($request->filled('from') ? '|after_or_equal:from' : '')],
+            ['to.after_or_equal' => 'The end date must be on or after the start date.']);
+        $from = $request->filled('from') ? Carbon::parse($request->from)->startOfDay() : null;
+        $to   = $request->filled('to') ? Carbon::parse($request->to)->endOfDay() : null;
+        $shipmentCounts = $logistics->bucketCounts($from, $to);
+
         $stats = [
             'total_parcels_today' => $this->myParcels()->whereDate('received_at', today())->count(),
             'in_transit'          => $this->myDeliveries()->where('status', 'out_for_delivery')->count(),
@@ -93,7 +101,7 @@ class SortingCenterController extends Controller
             ->groupBy('delivery_areas.id', 'delivery_areas.name')
             ->get();
 
-        return view('sc.dashboard', compact('stats', 'recentParcels', 'areaRates'));
+        return view('sc.dashboard', compact('stats', 'recentParcels', 'areaRates', 'shipmentCounts'));
     }
 
     // ── PSGC barangays of the SC municipality ─────────────────
@@ -338,8 +346,19 @@ class SortingCenterController extends Controller
     public function rejectRider(Request $request, Rider $rider)
     {
         $this->guardRider($rider);
-        $rider->update(['application_status' => 'rejected', 'rejection_reason' => $request->reason, 'is_active' => false]);
-        return back()->with('success', "{$rider->full_name} rejected.");
+        $data = $request->validate(['reason' => 'required|string|min:10|max:300'], [
+            'reason.required' => 'Give the reason for rejecting this rider (10 to 300 characters).',
+            'reason.min'      => 'The reason must be 10 to 300 characters.',
+            'reason.max'      => 'The reason must be 10 to 300 characters.',
+        ]);
+        \App\Models\ActivityLog::change($rider->statusLabel(), 'Rejected', $data['reason']);
+        $rider->update(['application_status' => 'rejected', 'rejection_reason' => $data['reason'], 'is_active' => false, 'is_online' => false]);
+        if ($rider->user_id) {
+            \App\Models\UserNotification::create(['user_id' => $rider->user_id, 'title' => 'Rider application rejected',
+                'body' => $this->sc()->name . ' rejected your rider application: ' . $data['reason'], 'type' => 'warning']);
+        }
+        \App\Models\ActivityLog::note($rider->full_name . ' rejected', $rider);
+        return back()->with('success', "{$rider->full_name} rejected. They were told the reason.");
     }
 
     public function toggleRider(Request $request, Rider $rider)
@@ -494,7 +513,11 @@ class SortingCenterController extends Controller
         $parcel = $this->myParcels()->where('tracking_number', trim($data['tracking_number']))->first();
 
         if (! $parcel) {
-            return back()->with('error', "No parcel {$data['tracking_number']} is expected at your sorting center.");
+            // Unknown, or another company's parcel: nothing about it is shown or changed.
+            return back()->with('error', "Parcel {$data['tracking_number']} not found at your sorting center.");
+        }
+        if ($parcel->received_at && ! in_array($parcel->status, ['pickup_approved', 'in_transit_to_hub'], true)) {
+            return back()->with('error', "{$parcel->tracking_number} was already received at " . $parcel->received_at->format('M j, g:i A') . " ({$parcel->statusLabel()}).");
         }
         if (! in_array($parcel->status, ['pickup_approved', 'in_transit_to_hub'], true)) {
             return back()->with('error', "{$parcel->tracking_number} is already {$parcel->statusLabel()}.");
@@ -744,18 +767,18 @@ class SortingCenterController extends Controller
         $parcel = $delivery->parcel;
         $this->guardParcel($parcel, ['failed']);
 
-        $delivery->update(['status' => 'returned']);
-        $parcel->update(['status' => 'returned']);
+        // Into the Return-to-Sender queue: a rider brings it back and the seller confirms receipt (A10, A3).
+        $parcel->update(['status' => 'return_to_sender']);
 
         $svc = $this->parcels();
         $reason = $parcel->failure_reason ?: 'delivery could not be completed';
-        $svc->notifySeller($parcel, 'Parcel returned',
+        $svc->notifySeller($parcel, 'Parcel returning',
             "{$svc->orderRef($parcel)} ({$parcel->tracking_number}) is being returned to you. Reason: {$reason}.", 'warning');
-        $svc->notifyBuyer($parcel, 'Parcel returned to seller',
-            "{$svc->orderRef($parcel)} could not be delivered and was returned to the seller. Reason: {$reason}.", 'warning');
+        $svc->notifyBuyer($parcel, 'Parcel returning to seller',
+            "{$svc->orderRef($parcel)} could not be delivered and is going back to the seller. Reason: {$reason}.", 'warning');
         $svc->syncOrder($parcel->fresh());
 
-        return back()->with('success', "{$parcel->tracking_number} marked as returned to seller.");
+        return redirect()->route('sc.rts')->with('success', "{$parcel->tracking_number} moved to the Return-to-Sender queue. Assign a rider to bring it back.");
     }
 
     // ── Reports ───────────────────────────────────────────────
@@ -834,19 +857,34 @@ class SortingCenterController extends Controller
             ];
         })->sortByDesc('delivered');
 
+        // ── COD collections (L8) ──────────────────────────────
+        $codRows = $this->myDeliveries()->where('status', 'delivered')->where('cod_collected', '>', 0)
+            ->whereBetween('delivered_at', [$from, $to])->with(['rider', 'parcel.order'])->orderBy('delivered_at')->get()
+            ->map(fn ($d) => (object) [
+                'date'     => $d->delivered_at?->format('Y-m-d H:i'),
+                'rider'    => $d->rider->full_name ?? '—',
+                'order'    => $d->parcel?->order?->number() ?? '—',
+                'tracking' => $d->parcel?->tracking_number ?? '—',
+                'amount'   => (float) $d->cod_collected,
+            ]);
+
         if ($request->filled('export')) {
             $format = $request->get('export') === 'xlsx' ? 'xlsx' : 'csv';   // export=1 / csv / xlsx
-            return $this->exportReport($request->get('tab', 'daily'), $from, $to, $days, $riderPerformance, $areaSummary, $format);
+            return $this->exportReport($request->get('tab', 'daily'), $from, $to, $days, $riderPerformance, $areaSummary, $format, $codRows);
         }
 
-        return view('sc.reports', compact('from', 'to', 'riderPerformance', 'areaSummary')
+        return view('sc.reports', compact('from', 'to', 'riderPerformance', 'areaSummary', 'codRows')
             + ['dailyData' => $days]);
     }
 
     /** Download the current report tab as CSV. */
-    private function exportReport(string $tab, $from, $to, $days, $riders, $areas, string $format = 'csv')
+    private function exportReport(string $tab, $from, $to, $days, $riders, $areas, string $format = 'csv', $cod = null)
     {
         [$header, $rows] = match ($tab) {
+            'cod' => [
+                ['Delivered at', 'Rider', 'Order', 'Tracking', 'COD collected'],
+                collect($cod)->map(fn ($c) => [$c->date, $c->rider, $c->order, $c->tracking, number_format($c->amount, 2, '.', '')]),
+            ],
             'rider' => [
                 ['Rider', 'Area', 'Assigned', 'Delivered', 'Failed', 'Returned', 'Success Rate %', 'Active'],
                 $riders->map(fn ($r) => [$r->name, $r->area, $r->total, $r->delivered, $r->failed, $r->returned, $r->rate, $r->active ? 'Yes' : 'No']),

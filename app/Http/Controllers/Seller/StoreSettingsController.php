@@ -127,6 +127,12 @@ class StoreSettingsController extends Controller
 
     private function application(): SellerApplication
     {
-        return SellerApplication::where('user_id', auth()->id())->latest()->firstOrFail();
+        $application = SellerApplication::where('user_id', auth()->id())->latest()->first();
+        if (! $application) {
+            // An account approved without a seller application (e.g. an old demo account): explain instead of a 404.
+            throw new \Illuminate\Http\Exceptions\HttpResponseException(redirect()->route('seller.dashboard')
+                ->with('error', 'Your store has no seller application on file, so its settings can\'t be edited. Please contact ALVY support.'));
+        }
+        return $application;
     }
 }

@@ -30,6 +30,8 @@
            class="tab {{ $activeTab==='rider' ? 'active' : '' }}">Rider Performance</a>
         <a href="{{ route('sc.reports', array_merge(request()->only('from','to'), ['tab'=>'area'])) }}"
            class="tab {{ $activeTab==='area' ? 'active' : '' }}">Area Summary</a>
+        <a href="{{ route('sc.reports', array_merge(request()->only('from','to'), ['tab'=>'cod'])) }}"
+           class="tab {{ $activeTab==='cod' ? 'active' : '' }}">COD Collections</a>
     </div>
 
     {{-- ══════════════════════════════════════════════════════
@@ -329,6 +331,23 @@
             </table>
         </div>
 
+    @elseif($activeTab === 'cod')
+        <div class="card">
+            <div class="card-header"><h2>COD Collections — {{ $from->format('M d') }} to {{ $to->format('M d, Y') }}</h2></div>
+            <table class="data-table">
+                <thead><tr><th>Delivered at</th><th>Rider</th><th>Order</th><th>Tracking</th><th>COD collected</th></tr></thead>
+                <tbody>
+                @forelse($codRows as $c)
+                    <tr data-cod-row><td>{{ $c->date }}</td><td>{{ $c->rider }}</td><td>{{ $c->order }}</td><td>{{ $c->tracking }}</td><td>₱{{ number_format($c->amount, 2) }}</td></tr>
+                @empty
+                    <tr><td colspan="5" style="text-align:center;padding:24px;color:var(--text-muted);">No COD collected in this range.</td></tr>
+                @endforelse
+                </tbody>
+                @if($codRows->isNotEmpty())
+                <tfoot><tr><td colspan="4"><strong>Total</strong></td><td><strong>₱{{ number_format($codRows->sum('amount'), 2) }}</strong></td></tr></tfoot>
+                @endif
+            </table>
+        </div>
     @endif
 
 </div>
