@@ -227,8 +227,11 @@ class LogisticsController extends Controller
         ActivityLog::change($old, $label, $data['reason']);
         ActivityLog::note($parcel->tracking_number . ' marked ' . $label, $parcel);
         $ref = $this->parcels->orderRef($parcel);
+        // An unpaid COD order costs the buyer nothing; anything already paid is refunded.
+        $paid = $parcel->order && ($parcel->order->isPaidOnline() || $parcel->order->payment_status === 'Paid');
         $this->parcels->notifyBuyer($parcel, 'Parcel ' . strtolower($label),
-            "{$ref} was marked {$label} by the logistics company: {$data['reason']}. Your refund is on its way.", 'warning');
+            "{$ref} was marked {$label} by the logistics company: {$data['reason']}. "
+            . ($paid ? 'Your refund is on its way.' : 'It was cash on delivery, so you won\'t be charged.'), 'warning');
         $this->parcels->notifySeller($parcel, 'Parcel ' . strtolower($label),
             "{$ref} ({$parcel->tracking_number}) was marked {$label}: {$data['reason']}. A claim was opened with the logistics company.", 'warning');
 

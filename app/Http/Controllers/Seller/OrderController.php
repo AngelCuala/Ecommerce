@@ -254,7 +254,9 @@ class OrderController extends Controller
         }
 
         // Approved: refunded. Rejected: back to Delivered, so the buyer can still confirm it.
-        $order->update(['status' => $approved ? Order::REFUNDED : Order::DELIVERED]);
+        // A COD order's refund goes to the buyer's refund account (A31): record it like the gateway does for online orders.
+        $order->update(['status' => $approved ? Order::REFUNDED : Order::DELIVERED]
+            + ($approved && ! $order->isPaidOnline() ? ['refunded_amount' => (float) $return->refund_amount] : []));
 
         return back()->with('success', $approved ? 'Return approved. The buyer will be refunded.' : 'Return rejected. The buyer was told why.');
     }

@@ -85,15 +85,24 @@
                     </span>
                 </td>
                 <td>
-                    <form method="POST" action="{{ route('admin.logistics.deliveries.update-status',$d) }}" style="display:flex;gap:6px;align-items:center;">
+                    @php $next = \App\Services\ParcelService::DELIVERY_FLOW[$d->status] ?? []; @endphp
+                    @if($next)
+                    <form method="POST" action="{{ route('admin.logistics.deliveries.update-status',$d) }}" style="display:flex;flex-direction:column;gap:4px;min-width:190px;">
                         @csrf
-                        <select name="status" style="width:130px;background:var(--bg-input);font-size:12px;">
-                            @foreach(['assigned'=>'Dispatched','out_for_delivery'=>'Out for Delivery','delivered'=>'Delivered','failed'=>'Failed','returned'=>'Returned'] as $v=>$l)
-                                <option value="{{ $v }}" @selected($d->status===$v)>{{ $l }}</option>
-                            @endforeach
-                        </select>
-                        <button class="btn btn--ghost btn--sm">▾</button>
+                        <div style="display:flex;gap:6px;align-items:center;">
+                            <select name="status" style="width:130px;background:var(--bg-input);font-size:12px;" aria-label="New status">
+                                @foreach($next as $v)
+                                    <option value="{{ $v }}">{{ \App\Models\ParcelDelivery::STATUS_LABELS[$v] ?? $v }}</option>
+                                @endforeach
+                            </select>
+                            <button class="btn btn--ghost btn--sm">Save</button>
+                        </div>
+                        <input type="text" name="remarks" placeholder="Override reason (10–300, logged)" minlength="10" maxlength="300" required
+                               style="font-size:11px;background:var(--bg-input);" aria-label="Override reason">
                     </form>
+                    @else
+                        <span style="font-size:12px;color:var(--text-muted);">—</span>
+                    @endif
                 </td>
             </tr>
         @empty

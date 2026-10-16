@@ -649,7 +649,7 @@ class SortingCenterController extends Controller
             return back()->with('error', "{$rider->full_name} is not assigned to {$parcel->area->name}. Choose a rider for that area.");
         }
 
-        ParcelDelivery::create([
+        ParcelDelivery::create(app(\App\Services\RiderDispatch::class)->deliveryJob($parcel) + [
             'parcel_id'   => $parcel->id,
             'rider_id'    => $rider->id,
             'area_id'     => $parcel->area_id,
@@ -685,18 +685,12 @@ class SortingCenterController extends Controller
         return view('sc.delivery-monitoring', compact('deliveries', 'monitorStats', 'attempts'));
     }
 
-    /** Allowed next delivery statuses (the SC records the rider's progress). */
-    private const DELIVERY_FLOW = [
-        'assigned'         => ['out_for_delivery', 'failed'],
-        'out_for_delivery' => ['delivered', 'failed'],
-    ];
-
     public function updateDeliveryStatus(Request $request, ParcelDelivery $delivery)
     {
         $parcel = $delivery->parcel;
         $this->guardParcel($parcel, ['assigned', 'in_transit']);
 
-        $allowed = self::DELIVERY_FLOW[$delivery->status] ?? [];
+        $allowed = \App\Services\ParcelService::DELIVERY_FLOW[$delivery->status] ?? [];
         $data = $request->validate([
             'status'  => ['required', \Illuminate\Validation\Rule::in($allowed)],
             'remarks' => 'required|string|min:10|max:300',
@@ -709,37 +703,9 @@ class SortingCenterController extends Controller
         \App\Models\ActivityLog::change($delivery->statusLabel(), \App\Models\ParcelDelivery::STATUS_LABELS[$data['status']] ?? $data['status'], $data['remarks']);
         \App\Models\ActivityLog::note('Logistics override on ' . $parcel->tracking_number, $parcel);
 
-        $svc = $this->parcels();
-        $ref = $svc->orderRef($parcel);
+        $parcel = $this->parcels()->overrideDelivery($delivery, $data['status'], $data['remarks']);
 
-        switch ($data['status']) {
-            case 'out_for_delivery':
-                $delivery->update(['status' => 'out_for_delivery', 'picked_up_at' => now()]);
-                $parcel->update(['status' => 'in_transit']);
-                $svc->notifyBuyer($parcel, 'Out for delivery',
-                    "{$ref} is out for delivery with {$delivery->rider->full_name}.");
-                break;
-
-            case 'delivered':
-                $delivery->update(['status' => 'delivered', 'delivered_at' => now(), 'remarks' => $data['remarks'] ?? null]);
-                $parcel->update(['status' => 'delivered']);
-                $svc->notifyBuyer($parcel, 'Parcel delivered',
-                    "{$ref} was delivered. Please confirm with \"Order Received\" to complete your order.");
-                $svc->notifySeller($parcel, 'Parcel delivered',
-                    "{$ref} ({$parcel->tracking_number}) was delivered to the buyer.");
-                break;
-
-            case 'failed':
-                $delivery->update(['status' => 'failed', 'remarks' => $data['remarks']]);
-                $parcel->update(['status' => 'failed', 'failure_reason' => $data['remarks']]);
-                $svc->notifyBuyer($parcel, 'Delivery attempt failed',
-                    "{$ref} could not be delivered: {$data['remarks']}. The sorting center will reschedule it.", 'warning');
-                break;
-        }
-
-        $svc->syncOrder($parcel->fresh());
-
-        return back()->with('success', "{$parcel->tracking_number}: " . $parcel->fresh()->statusLabel() . '.');
+        return back()->with('success', "{$parcel->tracking_number}: " . $parcel->statusLabel() . '.');
     }
 
     /** Failed delivery -> back to the sorted queue for a new rider assignment. */

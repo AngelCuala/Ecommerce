@@ -247,12 +247,7 @@ class RiderController extends Controller
             $parcel->update(['status' => 'delivered']);
 
             $svc = app(ParcelService::class);
-            $svc->syncOrder($parcel);
-            $order = $parcel->order;
-            if ($order && ! in_array($order->status, [Order::DELIVERED, Order::COMPLETED], true)
-                && $order->parcels()->where('status', '!=', 'delivered')->doesntExist()) {
-                $order->update(['status' => Order::DELIVERED] + ($cod ? ['payment_status' => 'Paid'] : []));
-            }
+            $svc->syncOrder($parcel);   // every parcel delivered → order Delivered (a COD order paid)
             $svc->notifySeller($parcel, 'Parcel delivered', "{$svc->orderRef($parcel)} ({$parcel->tracking_number}) was delivered to the buyer.");
             if ($scId = $parcel->current_sorting_center_id) {
                 $svc->notify((int) $scId, 'Parcel delivered', "{$parcel->tracking_number} delivered by {$rider->full_name}" . ($cod ? ' · COD ₱' . number_format($delivery->cod_amount, 2) . ' collected.' : '.'));

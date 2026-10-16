@@ -34,11 +34,20 @@ class DeliveryController extends Controller
 
     public function assign(Request $request, Parcel $parcel)
     {
-        $request->validate(['rider_id' => 'required|exists:riders,id']);
+        $request->validate(['rider_id' => 'required|exists:riders,id'], ['rider_id.required' => 'Select a rider for this parcel.']);
 
         $rider = Rider::findOrFail($request->rider_id);
+        if ($parcel->status !== 'sorted' || $parcel->deliveries()->whereIn('status', ParcelDelivery::OPEN)->exists()) {
+            return back()->with('error', "{$parcel->tracking_number} is not waiting for a delivery rider ({$parcel->statusLabel()}).");
+        }
+        if (! $rider->isApproved() || ! $rider->is_active) {
+            return back()->with('error', "{$rider->full_name} is not an active rider.");
+        }
+        if ($parcel->current_sorting_center_id && (int) $rider->sorting_center_id !== (int) $parcel->current_sorting_center_id) {
+            return back()->with('error', "{$rider->full_name} works for another logistics company than the one holding this parcel.");
+        }
 
-        ParcelDelivery::create([
+        ParcelDelivery::create(app(\App\Services\RiderDispatch::class)->deliveryJob($parcel) + [
             'parcel_id'   => $parcel->id,
             'rider_id'    => $rider->id,
             'area_id'     => $parcel->area_id,
@@ -47,6 +56,8 @@ class DeliveryController extends Controller
         ]);
 
         $parcel->update(['status' => 'assigned']);
+        app(\App\Services\ParcelService::class)->syncOrder($parcel->fresh());
+        \App\Models\ActivityLog::note($parcel->tracking_number . ' delivery assigned to ' . $rider->full_name, $parcel);
 
         return back()->with('success', "{$parcel->tracking_number} assigned to {$rider->full_name}.");
     }
@@ -67,24 +78,25 @@ class DeliveryController extends Controller
 
     public function updateStatus(Request $request, ParcelDelivery $delivery)
     {
-        $request->validate([
-            'status'  => 'required|in:assigned,out_for_delivery,delivered,failed,returned',
-            'remarks' => 'nullable|string|max:500',
+        // Same rules as the logistics company's override (A10, A35): forward only, with a logged reason.
+        $allowed = \App\Services\ParcelService::DELIVERY_FLOW[$delivery->status] ?? [];
+        if (! $allowed) {
+            return back()->with('error', 'This delivery is already ' . $delivery->statusLabel() . ', so its status can\'t be changed.');
+        }
+        $data = $request->validate([
+            'status'  => ['required', \Illuminate\Validation\Rule::in($allowed)],
+            'remarks' => 'required|string|min:10|max:300',
+        ], [
+            'status.in'        => 'That status change is not allowed for this delivery.',
+            'remarks.required' => 'This is an override: give the reason (10 to 300 characters).',
+            'remarks.min'      => 'The reason must be 10 to 300 characters.',
+            'remarks.max'      => 'The reason must be 10 to 300 characters.',
         ]);
 
-        $delivery->update([
-            'status'       => $request->status,
-            'remarks'      => $request->remarks,
-            'delivered_at' => $request->status === 'delivered' ? now() : $delivery->delivered_at,
-        ]);
+        \App\Models\ActivityLog::change($delivery->statusLabel(), ParcelDelivery::STATUS_LABELS[$data['status']] ?? $data['status'], $data['remarks']);
+        $parcel = app(\App\Services\ParcelService::class)->overrideDelivery($delivery, $data['status'], $data['remarks']);
+        \App\Models\ActivityLog::note('Admin override on ' . $parcel->tracking_number, $parcel);
 
-        match ($request->status) {
-            'delivered'        => $delivery->parcel->update(['status' => 'delivered']),
-            'out_for_delivery' => $delivery->parcel->update(['status' => 'in_transit']),
-            'failed'           => $delivery->parcel->update(['status' => 'failed']),
-            default            => null,
-        };
-
-        return back()->with('success', 'Delivery status updated.');
+        return back()->with('success', "{$parcel->tracking_number}: " . $parcel->statusLabel() . '.');
     }
 }

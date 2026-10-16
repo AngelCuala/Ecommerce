@@ -163,7 +163,7 @@ class ParcelService
 
     /**
      * Mirror the parcel's progress onto the marketplace order the buyer and
-     * seller see. "Delivered" is left to the buyer's "Order Received" button.
+     * seller see. "Completed" is left to the buyer's "Order Received" button.
      */
     public function syncOrder(Parcel $parcel): void
     {
@@ -179,6 +179,13 @@ class ParcelService
             default                                             => null,
         };
 
+        // Every parcel of the order delivered -> the order is Delivered (and a COD order is paid),
+        // whoever recorded it: the rider's app, a logistics override or an admin override.
+        if ($parcel->status === 'delivered' && $order->parcels()->where('status', '!=', 'delivered')->doesntExist()) {
+            $order->update(['status' => Order::DELIVERED] + (! $order->isOnlinePayment() ? ['payment_status' => 'Paid'] : []));
+            return;
+        }
+
         if ($target && (self::ORDER_RANK[$target] ?? 0) > (self::ORDER_RANK[$order->status] ?? 0)) {
             $order->update(['status' => $target]);
         }
@@ -191,6 +198,60 @@ class ParcelService
                 'cancellation_reason' => 'Parcel returned to seller: ' . ($parcel->failure_reason ?: 'delivery failed'),
             ]);
         }
+    }
+
+    /** Delivery statuses a logistics or admin override may move to (A10: forward only). */
+    public const DELIVERY_FLOW = [
+        'assigned'         => ['out_for_delivery', 'failed'],
+        'out_for_delivery' => ['delivered', 'failed'],
+    ];
+
+    /**
+     * A logistics / admin override of a delivery (the rider's app was offline, etc.). It has the same
+     * effects as the rider doing it: an OTP for the buyer when it goes out, the COD cash counted as with
+     * the rider when it is delivered, Return to Sender after the last failed attempt, and the order synced.
+     */
+    public function overrideDelivery(\App\Models\ParcelDelivery $delivery, string $status, string $reason): Parcel
+    {
+        $parcel = $delivery->parcel;
+        $ref = $this->orderRef($parcel);
+
+        switch ($status) {
+            case 'out_for_delivery':
+                $delivery->update(['status' => 'out_for_delivery', 'picked_up_at' => now(), 'remarks' => $reason,
+                    'otp_code' => str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT), 'otp_attempts' => 0, 'otp_locked_until' => null]);
+                $parcel->update(['status' => 'in_transit']);
+                $this->notifyBuyer($parcel, 'Out for delivery', "{$ref} is out for delivery with " . ($delivery->rider->full_name ?? 'the rider')
+                    . '. Your delivery OTP is on the order page.');
+                break;
+
+            case 'delivered':
+                $delivery->update(['status' => 'delivered', 'delivered_at' => now(), 'remarks' => $reason,
+                    'cod_collected' => round((float) $delivery->cod_amount, 2)]);   // the rider handed it over, so the cash is with the rider
+                $parcel->update(['status' => 'delivered']);
+                $this->notifyBuyer($parcel, 'Parcel delivered', "{$ref} was delivered. Please confirm with \"Order Received\" to complete your order.");
+                $this->notifySeller($parcel, 'Parcel delivered', "{$ref} ({$parcel->tracking_number}) was delivered to the buyer.");
+                break;
+
+            case 'failed':
+                $back = $delivery->attempt >= \App\Models\ParcelDelivery::MAX_ATTEMPTS;
+                $delivery->update(['status' => 'failed', 'failure_reason' => $reason, 'remarks' => $reason]);
+                $parcel->update(['status' => $back ? 'return_to_sender' : 'failed', 'failure_reason' => $reason]);
+                $this->notifyBuyer($parcel, $back ? 'Returning to seller' : 'Delivery attempt failed', $back
+                    ? "{$ref} could not be delivered ({$reason}) after " . \App\Models\ParcelDelivery::MAX_ATTEMPTS . ' attempts. It is being returned to the seller.'
+                    : "{$ref} could not be delivered: {$reason}. The sorting center will reschedule it.", 'warning');
+                if ($back) {
+                    $this->notifySeller($parcel, 'Parcel returning to you', "{$ref} ({$parcel->tracking_number}) is Return to Sender: {$reason}.", 'warning');
+                }
+                break;
+
+            default:
+                throw new \InvalidArgumentException("Unsupported delivery status {$status}.");
+        }
+
+        $this->syncOrder($parcel->fresh());
+
+        return $parcel->fresh();
     }
 
     public function notifyBuyer(Parcel $parcel, string $title, string $body, string $type = 'info'): void

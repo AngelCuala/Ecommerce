@@ -270,14 +270,23 @@ class RiderDispatch
             return;
         }
 
-        $order = $parcel->order;
-        $cod = $order && strtoupper((string) $order->payment_method) === 'COD' && $order->payment_status !== 'Paid' ? (float) $order->total_price : 0.0;
-        ParcelDelivery::create([
-            'parcel_id' => $parcel->id, 'rider_id' => $rider->id, 'area_id' => $parcel->area_id, 'assigned_by' => $by,
-            'status' => 'assigned', 'attempt' => $this->attempt($parcel, $kind), 'cod_amount' => $cod,
+        ParcelDelivery::create($this->deliveryJob($parcel) + [
+            'parcel_id' => $parcel->id, 'rider_id' => $rider->id, 'area_id' => $parcel->area_id, 'assigned_by' => $by, 'status' => 'assigned',
         ]);
         $parcel->update(['status' => 'assigned']);
         $svc->syncOrder($parcel);
+    }
+
+    /**
+     * What every new delivery job of this parcel must carry, however it is assigned: which attempt it
+     * is (the 3rd failed one sends the parcel back, A13) and the cash to collect for an unpaid COD order.
+     */
+    public function deliveryJob(Parcel $parcel): array
+    {
+        $order = $parcel->order;
+        $cod = $order && strtoupper((string) $order->payment_method) === 'COD' && $order->payment_status !== 'Paid' ? (float) $order->total_price : 0.0;
+
+        return ['attempt' => $this->attempt($parcel, RiderJobOffer::DELIVERY), 'cod_amount' => $cod];
     }
 
     private function notify(?int $userId, string $title, string $body, ?string $link = null): void

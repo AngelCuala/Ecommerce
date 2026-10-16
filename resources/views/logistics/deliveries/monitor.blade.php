@@ -36,15 +36,23 @@
                 <td><span class="badge badge--{{ in_array($d->status,['delivered']) ? 'approved' : (in_array($d->status,['failed','returned']) ? 'rejected' : 'pending') }}">{{ ucfirst(str_replace('_',' ',$d->status)) }}</span></td>
                 <td class="text-muted">{{ $d->delivered_at?->format('M d, Y H:i') ?? '—' }}</td>
                 <td>
-                    <form method="POST" action="{{ route('admin.logistics.deliveries.update-status', $d) }}" style="display:flex;gap:6px;">
+                    @php $next = \App\Services\ParcelService::DELIVERY_FLOW[$d->status] ?? []; @endphp
+                    @if($next)
+                    <form method="POST" action="{{ route('admin.logistics.deliveries.update-status', $d) }}" style="display:flex;flex-direction:column;gap:4px;">
                         @csrf
-                        <select name="status" style="width:auto;">
-                            @foreach(['assigned','out_for_delivery','delivered','failed','returned'] as $s)
-                                <option value="{{ $s }}" @selected($d->status===$s)>{{ ucfirst(str_replace('_',' ',$s)) }}</option>
-                            @endforeach
-                        </select>
-                        <button class="btn btn--sm btn--primary">Update</button>
+                        <div style="display:flex;gap:6px;">
+                            <select name="status" style="width:auto;" aria-label="New status">
+                                @foreach($next as $s)
+                                    <option value="{{ $s }}">{{ \App\Models\ParcelDelivery::STATUS_LABELS[$s] ?? $s }}</option>
+                                @endforeach
+                            </select>
+                            <button class="btn btn--sm btn--primary">Update</button>
+                        </div>
+                        <input type="text" name="remarks" placeholder="Override reason (10–300, logged)" minlength="10" maxlength="300" required aria-label="Override reason">
                     </form>
+                    @else
+                        <span class="text-muted">—</span>
+                    @endif
                 </td>
             </tr>
             @endforeach

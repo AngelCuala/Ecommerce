@@ -121,7 +121,11 @@ class S07VouchersFlashAndBundlesTest extends TestCase
             $this->createVoucher(['code' => $good])->assertSessionHasNoErrors();
         }
         $this->assertSame(['ABCD', 'ABCDEFGHIJKL', 'MCH75'], Voucher::whereIn('code', ['ABCD', 'ABCDEFGHIJKL', 'MCH75'])->orderBy('id')->pluck('code')->all());
-        $this->assertFalse(Voucher::whereIn('code', ['ABC', 'ABCDEFGHIJKLM', 'MCH 50', 'MCH-50', 'mch75'])->exists());
+        // Compared exactly in PHP: MySQL's collation is case-insensitive, so a whereIn('mch75') would match the saved "MCH75".
+        $saved = Voucher::pluck('code')->all();
+        foreach (['ABC', 'ABCDEFGHIJKLM', 'MCH 50', 'MCH-50', 'mch75'] as $rejected) {
+            $this->assertNotContains($rejected, $saved);
+        }
     }
 
     /** SEL-VOU-005 (A26) */

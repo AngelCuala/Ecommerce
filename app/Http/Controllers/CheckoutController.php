@@ -482,6 +482,7 @@ class CheckoutController extends Controller
                 'status'            => $online ? Order::AWAITING_PAYMENT : Order::PENDING,
             ]);
 
+            $orderItems = [];
             foreach ($storeGroup['items'] as $line) {
                 $share = $shares[$line->id] ?? ['seller' => 0.0, 'platform' => 0.0, 'promo' => 0.0];
                 $parts = $line->priceParts();
@@ -506,7 +507,7 @@ class CheckoutController extends Controller
                     $charged    = round($partTotal - $part['promo'] - $part['seller'], 2);
                     $commission = round($charged * ($rate / 100), 2);
 
-                    OrderItem::create([
+                    $orderItems[] = OrderItem::create([
                         'order_id'          => $order->id,
                         'product_id'        => $line->product_id,
                         'variation_id'      => $line->variation_id,
@@ -538,6 +539,7 @@ class CheckoutController extends Controller
                 }
             }
 
+            $this->roundCommissionPerOrder($orderItems, $rate);
             $orders[$sellerId] = $order;
         }
 
@@ -545,6 +547,31 @@ class CheckoutController extends Controller
         $this->vouchers->redeem($orders, $user, $quote);
 
         return $orders;
+    }
+
+    /**
+     * A9: commission is rate × the order's charged item total, rounded once per order (half up).
+     * Each line was rounded on its own, so any centavo left over goes to the order's largest line;
+     * that line's seller earning moves with it.
+     *
+     * @param  array<int, OrderItem>  $items
+     */
+    private function roundCommissionPerOrder(array $items, float $rate): void
+    {
+        if (! $items) {
+            return;
+        }
+        $charged = fn (OrderItem $i) => round((float) $i->price * $i->quantity - (float) $i->promo_discount - (float) $i->seller_discount, 2);
+        $total = round(array_sum(array_map($charged, $items)), 2);
+        $expected = round($total * $rate / 100 + 1e-9, 2);   // half up, safe from float error (e.g. 20.8905)
+        $diff = round($expected - array_sum(array_map(fn ($i) => (float) $i->commission_amount, $items)), 2);
+        if (abs($diff) < 0.005) {
+            return;
+        }
+
+        $largest = collect($items)->sortByDesc($charged)->first();
+        $commission = round((float) $largest->commission_amount + $diff, 2);
+        $largest->forceFill(['commission_amount' => $commission, 'seller_earning' => round($charged($largest) - $commission, 2)])->save();
     }
 
     public function confirmation()
