@@ -48,7 +48,7 @@ class B03BrowseProductWishlistTest extends TestCase
         $this->assertSame(['Capiz Shell Lamp'], collect($lamps->viewData('products')->items())->pluck('title')->all());
     }
 
-    /** BUY-SRCH-003, 004 */
+    /** BUY-SRCH-003, 004, 005, 006 */
     public function test_search_matches_typos_and_odd_input(): void
     {
         $this->assertSame('Rattan Fruit Basket', $this->titles($this->search(['search' => 'Rattan Fruit Basket']))[0]);
@@ -64,18 +64,24 @@ class B03BrowseProductWishlistTest extends TestCase
         $this->assertGreaterThan(0, $this->search(['search' => ''])->viewData('products')->total());   // empty search shows all
     }
 
-    /** BUY-SRCH-005 */
-    public function test_price_range_is_inclusive_and_swaps_min_and_max(): void
+    /** BUY-SRCH-007 */
+    public function test_price_range_is_inclusive_and_bad_ranges_are_rejected(): void
     {
         $this->assertContains('Rattan Fruit Basket', $this->titles($this->search(['min_price' => 300, 'max_price' => 450])));
         $this->assertNotContains('Rattan Fruit Basket', $this->titles($this->search(['min_price' => 451, 'max_price' => 1000])));
+        $this->assertSame(['Rattan Fruit Basket'], $this->titles($this->search(['min_price' => 450, 'max_price' => 450])));
 
-        $swapped = $this->search(['min_price' => 1000, 'max_price' => 100]);
-        $this->assertNotEmpty($swapped->viewData('notes'));
-        $this->assertContains('Abaca Woven Tote Bag', $this->titles($swapped));   // ₱199 is within ₱100 – ₱1,000
+        // Min above max, or a negative price: rejected with a message and not used to filter.
+        $all = count($this->titles($this->search([])));
+        $bad = $this->search(['min_price' => 1000, 'max_price' => 100]);
+        $this->assertStringContainsString('higher than the maximum', $bad->viewData('notes')['price']);
+        $this->assertCount($all, $this->titles($bad));
+        $negative = $this->search(['min_price' => -1]);
+        $this->assertStringContainsString("can't be negative", $negative->viewData('notes')['price']);
+        $this->assertCount($all, $this->titles($negative));
     }
 
-    /** BUY-SRCH-006 */
+    /** BUY-SRCH-008 */
     public function test_rating_category_and_location_filters_combine(): void
     {
         $this->review($this->p02, 5);
@@ -86,7 +92,7 @@ class B03BrowseProductWishlistTest extends TestCase
         $this->assertGreaterThan(1, count($this->titles($this->search([]))));   // cleared: everything again
     }
 
-    /** BUY-SRCH-007 */
+    /** BUY-SRCH-009 */
     public function test_sorting_and_pages_without_repeats(): void
     {
         for ($i = 1; $i <= 30; $i++) {
@@ -109,7 +115,7 @@ class B03BrowseProductWishlistTest extends TestCase
         $this->assertSame(Product::published()->where('stock', '>', 0)->count(), count($page1) + count($page2));
     }
 
-    /** BUY-SRCH-008 */
+    /** BUY-SRCH-010, BUY-PDP-008 */
     public function test_inactive_deleted_and_draft_products_never_appear(): void
     {
         $archived = $this->product($this->seller1, $this->homeLiving, 'Hidden Archived Mat', 300, 5, 0.5, ['is_archived' => true]);

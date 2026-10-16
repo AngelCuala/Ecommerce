@@ -262,7 +262,8 @@
                     <div class="flex flex-wrap items-start justify-between gap-3">
                         <div>
                             <h2>Variations</h2>
-                            <p class="pf-hint mt-1">Up to {{ \App\Models\ProductVariation::MAX_TYPES }} types (e.g. Color and Size) with up to {{ \App\Models\ProductVariation::MAX_OPTIONS }} options each.
+                            <p class="pf-hint mt-1">The choices a buyer picks for this product: Color and Size, or Material, Style, Volume, any name you like.
+                                Up to {{ \App\Models\ProductVariation::MAX_TYPES }} types with up to {{ \App\Models\ProductVariation::MAX_OPTIONS }} options each.
                                 Every combination gets its own price, stock, SKU and photo. Skip this for a single product.</p>
                         </div>
                         <button type="button" @click="addType()" :disabled="types.length >= {{ \App\Models\ProductVariation::MAX_TYPES }}" class="rounded-md border px-3 py-1.5 text-sm font-medium transition hover:bg-stone-50 disabled:opacity-50" style="border-color:#E7E5E4;color:#44403C;">Add variation type</button>
@@ -272,7 +273,7 @@
                     <template x-for="(t, ti) in types" :key="ti">
                         <div class="mt-3 rounded-md border p-3" style="border-color:#ECE7E3;">
                             <div class="flex flex-wrap items-center gap-2">
-                                <input type="text" :name="`variation_types[${ti}][name]`" x-model="t.name" maxlength="30" class="input max-w-[12rem]" placeholder="Type, e.g. Color" aria-label="Variation type">
+                                <input type="text" :name="`variation_types[${ti}][name]`" x-model="t.name" maxlength="30" class="input max-w-[12rem]" placeholder="Type, e.g. Color" aria-label="Variation type" list="variation-type-names">
                                 <button type="button" @click="removeType(ti)" class="text-sm hover:underline" style="color:#B91C1C;">Remove type</button>
                             </div>
                             <div class="mt-2 flex flex-wrap gap-2">
@@ -318,10 +319,16 @@
                     <input type="hidden" name="variation_labels" :value="types.map(t => t.name).filter(Boolean).join(', ')" x-show="false">
                 </section>
 
+                <datalist id="variation-type-names">
+                    <option value="Color"></option><option value="Size"></option><option value="Material"></option>
+                    <option value="Style"></option><option value="Design"></option><option value="Volume"></option>
+                    <option value="Capacity"></option><option value="Length"></option><option value="Flavor"></option><option value="Pattern"></option>
+                </datalist>
+
                 {{-- ════════ SPECIFICATIONS ════════ --}}
                 <section class="pf-section" x-show="specFields.length > 0" x-cloak>
                     <h2>Specifications</h2>
-                    <p class="pf-hint mt-1 mb-4">Details buyers look for in this category.</p>
+                    <p class="pf-hint mt-1 mb-4">Fixed details buyers look for in this category. Choices the buyer picks, like color or size, go in <strong>Variations</strong> above.</p>
                     <div class="grid gap-4 sm:grid-cols-2">
                         <template x-for="field in specFields" :key="field">
                             <div>

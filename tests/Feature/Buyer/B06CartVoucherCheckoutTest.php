@@ -98,7 +98,7 @@ class B06CartVoucherCheckoutTest extends TestCase
         $this->assertSame(0, CartItem::count());
     }
 
-    /** BUY-CART-007, 008 */
+    /** BUY-CART-007 */
     public function test_sold_out_and_deleted_items_are_marked_and_cannot_be_checked_out(): void
     {
         $basket  = $this->cart($this->buyer1, $this->p02);
@@ -114,7 +114,7 @@ class B06CartVoucherCheckoutTest extends TestCase
 
         $this->openCheckout($this->buyer1, [$basket, $lamp])->assertRedirect(route('cart.index'));
         $this->openCheckout($this->buyer1, [$lamp])->assertOk();                 // the other item can still be bought
-        $this->assertSame(3, CartItem::where('user_id', $this->buyer1->id)->count());   // 008: still saved
+        $this->assertSame(3, CartItem::where('user_id', $this->buyer1->id)->count());   // still saved
     }
 
     // ── B7 Vouchers ───────────────────────────────────────────
@@ -169,7 +169,7 @@ class B06CartVoucherCheckoutTest extends TestCase
         $this->actingAs($this->buyer1)->get(route('checkout.confirmation'))->assertOk()->assertSee('₱1,083.00');
     }
 
-    /** BUY-VOU-004, 005, 006 */
+    /** BUY-VOU-004, 005, 006 (004 at ₱299.99 / ₱300.00 / ₱300.01 is in B15) */
     public function test_voucher_rules_and_messages(): void
     {
         $cheap = $this->product($this->seller1, $this->homeLiving, 'Woven Coaster', 299, 10, 0.1);
@@ -208,7 +208,7 @@ class B06CartVoucherCheckoutTest extends TestCase
         $this->assertEquals(0, $page->viewData('summary')['quote']['seller_discount']);
     }
 
-    /** BUY-VOU-008, 009, 010 */
+    /** BUY-VOU-008, 010, 011 */
     public function test_percentage_cap_never_negative_and_sale_items(): void
     {
         // 008: 10% of ₱600 = ₱60; 10% of ₱1,250 = ₱125 → capped at ₱100.
@@ -219,7 +219,7 @@ class B06CartVoucherCheckoutTest extends TestCase
         $this->openCheckout($this->buyer1, [$this->cart($this->buyer1, $this->p03)]);
         $this->assertEquals(100, $this->preview(['seller_vouchers' => [$this->seller1->id => 'MCH10']])->json('seller_discount'));
 
-        // 009: a voucher bigger than the item never makes the merchandise negative.
+        // 010: a voucher bigger than the item never makes the merchandise negative.
         $this->voucher('BIG500', 500, 0, ['scope' => 'seller', 'seller_id' => $this->seller1->id]);
         CartItem::query()->delete();
         $this->openCheckout($this->buyer1, [$this->cart($this->buyer1, $this->p01, 1, 'Natural / S')]);
@@ -227,7 +227,7 @@ class B06CartVoucherCheckoutTest extends TestCase
         $this->assertEquals(199, $p['seller_discount']);
         $this->assertEquals($p['shipping_total'], $p['total']);
 
-        // 010: on a sale item the minimum spend is checked against the sale price.
+        // 011: on a sale item the minimum spend is checked against the sale price.
         $this->p02->update(['sale_price' => 360]);
         CartItem::query()->delete();
         $this->openCheckout($this->buyer1, [$this->cart($this->buyer1, $this->p02)]);
@@ -236,7 +236,7 @@ class B06CartVoucherCheckoutTest extends TestCase
         $this->assertEquals(310, $p['subtotal'] - $p['seller_discount']);
     }
 
-    /** BUY-VOU-011 */
+    /** BUY-VOU-012 */
     public function test_voucher_comes_back_after_cancelling(): void
     {
         $mch50 = Voucher::where('code', 'MCH50')->first();

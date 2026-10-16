@@ -84,9 +84,12 @@ class StoreCategoryController extends Controller
         $ids      = $category->children()->pluck('id')->push($category->id);
         $products = DB::table('product_store_category')->whereIn('store_category_id', $ids)->distinct()->count('product_id');
 
-        if ($products > 0 && ! $request->boolean('confirm')) {
-            return back()->with('warning', '"' . $category->name . '" still has ' . $products . ' ' . \Illuminate\Support\Str::plural('product', $products)
-                . '. Deleting it moves them to Uncategorized (they are not deleted). Click Delete again to confirm.')
+        $subs = $category->children()->orderBy('sort_order')->pluck('name');
+        if (($products > 0 || $subs->isNotEmpty()) && ! $request->boolean('confirm')) {
+            return back()->with('warning', '"' . $category->name . '"'
+                . ($subs->isNotEmpty() ? ' and its subcategories ' . $subs->map(fn ($n) => '"' . $n . '"')->join(', ', ' and ') : '')
+                . ' will be deleted. ' . ($products > 0 ? $products . ' ' . \Illuminate\Support\Str::plural('product', $products)
+                . ' will move to Uncategorized (they are not deleted). ' : '') . 'Click Delete again to confirm.')
                 ->with('confirm_delete', $category->id);
         }
 

@@ -23,18 +23,22 @@ class BookController extends Controller
      * Category-specific specification schemas.
      * Keyed by a lowercase keyword matched against the category name.
      */
+    /**
+     * Fixed details per platform category. Choices the buyer picks (Color, Size, Volume, …) are not
+     * specs: they are the product's own variants, set in the Variations section.
+     */
     public static function specSchemas(): array
     {
         return [
-            'apparel'     => ['Material', 'Color', 'Size', 'Fit', 'Gender', 'Care Instructions'],
-            'women'       => ['Material', 'Color', 'Size', 'Fit', 'Gender', 'Care Instructions'],
-            'men'         => ['Material', 'Color', 'Size', 'Fit', 'Gender', 'Care Instructions'],
-            'clothing'    => ['Material', 'Color', 'Size', 'Fit', 'Gender', 'Care Instructions'],
+            'apparel'     => ['Material', 'Fit', 'Gender', 'Care Instructions'],
+            'women'       => ['Material', 'Fit', 'Gender', 'Care Instructions'],
+            'men'         => ['Material', 'Fit', 'Gender', 'Care Instructions'],
+            'clothing'    => ['Material', 'Fit', 'Gender', 'Care Instructions'],
             'electronics' => ['Brand', 'Model', 'Warranty', 'Battery Life', 'Dimensions'],
             'gadget'      => ['Brand', 'Model', 'Warranty', 'Battery Life', 'Dimensions'],
-            'beauty'      => ['Brand', 'Volume / Size', 'Ingredients', 'Expiration Date', 'Skin Type'],
-            'health'      => ['Brand', 'Volume / Size', 'Ingredients', 'Expiration Date', 'Skin Type'],
-            'cosmetic'    => ['Brand', 'Volume / Size', 'Ingredients', 'Expiration Date', 'Skin Type'],
+            'beauty'      => ['Brand', 'Ingredients', 'Expiration Date', 'Skin Type'],
+            'health'      => ['Brand', 'Ingredients', 'Expiration Date', 'Skin Type'],
+            'cosmetic'    => ['Brand', 'Ingredients', 'Expiration Date', 'Skin Type'],
         ];
     }
 
@@ -407,6 +411,10 @@ class BookController extends Controller
                 $request->merge([$f => null]);
             }
         }
+        // "20.00" from a saved sale is the whole percentage 20.
+        if (is_string($pct = $request->input('discount_percent')) && preg_match('/^\d+\.0+$/', $pct)) {
+            $request->merge(['discount_percent' => (string) (int) $pct]);
+        }
 
         $money = ['numeric', 'min:1', 'max:1000000', 'decimal:0,2'];
         $rules = [
@@ -421,7 +429,7 @@ class BookController extends Controller
 
             'price'            => array_merge([$req], $money),
             'sale_price'       => ['nullable', 'numeric', 'min:1', 'decimal:0,2', 'lt:price'],
-            'discount_percent' => ['nullable', 'numeric', 'min:1', 'max:99'],
+            'discount_percent' => ['nullable', 'integer', 'min:1', 'max:99'],
             'voucher_code'     => 'nullable|string|max:50',
             'stock'            => [$req, 'integer', 'min:0', 'max:99999'],
             'purchase_limit'   => 'nullable|integer|min:1|max:99999',
@@ -504,6 +512,7 @@ class BookController extends Controller
             'sale_price.decimal'    => 'The sale price can have up to 2 decimal places.',
             'discount_percent.min'  => 'The discount must be from 1% to 99%.',
             'discount_percent.max'  => 'The discount must be from 1% to 99%.',
+            'discount_percent.integer' => 'The discount must be a whole number from 1% to 99%.',
             'sale_ends_at.after'    => 'The sale must end after it starts.',
             'stock.required'        => 'Please enter the available stock.',
             'stock.integer'         => $stockMsg, 'stock.min' => $stockMsg, 'stock.max' => $stockMsg,
@@ -561,6 +570,22 @@ class BookController extends Controller
                 $changed = ! $book || ! $book->sale_ends_at || ! $book->sale_ends_at->equalTo($end);
                 if ($changed && $end->lte(now())) {
                     $v->errors()->add('sale_ends_at', 'The sale end must be in the future.');
+                }
+            }
+
+            // A28: one store sale at a time. A new sale window that overlaps an upcoming or running sale is
+            // rejected (editing that sale itself, which keeps its start, is fine).
+            if ($book && in_array($book->saleState(), ['Upcoming', 'Ongoing'], true) && $request->filled('sale_starts_at')
+                && strtotime((string) $request->sale_starts_at)) {
+                $newStart = \Carbon\Carbon::parse($request->sale_starts_at);
+                $newEnd   = $request->filled('sale_ends_at') && strtotime((string) $request->sale_ends_at) ? \Carbon\Carbon::parse($request->sale_ends_at) : null;
+                $oldStart = $book->sale_starts_at ?? $book->updated_at;
+                $oldEnd   = $book->sale_ends_at;
+                $overlaps = ($oldEnd === null || $newStart->lt($oldEnd)) && ($newEnd === null || $newEnd->gt($oldStart));
+                if (! $newStart->equalTo($oldStart) && $overlaps) {
+                    $v->errors()->add('sale_starts_at', '"' . $book->title . '" already has a sale ' . ($oldEnd
+                        ? 'from ' . $oldStart->format('M j, g:i A') . ' to ' . $oldEnd->format('M j, g:i A') : 'running now')
+                        . '. A product can be in only one sale at a time: end that sale first or edit it.');
                 }
             }
 

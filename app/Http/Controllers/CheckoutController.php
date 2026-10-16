@@ -305,8 +305,9 @@ class CheckoutController extends Controller
             return back()->with('error', 'Please choose one of your saved addresses.');
         }
 
-        // Double-clicking Place Order: only the first click with this page's token places orders.
-        if (! Cache::add('checkout-token:' . $request->checkout_token, $user->id, now()->addHour())) {
+        // Already placed with this page's token (double click, Back and resubmit): show the orders.
+        $tokenKey = 'checkout-token:' . $request->checkout_token;
+        if (Cache::has($tokenKey)) {
             return redirect()->route('profile.orders')->with('success', 'Your order was already placed.');
         }
 
@@ -343,9 +344,16 @@ class CheckoutController extends Controller
         $quote = $summary['quote'];
         $group = (string) Str::uuid();
 
+        // Only the first click with this page's token places orders. The token is taken here, after every
+        // check, so a blocked attempt (price, voucher, stock) can be fixed and placed again.
+        if (! Cache::add($tokenKey, $user->id, now()->addHour())) {
+            return redirect()->route('profile.orders')->with('success', 'Your order was already placed.');
+        }
+
         try {
             $orders = DB::transaction(fn () => $this->createOrders($lines, $summary, $address, $request, $group, $request->payment_method));
         } catch (\App\Exceptions\CheckoutProblem $e) {   // ran out of stock / over a purchase limit while checking out
+            Cache::forget($tokenKey);
             return redirect()->route($buyNow ? 'checkout.index' : 'cart.index', $buyNow ? ['buy_now' => 1] : [])->with('error', $e->getMessage());
         }
 

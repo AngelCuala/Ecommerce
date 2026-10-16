@@ -56,7 +56,7 @@ class FlashSale extends Model
 
     public function isRunning(): bool
     {
-        return $this->starts_at->isPast() && $this->ends_at->isFuture() && $this->remaining() > 0;
+        return ! $this->starts_at->isFuture() && $this->ends_at->isFuture() && $this->remaining() > 0;   // live from the exact start time
     }
 
     public function stateLabel(): string
@@ -65,7 +65,7 @@ class FlashSale extends Model
             $this->starts_at->isFuture() => 'Upcoming',
             $this->ends_at->isPast()     => 'Ended',
             $this->remaining() === 0     => 'Sold out',
-            default                      => 'Running',
+            default                      => 'Ongoing',
         };
     }
 }

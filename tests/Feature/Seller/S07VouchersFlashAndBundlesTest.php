@@ -15,7 +15,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Concerns\SellerTestData;
 use Tests\TestCase;
 
-/** Seller workbook S7 (Store Vouchers) and S8 (Flash Sales, Campaigns & Bundles). */
+/** Seller workbook S7 (Store Vouchers, SEL-VOU-001…011) and S8 (Flash Sales, Campaigns & Bundles, SEL-FLASH-001…008). */
 class S07VouchersFlashAndBundlesTest extends TestCase
 {
     use RefreshDatabase, SellerTestData;
@@ -53,10 +53,16 @@ class S07VouchersFlashAndBundlesTest extends TestCase
         return $this->product($this->seller1, $this->homeLiving, $title, $price, 50, 0.5);
     }
 
+    /** MCH50 as an edit form (A27 tests). */
+    private function mch50Edit(Voucher $v, array $over = []): array
+    {
+        return array_merge($this->voucherForm(['name' => $v->name, 'starts_at' => '', 'ends_at' => $v->ends_at->format('Y-m-d\TH:i')]), $over);
+    }
+
     // ── S7 Store Vouchers ───────────────────────────────────────
 
     /** SEL-VOU-001 */
-    public function test_sel_vou_001_fixed_amount_claimable_voucher(): void
+    public function test_sel_vou_001_create_a_fixed_amount_claimable_voucher(): void
     {
         Voucher::where('code', 'MCH50')->delete();
         $this->createVoucher()->assertSessionHasNoErrors()->assertSessionHas('success', 'Store voucher MCH50 created.');
@@ -64,13 +70,16 @@ class S07VouchersFlashAndBundlesTest extends TestCase
         $v = Voucher::where('code', 'MCH50')->sole();
         $this->assertSame([Voucher::SCOPE_SELLER, 50.0, 300.0, 100, 1, true], [$v->scope, $v->discount_value, $v->min_spend, $v->usage_limit, $v->per_user_limit, $v->is_claimable]);
         $this->assertNull($v->product_ids);
+        $this->actingAs($this->seller1)->get(route('seller.vouchers.index'))->assertSee('MCH50')->assertSee('Ongoing');
 
-        $html = $this->actingAs($this->buyer1)->get(route('stores.show', $this->seller1->id))->assertOk()->assertSee('₱50 off')->assertSee('Min spend ₱300')->getContent();
-        $this->assertStringContainsString(route('vouchers.claim', $v), $html);
+        foreach ([route('stores.show', $this->seller1->id), route('products.show', $this->p02->slug)] as $page) {
+            $html = $this->actingAs($this->buyer1)->get($page)->assertOk()->assertSee('₱50 off')->getContent();
+            $this->assertStringContainsString(route('vouchers.claim', $v), $html);
+        }
     }
 
     /** SEL-VOU-002 */
-    public function test_sel_vou_002_percentage_voucher_with_a_cap(): void
+    public function test_sel_vou_002_create_a_percentage_voucher_with_a_cap(): void
     {
         Voucher::where('code', 'MCH10')->delete();
         $this->createVoucher(['code' => 'MCH10', 'discount_type' => 'percent', 'discount_value' => '10', 'max_discount' => '100', 'min_spend' => '500', 'usage_limit' => '50'])
@@ -79,11 +88,11 @@ class S07VouchersFlashAndBundlesTest extends TestCase
         [$off] = $this->storeDiscount([$this->cart($this->buyer1, $this->sellerProduct('Six hundred', 600))], 'MCH10');
         $this->assertEquals(60, $off);
         CartItem::query()->delete();
-        [$off] = $this->storeDiscount([$this->cart($this->buyer1, $this->sellerProduct('Fifteen hundred', 1500))], 'MCH10');
-        $this->assertEquals(100, $off);
+        [$off] = $this->storeDiscount([$this->cart($this->buyer1, $this->p03)], 'MCH10');   // ₱1,250
+        $this->assertEquals(100, $off);   // capped, not ₱125
     }
 
-    /** SEL-VOU-003 */
+    /** SEL-VOU-003 (A26) */
     public function test_sel_vou_003_code_only_voucher_is_hidden(): void
     {
         Voucher::where('code', 'RVSECRET')->delete();
@@ -92,6 +101,7 @@ class S07VouchersFlashAndBundlesTest extends TestCase
         $this->flushSession();
 
         $this->actingAs($this->buyer1)->get(route('stores.show', $this->seller2->id))->assertOk()->assertDontSee('RVSECRET')->assertDontSee('₱100 off');
+        $this->actingAs($this->buyer1)->get(route('products.show', $this->p06->slug))->assertOk()->assertDontSee('RVSECRET');
 
         $line = $this->cart($this->buyer1, $this->p06, 1, 'Black');
         $this->openCheckout($this->buyer1, [$line])->assertOk()->assertDontSee('RVSECRET');
@@ -100,40 +110,59 @@ class S07VouchersFlashAndBundlesTest extends TestCase
         $this->assertEquals(100, $res['seller_discount']);
     }
 
-    /** SEL-VOU-004 */
-    public function test_sel_vou_004_duplicate_code_is_not_case_sensitive(): void
+    /** SEL-VOU-004 (A26) */
+    public function test_sel_vou_004_voucher_code_format(): void
     {
-        foreach (['MCH50', 'mch50'] as $code) {
+        $message = 'Voucher codes are 4 to 12 letters and numbers, with no spaces or symbols (e.g. SALE1111).';
+        foreach (['ABC', 'ABCDEFGHIJKLM', 'MCH 50', 'MCH-50'] as $bad) {
+            $this->createVoucher(['code' => $bad])->assertSessionHasErrors(['code' => $message]);
+        }
+        foreach (['ABCD', 'ABCDEFGHIJKL', 'mch75'] as $good) {
+            $this->createVoucher(['code' => $good])->assertSessionHasNoErrors();
+        }
+        $this->assertSame(['ABCD', 'ABCDEFGHIJKL', 'MCH75'], Voucher::whereIn('code', ['ABCD', 'ABCDEFGHIJKL', 'MCH75'])->orderBy('id')->pluck('code')->all());
+        $this->assertFalse(Voucher::whereIn('code', ['ABC', 'ABCDEFGHIJKLM', 'MCH 50', 'MCH-50', 'mch75'])->exists());
+    }
+
+    /** SEL-VOU-005 (A26) */
+    public function test_sel_vou_005_duplicate_voucher_code(): void
+    {
+        foreach (['MCH50', 'mch50', 'PLAT100'] as $code) {
             $this->createVoucher(['code' => $code])->assertSessionHasErrors(['code' => 'That code is already used by another voucher.']);
         }
         $this->assertSame(1, Voucher::where('code', 'MCH50')->count());
+        $this->assertSame(1, Voucher::where('code', 'PLAT100')->count());
     }
 
-    /** SEL-VOU-005 */
-    public function test_sel_vou_005_discount_larger_than_minimum_spend(): void
+    /** SEL-VOU-006 */
+    public function test_sel_vou_006_discount_larger_than_the_minimum_spend(): void
     {
         $this->createVoucher(['code' => 'MCH500', 'discount_value' => '500', 'min_spend' => '100'])
             ->assertSessionHasErrors(['discount_value' => 'The discount (₱500.00) can\'t be more than the minimum spend (₱100.00).']);
         $this->assertFalse(Voucher::where('code', 'MCH500')->exists());
-    }
 
-    /** SEL-VOU-006 */
-    public function test_sel_vou_006_field_validation(): void
-    {
-        $this->createVoucher(['code' => 'V1', 'discount_value' => '0'])->assertSessionHasErrors('discount_value');
-        $this->createVoucher(['code' => 'VPCT0', 'discount_type' => 'percent', 'discount_value' => '0'])->assertSessionHasErrors('discount_value');
-        $this->createVoucher(['code' => 'VPCT100', 'discount_type' => 'percent', 'discount_value' => '100'])
-            ->assertSessionHasErrors(['discount_value' => 'A percent discount must be from 1% to 99%.']);
-        $this->createVoucher(['code' => 'VUSE0', 'usage_limit' => '0'])->assertSessionHasErrors(['usage_limit' => 'The total uses must be at least 1 (leave it empty for unlimited).']);
-        $this->createVoucher(['code' => 'VPER', 'usage_limit' => '5', 'per_user_limit' => '6'])
-            ->assertSessionHasErrors(['per_user_limit' => 'Uses per buyer can\'t be more than the total uses allowed.']);
-        $this->createVoucher(['code' => 'VDATE', 'starts_at' => now()->addDays(3)->format('Y-m-d\TH:i'), 'ends_at' => now()->addDay()->format('Y-m-d\TH:i')])
-            ->assertSessionHasErrors('ends_at');
-        $this->assertSame(0, Voucher::whereIn('code', ['V1', 'VPCT0', 'VPCT100', 'VUSE0', 'VPER', 'VDATE'])->count());
+        $this->createVoucher(['code' => 'MCH100', 'discount_value' => '100', 'min_spend' => '100'])->assertSessionHasNoErrors();
+        $this->assertTrue(Voucher::where('code', 'MCH100')->exists());
     }
 
     /** SEL-VOU-007 */
-    public function test_sel_vou_007_voucher_for_selected_products_only(): void
+    public function test_sel_vou_007_field_validation(): void
+    {
+        $this->createVoucher(['code' => 'VAMT0', 'discount_value' => '0'])->assertSessionHasErrors('discount_value');
+        $this->createVoucher(['code' => 'VPCT0', 'discount_type' => 'percent', 'discount_value' => '0'])->assertSessionHasErrors('discount_value');
+        $this->createVoucher(['code' => 'VPCT100', 'discount_type' => 'percent', 'discount_value' => '100'])
+            ->assertSessionHasErrors(['discount_value' => 'A percent discount must be from 1% to 99%.']);
+        $this->createVoucher(['code' => 'VCAP0', 'discount_type' => 'percent', 'discount_value' => '10', 'max_discount' => '0'])->assertSessionHasErrors('max_discount');
+        $this->createVoucher(['code' => 'VUSE0', 'usage_limit' => '0'])->assertSessionHasErrors(['usage_limit' => 'The total uses must be at least 1 (leave it empty for unlimited).']);
+        $this->createVoucher(['code' => 'VPER', 'usage_limit' => '1', 'per_user_limit' => '2'])
+            ->assertSessionHasErrors(['per_user_limit' => 'Uses per buyer can\'t be more than the total uses allowed.']);
+        $this->createVoucher(['code' => 'VDATE', 'starts_at' => now()->addDays(3)->format('Y-m-d\TH:i'), 'ends_at' => now()->addDay()->format('Y-m-d\TH:i')])
+            ->assertSessionHasErrors('ends_at');
+        $this->assertSame(0, Voucher::whereIn('code', ['VAMT0', 'VPCT0', 'VPCT100', 'VCAP0', 'VUSE0', 'VPER', 'VDATE'])->count());
+    }
+
+    /** SEL-VOU-008 */
+    public function test_sel_vou_008_voucher_for_selected_products_only(): void
     {
         $this->createVoucher(['code' => 'MCHTOTE', 'discount_value' => '30', 'min_spend' => '100', 'product_ids' => [$this->p01->id]])->assertSessionHasNoErrors();
         $this->assertSame([$this->p01->id], Voucher::where('code', 'MCHTOTE')->value('product_ids'));
@@ -145,46 +174,74 @@ class S07VouchersFlashAndBundlesTest extends TestCase
         $this->assertStringContainsString('only for selected products', $notices["seller_vouchers.{$this->seller1->id}"]);
 
         CartItem::query()->delete();
-        [$off] = $this->storeDiscount([$this->cart($this->buyer1, $this->p01, 1, 'Natural / S')], 'MCHTOTE');
+        [$off] = $this->storeDiscount([$this->cart($this->buyer1, $this->p01, 1, 'Natural / M')], 'MCHTOTE');
         $this->assertEquals(30, $off);
+
+        CartItem::query()->delete();
+        [$off] = $this->storeDiscount([$this->cart($this->buyer1, $this->p01, 1, 'Natural / M'), $this->cart($this->buyer1, $this->p02)], 'MCHTOTE');
+        $this->assertEquals(30, $off);
+
+        // The minimum spend counts only the P-01 amount: ₱249 of P-01 doesn't reach ₱300 even with ₱450 of P-02 in the cart.
+        Voucher::where('code', 'MCHTOTE')->update(['min_spend' => 300]);
+        [$off] = $this->storeDiscount(CartItem::all()->all(), 'MCHTOTE');
+        $this->assertEquals(0, $off);
     }
 
-    /** SEL-VOU-008 */
-    public function test_sel_vou_008_edit_or_delete_a_claimed_voucher(): void
+    /** SEL-VOU-009 (A27) */
+    public function test_sel_vou_009_edit_a_voucher_buyers_already_claimed(): void
     {
         $v = Voucher::where('code', 'MCH50')->sole();
         VoucherClaim::create(['user_id' => $this->buyer1->id, 'voucher_id' => $v->id]);
-        $edit = $this->voucherForm(['name' => $v->name, 'starts_at' => '', 'ends_at' => $v->ends_at->format('Y-m-d\TH:i')]);
 
-        // A27: after a claim only the end date (later) and the usage limit (higher) can change.
-        $this->actingAs($this->seller1)->put(route('seller.vouchers.update', $v), ['min_spend' => '500'] + $edit)
+        $this->actingAs($this->seller1)->put(route('seller.vouchers.update', $v), $this->mch50Edit($v, ['min_spend' => '500']))
             ->assertSessionHasErrors(['min_spend' => 'The minimum spend can\'t be changed after buyers claimed this voucher. You can only extend the end date or raise the usage limit.']);
-        $this->assertEquals(300, $v->fresh()->min_spend);
-        $this->actingAs($this->seller1)->put(route('seller.vouchers.update', $v), ['usage_limit' => '150', 'ends_at' => $v->ends_at->copy()->addMonth()->format('Y-m-d\TH:i')] + $edit)
+        $this->actingAs($this->seller1)->put(route('seller.vouchers.update', $v), $this->mch50Edit($v, ['discount_value' => '20']))->assertSessionHasErrors('discount_value');
+        $this->assertEquals([300.0, 50.0], [(float) $v->fresh()->min_spend, (float) $v->fresh()->discount_value]);
+
+        $newEnd = $v->ends_at->copy()->addDays(7);
+        $this->actingAs($this->seller1)->put(route('seller.vouchers.update', $v), $this->mch50Edit($v, ['usage_limit' => '150', 'ends_at' => $newEnd->format('Y-m-d\TH:i')]))
             ->assertSessionHasNoErrors();
         $this->assertSame(150, $v->fresh()->usage_limit);
+        $this->assertSame($newEnd->format('Y-m-d H:i'), $v->fresh()->ends_at->format('Y-m-d H:i'));
+        $this->actingAs($this->buyer1)->get(route('vouchers.wallet'))->assertOk()->assertSee('MCH50');
+    }
+
+    /** SEL-VOU-010 (A27) */
+    public function test_sel_vou_010_end_a_voucher_buyers_already_claimed(): void
+    {
+        $v = Voucher::where('code', 'MCH50')->sole();
+        VoucherClaim::create(['user_id' => $this->buyer1->id, 'voucher_id' => $v->id]);
+        $used = $this->placeOrder($this->buyer2, [$this->cart($this->buyer2, $this->p02)], null, ['seller_vouchers' => [$this->seller1->id => 'MCH50']])->first();
+        $this->moveTo($used, Order::PROCESSING);   // To Ship
+        $this->assertEquals(50, (float) $used->fresh()->seller_discount);
 
         $this->actingAs($this->seller1)->delete(route('seller.vouchers.destroy', $v))
             ->assertSessionHas('success', 'Buyers already claimed MCH50, so it was ended instead of deleted. It no longer works at checkout.');
-        $this->assertNotNull($v->fresh());
         $this->assertFalse($v->fresh()->is_active);
 
-        // Ending it removes it from the wallets of buyers who never used it.
+        // Removed from Buyer 1's wallet and can't be applied.
         $this->flushSession();
-        $this->assertSame(0, VoucherClaim::where('voucher_id', $v->id)->count());
+        $this->assertSame(0, VoucherClaim::where('voucher_id', $v->id)->where('user_id', $this->buyer1->id)->count());
         $this->actingAs($this->buyer1)->get(route('vouchers.wallet'))->assertOk()->assertDontSee('MCH50');
         $line = $this->cart($this->buyer1, $this->p02);
         $this->openCheckout($this->buyer1, [$line])->assertOk();
         $res = $this->actingAs($this->buyer1)->postJson(route('checkout.preview'), ['address_id' => $this->addr1->id, 'seller_vouchers' => [$this->seller1->id => 'MCH50']])->assertOk()->json();
         $this->assertEquals(0, $res['seller_discount']);
+
+        // Buyer 2's order keeps its ₱50.00 off.
+        $this->assertEquals(50, (float) $used->fresh()->seller_discount);
     }
 
-    /** SEL-VOU-009 */
-    public function test_sel_vou_009_usage_counter(): void
+    /** SEL-VOU-011 (A21) */
+    public function test_sel_vou_011_usage_counters(): void
     {
-        $this->placeOrder($this->buyer1, [$this->cart($this->buyer1, $this->p02)], null, ['seller_vouchers' => [$this->seller1->id => 'MCH50']]);
+        $order = $this->placeOrder($this->buyer1, [$this->cart($this->buyer1, $this->p02)], null, ['seller_vouchers' => [$this->seller1->id => 'MCH50']])->first();
         $this->assertSame(1, Voucher::where('code', 'MCH50')->value('used_count'));
         $this->actingAs($this->seller1)->get(route('seller.vouchers.index'))->assertSee('1 / 100');
+
+        $this->actingAs($this->buyer1)->post(route('orders.cancel', $order->id), ['cancellation_reason' => 'Changed my mind'])->assertSessionHas('success');
+        $this->assertSame(0, Voucher::where('code', 'MCH50')->value('used_count'));
+        $this->actingAs($this->seller1)->get(route('seller.vouchers.index'))->assertSee('0 / 100');
     }
 
     // ── S8 Flash Sales, Campaigns & Bundles ─────────────────────
@@ -204,36 +261,52 @@ class S07VouchersFlashAndBundlesTest extends TestCase
         $this->actingAs($this->seller1)->post(route('seller.flash-sales.store'), $slot)->assertSessionHas('success');
         $this->actingAs($this->seller1)->get(route('seller.flash-sales.index'))->assertSee('Upcoming');
 
-        $this->travelTo(now()->setTime(12, 30));
+        $this->travelTo(now()->setTime(11, 59));
         Product::forgetFlashSales();
-        $html = $this->actingAs($this->buyer1)->get(route('products.show', $this->p02->slug))->assertSee('FLASH SALE')->assertSee('₱299.00')->getContent();
+        $this->actingAs($this->buyer1)->get(route('products.show', $this->p02->slug))->assertDontSee('FLASH SALE')->assertSee('₱450.00');
+
+        $this->travelTo(now()->setTime(12, 0));
+        Product::forgetFlashSales();
+        $html = $this->actingAs($this->buyer1)->get(route('products.show', $this->p02->slug))->assertSee('FLASH SALE')->assertSee('₱299.00')->assertSee('3 of 3 left')->getContent();
         $this->assertStringContainsString('id="pd-countdown" data-ends="' . now()->setTime(14, 0)->toIso8601String() . '"', $html);
     }
 
-    /** SEL-FLASH-002 */
-    public function test_sel_flash_002_flash_quantity_cannot_exceed_stock(): void
+    /** SEL-FLASH-002 (A17) */
+    public function test_sel_flash_002_flash_quantity_and_price_validation(): void
     {
-        $slot = fn ($day, $qty) => ['product_id' => $this->p02->id, 'flash_price' => 299, 'quantity' => $qty,
+        $slot = fn ($day, $qty, $price = 299) => ['product_id' => $this->p02->id, 'flash_price' => $price, 'quantity' => $qty,
             'starts_at' => now()->addDays($day)->format('Y-m-d H:i'), 'ends_at' => now()->addDays($day)->addHour()->format('Y-m-d H:i')];
-        $this->actingAs($this->seller1)->post(route('seller.flash-sales.store'), $slot(1, 21))->assertSessionHasErrors(['quantity' => 'Only 20 in stock.']);
-        $this->actingAs($this->seller1)->post(route('seller.flash-sales.store'), $slot(2, 20))->assertSessionHasNoErrors();
-        $this->assertSame(1, FlashSale::count());
+        $store = fn ($data) => $this->actingAs($this->seller1)->from(route('seller.flash-sales.index'))->post(route('seller.flash-sales.store'), $data);
+
+        $store($slot(1, 0))->assertSessionHasErrors('quantity');
+        $store($slot(1, 21))->assertSessionHasErrors(['quantity' => 'Only 20 in stock.']);
+        $store($slot(1, 3, 450))->assertSessionHasErrors(['flash_price' => 'The flash price must be lower than the current price (₱450.00).']);
+        $this->assertSame(0, FlashSale::count());
+
+        $store($slot(2, 20))->assertSessionHasNoErrors();
+        $store($slot(3, 3, 449.99))->assertSessionHasNoErrors();
+        $this->assertSame(2, FlashSale::count());
     }
 
     /** SEL-FLASH-003 (A5) */
-    public function test_sel_flash_003_price_returns_when_flash_quantity_runs_out(): void
+    public function test_sel_flash_003_price_returns_to_normal_when_flash_quantity_runs_out(): void
     {
         $this->flash(3);
         $order = $this->placeOrder($this->buyer1, [$this->cart($this->buyer1, $this->p02, 3)])->first();
-        $this->assertEquals(299, OrderItem::where('order_id', $order->id)->sole()->price);
+        $item = OrderItem::where('order_id', $order->id)->sole();
+        $this->assertEquals(299, $item->price);
+        $this->assertEquals(897, $item->price * $item->quantity);
 
         Product::forgetFlashSales();
         $this->flushSession();
         $this->actingAs($this->buyer2)->get(route('products.show', $this->p02->slug))->assertDontSee('FLASH SALE')->assertSee('₱450.00');
+        $line = $this->cart($this->buyer2, $this->p02);
+        $this->assertEquals(450, $line->fresh()->unit_price);
+        $this->actingAs($this->buyer2)->get(route('cart.index'))->assertSee('₱450.00');
     }
 
     /** SEL-FLASH-004 (A5) */
-    public function test_sel_flash_004_more_than_the_remaining_flash_quantity(): void
+    public function test_sel_flash_004_order_more_than_the_remaining_flash_quantity(): void
     {
         $sale = $this->flash(3);
         $sale->forceFill(['sold' => 2])->save();
@@ -251,12 +324,14 @@ class S07VouchersFlashAndBundlesTest extends TestCase
         $this->assertSame(3, $sale->fresh()->sold);
         $this->assertEquals(749 + 65, $order->total_price);   // + shipping within NCR (0.8 kg × 2 = 1.6 → 2 kg)
         $this->actingAs($this->buyer1)->get(route('profile.orders.show', $order->id))->assertSee('299.00')->assertSee('450.00');
+        $this->actingAs($this->seller1)->get(route('seller.orders.show', $order->id))->assertSee('299.00')->assertSee('450.00');
     }
 
-    /** SEL-FLASH-005 */
-    public function test_sel_flash_005_countdown_and_slot_end(): void
+    /** SEL-FLASH-005 (A5) */
+    public function test_sel_flash_005_flash_sale_ends_at_the_slot_end(): void
     {
         $sale = $this->flash(3, ['ends_at' => now()->addMinutes(10)]);
+        $line = $this->cart($this->buyer1, $this->p02);
         Product::forgetFlashSales();
         $this->actingAs($this->buyer1)->get(route('products.show', $this->p02->slug))->assertSee('id="pd-countdown"', false);
         // At 0 the page reloads itself so the normal price shows.
@@ -265,42 +340,40 @@ class S07VouchersFlashAndBundlesTest extends TestCase
         $this->travelTo($sale->ends_at->copy()->addSecond());
         Product::forgetFlashSales();
         $this->actingAs($this->buyer1)->get(route('products.show', $this->p02->slug))->assertOk()->assertDontSee('FLASH SALE')->assertSee('₱450.00');
+        $this->assertEquals(450, CartItem::find($line->id)->unit_price);
+        $this->openCheckout($this->buyer1, [$line])->assertOk()->assertSee('₱450.00');
     }
 
     /** SEL-FLASH-006 (A5) */
-    public function test_sel_flash_006_store_sale_and_flash_sale_together(): void
+    public function test_sel_flash_006_overlapping_store_sale_and_flash_sale(): void
     {
         $this->p02->update(['discount_percent' => 20]);   // store sale ₱360
-        $this->flash(3);
+        $sale = $this->flash(3);
+        $sale->forceFill(['sold' => 2])->save();          // 1 flash unit left
         Product::forgetFlashSales();
 
         $this->actingAs($this->buyer1)->get(route('products.show', $this->p02->slug))->assertSee('₱299.00');
-        $line = $this->cart($this->buyer1, $this->p02);
-        $this->assertEquals(299, $line->fresh()->unit_price);
-        $this->actingAs($this->buyer1)->get(route('cart.index'))->assertSee('₱299.00');
-        $this->openCheckout($this->buyer1, [$line])->assertOk()->assertSee('₱299.00');
+        $line = $this->cart($this->buyer1, $this->p02, 2);
+        $this->assertEquals(659, $line->fresh()->subtotal());   // 1 × ₱299 (flash) + 1 × ₱360 (store sale, not ₱450)
+        $this->openCheckout($this->buyer1, [$line])->assertOk()->assertSee('₱299.00 × 1 (flash) + ₱360.00 × 1');
     }
 
     /** SEL-FLASH-007 */
-    public function test_sel_flash_007_bundle_deal_counting(): void
+    public function test_sel_flash_007_bundle_deal_item_counting(): void
     {
         $this->actingAs($this->seller1)->post(route('seller.promotions.store'), ['name' => 'Tote trio', 'type' => 'bundle',
             'product_ids' => [$this->p01->id], 'min_qty' => 3, 'discount_percent' => 15])->assertSessionHasNoErrors();
         $this->actingAs($this->seller1)->get(route('seller.promotions.index'))->assertSee('Tote trio')->assertSee('Buy 3, get 15% off');
+        $quote = fn ($lines) => app(VoucherService::class)->quote(collect($lines)->map->fresh(), $this->buyer1, null, [], null, [], false)['promo_discount'];
 
-        $lines = [$this->cart($this->buyer1, $this->p01, 1, 'Natural / S'), $this->cart($this->buyer1, $this->p01, 1, 'Black / L')];
-        $q = app(VoucherService::class)->quote(collect($lines), $this->buyer1, null, [], null, [], false);
-        $this->assertEquals(0, $q['promo_discount']);
+        $naturalS = $this->cart($this->buyer1, $this->p01, 2, 'Natural / S');
+        $this->assertEquals(0, $quote([$naturalS]));                       // 2 items: no discount
 
-        $lines[] = $this->cart($this->buyer1, $this->p01, 1, 'Natural / M');   // 199 + 299 + 249 = 747
-        $q = app(VoucherService::class)->quote(collect($lines)->map->fresh(), $this->buyer1, null, [], null, [], false);
-        $this->assertEquals(112.05, $q['promo_discount']);   // 15% of ₱747
+        $blackL = $this->cart($this->buyer1, $this->p01, 1, 'Black / L');   // 199 × 2 + 299 = 697
+        $this->assertEquals(104.55, $quote([$naturalS, $blackL]));          // 15% of ₱697
 
-        $order = $this->placeOrder($this->buyer1, $lines)->first();
-        $this->assertEquals(112.05, $order->promo_discount);
-        $this->assertEquals(round(747 - 112.05 + 65, 2), (float) $order->total_price);   // 1.2 kg → 2 kg within NCR
-        // Seller-funded: commission (5%) is on what was charged.
-        $this->assertEquals(round((747 - 112.05) * 0.95, 2), round(OrderItem::where('order_id', $order->id)->sum('seller_earning'), 2));
+        $naturalS->update(['quantity' => 1]);
+        $this->assertEquals(0, $quote([$naturalS, $blackL]));               // back to 2 items: removed
     }
 
     /** SEL-FLASH-008 */
@@ -314,11 +387,11 @@ class S07VouchersFlashAndBundlesTest extends TestCase
         $basket = $this->cart($this->buyer1, $this->p02, 2);
         $mat    = $this->cart($this->buyer1, $this->p04, 1);
         $q = app(VoucherService::class)->quote(collect([$basket, $mat]), $this->buyer1, null, [], null, [], false);
-        $this->assertEquals(350, $q['promo_discount']);   // the placemat is free
+        $this->assertEquals(350, $q['promo_discount']);   // P-04 shows ₱0.00
         $this->assertEquals(900, $q['subtotal']);
 
         $basket->update(['quantity' => 1]);
         $q = app(VoucherService::class)->quote(collect([$basket->fresh(), $mat->fresh()]), $this->buyer1, null, [], null, [], false);
-        $this->assertEquals(0, $q['promo_discount']);   // back to its normal price
+        $this->assertEquals(0, $q['promo_discount']);     // P-04 back to ₱350.00
     }
 }

@@ -77,15 +77,15 @@ class Voucher extends Model
             ->where(fn ($q) => $q->whereNull('usage_limit')->orWhereColumn('used_count', '<', 'usage_limit'));
     }
 
-    /** "Running", "Scheduled", "Ended", "Used up" or "Off", for lists. */
+    /** "Ongoing", "Upcoming", "Ended", "Used up" or "Off", for lists. */
     public function stateLabel(): string
     {
         return match (true) {
             ! $this->is_active                                            => 'Off',
             $this->usage_limit !== null && $this->used_count >= $this->usage_limit => 'Used up',
             $this->ends_at && $this->ends_at->isPast()                    => 'Ended',
-            $this->starts_at && $this->starts_at->isFuture()              => 'Scheduled',
-            default                                                       => 'Running',
+            $this->starts_at && $this->starts_at->isFuture()              => 'Upcoming',
+            default                                                       => 'Ongoing',
         };
     }
 

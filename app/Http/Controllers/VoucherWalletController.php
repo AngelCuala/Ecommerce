@@ -38,7 +38,7 @@ class VoucherWalletController extends Controller
 
     public function claim(Voucher $voucher)
     {
-        if (! $voucher->is_claimable || $voucher->stateLabel() !== 'Running') {
+        if (! $voucher->is_claimable || $voucher->stateLabel() !== 'Ongoing') {
             return back()->with('error', 'This voucher can\'t be claimed right now.');
         }
 

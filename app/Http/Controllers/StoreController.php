@@ -34,6 +34,9 @@ class StoreController extends Controller
 
         $chosen = $request->filled('scat') && $request->scat !== 'none'
             ? \App\Models\StoreCategory::where('seller_id', $seller->id)->where('is_hidden', false)->find((int) $request->scat) : null;
+        if ($request->filled('scat') && $request->scat !== 'none' && ! $chosen) {
+            return redirect()->route('stores.show', $seller->id)->with('error', 'That category is not available.');
+        }
 
         $products = (clone $base)
             ->with('category')->withAvg('reviews', 'rating')

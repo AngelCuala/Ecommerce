@@ -17,7 +17,7 @@ use Illuminate\Validation\Rules\Password;
 class ProfileController extends Controller
 {
     /** Minutes a code for an email / phone change is valid. */
-    private const CODE_MINUTES = 10;
+    private const CODE_MINUTES = 5;   // a contact-change code expires after 5 minutes
     private const CODE_ATTEMPTS = 5;
 
     /** Overview / landing */
@@ -113,12 +113,16 @@ class ProfileController extends Controller
         $user = auth()->user();
 
         $data = $request->validate([
-            'name'     => 'required|string|max:255',
+            // Letters (any language), spaces and . - ' only, at least 2 characters (e.g. "Juan Miguel Jr.").
+            'name'     => ['required', 'string', 'min:2', 'max:100', "regex:/^\pL[\pL\s.'\-]*$/u"],
             'bio'      => 'nullable|string|max:500',
             'sex'      => 'nullable|in:Male,Female',
             'birthday' => 'nullable|date|before:today',
             'avatar'   => 'nullable|file|mimes:jpg,jpeg,png|mimetypes:image/jpeg,image/png|max:5120',
         ], [
+            'name.required'    => 'Please enter your name.',
+            'name.min'         => 'Your name must be at least 2 characters.',
+            'name.regex'       => 'Your name may only contain letters, spaces and . - \' (no numbers or symbols).',
             'avatar.mimes'     => 'The profile photo must be a JPG or PNG image.',
             'avatar.mimetypes' => 'The profile photo must be a real JPG or PNG image.',
             'avatar.max'       => 'The profile photo can be at most 5 MB.',
@@ -178,7 +182,13 @@ class ProfileController extends Controller
         $request->merge(['phone' => PhoneNumber::normalize($request->input('phone'))]);
 
         $request->validate([
-            'phone' => ['required', 'regex:' . PhoneNumber::PATTERN, Rule::notIn([$user->phone])],
+            'phone' => ['required', 'regex:' . PhoneNumber::PATTERN, Rule::notIn([$user->phone]),
+                function ($attr, $value, $fail) use ($user) {
+                    $taken = \App\Models\User::whereKeyNot($user->id)->where(fn ($q) => $q->where('phone', $value)->orWhere('contact_no', $value))->exists();
+                    if ($taken) {
+                        $fail('That mobile number is already used by another account.');
+                    }
+                }],
         ], [
             'phone.regex'  => 'Enter a valid PH mobile number: 09XXXXXXXXX (11 digits) or +639XXXXXXXXX.',
             'phone.not_in' => 'That is already your phone number.',

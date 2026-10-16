@@ -4,8 +4,8 @@
 --}}
 @php
     $stateStyle = [
-        'Running'   => 'background:#ECFDF5;color:#047857;',
-        'Scheduled' => 'background:#EFF6FF;color:#1D4ED8;',
+        'Ongoing'   => 'background:#ECFDF5;color:#047857;',
+        'Upcoming'  => 'background:#EFF6FF;color:#1D4ED8;',
         'Ended'     => 'background:#F5F5F4;color:#78716C;',
         'Used up'   => 'background:#F5F5F4;color:#78716C;',
         'Off'       => 'background:#FEF2F2;color:#B91C1C;',

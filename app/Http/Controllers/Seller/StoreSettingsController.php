@@ -58,6 +58,7 @@ class StoreSettingsController extends Controller
             'shop_name.required' => 'Please enter your store name.',
             'shop_name.min'      => 'Store name must be 3 to 30 characters.',
             'shop_name.max'      => 'Store name must be 3 to 30 characters.',
+            'description.max'    => 'The store description can be up to 500 characters.',
             'phone.required'     => 'Please enter a contact number.',
             'phone.regex'        => 'Please enter a valid mobile number: 11 digits starting with 09 (e.g. 09171234567).',
             'region.required'    => 'Please choose the pickup address region.',

@@ -69,13 +69,17 @@ class ProductSearch
                 ->orWhereHas('category', fn ($c) => $c->where('name', 'like', $like)));
         }
 
-        // Price range — both ends included. Min above max is swapped, with a note.
+        // Price range — both ends included. A negative price, or a minimum above the maximum, is
+        // rejected with a note and the price filter is not applied.
         $min = is_numeric($request->min_price) ? (float) $request->min_price : null;
         $max = is_numeric($request->max_price) ? (float) $request->max_price : null;
-        if ($min !== null && $max !== null && $min > $max) {
-            [$min, $max] = [$max, $min];
-            $notes['price'] = 'The minimum price was higher than the maximum, so we swapped them: ₱'
-                . number_format($min, 2) . ' – ₱' . number_format($max, 2) . '.';
+        if (($min !== null && $min < 0) || ($max !== null && $max < 0)) {
+            $notes['price'] = 'Prices can\'t be negative, so the price filter was not applied.';
+            $min = $max = null;
+        } elseif ($min !== null && $max !== null && $min > $max) {
+            $notes['price'] = 'The minimum price (₱' . number_format($min, 2) . ') is higher than the maximum (₱'
+                . number_format($max, 2) . '), so the price filter was not applied.';
+            $min = $max = null;
         }
         // The bounds are floats already, so they go in as numbers (some drivers bind floats as text).
         if ($min !== null) {

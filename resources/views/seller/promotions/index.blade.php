@@ -69,7 +69,7 @@
                     <td class="px-4 py-3"><p class="font-semibold">{{ $promo->name }}</p><p class="text-xs" style="color:#8a7f78;">{{ $promo->label() }}@if ($promo->freeProduct) · free: {{ $promo->freeProduct->title }}@endif</p></td>
                     <td class="px-4 py-3 text-xs">{{ collect($promo->product_ids)->map(fn ($id) => $names[$id] ?? '#' . $id)->join(', ') }}</td>
                     <td class="px-4 py-3 text-xs">{{ $promo->starts_at?->format('M d, g:i A') ?? 'Now' }} – {{ $promo->ends_at?->format('M d, g:i A') ?? 'No end' }}</td>
-                    <td class="px-4 py-3 text-xs">{{ ! $promo->is_active ? 'Off' : ($promo->ends_at && $promo->ends_at->isPast() ? 'Ended' : ($promo->starts_at && $promo->starts_at->isFuture() ? 'Upcoming' : 'Running')) }}</td>
+                    <td class="px-4 py-3 text-xs">{{ ! $promo->is_active ? 'Off' : ($promo->ends_at && $promo->ends_at->isPast() ? 'Ended' : ($promo->starts_at && $promo->starts_at->isFuture() ? 'Upcoming' : 'Ongoing')) }}</td>
                     <td class="whitespace-nowrap px-4 py-3 text-right">
                         <form method="POST" action="{{ route('seller.promotions.toggle', $promo) }}" class="inline">@csrf @method('PATCH')<button class="text-xs font-semibold" style="color:#57534E;">{{ $promo->is_active ? 'Turn off' : 'Turn on' }}</button></form>
                         <form method="POST" action="{{ route('seller.promotions.destroy', $promo) }}" class="ml-2 inline" onsubmit="return confirm('Delete this promotion?')">@csrf @method('DELETE')<button class="text-xs font-semibold" style="color:#B91C1C;">Delete</button></form>

@@ -45,15 +45,15 @@ class B01AccountAndAddressTest extends TestCase
             ->assertSessionHasErrors('avatar');
     }
 
-    /** BUY-ACCT-002, 003, 004 */
+    /** BUY-ACCT-003, 004, 005 (the full rule list is in B15) */
     public function test_change_password_rules(): void
     {
         $change = fn ($old, $new, $confirm) => $this->actingAs($this->buyer1)->from(route('profile.security'))
             ->patch(route('profile.change-password'), ['current_password' => $old, 'password' => $new, 'password_confirmation' => $confirm]);
 
-        // 003: wrong current password.
+        // 004: wrong current password.
         $change('Wrong@2026', 'Mamimili@2027', 'Mamimili@2027')->assertSessionHasErrors(['current_password' => 'Current password is incorrect.']);
-        // 004: each rule has its own message.
+        // 005: each rule has its own message.
         $change('Mamimili@2026', 'short1!', 'short1!')->assertSessionHasErrors('password');
         $this->assertStringContainsString('8 characters', session('errors')->first('password'));
         $change('Mamimili@2026', 'mamimili@2027', 'mamimili@2027')->assertSessionHasErrors('password');
@@ -61,22 +61,22 @@ class B01AccountAndAddressTest extends TestCase
         $change('Mamimili@2026', 'Mamimili@2027', 'Mamimili@2028')->assertSessionHasErrors(['password' => 'The new password and its confirmation do not match.']);
         $this->assertTrue(Hash::check('Mamimili@2026', $this->buyer1->fresh()->password));
 
-        // 002: the new password works, the old one doesn't.
+        // 003: the new password works, the old one doesn't.
         $change('Mamimili@2026', 'Mamimili@2027', 'Mamimili@2027')->assertSessionHasNoErrors();
         $this->assertTrue(Hash::check('Mamimili@2027', $this->buyer1->fresh()->password));
         $this->assertFalse(Hash::check('Mamimili@2026', $this->buyer1->fresh()->password));
     }
 
-    /** BUY-ACCT-005, 006 */
+    /** BUY-ACCT-006, 008 */
     public function test_change_email_only_after_the_code(): void
     {
         Mail::fake();
 
-        // 006: an email someone else uses.
+        // 008: an email someone else uses.
         $this->actingAs($this->buyer1)->post(route('profile.email.change'), ['email' => 'anamarie.reyes@example.com'])
             ->assertSessionHasErrors(['email' => 'That email address is already in use by another account.']);
 
-        // 005: code goes to the new address; the old email stays until it is entered.
+        // 006: code goes to the new address; the old email stays until it is entered.
         $this->actingAs($this->buyer1)->post(route('profile.email.change'), ['email' => 'buyer.test01@example.com'])->assertSessionHas('success');
         $this->assertSame('juanmiguel.delacruz@example.com', $this->buyer1->fresh()->email);
         $code = null;
@@ -94,7 +94,7 @@ class B01AccountAndAddressTest extends TestCase
         $this->assertNull($this->buyer1->fresh()->pending_email);
     }
 
-    /** BUY-ACCT-007 */
+    /** BUY-ACCT-009 */
     public function test_change_phone_after_verification(): void
     {
         Mail::fake();
@@ -120,7 +120,7 @@ class B01AccountAndAddressTest extends TestCase
             'municipality_code' => '137602000', 'barangay_code' => '137602025'];
     }
 
-    /** BUY-ADDR-001, 002, 003 (002 is checked on the server here, the dropdowns in the browser) */
+    /** BUY-ADDR-001, 002, 003, 004 (002 is checked on the server here, the dropdowns in the browser) */
     public function test_add_address_and_validation(): void
     {
         $this->actingAs($this->buyer2)->post(route('addresses.store'), $this->addressForm())->assertSessionHasNoErrors();
@@ -131,7 +131,7 @@ class B01AccountAndAddressTest extends TestCase
         $this->actingAs($this->buyer2)->post(route('addresses.store'), $this->addressForm(['municipality_code' => '']))
             ->assertSessionHasErrors('municipality_code');
 
-        // 003: phone formats and required fields.
+        // 004: phone formats; 003: required fields.
         foreach (['0917123', '091712345678'] as $bad) {
             $this->actingAs($this->buyer2)->post(route('addresses.store'), $this->addressForm(['phone' => $bad]))->assertSessionHasErrors('phone');
         }
@@ -141,7 +141,7 @@ class B01AccountAndAddressTest extends TestCase
         }
     }
 
-    /** BUY-ADDR-004 */
+    /** BUY-ADDR-006 */
     public function test_set_default_and_checkout_preselects_it(): void
     {
         $this->actingAs($this->buyer1)->patch(route('addresses.set-default', $this->addr2))->assertSessionHas('success');
@@ -151,7 +151,7 @@ class B01AccountAndAddressTest extends TestCase
         $this->assertSame($this->addr2->id, $this->openCheckout($this->buyer1, [$line])->assertOk()->viewData('address')->id);
     }
 
-    /** BUY-ADDR-005 (A30: the default can't be deleted until another address is the default) */
+    /** BUY-ADDR-007 (A30: the default can't be deleted until another address is the default) */
     public function test_default_address_is_deleted_only_after_another_is_default(): void
     {
         $this->assertTrue($this->addr1->is_default);
@@ -164,7 +164,7 @@ class B01AccountAndAddressTest extends TestCase
         $this->assertSame([$this->addr4->id], $this->buyer1->addresses()->where('is_default', true)->pluck('id')->all());
     }
 
-    /** A30: up to 10 addresses per buyer. */
+    /** BUY-ADDR-005 (A30: up to 10 addresses per buyer) */
     public function test_up_to_ten_addresses(): void
     {
         foreach (range(1, 10 - $this->buyer1->addresses()->count()) as $i) {
@@ -176,7 +176,7 @@ class B01AccountAndAddressTest extends TestCase
         $this->assertSame(10, $this->buyer1->addresses()->count());
     }
 
-    /** BUY-ADDR-006, 007 */
+    /** BUY-ADDR-008 */
     public function test_address_in_use_and_edits_do_not_touch_orders(): void
     {
         $order = Order::create(['user_id' => $this->buyer1->id, 'address_id' => $this->addr2->id, 'status' => 'Pending',
@@ -184,11 +184,11 @@ class B01AccountAndAddressTest extends TestCase
             'city' => 'Quezon City', 'zip_code' => '1100', 'shipping_address' => $this->addr2->full_address,
             'total_price' => 500, 'payment_method' => 'COD', 'payment_status' => 'Pending']);
 
-        // 006: blocked while the order is on its way; the order keeps its copy.
+        // Blocked while the order is on its way; the order keeps its copy.
         $this->actingAs($this->buyer1)->delete(route('addresses.destroy', $this->addr2))->assertSessionHas('error');
         $this->assertNotNull(UserAddress::find($this->addr2->id));
 
-        // 007: the new street is saved; the order keeps the old address.
+        // The new street is saved; the order keeps the old address.
         $this->actingAs($this->buyer1)->patch(route('addresses.update', $this->addr2), $this->addressForm(['address_line' => '14F Pacific Tower']))
             ->assertSessionHasNoErrors();
         $this->assertSame('14F Pacific Tower', $this->addr2->fresh()->address_line);
