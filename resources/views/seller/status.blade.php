@@ -9,7 +9,7 @@
         @include('profile._styles')
     </x-slot:head>
     <x-slot:topRight>
-        <form action="{{ route('logout') }}" method="POST">
+        <form action="{{ \App\Support\Portal::route('logout') }}" method="POST">
             @csrf
             <button type="submit" class="inline-flex items-center gap-1.5 rounded-full bg-white/70 px-3.5 py-1.5 text-sm font-semibold shadow-sm transition hover:bg-white" style="color:#5a4d45;">Log out</button>
         </form>

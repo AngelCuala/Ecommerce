@@ -36,7 +36,9 @@ class R01ProfileAndAvailabilityTest extends TestCase
     /** RID-PROF-001 (A1) */
     public function test_rid_prof_001_view_profile_vehicle_and_status(): void
     {
-        $this->actingAs($this->rider1->user)->get(route('courier.rider.profile'))->assertOk()
+        // The rider profile is part of the Account page; the old address leads there.
+        $this->actingAs($this->rider1->user)->get(route('courier.rider.profile'))->assertRedirect(route('courier.account') . '#rider-profile');
+        $this->actingAs($this->rider1->user)->get(route('courier.account'))->assertOk()->assertSee('id="rider-profile"', false)
             ->assertSee('Pedro Jose Garcia')->assertSee('N01-23-456789')->assertSee('03/22/2030')
             ->assertSee('Motorcycle')->assertSee('123ABC')->assertSee('Bilis Hatid Express Inc.')->assertSee('Active');
 
@@ -111,7 +113,9 @@ class R01ProfileAndAvailabilityTest extends TestCase
         $this->assertNotContains($this->rider3->id, $this->dispatcher()->eligibleRiders($this->logistics1->id)->pluck('id')->all());
         $this->actingAs($this->logistics1)->post(route('sc.dispatch.assign', $parcel), ['rider_id' => $this->rider3->id])
             ->assertSessionHas('error', 'Ramon Cruz is suspended.');
-        $this->actingAs($this->logistics1)->get(route('sc.dispatch'))->assertOk()->assertDontSee('<option value="' . $this->rider3->id . '"', false);
+        $this->actingAs($this->logistics1)->get(route('sc.dispatch'))->assertOk()   // listed so the hub sees why, but it can't be picked
+            ->assertDontSee('<option value="' . $this->rider3->id . '" data-available', false)
+            ->assertSee('<option value="' . $this->rider3->id . '" disabled>Ramon Cruz · suspended</option>', false);
     }
 
     /** RID-PROF-007 (A22) */
@@ -147,7 +151,7 @@ class R01ProfileAndAvailabilityTest extends TestCase
         $this->assertSame($this->rider2->id, $this->dispatcher()->offer($parcel)->rider_id);
         $this->assertSame(0, RiderJobOffer::where('rider_id', $this->rider1->id)->count());
         $this->actingAs($this->logistics1)->get(route('sc.dispatch'))
-            ->assertDontSee('<option value="' . $this->rider1->id . '"', false)->assertSee('<option value="' . $this->rider2->id . '"', false);
+            ->assertSee('<option value="' . $this->rider1->id . '" disabled>', false)->assertSee('<option value="' . $this->rider2->id . '" data-available', false);
     }
 
     /** RID-AVAIL-003 (A14) */

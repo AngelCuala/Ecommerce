@@ -13,7 +13,8 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('payments', function (Blueprint $t) {
+        // Guarded: an earlier partial run may already have created these.
+        if (! Schema::hasTable('payments')) Schema::create('payments', function (Blueprint $t) {
             $t->id();
             $t->foreignId('user_id')->constrained()->cascadeOnDelete();
             $t->uuid('checkout_group')->index();
@@ -30,8 +31,8 @@ return new class extends Migration
         });
 
         Schema::table('orders', function (Blueprint $t) {
-            $t->timestamp('pay_by')->nullable()->after('payment_status');     // unpaid online orders cancel after this
-            $t->decimal('refunded_amount', 12, 2)->default(0)->after('pay_by');
+            if (! Schema::hasColumn('orders', 'pay_by')) $t->timestamp('pay_by')->nullable()->after('payment_status');     // unpaid online orders cancel after this
+            if (! Schema::hasColumn('orders', 'refunded_amount')) $t->decimal('refunded_amount', 12, 2)->default(0)->after('pay_by');
         });
 
         Schema::create('flash_sales', function (Blueprint $t) {
@@ -41,8 +42,9 @@ return new class extends Migration
             $t->decimal('flash_price', 12, 2);
             $t->unsignedInteger('quantity');
             $t->unsignedInteger('sold')->default(0);
-            $t->timestamp('starts_at')->index();
-            $t->timestamp('ends_at');
+            // dateTime: MariaDB/MySQL give a NOT NULL timestamp an implicit (invalid / auto-updating) default.
+            $t->dateTime('starts_at')->index();
+            $t->dateTime('ends_at');
             $t->timestamp('reminders_sent_at')->nullable();
             $t->timestamps();
         });

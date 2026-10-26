@@ -109,15 +109,26 @@ $navSections = [
             'Finance' => [
                 'reports'   => ['route' => 'seller.reports',      'label' => 'Sales Reports',    'icon' => 'chart'],
                 'earnings'  => ['route' => 'seller.earnings',     'label' => 'Earnings & Payouts', 'icon' => 'activity'],
+                'commissions' => ['route' => 'seller.commissions', 'label' => 'Commission',      'icon' => 'file'],
             ],
             'General' => [
-                'messages'  => ['route' => 'messages.inbox',      'label' => 'Messages',         'icon' => 'chat'],
+                'notifications' => ['route' => 'seller.notifications', 'label' => 'Notifications', 'icon' => 'bell'],
+                'messages'  => ['route' => \App\Support\Portal::enabled() ? 'seller.messages.inbox' : 'messages.inbox',      'label' => 'Messages',         'icon' => 'chat'],
                 'store'     => ['route' => 'seller.store-settings', 'label' => 'Store Settings', 'icon' => 'store'],
                 'account'   => ['route' => 'seller.account',      'label' => 'Account',          'icon' => 'user'],
             ],
         ];
+        // New notifications per section (new orders, parcel updates, low stock…), cleared when the section is opened.
+        $sectionBadges = auth()->check() ? \App\Support\SellerBadges::counts(auth()->user()) : [];
+        foreach ($navSections as $sectionName => $items) {
+            foreach ($items as $itemKey => $item) {
+                $navSections[$sectionName][$itemKey]['badge'] = $sectionBadges[$itemKey] ?? 0;
+            }
+        }
+        $navSections['General']['notifications']['badge'] = auth()->check() ? auth()->user()->notifications()->whereNull('read_at')->count() : 0;
     @endphp
-    <aside class="hidden w-64 shrink-0 flex-col border-r lg:flex"
+    {{-- Pinned: stays in view while the page scrolls; only the menu scrolls if the window is short. --}}
+    <aside class="sticky top-0 hidden h-screen w-64 shrink-0 flex-col self-start overflow-hidden border-r lg:flex"
            style="background:#FFFFFF;border-color:#EFEFEF;">
 
         {{-- Logo --}}

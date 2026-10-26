@@ -16,6 +16,12 @@
 return [
 
     'rates' => [
+        // Distance tiers: used when the seller's pickup address and the buyer's address are
+        // close (compared by PSGC code). Further away, the zone routes below apply.
+        'Same city'         => [40, 10],
+        'Same province'     => [50, 15],
+        'Same region'       => [55, 18],
+
         'NCR-NCR'           => [50, 15],
         'NCR-Luzon'         => [70, 25],
         'Luzon-Luzon'       => [60, 20],

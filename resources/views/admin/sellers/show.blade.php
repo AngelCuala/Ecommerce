@@ -196,7 +196,7 @@
                             <span class="block text-xs line-through" style="color:#9db3c4;">₱{{ number_format($p->price, 2) }}</span>
                         @endif
                     </td>
-                    <td class="px-3 py-2 text-right" style="{{ $p->stock <= 5 ? 'color:#B91C1C;font-weight:600;' : '' }}">{{ $p->stock }}</td>
+                    <td class="px-3 py-2 text-right" style="{{ $p->stock <= $p->lowStockThreshold() ? 'color:#B91C1C;font-weight:600;' : '' }}">{{ $p->stock }}</td>
                     <td class="px-3 py-2 text-right">{{ (int) $p->sold }}</td>
                     <td class="px-3 py-2">
                         <span class="rounded-md px-2 py-0.5 text-xs font-semibold" style="{{ $stateStyle }}">{{ $stateLabel }}</span>
@@ -209,7 +209,7 @@
                             <a href="{{ route('admin.product-approvals.index', ['search' => $p->product_code ?: $p->title]) }}" style="color:#B45309;">Review</a>
                             <span class="mx-1" style="color:#E7E5E4;">|</span>
                         @endif
-                        <a href="{{ route('admin.products.edit', $p->id) }}" style="color:#fa4e1c;">Edit</a>
+                        <a href="{{ route('products.show', $p->slug) }}" target="_blank" rel="noopener" style="color:#fa4e1c;">View</a>
                     </td>
                 </tr>
             @empty

@@ -18,6 +18,12 @@
         <table class="data-table">
             <tbody>
                 <tr><th>Status</th><td>{{ $rider->statusLabel() }} · {{ $rider->isOnlineNow() ? 'Online' : 'Offline' }} · {{ $rider->activeJobsCount() }} active jobs</td></tr>
+                <tr><th>Hub transfers</th><td>
+                    {{ $rider->can_transport_transfers ? 'Allowed to carry parcels between sorting centers' : 'Last-mile only (not allowed to carry hub transfers)' }}
+                    <form method="POST" action="{{ route('sc.riders.transport', $rider) }}" style="display:inline;margin-left:8px;" onsubmit="return confirm('Change this rider\'s transfer permission?')">@csrf
+                        <button class="btn btn-ghost btn-sm" data-transport-toggle>{{ $rider->can_transport_transfers ? 'Stop transfers' : 'Allow transfers' }}</button>
+                    </form>
+                </td></tr>
                 <tr><th>Email / phone</th><td>{{ $rider->user->email ?? '—' }} · {{ $rider->phone ?? '—' }}</td></tr>
                 <tr><th>Vehicle</th><td>{{ $rider->vehicle_type ?? '—' }}</td></tr>
                 <tr><th>Plate number</th><td data-plate>{{ $rider->plate_number ?? '—' }}</td></tr>

@@ -58,7 +58,7 @@
                         </div>
                     </td>
                     <td class="px-3 py-3">
-                        <span class="rounded-full px-2.5 py-1 text-xs font-semibold"
+                        <span class="inline-block whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold"
                               style="background:#FEF2F2;color:#DC2626;">
                             {{ $book->category->name ?? '—' }}
                         </span>
@@ -69,7 +69,7 @@
                     </td>
                     <td class="px-5 py-3 text-right">
                         <a href="{{ route('admin.compliance.show', $book->seller_id) }}"
-                           class="rounded-lg px-3 py-1.5 text-xs font-bold transition"
+                           class="inline-block whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-bold transition"
                            style="background:#e8f0f6;color:#fa4e1c;border:1px solid #cfdce8;"
                            onmouseover="this.style.background='#fa4e1c';this.style.color='#fff';"
                            onmouseout="this.style.background='#e8f0f6';this.style.color='#fa4e1c';">

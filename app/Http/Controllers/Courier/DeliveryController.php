@@ -125,24 +125,99 @@ class DeliveryController extends Controller
     }
 
     /** View delivery history with optional filters (status, order id, date). */
+    /** Status groups on Delivery History: [label, pill class]. */
+    public const HISTORY_STATUSES = [
+        'in_progress' => ['In progress', 'cx-pill-orange'],
+        'delivered'   => ['Delivered', 'cx-pill-green'],
+        'failed'      => ['Failed / returned', 'cx-pill-red'],
+    ];
+
+    /**
+     * Delivery History: the rider's delivery jobs from their logistics company (parcel_deliveries, every
+     * attempt) plus any jobs from the older courier marketplace (deliveries), newest first, filterable by
+     * order number or tracking number, status and day.
+     */
     public function history(Request $request)
     {
-        $courier = $this->myCourier();
+        $request->validate([
+            'q'      => 'nullable|string|max:40',
+            'status' => 'nullable|in:' . implode(',', array_keys(self::HISTORY_STATUSES)),
+            'date'   => 'nullable|date_format:Y-m-d',
+        ]);
+        $rider   = \App\Models\Rider::where('user_id', auth()->id())->where('application_status', 'approved')->first();
+        $courier = auth()->user()->courier;
+        abort_unless($rider || ($courier && $courier->isApproved()), 403, 'An approved courier profile is required to use the courier portal.');
 
-        $status  = $request->query('status');
-        $orderId = $request->query('order_id');
-        $date    = $request->query('date');
+        $rows = collect();
+        if ($rider) {
+            $rows = \App\Models\ParcelDelivery::where('rider_id', $rider->id)->with(['parcel.order', 'parcel.seller', 'area'])->get()
+                ->map(function (\App\Models\ParcelDelivery $d) {
+                    $done = $d->status === 'delivered';
+                    return (object) [
+                        'order'    => $d->parcel?->order?->number() ?? '—',
+                        'tracking' => $d->parcel?->tracking_number,
+                        'buyer'    => $d->parcel?->receiver_name ?? $d->parcel?->order?->full_name,
+                        'place'    => collect([$d->area?->name, $d->parcel?->destination_municipality])->filter()->implode(', '),
+                        'seller'   => $d->parcel?->seller?->storeName(),
+                        'group'    => match ($d->status) { 'delivered' => 'delivered', 'failed', 'returned' => 'failed', default => 'in_progress' },
+                        'label'    => match ($d->status) {
+                            'assigned' => 'Assigned', 'out_for_delivery' => 'Out for delivery', 'delivered' => 'Delivered',
+                            'returned' => 'Returned', default => 'Failed',
+                        },
+                        'note'     => in_array($d->status, ['failed', 'returned'], true) ? ($d->failure_reason ?: $d->remarks) : null,
+                        'attempt'  => (int) $d->attempt,
+                        'at'       => $done ? ($d->delivered_at ?? $d->updated_at) : $d->updated_at,
+                        'cod'      => (float) ($done ? $d->cod_collected : $d->cod_amount),
+                        'pay'      => $done ? \App\Services\RiderDispatch::PAY_DELIVERY : 0.0,
+                        'url'      => route('courier.rider.deliveries.show', $d->id),
+                    ];
+                });
+        }
+        if ($courier && $courier->isApproved()) {
+            $rows = $rows->concat(Delivery::where('courier_id', $courier->id)->with('order')->get()->map(fn (Delivery $d) => (object) [
+                'order'    => '#' . str_pad((string) $d->order_id, 6, '0', STR_PAD_LEFT),
+                'tracking' => $d->order?->tracking_number,
+                'buyer'    => $d->order?->full_name,
+                'place'    => $d->order?->city,
+                'seller'   => $d->pickupName(),
+                'group'    => match ($d->status) { 'delivered' => 'delivered', 'failed' => 'failed', default => 'in_progress' },
+                'label'    => $d->courierStatusLabel(),
+                'note'     => null,
+                'attempt'  => 1,
+                'at'       => $d->delivered_at ?? $d->updated_at,
+                'cod'      => 0.0,
+                'pay'      => $d->status === 'delivered' ? (float) $d->delivery_fee : 0.0,
+                'url'      => route('courier.deliveries.show', $d->id),
+            ]));
+        }
+        $rows = $rows->sortByDesc(fn ($r) => $r->at?->timestamp ?? 0)->values();
 
-        $deliveries = Delivery::where('courier_id', $courier->id)
-            ->when($status,  fn ($q) => $q->where('status', $status))
-            ->when($orderId, fn ($q) => $q->where('order_id', (int) ltrim($orderId, '#0') ?: 0))
-            ->when($date,    fn ($q) => $q->whereDate('delivered_at', $date))
-            ->with(['order.user', 'order.items.product'])
-            ->latest()
-            ->paginate(15)
-            ->withQueryString();
+        // Totals cover everything, so the cards don't change with the filters.
+        $summary = [
+            'delivered'   => $rows->where('group', 'delivered')->count(),
+            'in_progress' => $rows->where('group', 'in_progress')->count(),
+            'failed'      => $rows->where('group', 'failed')->count(),
+            'earned'      => round($rows->sum('pay'), 2),
+        ];
 
-        return view('courier.history', compact('deliveries', 'courier', 'status', 'orderId', 'date'));
+        $q      = trim((string) $request->query('q'));
+        $status = $request->query('status');
+        $date   = $request->query('date');
+        $needle = ltrim(strtolower($q), '#');
+        $filtered = $rows
+            // A number is an exact order number (66, 000066 or #000066). Other text matches part of the tracking
+            // number; a short number never does, or "66" would also find every tracking number containing 66.
+            ->when($needle !== '', fn ($c) => $c->filter(fn ($r) => (ctype_digit($needle) && (int) ltrim($r->order, '#') === (int) $needle)
+                || ((! ctype_digit($needle) || strlen($needle) >= 6) && $r->tracking && str_contains(strtolower($r->tracking), $needle))))
+            ->when($status, fn ($c) => $c->where('group', $status))
+            ->when($date, fn ($c) => $c->filter(fn ($r) => $r->at?->toDateString() === $date))
+            ->values();
+
+        $page = \Illuminate\Pagination\LengthAwarePaginator::resolveCurrentPage();
+        $deliveries = new \Illuminate\Pagination\LengthAwarePaginator($filtered->forPage($page, 15)->values(), $filtered->count(), 15, $page,
+            ['path' => $request->url(), 'query' => $request->query()]);
+
+        return view('courier.history', compact('deliveries', 'summary', 'q', 'status', 'date'));
     }
 
     /** View a single delivery detail (only the courier's own jobs). */

@@ -46,6 +46,9 @@ class SortingCenterApplicationController extends Controller
         if (! $application->isPending()) {
             return back()->with('error', 'This registration has already been reviewed.');
         }
+        if (! \App\Support\ServiceArea::covers($application->municipality_code, $application->province, $application->municipality)) {
+            return back()->with('error', "{$application->municipality} is outside the service area. " . \App\Support\ServiceArea::message('sorting center location'));
+        }
         if ($conflict = $this->coverageConflict($application)) {
             return back()->with('error',
                 "{$conflict->name} already serves {$application->municipality}. Re-assign that center first.");

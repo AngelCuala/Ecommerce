@@ -55,6 +55,7 @@
                 <td>
                     <form method="POST" action="{{ route('admin.logistics.parcels.sort',$parcel) }}" id="sort-form-{{ $parcel->id }}" style="display:inline;">
                         @csrf
+                        <input name="reason" required minlength="10" maxlength="300" placeholder="Override reason (required)" style="width:190px;">
                         <select name="area_id" style="width:140px;background:var(--bg-input);" onchange="">
                             <option value="">Select area…</option>
                             @foreach($areas as $area)

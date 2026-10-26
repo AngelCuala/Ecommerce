@@ -38,6 +38,9 @@ class CourierController extends Controller
 
     public function approve(Courier $courier, CourierReview $review)
     {
+        if (! \App\Support\ServiceArea::covers(null, $courier->province, $courier->municipality)) {
+            return back()->with('error', $courier->fullName() . "'s address is outside the service area. " . \App\Support\ServiceArea::message('home address') . ' Ask them to update it first.');
+        }
         $review->approve($courier, auth()->user());
 
         return back()->with('success', $courier->fullName() . ' approved as courier.');

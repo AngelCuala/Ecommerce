@@ -11,7 +11,8 @@ use Illuminate\Support\Facades\DB;
 
 /**
  * Storefront search and filters: keyword, price range (on the price buyers actually pay),
- * minimum rating, category, seller location, and sort. Only published, in-stock products.
+ * minimum rating, category, store, seller location, availability, and sort. Only published
+ * products; sold-out ones only when the buyer asks for them (availability=all).
  */
 class ProductSearch
 {
@@ -53,7 +54,8 @@ class ProductSearch
     public function apply(Request $request, ?string $term): array
     {
         $notes = [];
-        $query = Product::query()->published()->where('stock', '>', 0)
+        $query = Product::query()->published()
+            ->when($request->input('availability') !== 'all', fn ($q) => $q->where('stock', '>', 0))
             ->with('category')->withAvg('reviews', 'rating')
             ->withSum(['orderItems as sold' => fn ($q) => $q->whereHas('order', fn ($o) => $o->whereNotIn('status', Order::VOID_STATUSES))], 'quantity');
 
@@ -66,7 +68,8 @@ class ProductSearch
                 ->orWhere('author', 'like', $like)
                 ->orWhere('subcategory', 'like', $like)
                 ->orWhere('description', 'like', $like)
-                ->orWhereHas('category', fn ($c) => $c->where('name', 'like', $like)));
+                ->orWhereHas('category', fn ($c) => $c->where('name', 'like', $like))
+                ->orWhereHas('seller.sellerApplication', fn ($s) => $s->where('status', 'approved')->where('shop_name', 'like', $like)));
         }
 
         // Price range — both ends included. A negative price, or a minimum above the maximum, is
@@ -96,6 +99,11 @@ class ProductSearch
         if ($request->filled('category')) {
             $names = CategoryPageController::categoryNames((string) $request->category);
             $query->whereHas('category', fn ($c) => $c->whereIn('name', $names));
+        }
+
+        // One store (public: published products of an approved seller; nothing private is exposed).
+        if ($request->filled('store') && ctype_digit((string) $request->store)) {
+            $query->where('products.seller_id', (int) $request->store);
         }
 
         if ($request->filled('location')) {

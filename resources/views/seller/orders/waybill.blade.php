@@ -17,7 +17,7 @@
         .row > div + div { border-left: 2px solid #111; }
         .lbl { font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #555; }
         .big { font-size: 22px; font-weight: 800; letter-spacing: .04em; }
-        .bars { height: 46px; margin-top: 6px; background: repeating-linear-gradient(90deg, #111 0 2px, #fff 2px 4px, #111 4px 7px, #fff 7px 9px); }
+        .row svg { display: block; width: 100%; height: 60px; }
         table { width: 100%; border-collapse: collapse; font-size: 12px; }
         td, th { padding: 4px 0; text-align: left; }
         .cod { font-size: 20px; font-weight: 800; }
@@ -35,9 +35,10 @@
 <div class="wb">
     <div class="row">
         <div>
-            <div class="lbl">ALVY waybill · tracking no.</div>
-            <div class="big" data-tracking>{{ $tracking }}</div>
-            <div class="bars" aria-hidden="true"></div>
+            <div class="lbl">ALVY waybill no.</div>
+            <div style="margin-top:6px;">{!! \App\Support\Barcode::svg($waybill ?? $tracking, 60, 2) !!}</div>
+            <div class="big" data-waybill>{{ $waybill ?? $tracking }}</div>
+            @if ($waybill)<div style="font-size:11px;color:#555;">Tracking: <span data-tracking>{{ $tracking }}</span></div>@endif
         </div>
         <div style="flex:0 0 38%;">
             <div class="lbl">Order</div>
@@ -45,7 +46,7 @@
             <div class="lbl" style="margin-top:8px;">Weight</div>
             <div style="font-weight:700;" data-weight>{{ rtrim(rtrim(number_format((float) $weight, 2), '0'), '.') }} kg</div>
             <div class="lbl" style="margin-top:8px;">Payment</div>
-            <div style="font-weight:700;">{{ $order->payment_method }}</div>
+            <div style="font-weight:700;">{{ $order->paymentMethodLabel() }}</div>
         </div>
     </div>
     <div class="row">

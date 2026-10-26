@@ -109,7 +109,8 @@ class RegisteredUserController extends Controller
             'last_name'      => $nameRule,
             'middle_initial' => ['nullable', 'string', 'max:3', 'regex:/^\pL{1,2}\.?$/u'],
             'email'          => ['required', 'string', 'max:255', 'email:rfc', 'regex:/^[^@\s]+@[^@\s]+\.[A-Za-z]{2,}$/', 'unique:users,email'],
-            'password'       => 'required|string|min:8',
+            'password'       => 'required|string|min:8|confirmed',
+            'password_confirmation' => 'required|string',
             'sex'            => 'required|in:male,female', // users.sex is enum('Male','Female')
             'terms'          => 'accepted',
             // Fields now required for all roles
@@ -162,13 +163,17 @@ class RegisteredUserController extends Controller
             'logistics_id.exists'   => 'That sorting center is not available. Please choose another one.',
 
             'password.min'         => 'Password must be at least 8 characters.',
+            'password.confirmed'   => 'The passwords do not match. Please type the same password in both fields.',
+            'password_confirmation.required' => 'Please type your password again to confirm it.',
         ]);
 
         // Resolve the address against the PSA PSGC dataset (official names + codes)
         // when that service is installed; otherwise use the submitted names as-is.
         if ($psgcAvailable) {
             $addr = app(\App\Services\PsgcDirectory::class)->resolve($request->all(), true, $validated['barangay']);
+            \App\Support\ServiceArea::assert($addr['municipality_code'] ?? $addr['municipality_psgc'], null, null, 'municipality');
         } else {
+            \App\Support\ServiceArea::assert($validated['municipality_code'] ?? null, $validated['province'] ?? null, $validated['municipality'], 'municipality');
             $addr = [
                 'province_display' => $validated['province'] ?? null,
                 'municipality'     => $validated['municipality'],
@@ -249,17 +254,15 @@ class RegisteredUserController extends Controller
         }
 
         // Verify the email with a one-time code before the account goes for approval.
-        try {
-            app(LoginOtp::class)->send($user);
-        } catch (\Throwable $e) {
-            // The account exists; the user can press "Resend code" on the next page.
-            Log::warning('Sign-up OTP email failed: ' . $e->getMessage());
-        }
+        // The account exists either way; if the email fails the user can press "Resend code".
+        $sent = app(LoginOtp::class)->trySend($user);
 
         $request->session()->put('otp.user_id', $user->id);
         $request->session()->put('otp.remember', false);
 
-        return redirect()->route('otp.show')->with('success',
-            'Almost done! We sent a 6-digit verification code to ' . LoginOtp::maskEmail($user->email) . '.');
+        return $sent
+            ? redirect()->route('otp.show')->with('success',
+                'Almost done! We sent a 6-digit verification code to ' . LoginOtp::maskEmail($user->email) . '.')
+            : redirect()->route('otp.show')->withErrors(['otp' => LoginOtp::SEND_FAILED]);
     }
 }

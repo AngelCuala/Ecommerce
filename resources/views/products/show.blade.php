@@ -171,6 +171,15 @@
                     <span style="color:#B91C1C;">Sold out</span>
                 @endif
             </p>
+            {{-- Low stock: the product's own alert level (set by the seller), else the store-wide default --}}
+            @php $lowAt = $product->lowStockThreshold(); $stockNow = $product->totalStock(); @endphp
+            @if ($inStock)
+                <p id="pd-low" class="mt-2 inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold" role="status"
+                   style="background:#FFFBEB;color:#B45309;border:1px solid #FDE68A;{{ $stockNow > $lowAt ? 'display:none;' : '' }}" data-low-stock>
+                    <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v4m0 4h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>
+                    <span>Only <span id="pd-low-count">{{ $stockNow }}</span> left &middot; order soon</span>
+                </p>
+            @endif
             @if ($onVacation)
                 <p class="mt-3 rounded-lg px-3 py-2 text-sm font-semibold" style="background:#FFFBEB;color:#B45309;" data-vacation>
                     On vacation — this store isn't taking orders right now. You can still browse and add it to your wishlist.
@@ -202,6 +211,7 @@
             {{-- Purchase --}}
             <form action="{{ route('cart.store', $product->id) }}" method="POST" id="pd-form">
                 @csrf
+                <input type="hidden" name="cart_token" value="{{ \Illuminate\Support\Str::uuid() }}">
 
                 @if ($product->variations->isNotEmpty())
                     <input type="hidden" name="variation_id" id="pd-variation" value="{{ old('variation_id') }}">
@@ -263,7 +273,7 @@
                         <a href="{{ route('stores.show', $product->seller->id) }}" class="truncate text-sm font-semibold hover:underline" style="color:#222;">{{ $product->seller->storeName() }}</a>
                     </div>
                     @auth
-                        <form action="{{ route('messages.new') }}" method="POST">@csrf
+                        <form action="{{ \App\Support\Portal::route('messages.new') }}" method="POST">@csrf
                             <input type="hidden" name="receiver_id" value="{{ $product->seller->id }}">
                             <input type="hidden" name="product_id" value="{{ $product->id }}">
                             <button class="rounded-md border px-3 py-1.5 text-xs font-semibold" style="border-color:#fa4e1c;color:#fa4e1c;">Chat</button>
@@ -367,9 +377,9 @@
 </div>
 
 <script>
-window.PD = { variants: @json($variantData), groups: {{ count($groups) }}, maxQty: {{ $maxQty }}, allowance: @json($allowance), range: @json($priceRange) };
+window.PD = { variants: @json($variantData), groups: {{ count($groups) }}, lowAt: {{ $product->lowStockThreshold() }}, maxQty: {{ $maxQty }}, allowance: @json($allowance), range: @json($priceRange) };
 </script>
-<script src="{{ asset('js/product-page.js') }}?v=4"></script>
+<script src="{{ asset('js/product-page.js') }}?v=6"></script>
 <script>
 // Gallery thumbnails and quantity stepper
 (function () {

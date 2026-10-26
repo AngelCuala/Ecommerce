@@ -20,6 +20,15 @@ return [
 
     // Checks that uploaded ID photos really are government-issued IDs.
     // Without an API key the check is skipped and uploads are flagged for admin review.
+    // ALVY Assistant: the AI help chat on the shop pages (App\Services\Assistant). Hidden until ANTHROPIC_API_KEY is set.
+    'assistant' => [
+        'enabled'     => env('ASSISTANT_ENABLED', true),
+        'api_key'     => env('ANTHROPIC_API_KEY'),
+        'model'       => env('ASSISTANT_MODEL', 'claude-opus-5-5'),
+        'timeout'     => (float) env('ASSISTANT_TIMEOUT', 45),
+        'daily_limit' => (int) env('ASSISTANT_DAILY_LIMIT', 60),   // questions per visitor per day
+    ],
+
     'id_check' => [
         'enabled' => env('ID_CHECK_ENABLED', true),
         'api_key' => env('ANTHROPIC_API_KEY'),

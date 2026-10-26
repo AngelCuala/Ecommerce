@@ -53,7 +53,7 @@
                     </div>
                     <div>
                         <label for="contact_no" class="text-xs font-semibold" style="color:#6b90aa;">Contact No. *</label>
-                        <input type="tel" id="contact_no" name="contact_no" value="{{ old('contact_no') }}" class="input mt-1" required placeholder="09xx xxx xxxx">
+                        <input type="tel" id="contact_no" name="contact_no" value="{{ old('contact_no') }}" class="input mt-1" required placeholder="09xx xxx xxxx" maxlength="13" inputmode="tel" autocomplete="tel" data-mobile oninput="this.value=this.value.startsWith('+')?('+'+this.value.slice(1).replace(/\D/g,'')).slice(0,13):this.value.replace(/\D/g,'').slice(0,11)">
                     </div>
                     <div>
                         <label for="birthday" class="text-xs font-semibold" style="color:#6b90aa;">Birthday *</label>
@@ -140,11 +140,19 @@
                 <div class="grid gap-4 sm:grid-cols-2">
                     <div>
                         <label for="password" class="text-xs font-semibold" style="color:#6b90aa;">Password *</label>
-                        <input type="password" id="password" name="password" class="input mt-1" required minlength="8" autocomplete="new-password">
+                        <div class="relative mt-1">
+                            <input type="password" id="password" name="password" class="input pr-14" required minlength="8" autocomplete="new-password">
+                            <button type="button" data-pw-toggle="password" aria-label="Show password" class="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold" style="color:#6b90aa;">Show</button>
+                        </div>
+                        @error('password')<p class="mt-1 text-xs" style="color:#B91C1C;">{{ $message }}</p>@enderror
                     </div>
                     <div>
                         <label for="password_confirmation" class="text-xs font-semibold" style="color:#6b90aa;">Confirm Password *</label>
-                        <input type="password" id="password_confirmation" name="password_confirmation" class="input mt-1" required minlength="8" autocomplete="new-password">
+                        <div class="relative mt-1">
+                            <input type="password" id="password_confirmation" name="password_confirmation" class="input pr-14" required minlength="8" autocomplete="new-password">
+                            <button type="button" data-pw-toggle="password_confirmation" aria-label="Show password" class="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold" style="color:#6b90aa;">Show</button>
+                        </div>
+                        <p id="pwMatchMsg" class="mt-1 text-xs" style="color:#B91C1C;"></p>
                     </div>
                 </div>
             </div>
@@ -167,6 +175,22 @@
 </div>
 
 <script src="{{ asset('js/psgc-address.js') }}"></script>
+<script>
+// Password show / hide, and a live "passwords match" hint (the server checks it again).
+document.querySelectorAll('[data-pw-toggle]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+        var input = document.getElementById(btn.dataset.pwToggle), show = input.type === 'password';
+        input.type = show ? 'text' : 'password';
+        btn.textContent = show ? 'Hide' : 'Show';
+        btn.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+    });
+});
+(function () {
+    var pw = document.getElementById('password'), c = document.getElementById('password_confirmation'), msg = document.getElementById('pwMatchMsg');
+    function check() { var bad = c.value && pw.value !== c.value; msg.textContent = bad ? 'The passwords do not match.' : ''; c.setCustomValidity(bad ? 'The passwords do not match.' : ''); }
+    pw.addEventListener('input', check); c.addEventListener('input', check);
+})();
+</script>
 <script>
 (function(){
     const bday=document.getElementById('birthday'), age=document.getElementById('age_display');

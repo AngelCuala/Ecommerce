@@ -185,8 +185,10 @@ class R03JobsAndPickupTest extends TestCase
         $this->actingAs($this->buyer1)->get(route('profile.orders.show', $order->id))->assertOk()->assertSee('Picked up — on the way');
         $this->actingAs($this->seller1)->get(route('seller.orders.show', $order->id))->assertDontSee('Cancel order');
 
-        // The hub checks it in; the pickup is done ("At Hub").
-        $this->actingAs($this->logistics1)->post(route('sc.parcels.scan'), ['tracking_number' => $parcel->tracking_number])->assertSessionHas('success');
+        // The hub scans it (finds it), checks it and confirms receipt; the pickup is done ("At Hub").
+        $this->actingAs($this->logistics1)->post(route('sc.parcels.scan'), ['tracking_number' => $parcel->tracking_number])->assertRedirect(route('sc.tracking.show', $parcel));
+        $this->assertSame('in_transit_to_hub', $parcel->fresh()->status);   // scanning alone records nothing
+        $this->actingAs($this->logistics1)->post(route('sc.tracking.receive', $parcel), ['confirm_received' => '1'])->assertSessionHas('success');
         $this->assertSame('received', $pickup->fresh()->status);
         $this->assertSame('picked_up', $parcel->fresh()->status);
     }

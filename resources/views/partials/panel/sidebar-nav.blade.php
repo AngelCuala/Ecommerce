@@ -41,7 +41,7 @@
 </style>
 @endonce
 
-<nav class="flex-1 overflow-y-auto px-3 pb-6">
+<nav class="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-6">
     @foreach ($sections as $sectionLabel => $links)
         <p class="sb-section">{{ $sectionLabel }}</p>
         <div class="space-y-0.5">
@@ -52,10 +52,11 @@
                         <svg class="h-[17px] w-[17px]" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">{!! $icons[$link['icon']] ?? $icons['grid'] !!}</svg>
                     </span>
                     <span class="truncate">{{ $link['label'] }}</span>
-                    @if (($link['icon'] ?? '') === 'chat' && $unread > 0)
-                        <span class="sb-badge">{{ $unread > 9 ? '9+' : $unread }}</span>
+                    @if ($key === 'messages' && $unread + (int) ($link['badge'] ?? 0) > 0)
+                        @php $n = $unread + (int) ($link['badge'] ?? 0); @endphp
+                        <span class="sb-badge" data-badge="{{ $key }}" title="{{ $n }} new">{{ $n > 9 ? '9+' : $n }}</span>
                     @elseif (! empty($link['badge']))
-                        <span class="sb-badge">{{ $link['badge'] > 9 ? '9+' : $link['badge'] }}</span>
+                        <span class="sb-badge" data-badge="{{ $key }}" title="{{ $link['badge'] }} new">{{ $link['badge'] > 9 ? '9+' : $link['badge'] }}</span>
                     @endif
                 </a>
             @endforeach

@@ -3,71 +3,120 @@
 namespace App\Http\Controllers\Seller;
 
 use App\Http\Controllers\Controller;
-use App\Models\Product;
+use App\Models\Order;
 use App\Models\OrderItem;
+use App\Models\Product;
+use App\Services\SellerCommission;
+use App\Support\DateRange;
+use Illuminate\Http\Request;
 
+/**
+ * The seller's own dashboard. Every number comes from the signed-in seller's products only.
+ * Money follows the Sales Reports rule (SellerCommission): cancelled, refunded and unpaid orders
+ * are not sales, so they add nothing to sales, commission or earnings.
+ */
 class DashboardController extends Controller
 {
-    public function index()
+    public function index(Request $request, SellerCommission $commission)
     {
-        $bookIds = Product::where('seller_id', auth()->id())->pluck('id');
+        $range    = DateRange::fromRequest($request, 'month');
+        $sellerId = (int) auth()->id();
+        $bookIds  = Product::withTrashed()->where('seller_id', $sellerId)->pluck('id');
 
-        $books = Product::whereIn('id', $bookIds)
-            ->with('category')
-            ->latest()
-            ->get();
+        $books = Product::where('seller_id', $sellerId)->with('category')->latest()->get();
 
-        // Use seller_earning (after commission deduction)
-        $totalEarnings = OrderItem::whereIn('product_id', $bookIds)->sum('seller_earning');
-        $totalRevenue  = OrderItem::whereIn('product_id', $bookIds)
-            ->selectRaw('SUM(quantity * price) as total')
-            ->value('total') ?? 0;
-        $totalCommission = OrderItem::whereIn('product_id', $bookIds)->sum('commission_amount');
-        $totalOrders   = OrderItem::whereIn('product_id', $bookIds)
-            ->distinct('order_id')->count('order_id');
-
-        $recentOrders = OrderItem::whereIn('product_id', $bookIds)
-            ->with(['product', 'order.user'])
-            ->latest()
-            ->take(10)
-            ->get();
-
+        // ── Money for the period ─────────────────────────────────
+        $periodItems = $commission->lines($sellerId, $range->bounds())->get();
+        $money = $commission->summarize($periodItems);
         $commissionRate = config('marketplace.commission_rate', 10);
 
-        // ── Earnings per month (last 6 months) for the chart ──────
+        // ── Orders for the period, by status ─────────────────────
+        $ordersByStatus = Order::whereBetween('created_at', $range->bounds())
+            ->whereHas('items', fn ($q) => $q->whereIn('product_id', $bookIds))
+            ->selectRaw('status, COUNT(*) as c')->groupBy('status')->pluck('c', 'status');
+        $count = fn (array $statuses) => (int) collect($statuses)->sum(fn ($s) => $ordersByStatus[$s] ?? 0);
+        $orderCounts = [
+            'total'       => (int) $ordersByStatus->sum(),
+            'in_progress' => $count([Order::AWAITING_PAYMENT, Order::PENDING, Order::PROCESSING, Order::SHIPPED, Order::DELIVERED, Order::RETURN_REQUESTED, Order::IN_DISPUTE]),
+            'completed'   => $count([Order::COMPLETED]),
+            'cancelled'   => $count([Order::CANCELLED]),
+            'refunded'    => $count([Order::REFUNDED]),
+        ];
+        // To ship is about now, not the period: everything still waiting on the seller.
+        $toShip = Order::whereIn('status', [Order::PENDING, Order::PROCESSING])
+            ->whereHas('items', fn ($q) => $q->whereIn('product_id', $bookIds))->count();
+
+        // ── Best sellers in the period (sales only) ──────────────
+        $bestSellers = $periodItems->filter(fn ($i) => in_array($commission->statusOf($i), ['pending', 'finalized'], true))
+            ->groupBy('product_id')
+            ->map(fn ($g) => (object) [
+                'product_id' => $g->first()->product_id,
+                'title'      => $g->first()->product->title ?? 'Removed product',
+                'units'      => (int) $g->sum('quantity'),
+                'sales'      => round($g->sum(fn ($i) => SellerCommission::gross($i)), 2),
+            ])
+            ->sortByDesc('units')->take(5)->values();
+
+        // ── Recent orders in the period ──────────────────────────
+        $recentOrders = OrderItem::whereIn('product_id', $bookIds)
+            ->whereHas('order', fn ($q) => $q->whereBetween('created_at', $range->bounds()))
+            ->with(['product' => fn ($p) => $p->withTrashed(), 'order.user'])
+            ->latest()->take(10)->get();
+
+        // ── Earnings per month (last 6 months) for the chart: sales only ──
         $since = now()->subMonths(5)->startOfMonth();
-        $monthlyItems = OrderItem::whereIn('product_id', $bookIds)
-            ->where('created_at', '>=', $since)
-            ->get(['seller_earning', 'created_at']);
-        $earningsChart = collect(range(5, 0))->map(function ($back) use ($monthlyItems) {
+        $monthly = $commission->lines($sellerId, [$since->toDateTimeString(), now()->endOfDay()->toDateTimeString()])->get()
+            ->filter(fn ($i) => in_array($commission->statusOf($i), ['pending', 'finalized'], true));
+        $earningsChart = collect(range(5, 0))->map(function ($back) use ($monthly) {
             $month = now()->subMonths($back);
             return (object) [
                 'label' => $month->format('M'),
-                'value' => (float) $monthlyItems
-                    ->filter(fn ($i) => $i->created_at->isSameMonth($month))
-                    ->sum('seller_earning'),
+                'value' => round((float) $monthly->filter(fn ($i) => $i->order->created_at->isSameMonth($month))->sum('seller_earning'), 2),
             ];
         });
-        $thisMonthEarnings = $earningsChart->last()->value;
-        $lastMonthEarnings = $earningsChart->slice(-2, 1)->first()->value ?? 0;
 
-        // ── Orders by status (orders that include this seller's products) ──
-        $ordersByStatus = OrderItem::whereIn('order_items.product_id', $bookIds)
-            ->join('orders', 'orders.id', '=', 'order_items.order_id')
-            ->selectRaw('orders.status, COUNT(DISTINCT orders.id) as c')
-            ->groupBy('orders.status')
-            ->pluck('c', 'orders.status');
-        $toShip = (int) ($ordersByStatus['Pending'] ?? 0) + (int) ($ordersByStatus['Processing'] ?? 0);
-
-        // ── Products running low or sold out ──────────────────────
-        $lowStock = Product::whereIn('id', $bookIds)->active()->where('stock', '<=', 5)
-            ->orderBy('stock')->take(5)->get();
+        // ── Products ─────────────────────────────────────────────
+        $active = $books->where('is_archived', false);
+        $productCounts = [
+            'total'        => $books->count(),
+            'active'       => $active->whereNotIn('status', ['draft'])->count(),
+            'inactive'     => $books->where('is_archived', true)->count() + $active->where('status', 'draft')->count(),
+            'out_of_stock' => $active->where('stock', 0)->count(),
+            'low_stock'    => $active->filter(fn ($b) => $b->isLowStock())->count(),
+        ];
+        $lowStock = Product::where('seller_id', $sellerId)->active()->needsRestock()->orderBy('stock')->take(6)->get();
 
         return view('seller.dashboard', compact(
-            'books', 'totalEarnings', 'totalRevenue',
-            'totalCommission', 'totalOrders', 'recentOrders', 'commissionRate',
-            'earningsChart', 'thisMonthEarnings', 'lastMonthEarnings',
-            'ordersByStatus', 'toShip', 'lowStock'
+            'range', 'books', 'money', 'commissionRate', 'orderCounts', 'toShip',
+            'bestSellers', 'recentOrders', 'earningsChart', 'productCounts', 'lowStock'
         ));
+    }
+
+    /** Seller notifications (orders, parcels, product reviews, payouts…), newest first. */
+    public function notifications()
+    {
+        $user = auth()->user();
+        $notifications = $user->notifications()->latest()->paginate(30);
+        $unread = $user->notifications()->whereNull('read_at')->count();
+
+        return view('seller.notifications', compact('notifications', 'unread'));
+    }
+
+    /** Open one notification: marked read, then its page opens. Only the seller's own. */
+    public function openNotification(int $id)
+    {
+        $note = auth()->user()->notifications()->findOrFail($id);
+        if ($note->isUnread()) {
+            $note->update(['read_at' => now()]);
+        }
+
+        return $note->link ? redirect($note->link) : redirect()->route('seller.notifications');
+    }
+
+    public function readAllNotifications()
+    {
+        auth()->user()->notifications()->whereNull('read_at')->update(['read_at' => now()]);
+
+        return back()->with('success', 'All notifications marked as read.');
     }
 }

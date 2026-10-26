@@ -61,13 +61,13 @@
                                     <input type="hidden" name="seller_id" value="{{ $seller->id }}">
                                     <input type="hidden" name="product_id" value="{{ $book->id }}">
                                     <input type="hidden" name="type" value="wrong_category">
-                                    <input type="hidden" name="action" value="product_removed">
-                                    <input type="hidden" name="note" value="Product removed: category '{{ $book->category?->name }}' does not match seller's registered line of business '{{ $seller->sellerApplication?->line_of_business }}'.">
+                                    <input type="hidden" name="action" value="warning">
+                                    <input type="hidden" name="note" value="Wrong category: '{{ $book->title }}' is listed under '{{ $book->category?->name }}', but the shop is registered for '{{ $seller->sellerApplication?->line_of_business }}'. Please move it to the right category or unlist it.">
                                     <button type="submit"
-                                            class="rounded-md border px-3 py-1 text-xs font-semibold transition hover:bg-red-50"
-                                            style="border-color:#FECACA;color:#B91C1C;background:#fff;"
-                                            onclick="return confirm('Remove this product?')">
-                                        Remove
+                                            class="rounded-md border px-3 py-1 text-xs font-semibold transition hover:bg-amber-50"
+                                            style="border-color:#FDE68A;color:#B45309;background:#fff;"
+                                            onclick="return confirm('Send this seller a wrong-category warning?')">
+                                        Warn seller
                                     </button>
                                 </form>
                             </li>
@@ -147,7 +147,7 @@
                         <select name="action" class="input text-sm" required id="action-select"
                                 onchange="updateActionBtn(this.value)">
                             <option value="">Select action</option>
-                            @foreach (\App\Models\SellerViolation::actionLabels() as $val => $label)
+                            @foreach (\App\Models\SellerViolation::adminActionLabels() as $val => $label)
                                 <option value="{{ $val }}">{{ $label }}</option>
                             @endforeach
                         </select>

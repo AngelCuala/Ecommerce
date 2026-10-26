@@ -29,10 +29,14 @@
         <strong style="font-size:13px;">Bulk assign</strong>
         <span class="text-muted" style="font-size:12px;">Tick parcels in the lists below, then choose a rider. Parcels the rider can't take stay in the queue.</span>
         <select name="rider_id" class="form-select" style="min-width:170px;margin-left:auto;" aria-label="Rider for the selected parcels">
-            <option value="">Choose rider…</option>
-            @foreach($eligible as $r)<option value="{{ $r->id }}">{{ $r->full_name }} ({{ $r->activeJobsCount() }} jobs)</option>@endforeach
+            @include('sc.partials.rider-options')
         </select>
         <button class="btn btn-green btn-sm">Assign selected</button>
+        @if ($eligible->isEmpty())
+            <p class="text-muted" style="flex-basis:100%;font-size:12px;margin:2px 0 0;" data-no-rider-online>
+                {{ $riders->isEmpty() ? 'This center has no approved riders yet.' : 'No rider is available right now. Riders can be picked once they switch to Online in the courier app (and have fewer than ' . \App\Services\RiderDispatch::MAX_ACTIVE . ' active jobs).' }}
+            </p>
+        @endif
     </form>
 
     @foreach (['Waiting for a rider' => $jobs, 'Unassigned queue — assign manually' => $unassigned] as $heading => $list)
@@ -61,8 +65,7 @@
                         <td>
                             <form method="POST" action="{{ route('sc.dispatch.assign', $p) }}" style="display:flex;gap:6px;">@csrf
                                 <select name="rider_id" class="form-select" style="min-width:150px;" aria-label="Rider for {{ $p->tracking_number }}">
-                                    <option value="">Choose rider…</option>
-                                    @foreach($eligible as $r)<option value="{{ $r->id }}">{{ $r->full_name }} ({{ $r->activeJobsCount() }} jobs)</option>@endforeach
+                                    @include('sc.partials.rider-options')
                                 </select>
                                 <button class="btn btn-green btn-sm">Assign</button>
                             </form>
@@ -90,8 +93,7 @@
                     <td>
                         <form method="POST" action="{{ route('sc.dispatch.reassign', $j->parcel) }}" style="display:flex;gap:6px;">@csrf
                             <select name="rider_id" class="form-select" style="min-width:150px;" aria-label="New rider for {{ $j->parcel->tracking_number }}">
-                                <option value="">Choose rider…</option>
-                                @foreach($eligible as $r)@if($r->id !== $j->rider?->id)<option value="{{ $r->id }}">{{ $r->full_name }} ({{ $r->activeJobsCount() }} jobs)</option>@endif @endforeach
+                                @include('sc.partials.rider-options', ['except' => $j->rider?->id])
                             </select>
                             <button class="btn btn-blue btn-sm">Reassign</button>
                         </form>

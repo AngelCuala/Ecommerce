@@ -73,7 +73,7 @@
                         <label class="flex items-center gap-2" style="color:#5a4d45;">
                             <input type="checkbox" name="remember" style="accent-color:#fa4e1c;"> Remember Me
                         </label>
-                        <a href="#" class="font-semibold" style="color:#fa4e1c;"
+                        <a href="{{ route('password.request') }}" class="font-semibold" style="color:#fa4e1c;"
                            onmouseover="this.style.textDecoration='underline';" onmouseout="this.style.textDecoration='none';">Forgot Your Password?</a>
                     </div>
 

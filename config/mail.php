@@ -110,6 +110,9 @@ return [
     |
     */
 
+    // Trusted certificate authorities for the mail server's TLS (see AppServiceProvider).
+    'ca_file' => env('MAIL_CA_FILE'),
+
     'from' => [
         'address' => env('MAIL_FROM_ADDRESS', 'hello@example.com'),
         'name' => env('MAIL_FROM_NAME', env('APP_NAME', 'Laravel')),

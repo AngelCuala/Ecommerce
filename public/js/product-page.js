@@ -63,6 +63,12 @@
             if (pct) { pct.textContent = '-' + Math.round(100 - v.price / v.base * 100) + '%'; pct.style.display = off ? '' : 'none'; }
             var stock = document.getElementById('pd-stock');
             if (stock) stock.textContent = v.stock;
+            // Low-stock warning for the chosen option.
+            var low = document.getElementById('pd-low');
+            if (low) {
+                low.style.display = v.stock > 0 && v.stock <= PD.lowAt ? '' : 'none';
+                document.getElementById('pd-low-count').textContent = v.stock;
+            }
             if (varMsg) varMsg.classList.add('hidden');
         }
         qty.max = limit();
@@ -114,7 +120,16 @@
             if (varMsg) varMsg.classList.remove('hidden');
             return;
         }
-        if (!checkQty()) e.preventDefault();
+        if (!checkQty()) { e.preventDefault(); return; }
+        // Sent once: a second click while the page is loading does nothing (the server also ignores a resent form).
+        if (form.dataset.sending) { e.preventDefault(); return; }
+        form.dataset.sending = '1';
+        form.querySelectorAll('button[type=submit]').forEach(function (b) { b.setAttribute('aria-busy', 'true'); b.style.opacity = '.6'; b.style.pointerEvents = 'none'; });
+    });
+    // Coming back with the browser's Back button: the form can be used again.
+    window.addEventListener('pageshow', function () {
+        delete form.dataset.sending;
+        form.querySelectorAll('button[type=submit]').forEach(function (b) { b.removeAttribute('aria-busy'); b.style.opacity = ''; b.style.pointerEvents = ''; });
     });
 
     refresh();

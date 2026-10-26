@@ -78,7 +78,7 @@ class GoogleSignInTest extends TestCase
 
     public function test_pending_account_is_blocked_with_a_message_on_the_login_page(): void
     {
-        $this->user('buyer', 'pending', 'wait@example.com');
+        $this->user('sorting_center_pending', 'pending', 'wait@example.com');   // buyers need no approval; others still wait
         $this->fakeGoogle('wait@example.com');
 
         $this->get(route('auth.google.callback'))

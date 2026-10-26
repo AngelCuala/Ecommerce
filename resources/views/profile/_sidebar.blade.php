@@ -32,8 +32,8 @@
         {{-- Cover + avatar --}}
         <div class="h-20" style="background:linear-gradient(120deg,#fa4e1c 0%,#ff8a5b 45%,#002b4d 130%);"></div>
         <div class="-mt-10 flex items-end gap-3 px-5">
-            <div class="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-2xl font-display text-2xl font-extrabold text-white"
-                 style="background:#002b4d;border:4px solid #fff;box-shadow:0 8px 20px -10px rgba(0,0,0,.4);">
+            <div class="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-2xl font-display text-2xl font-extrabold"
+                 style="color:#fff;background:#002b4d;border:4px solid #fff;box-shadow:0 8px 20px -10px rgba(0,0,0,.4);">
                 @if ($sbUser->profile_photo_path)
                     <img src="{{ asset('storage/'.$sbUser->profile_photo_path) }}" class="h-full w-full object-cover" alt="Avatar">
                 @else

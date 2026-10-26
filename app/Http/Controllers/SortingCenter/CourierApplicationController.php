@@ -61,6 +61,9 @@ class CourierApplicationController extends Controller
     public function approve(Courier $courier, CourierReview $review)
     {
         $this->authorizeHub($courier);
+        if (! \App\Support\ServiceArea::covers(null, $courier->province, $courier->municipality)) {
+            return back()->with('error', $courier->fullName() . "'s address is outside the service area. " . \App\Support\ServiceArea::message('home address') . ' Ask them to update it first.');
+        }
         if (! $courier->isPending()) {
             return back()->with('error', 'Only pending applications can be approved.');
         }

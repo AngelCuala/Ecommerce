@@ -55,6 +55,20 @@ class BookController extends Controller
         return [];
     }
 
+    /** The category matching the seller's registered line of business, if there is one. */
+    private function businessCategoryId(): ?int
+    {
+        $line = auth()->user()->sellerApplication?->line_of_business;
+        return $line ? Category::where('name', $line)->value('id') : null;
+    }
+
+    /** Categories this seller may list under; null = no registered category to go by (all allowed). */
+    private function allowedCategoryIds(?Product $book = null): ?array
+    {
+        $business = $this->businessCategoryId();
+        return $business ? array_values(array_unique(array_filter([$business, $book?->category_id]))) : null;
+    }
+
     /** Subcategory list keyed by category name, from the shared catalog. */
     private function subcategoryMap(): array
     {
@@ -65,10 +79,30 @@ class BookController extends Controller
         return $map;
     }
 
+    /** Inventory sorts. */
+    public const SORTS = [
+        'newest' => 'Newest', 'oldest' => 'Oldest', 'price_low' => 'Price: low to high', 'price_high' => 'Price: high to low',
+        'best_selling' => 'Best selling', 'stock_low' => 'Stock: lowest first',
+    ];
+
     public function index(Request $request)
     {
+        $request->validate([
+            'category_id' => 'nullable|integer',
+            'min_price'   => 'nullable|numeric|min:0',
+            'max_price'   => 'nullable|numeric|min:0' . ($request->filled('min_price') && is_numeric($request->min_price) ? '|gte:min_price' : ''),
+            'sort'        => 'nullable|in:' . implode(',', array_keys(self::SORTS)),
+        ], [
+            'max_price.gte' => 'The maximum price must be at least the minimum price.',
+        ]);
+
+        // Remembered so saving an edit (or "← Inventory") comes back to the same search and filters.
+        session()->put('seller_inventory_query', array_filter($request->only(['status', 'search', 'category_id', 'min_price', 'max_price', 'sort', 'page']), fn ($v) => $v !== null && $v !== ''));
+
+        // Only this seller's products, ever.
         $query = Product::where('seller_id', auth()->id())
-            ->with(['category', 'images']);
+            ->with(['category', 'images'])
+            ->withSum(['orderItems as sold' => fn ($q) => $q->whereHas('order', fn ($o) => $o->whereNotIn('status', \App\Models\Order::VOID_STATUSES))], 'quantity');
 
         $status = $request->input('status', 'active');
         if ($status === 'archived') {
@@ -86,14 +120,37 @@ class BookController extends Controller
         }
 
         if ($request->filled('search')) {
+            $like = '%' . \App\Support\ProductSearch::likeEscape(trim((string) $request->search)) . '%';
             $query->where(fn($q) =>
-                $q->where('title', 'like', '%'.$request->search.'%')
-                  ->orWhere('sku', 'like', '%'.$request->search.'%')
-                  ->orWhere('product_code', 'like', '%'.$request->search.'%')
+                $q->where('title', 'like', $like)
+                  ->orWhere('sku', 'like', $like)
+                  ->orWhere('product_code', 'like', $like)
             );
         }
+        if ($request->filled('category_id')) {
+            $query->where('category_id', (int) $request->category_id);
+        }
+        if ($request->filled('min_price')) {
+            $query->where('price', '>=', (float) $request->min_price);
+        }
+        if ($request->filled('max_price')) {
+            $query->where('price', '<=', (float) $request->max_price);
+        }
 
-        $books    = $query->latest()->get();
+        $sort = $request->input('sort', 'newest');
+        match ($sort) {
+            'oldest'       => $query->oldest(),
+            'price_low'    => $query->orderBy('price'),
+            'price_high'   => $query->orderByDesc('price'),
+            'best_selling' => $query->orderByDesc('sold'),
+            'stock_low'    => $query->orderBy('stock'),
+            default        => $query->latest(),
+        };
+        $query->orderByDesc('id');   // stable across pages
+
+        $books    = $query->paginate(25)->withQueryString();
+        $categories = \App\Models\Category::whereIn('id', Product::where('seller_id', auth()->id())->whereNotNull('category_id')->select('category_id'))
+            ->orderBy('name')->pluck('name', 'id');
         $allBooks = Product::where('seller_id', auth()->id());
         $counts   = [
             'active'       => (clone $allBooks)->active()->count(),
@@ -105,7 +162,7 @@ class BookController extends Controller
                 ->where('status', '!=', 'draft')->count(),
         ];
 
-        return view('seller.books.index', compact('books', 'status', 'counts'));
+        return view('seller.books.index', compact('books', 'status', 'counts', 'categories', 'sort'));
     }
 
     public function create()
@@ -163,7 +220,7 @@ class BookController extends Controller
     {
         $this->authorizeBook($book);
         $book->load(['images', 'variations']);
-        return view('seller.books.form', array_merge($this->formData(), ['book' => $book]));
+        return view('seller.books.form', array_merge($this->formData($book), ['book' => $book]));
     }
 
     public function update(Request $request, Product $book)
@@ -207,7 +264,7 @@ class BookController extends Controller
         \App\Models\ActivityLog::note('"' . $saved->title . '" (' . $saved->product_code . ') · ₱' . number_format((float) $saved->price, 2)
             . ' · stock ' . $saved->stock, $saved);
 
-        return redirect()->route('seller.books.index')
+        return redirect()->route('seller.books.index', session('seller_inventory_query', []))
             ->with('success', $this->successMessage($saved, $request));
     }
 
@@ -365,10 +422,14 @@ class BookController extends Controller
     // ── Helpers ───────────────────────────────────────────────
 
     /** Shared data for the create/edit form. */
-    private function formData(): array
+    private function formData(?Product $book = null): array
     {
+        $allowed = $this->allowedCategoryIds($book);
+
         return [
-            'categories'      => Category::orderBy('name')->get(),
+            // Only the seller's registered business category (and, when editing, the product's current one).
+            'categories'      => Category::when($allowed, fn ($q) => $q->whereIn('id', $allowed))->orderBy('name')->get(),
+            'businessCategoryId' => $this->businessCategoryId(),
             'subcategoryMap'  => $this->subcategoryMap(),
             'specSchemas'     => self::specSchemas(),
             'addresses'       => UserAddress::where('user_id', auth()->id())
@@ -419,8 +480,11 @@ class BookController extends Controller
         $money = ['numeric', 'min:1', 'max:1000000', 'decimal:0,2'];
         $rules = [
             'title'            => $req . '|string|min:5|max:120',
-            'category_id'      => $req . '|exists:categories,id',
-            'subcategory'      => 'nullable|string|max:255',
+            'category_id'      => array_filter([$req, 'exists:categories,id',
+                                    ($allowed = $this->allowedCategoryIds($book)) ? Rule::in($allowed) : null]),
+            // A subcategory must belong to the chosen category.
+            'subcategory'      => ['nullable', 'string', 'max:255',
+                                    Rule::in($this->subcategoryMap()[Category::whereKey((int) $request->input('category_id'))->value('name')] ?? [])],
             'brand'            => 'nullable|string|max:255',
             'condition'        => ['nullable', Rule::in(self::CONDITIONS)],
             'description'      => $req . '|string|min:20|max:3000',
@@ -432,6 +496,7 @@ class BookController extends Controller
             'discount_percent' => ['nullable', 'integer', 'min:1', 'max:99'],
             'voucher_code'     => 'nullable|string|max:50',
             'stock'            => [$req, 'integer', 'min:0', 'max:99999'],
+            'low_stock_threshold' => 'nullable|integer|min:0|max:99999',
             'purchase_limit'   => 'nullable|integer|min:1|max:99999',
             'sale_starts_at'   => ['nullable', 'date'],
             'sale_ends_at'     => array_merge(['nullable', 'date'], $request->filled('sale_starts_at') ? ['after:sale_starts_at'] : []),
@@ -505,6 +570,8 @@ class BookController extends Controller
             'description.max'       => 'The description must be 20 to 3,000 characters.',
             'store_category_ids.max' => 'A product can be in up to 3 store categories.',
             'category_id.required'  => 'Please choose a platform category.',
+            'category_id.in'        => 'Choose your store\'s registered business category.',
+            'subcategory.in'        => 'Choose a subcategory of the selected category.',
             'price.required'        => 'Please enter a price.',
             'price.numeric'         => $priceMsg, 'price.min' => $priceMsg, 'price.max' => $priceMsg, 'price.decimal' => $priceMsg,
             'sale_price.lt'         => 'The sale price must be lower than the original price.',
@@ -695,6 +762,7 @@ class BookController extends Controller
                 : ($data['variation_labels'] ?? null),
             'voucher_code'     => $data['voucher_code'] ?? null,
             'stock'            => $stock,
+            'low_stock_threshold' => isset($data['low_stock_threshold']) && $data['low_stock_threshold'] !== '' ? (int) $data['low_stock_threshold'] : null,
             'sku'              => $data['sku'] ?? null,
 
             'author'           => $data['author'] ?? null,

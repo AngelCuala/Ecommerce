@@ -21,6 +21,7 @@ class SortingCenters
         return User::query()
             ->where('users.role', 'sorting_center')
             ->where('users.approval_status', 'approved')
+            ->when(ServiceArea::enabled(), fn ($q) => $q->whereIn('users.assigned_municipality_code', ServiceArea::localityCodes()))
             ->leftJoin('sorting_center_applications as sca', function ($join) {
                 $join->on('sca.user_id', '=', 'users.id')->where('sca.status', 'approved');
             })
@@ -50,6 +51,20 @@ class SortingCenters
     {
         return Rule::exists('users', 'id')
             ->where('role', 'sorting_center')
-            ->where('approval_status', 'approved');
+            ->where('approval_status', 'approved')
+            // Only hubs inside the service area (Laguna) take riders.
+            ->when(ServiceArea::enabled(), fn ($q) => $q->whereIn('assigned_municipality_code', ServiceArea::localityCodes()));
+    }
+
+    /** displayName() for an optional relation: null when there is no sorting center. */
+    public static function nameOf(?User $sc): ?string
+    {
+        return $sc ? self::displayName($sc) : null;
+    }
+
+    /** A sorting center's public name: its approved business name, else the account name. */
+    public static function displayName(User $sc): string
+    {
+        return \App\Models\SortingCenterApplication::where('user_id', $sc->id)->where('status', 'approved')->value('business_name') ?: $sc->name;
     }
 }

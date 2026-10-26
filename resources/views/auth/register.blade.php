@@ -306,7 +306,7 @@
                         <div class="sm:col-span-2">
                             <label class="fld-label" for="contactNo">Contact No.*</label>
                             <input type="tel" name="contact_no" id="contactNo" class="form-input" placeholder="09171234567"
-                                   inputmode="numeric" value="{{ old('contact_no') }}" required>
+                                   value="{{ old('contact_no') }}" required maxlength="13" inputmode="tel" autocomplete="tel" data-mobile oninput="this.value=this.value.startsWith('+')?('+'+this.value.slice(1).replace(/\D/g,'')).slice(0,13):this.value.replace(/\D/g,'').slice(0,11)">
                             <p class="field-error" data-error-for="contactNo">@error('contact_no'){{ $message }}@enderror @error('phone'){{ $message }}@enderror</p>
                         </div>
                         <div class="sm:col-span-2">
@@ -389,7 +389,20 @@
                             </button>
                         </div>
                         <p class="field-error" data-error-for="password">@error('password'){{ $message }}@enderror</p>
-                        <input type="hidden" name="password_confirmation" id="passwordConfirmation">
+                    </div>
+                    <div class="mt-4">
+                        <label class="fld-label" for="passwordConfirmation">Confirm password*</label>
+                        <div class="relative">
+                            <input type="password" name="password_confirmation" id="passwordConfirmation" class="form-input pr-11" placeholder="Type the same password again" required autocomplete="new-password">
+                            <button type="button" id="togglePasswordConfirmation" aria-label="Show password"
+                                    class="absolute right-3 top-1/2 -translate-y-1/2" style="color:#8a7a70;">
+                                <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                                </svg>
+                            </button>
+                        </div>
+                        <p class="field-error" data-error-for="password_confirmation" id="passwordMatchMsg">@error('password_confirmation'){{ $message }}@enderror</p>
                     </div>
 
                     {{-- Upload ID (buyer) --}}
@@ -753,12 +766,27 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
     
-    // Password Toggle
-    document.getElementById('togglePassword').addEventListener('click', function() {
-        const passwordInput = document.getElementById('password');
-        const type = passwordInput.type === 'password' ? 'text' : 'password';
-        passwordInput.type = type;
+    // Password show / hide (each field has its own eye)
+    [['togglePassword', 'password'], ['togglePasswordConfirmation', 'passwordConfirmation']].forEach(function (pair) {
+        document.getElementById(pair[0]).addEventListener('click', function () {
+            const input = document.getElementById(pair[1]);
+            const show = input.type === 'password';
+            input.type = show ? 'text' : 'password';
+            this.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+        });
     });
+    // Live "passwords match" hint (the server checks it again).
+    (function () {
+        const pw = document.getElementById('password'), confirm = document.getElementById('passwordConfirmation'), msg = document.getElementById('passwordMatchMsg');
+        const check = function () {
+            if (!confirm.value) { msg.textContent = ''; confirm.setCustomValidity(''); return; }
+            const same = pw.value === confirm.value;
+            msg.textContent = same ? '' : 'The passwords do not match.';
+            confirm.setCustomValidity(same ? '' : 'The passwords do not match.');
+        };
+        pw.addEventListener('input', check);
+        confirm.addEventListener('input', check);
+    })();
     
     // File Upload Previews
     ['government_id', 'dti_certificate', 'sec_certificate', 'bir_2303'].forEach(function (f) {
@@ -842,7 +870,6 @@ document.addEventListener('DOMContentLoaded', function() {
     // Form submission — show spinner, re-enable on slow/no response
     document.getElementById('registrationForm').addEventListener('submit', function(e) {
         if (!agreeCheckbox.checked) { e.preventDefault(); return; }
-        document.getElementById('passwordConfirmation').value = document.getElementById('password').value;
         submitBtn.innerHTML = '<div class="animate-spin rounded-full h-5 w-5 border-b-2 border-white mx-auto"></div>';
         submitBtn.disabled = true;
         submitBtn.style.opacity = '0.7';

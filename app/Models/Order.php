@@ -49,7 +49,10 @@ class Order extends Model
         'return_refund' => ['label' => 'Return/Refund', 'statuses' => [self::RETURN_REQUESTED, self::REFUNDED, self::IN_DISPUTE]],
     ];
 
-    public const SELLER_CANCEL_REASONS = ['Out of stock', 'Item damaged before shipping', 'Wrong price listed', 'Cannot ship to this address', 'Buyer asked to cancel'];
+    public const SELLER_CANCEL_REASONS = ['Out of stock', 'Item damaged before shipping', 'Wrong price listed', 'Cannot ship to this address', 'Buyer asked to cancel', 'GCash payment not received'];
+
+    /** GCash sent outside ALVY, proved with an uploaded receipt (not the online gateway). */
+    public const GCASH_RECEIPT = 'GCASH_RECEIPT';
 
     /** Days after delivery the buyer can ask for a return; after that the order completes by itself. */
     public const RETURN_DAYS = 7;
@@ -73,7 +76,7 @@ class Order extends Model
         'subtotal', 'shipping_fee', 'shipping_weight_kg', 'total_price',
         'platform_voucher_id', 'platform_discount', 'seller_discount',
         'shipping_voucher_id', 'shipping_discount',
-        'payment_method', 'payment_status', 'pay_by', 'refunded_amount',
+        'payment_method', 'payment_status', 'pay_by', 'refunded_amount', 'payment_proof_path', 'payment_reference',
         'status', 'cancellation_reason',
         'delivered_at', 'completed_at', 'cancelled_at',
         'accepted_at', 'packed_at', 'promo_discount',
@@ -99,8 +102,25 @@ class Order extends Model
 
     protected static function booted(): void
     {
+        // The shipment's tracking number is issued at checkout; the parcel booked later carries it.
+        static::creating(function (Order $order) {
+            $order->tracking_number ??= Parcel::generateTracking();
+        });
+
         static::created(function (Order $order) {
             $order->events()->create(['status' => $order->status ?: self::PENDING, 'note' => 'Order placed', 'created_at' => now()]);
+            app(\App\Services\ShipmentTracker::class)->record($order, 'order_placed', ['location_id' => null, 'dedupe_key' => 'order:' . $order->id . ':placed']);
+        });
+
+        // The seller's own steps before the parcel exists: accepted (processing) and packed.
+        static::updated(function (Order $order) {
+            $tracker = app(\App\Services\ShipmentTracker::class);
+            if ($order->wasChanged('accepted_at') && $order->accepted_at) {
+                $tracker->record($order, 'seller_processing', ['location_id' => null, 'dedupe_key' => 'order:' . $order->id . ':accepted']);
+            }
+            if ($order->wasChanged('packed_at') && $order->packed_at) {
+                $tracker->record($order, 'package_packed', ['location_id' => null, 'dedupe_key' => 'order:' . $order->id . ':packed']);
+            }
         });
 
         static::updating(function (Order $order) {
@@ -156,6 +176,9 @@ class Order extends Model
         $svc = app(\App\Services\ParcelService::class);
         foreach (Parcel::where('order_id', $this->id)->whereIn('status', ['pending_pickup', 'pickup_approved'])->get() as $parcel) {
             $parcel->update(['status' => 'cancelled', 'failure_reason' => 'Order was cancelled.']);
+            foreach (ParcelPickup::where('parcel_id', $parcel->id)->where('status', 'assigned')->with('rider')->get() as $job) {
+                $job->rider && app(\App\Services\RiderNotifier::class)->cancelled($parcel, $job->rider, RiderJobOffer::PICKUP, $job->id, 'Order ' . $this->number() . ' was cancelled');
+            }
             ParcelPickup::where('parcel_id', $parcel->id)->where('status', 'assigned')->update(['status' => 'cancelled', 'remarks' => 'Order cancelled.']);
             RiderJobOffer::where('parcel_id', $parcel->id)->where('status', 'pending')->update(['status' => 'cancelled']);
             if ($parcel->current_sorting_center_id) {
@@ -206,9 +229,28 @@ class Order extends Model
             || (in_array($this->status, [self::PENDING, self::PROCESSING], true) && ! $this->isReadyForPickup());
     }
 
+    /** Paid through the online gateway (GCash / Maya / card). COD and a GCash receipt are not. */
     public function isOnlinePayment(): bool
     {
-        return strtoupper((string) $this->payment_method) !== 'COD';
+        return ! in_array(strtoupper((string) $this->payment_method), ['COD', self::GCASH_RECEIPT], true);
+    }
+
+    public function isGcashReceipt(): bool
+    {
+        return strtoupper((string) $this->payment_method) === self::GCASH_RECEIPT;
+    }
+
+    /** "Cash on delivery", "GCash" … for screens. */
+    public function paymentMethodLabel(): string
+    {
+        return match (strtoupper((string) $this->payment_method)) {
+            'COD'               => 'Cash on delivery',
+            self::GCASH_RECEIPT => 'GCash',
+            'GCASH'             => 'GCash (online)',
+            'MAYA'              => 'Maya',
+            'CARD'              => 'Credit / Debit card',
+            default             => (string) $this->payment_method,
+        };
     }
 
     /** Paid through the gateway (so a cancellation or approved return is refunded). */
@@ -263,6 +305,13 @@ class Order extends Model
         };
     }
 
+    /** The seller can view / print the waybill: from packing on (also once shipped or delivered), never for a cancelled or unpaid order. */
+    public function canPrintWaybill(): bool
+    {
+        return ! in_array($this->status, [self::CANCELLED, self::AWAITING_PAYMENT], true)
+            && in_array($this->sellerStep(), ['packed', 'ready', 'done'], true);
+    }
+
     /** The parcel has been handed to the courier / rider (or is further along). */
     public function isPickedUp(): bool
     {
@@ -309,6 +358,11 @@ class Order extends Model
     }
 
     /** "#000123" */
+    public function shipmentEvents(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(ShipmentEvent::class)->orderBy('occurred_at')->orderBy('id');
+    }
+
     public function number(): string
     {
         return '#' . str_pad((string) $this->id, 6, '0', STR_PAD_LEFT);

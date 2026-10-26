@@ -12,7 +12,7 @@
             {{ now()->format('l, F j, Y') }} · Sorting Center Management Portal
         </p>
     </div>
-    <form method="POST" action="{{ route('logout') }}">
+    <form method="POST" action="{{ \App\Support\Portal::route('logout') }}">
         @csrf
         <button class="btn btn--ghost btn--sm">Sign out</button>
     </form>

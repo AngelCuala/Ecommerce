@@ -61,8 +61,13 @@ class B01AccountAndAddressTest extends TestCase
         $change('Mamimili@2026', 'Mamimili@2027', 'Mamimili@2028')->assertSessionHasErrors(['password' => 'The new password and its confirmation do not match.']);
         $this->assertTrue(Hash::check('Mamimili@2026', $this->buyer1->fresh()->password));
 
-        // 003: the new password works, the old one doesn't.
+        // 003: the new password works (once the emailed code is entered), the old one doesn't.
+        Mail::fake();
         $change('Mamimili@2026', 'Mamimili@2027', 'Mamimili@2027')->assertSessionHasNoErrors();
+        $this->assertTrue(Hash::check('Mamimili@2026', $this->buyer1->fresh()->password));   // not yet
+        $code = null;
+        Mail::assertSent(\App\Mail\PasswordChangeCodeMail::class, function ($m) use (&$code) { $code = $m->code; return true; });
+        $this->actingAs($this->buyer1)->from(route('profile.security'))->post(route('profile.password.confirm'), ['code' => $code])->assertSessionHasNoErrors();
         $this->assertTrue(Hash::check('Mamimili@2027', $this->buyer1->fresh()->password));
         $this->assertFalse(Hash::check('Mamimili@2026', $this->buyer1->fresh()->password));
     }

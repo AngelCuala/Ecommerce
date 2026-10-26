@@ -55,6 +55,7 @@ class RegistrationController extends Controller
             'municipality_code' => ['nullable', 'regex:/^\d{9,10}$/'],
         ]), [
             'business_permit.required' => 'Please upload your business / DTI permit.',
+            'password.confirmed'       => 'The passwords do not match. Please type the same password in both fields.',
             'contact_no.regex'         => 'Please enter a valid mobile number: 11 digits starting with 09 (e.g. 09171234567).',
         ]);
 
@@ -77,6 +78,8 @@ class RegistrationController extends Controller
                 'municipality' => "{$addr['municipality']} has no PSA correspondence code yet.",
             ]);
         }
+        // Sorting centers are only opened inside the service area (Laguna).
+        \App\Support\ServiceArea::assert($addr['municipality_code'], null, null, 'municipality', 'sorting center location');
 
         $age        = Carbon::parse($data['birthday'])->age;
         $idPath     = $request->file('government_id')->store('sorting-center-ids', 'local');

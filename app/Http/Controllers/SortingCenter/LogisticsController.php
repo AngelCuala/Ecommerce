@@ -110,6 +110,7 @@ class LogisticsController extends Controller
 
         try {
             [$old, $kind] = DB::transaction(function () use ($parcel, $rider) {
+                $this->dispatch->lastNotification = null;
                 $parcel = Parcel::lockForUpdate()->findOrFail($parcel->id);
                 $pickup   = ParcelPickup::where('parcel_id', $parcel->id)->where('status', 'assigned')->first();
                 $delivery = ParcelDelivery::where('parcel_id', $parcel->id)->where('status', 'assigned')->first();
@@ -131,23 +132,22 @@ class LogisticsController extends Controller
                     $delivery->delete();   // the attempt never started
                     Parcel::whereKey($parcel->id)->update(['status' => 'sorted']);   // back in the queue, not a new timeline step
                 }
+                $oldJobId = $current->id;
                 $kind = $this->dispatch->assignManually($parcel->fresh(), $rider, auth()->user());
+                if ($old) {
+                    app(\App\Services\RiderNotifier::class)->reassignedAway($parcel, $old, $kind, $oldJobId);
+                }
                 return [$old, $kind];
             });
         } catch (\RuntimeException $e) {
             return back()->with('error', $e->getMessage());
         }
 
-        if ($old) {
-            UserNotification::create(['user_id' => $old->user_id, 'title' => 'Job reassigned',
-                'body' => 'The ' . $kind . ' of ' . $parcel->tracking_number . ' was given to another rider.', 'type' => 'warning', 'link' => route('courier.rider')]);
-        }
-        UserNotification::create(['user_id' => $rider->user_id, 'title' => 'New ' . $kind . ' job',
-            'body' => 'You were assigned the ' . $kind . ' of ' . $parcel->tracking_number . '.', 'type' => 'info', 'link' => route('courier.rider')]);
         ActivityLog::change($old?->full_name ?? '—', $rider->full_name, 'Reassigned ' . $kind);
         ActivityLog::note($parcel->tracking_number . ' ' . $kind . ' reassigned from ' . ($old?->full_name ?? '—') . ' to ' . $rider->full_name, $parcel);
 
-        return back()->with('success', "{$parcel->tracking_number} reassigned to {$rider->full_name}.");
+        return back()->with('success', "{$parcel->tracking_number} reassigned to {$rider->full_name}." . ($this->dispatch->lastNotification
+            ? ' The rider was notified.' : ' The rider could not be notified in the app; please tell them directly.'));
     }
 
     public function bulkAssign(Request $request)
@@ -164,22 +164,23 @@ class LogisticsController extends Controller
 
         $assigned = [];
         $skipped  = [];
+        $notified = 0;
         foreach ($this->myParcels()->whereIn('id', $data['parcel_ids'])->orderBy('id')->get() as $parcel) {
             try {
                 $this->dispatch->assignManually($parcel, $rider->fresh(), auth()->user());
                 $assigned[] = $parcel->tracking_number;
+                $notified += $this->dispatch->lastNotification ? 1 : 0;
             } catch (\RuntimeException $e) {
                 $skipped[] = $parcel->tracking_number . ' (' . $e->getMessage() . ')';   // it stays in the queue
             }
         }
         if ($assigned) {
-            UserNotification::create(['user_id' => $rider->user_id, 'title' => count($assigned) . ' new jobs',
-                'body' => 'You were assigned ' . implode(', ', $assigned) . '.', 'type' => 'info', 'link' => route('courier.rider')]);
             ActivityLog::note(count($assigned) . ' parcel(s) assigned to ' . $rider->full_name . ': ' . implode(', ', $assigned));
         }
 
         $message = count($assigned) . ' assigned to ' . $rider->full_name . '.'
-            . ($skipped ? ' ' . count($skipped) . ' skipped: ' . implode('; ', $skipped) . '.' : '');
+            . ($skipped ? ' ' . count($skipped) . ' skipped: ' . implode('; ', $skipped) . '.' : '')
+            . ($assigned ? ' ' . $notified . ' of ' . count($assigned) . ' job notifications sent to the rider.' : '');
 
         return back()->with($assigned ? ($skipped ? 'warning' : 'success') : 'error', $message);
     }
@@ -209,6 +210,14 @@ class LogisticsController extends Controller
         $old   = $parcel->statusLabel();
         $label = $data['type'] === 'lost' ? 'Lost' : 'Damaged';
         DB::transaction(function () use ($parcel, $data, $request) {
+            // Tell the riders whose jobs end here.
+            $notifier = app(\App\Services\RiderNotifier::class);
+            foreach (ParcelPickup::where('parcel_id', $parcel->id)->whereIn('status', ParcelPickup::OPEN)->with('rider')->get() as $job) {
+                $job->rider && $notifier->cancelled($parcel, $job->rider, RiderJobOffer::PICKUP, $job->id, 'The parcel was marked ' . $data['type']);
+            }
+            foreach (ParcelDelivery::where('parcel_id', $parcel->id)->whereIn('status', ParcelDelivery::OPEN)->with('rider')->get() as $job) {
+                $job->rider && $notifier->cancelled($parcel, $job->rider, RiderJobOffer::DELIVERY, $job->id, 'The parcel was marked ' . $data['type']);
+            }
             ParcelPickup::where('parcel_id', $parcel->id)->whereIn('status', ParcelPickup::OPEN)->update(['status' => 'cancelled', 'remarks' => ucfirst($data['type']) . '.']);
             ParcelDelivery::where('parcel_id', $parcel->id)->whereIn('status', ParcelDelivery::OPEN)->update(['status' => 'failed', 'failure_reason' => $data['reason']]);
             RiderJobOffer::where('parcel_id', $parcel->id)->where('status', 'pending')->update(['status' => 'cancelled']);

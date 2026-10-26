@@ -67,7 +67,7 @@ class MessageController extends Controller
                 'last_name' => $last->sender->name ?? '',
                 'last_at'   => $last->created_at,
                 'unread'    => $unread,
-                'route'     => route('messages.direct', $key),
+                'route'     => \App\Support\Portal::route('messages.direct', $key),
             ]);
         }
 
@@ -176,7 +176,7 @@ class MessageController extends Controller
             session()->put('chat_product.' . $threadKey, $request->integer('product_id'));
         }
 
-        return redirect()->route('messages.direct', $threadKey);
+        return redirect()->to(\App\Support\Portal::route('messages.direct', $threadKey));
     }
 
     // ══════════════════════════════════════════════════════════════

@@ -24,6 +24,16 @@ return [
         'card'  => 'Credit / Debit card',
     ],
 
+    /*
+    | GCash sent by the buyer to the shop's GCash account, outside ALVY: the buyer uploads the receipt
+    | screenshot at checkout and the seller checks it before accepting the order. Shown at checkout
+    | only when GCASH_NUMBER is set.
+    */
+    'gcash_receipt' => [
+        'number' => env('GCASH_NUMBER'),
+        'name'   => env('GCASH_ACCOUNT_NAME'),
+    ],
+
     'paymongo' => [
         'secret_key' => env('PAYMONGO_SECRET_KEY'),
         'base_url'   => env('PAYMONGO_BASE_URL', 'https://api.paymongo.com/v1'),

@@ -150,11 +150,11 @@ class RegistrationRulesAndOtpTest extends TestCase
     {
         $this->register(['password' => '1234567'])
             ->assertSessionHasErrors(['password' => 'Password must be at least 8 characters.']);
-        $this->register(['password' => '12345678'])
+        $this->register(['password' => '12345678', 'password_confirmation' => '12345678'])
             ->assertSessionDoesntHaveErrors('password');
     }
 
-    // ── Sign-up → email code → pending approval ─────────────
+    // ── Sign-up → email code → shopping (buyers need no admin approval) ─────────────
 
     public function test_valid_registration_creates_an_unverified_account_and_emails_a_code(): void
     {
@@ -169,7 +169,7 @@ class RegistrationRulesAndOtpTest extends TestCase
         $this->get(route('otp.show'))->assertOk()->assertSee('ju••@gmail.com', false);
     }
 
-    public function test_entering_the_sign_up_code_moves_the_account_to_pending_approval(): void
+    public function test_entering_the_sign_up_code_lets_a_buyer_shop_right_away(): void
     {
 
         $this->register();
@@ -177,13 +177,27 @@ class RegistrationRulesAndOtpTest extends TestCase
         Mail::assertSent(LoginOtpMail::class, function ($m) use (&$code) { $code = $m->code; return true; });
 
         $this->post(route('otp.verify'), ['otp' => $code])
-            ->assertRedirect(route('login'))
-            ->assertSessionHas('success', "Email verified! Your account is now waiting for admin approval. We'll email you once it's approved.");
+            ->assertRedirect(route('home'))
+            ->assertSessionHas('success', 'Email verified! Welcome to ALVY, Juan Dela Cruz!');
 
         $user = User::where('email', 'juan@gmail.com')->first();
-        $this->assertSame('pending', $user->approval_status);
+        $this->assertSame('approved', $user->approval_status);
         $this->assertNotNull($user->email_verified_at);
-        $this->assertGuest();
+        $this->assertAuthenticatedAs($user);
+
+        // No admin step: signing out and back in works straight away.
+        auth()->logout();
+        $this->post('/login', ['email' => 'juan@gmail.com', 'password' => 'secret123'])->assertRedirect(route('home'));
+        $this->assertAuthenticatedAs($user->fresh());
+    }
+
+    public function test_a_buyer_left_pending_before_this_change_can_log_in(): void
+    {
+        $user = $this->makeUser(['approval_status' => 'pending', 'email_verified_at' => now()]);
+
+        $this->post('/login', ['email' => 'maria@gmail.com', 'password' => 'secret123'])->assertRedirect(route('home'));
+        $this->assertAuthenticatedAs($user);
+        $this->assertSame('approved', $user->fresh()->approval_status);
     }
 
     // ── Logging in never asks for a code ────────────────────
@@ -208,7 +222,8 @@ class RegistrationRulesAndOtpTest extends TestCase
 
     public function test_pending_account_cannot_log_in_and_gets_no_code(): void
     {
-        $this->makeUser(['approval_status' => 'pending', 'email_verified_at' => now()]);
+        // Accounts other than buyers still wait for approval.
+        $this->makeUser(['role' => 'sorting_center_pending', 'approval_status' => 'pending', 'email_verified_at' => now()]);
 
         $this->from('/login')->post('/login', ['email' => 'maria@gmail.com', 'password' => 'secret123'])
             ->assertSessionHasErrors('email');
@@ -304,8 +319,8 @@ class RegistrationRulesAndOtpTest extends TestCase
             $this->post(route('otp.verify'), ['otp' => $oldCode])
                 ->assertSessionHasErrors(['otp' => 'The code you entered is incorrect.']);
         }
-        $this->post(route('otp.verify'), ['otp' => $newCode])->assertRedirect(route('login'));
-        $this->assertSame('pending', $user->fresh()->approval_status);
+        $this->post(route('otp.verify'), ['otp' => $newCode])->assertRedirect(route('home'));
+        $this->assertSame('approved', $user->fresh()->approval_status);
     }
 
     public function test_resend_after_expiry_allows_verification(): void
@@ -317,8 +332,8 @@ class RegistrationRulesAndOtpTest extends TestCase
         $newCode = null;
         Mail::assertSent(LoginOtpMail::class, function ($m) use (&$newCode) { $newCode = $m->code; return true; });
 
-        $this->post(route('otp.verify'), ['otp' => $newCode])->assertRedirect(route('login'));
-        $this->assertSame('pending', $user->fresh()->approval_status);
+        $this->post(route('otp.verify'), ['otp' => $newCode])->assertRedirect(route('home'));
+        $this->assertSame('approved', $user->fresh()->approval_status);
     }
 
     public function test_otp_page_without_a_pending_sign_up_redirects_to_login(): void

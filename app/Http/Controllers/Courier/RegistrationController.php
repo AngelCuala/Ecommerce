@@ -40,7 +40,7 @@ class RegistrationController extends Controller
             'contact_no'      => 'required|string|max:20',
             'birthday'        => 'required|date|before:today',
             'province'        => 'required|string|max:120',
-            'municipality'    => 'required|string|max:120',
+            'municipality'    => ['required', 'string', 'max:120', new \App\Rules\InServiceArea('home address')],
             'barangay'        => 'required|string|max:120',
             'street'          => 'nullable|string|max:255',
             'house_number'    => 'nullable|string|max:100',

@@ -29,7 +29,7 @@
         <div>
             <label class="mb-1 block text-xs font-semibold" for="new-parent">Under</label>
             <select id="new-parent" name="parent_id" class="input">
-                <option value="">— Top level —</option>
+                <option value="">— Store Category —</option>
                 @foreach ($categories as $c)
                     <option value="{{ $c->id }}" @selected((string) old('parent_id') === (string) $c->id)>{{ $c->name }}</option>
                 @endforeach

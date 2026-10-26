@@ -11,7 +11,7 @@
     {{-- Tailwind CDN powers the shared floating chat widget's utility classes;
          courier.css (loaded after) owns the portal's own sidebar/page styling. --}}
     <script src="{{ asset('js/vendor/tailwindcss.js') }}"></script>
-    <link rel="stylesheet" href="{{ asset('css/courier.css') }}">
+    <link rel="stylesheet" href="{{ asset('css/courier.css') }}?v={{ filemtime(public_path('css/courier.css')) }}">
     <link rel="stylesheet" href="{{ asset('css/hover-effects.css') }}">
     @stack('styles')
 </head>
@@ -25,7 +25,7 @@
 
     $links = [
         'dashboard'     => ['route' => 'courier.dashboard',     'label' => 'Dashboard',     'icon' => 'dashboard'],
-        'history'       => ['route' => 'courier.history',       'label' => 'History',       'icon' => 'history'],
+        'history'       => ['route' => 'courier.history',       'label' => 'Delivery History', 'icon' => 'history'],
         'profit'        => ['route' => 'courier.profit',        'label' => 'Earnings',      'icon' => 'earnings'],
         'notifications' => ['route' => 'courier.notifications', 'label' => 'Notifications', 'icon' => 'bell'],
         'account'       => ['route' => 'courier.account',       'label' => 'Account',       'icon' => 'user'],
@@ -37,7 +37,6 @@
             'rider-history'  => ['route' => 'courier.rider.history',  'label' => 'Job History',    'icon' => 'history'],
             'rider-earnings' => ['route' => 'courier.rider.earnings', 'label' => 'Rider Pay',      'icon' => 'earnings'],
             'rider-cod'      => ['route' => 'courier.rider.cod',      'label' => 'COD Remittance', 'icon' => 'truck'],
-            'rider-profile'  => ['route' => 'courier.rider.profile',  'label' => 'Rider Profile',  'icon' => 'user'],
         ] + array_slice($links, 1, null, true);
     }
 @endphp
@@ -75,7 +74,7 @@
                     <div class="cx-user-mail">{{ $u->email ?? '' }}</div>
                 </div>
             </div>
-            <form action="{{ route('logout') }}" method="POST">
+            <form action="{{ \App\Support\Portal::route('logout') }}" method="POST">
                 @csrf
                 <button type="submit" class="cx-logout">
                     @include('courier.partials.icon', ['name' => 'logout', 'size' => 14, 'sw' => 2])
@@ -107,7 +106,7 @@
             @endforeach
         </nav>
         <div class="cx-foot">
-            <form action="{{ route('logout') }}" method="POST">
+            <form action="{{ \App\Support\Portal::route('logout') }}" method="POST">
                 @csrf
                 <button type="submit" class="cx-logout">
                     @include('courier.partials.icon', ['name' => 'logout', 'size' => 14, 'sw' => 2])
@@ -158,6 +157,15 @@
 @endif
 
 <script src="{{ asset('js/courier-drawer.js') }}"></script>
+<script>
+// Phones show each table row as a card: label every cell with its column heading (see .cx-table in courier.css).
+document.querySelectorAll('.cx-table').forEach(function (table) {
+    var heads = Array.from(table.querySelectorAll('thead th')).map(function (th) { return th.textContent.trim(); });
+    table.querySelectorAll('tbody tr').forEach(function (tr) {
+        Array.from(tr.children).forEach(function (td, i) { if (!td.hasAttribute('colspan') && heads[i]) td.setAttribute('data-label', heads[i]); });
+    });
+});
+</script>
 <script src="{{ asset('js/Courier.js') }}"></script>
 
 {{-- Floating chat popup (same widget the other portals use) --}}

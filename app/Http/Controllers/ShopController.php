@@ -10,7 +10,7 @@ class ShopController extends Controller
 {
     public function index(Request $request, ProductSearch $search)
     {
-        $filtering = $request->hasAny(['min_price', 'max_price', 'rating', 'category', 'location', 'sort']);
+        $filtering = $request->hasAny(['min_price', 'max_price', 'rating', 'category', 'location', 'sort', 'store', 'availability']);
 
         // A category link without a search: go to that category's page.
         if (! $request->filled('search') && $request->filled('category') && ! $filtering) {
@@ -42,6 +42,22 @@ class ShopController extends Controller
         $locations  = SellerApplication::where('status', 'approved')->whereNotNull('province')
             ->distinct()->orderBy('province')->pluck('province');
 
-        return view('shop.index', compact('products', 'term', 'suggestion', 'notes', 'categories', 'locations'));
+        // Stores with something on sale: only the public shop name is used.
+        $stores = SellerApplication::where('status', 'approved')->whereNotNull('shop_name')
+            ->whereHas('user.products', fn ($p) => $p->published())
+            ->orderBy('shop_name')->pluck('shop_name', 'user_id');
+
+        // Stores whose name matches the search (every word), shown above the products.
+        $matchedStores = collect();
+        if ($term !== '') {
+            $q = SellerApplication::where('status', 'approved')->whereNotNull('shop_name')
+                ->whereHas('user.products', fn ($p) => $p->published());
+            foreach (preg_split('/\s+/', $term, -1, PREG_SPLIT_NO_EMPTY) as $word) {
+                $q->where('shop_name', 'like', '%' . ProductSearch::likeEscape($word) . '%');
+            }
+            $matchedStores = $q->orderBy('shop_name')->limit(6)->get(['user_id', 'shop_name', 'municipality', 'province', 'logo_path']);
+        }
+
+        return view('shop.index', compact('products', 'term', 'suggestion', 'notes', 'categories', 'locations', 'stores', 'matchedStores'));
     }
 }

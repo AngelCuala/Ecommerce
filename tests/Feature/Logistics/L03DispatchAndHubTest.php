@@ -70,10 +70,10 @@ class L03DispatchAndHubTest extends TestCase
         $parcel = $this->parcel('pickup_approved');
 
         $this->asL1()->post(route('sc.dispatch.assign', $parcel), ['rider_id' => $this->rider2->id])
-            ->assertSessionHas('success', "{$parcel->tracking_number} assigned to Mark Anthony Bautista.");
+            ->assertSessionHas('success', "{$parcel->tracking_number} assigned to Mark Anthony Bautista. The rider was notified.");
         $pickup = ParcelPickup::where('parcel_id', $parcel->id)->sole();
         $this->assertSame([$this->rider2->id, 'Assigned'], [(int) $pickup->rider_id, $pickup->statusLabel()]);
-        $this->assertTrue(\App\Models\UserNotification::where('user_id', $this->rider2->user_id)->where('title', 'New pickup job')->exists());
+        $this->assertTrue(\App\Models\UserNotification::where('user_id', $this->rider2->user_id)->where('title', 'like', 'New pickup job: %')->exists());
         $this->buyerPage($parcel)->assertSee('Rider Mark Anthony Bautista assigned for pickup');
     }
 
@@ -115,11 +115,11 @@ class L03DispatchAndHubTest extends TestCase
 
         $this->asL1()->get(route('sc.dispatch'))->assertSee('data-reassign="' . $parcel->tracking_number . '"', false);
         $this->asL1()->post(route('sc.dispatch.reassign', $parcel), ['rider_id' => $this->rider2->id])
-            ->assertSessionHas('success', "{$parcel->tracking_number} reassigned to Mark Anthony Bautista.");
+            ->assertSessionHas('success', "{$parcel->tracking_number} reassigned to Mark Anthony Bautista. The rider was notified.");
 
         $this->assertSame(0, $this->rider1->fresh()->activeJobsCount());
         $this->assertSame($this->rider2->id, (int) ParcelPickup::where('parcel_id', $parcel->id)->where('status', 'assigned')->sole()->rider_id);
-        $this->assertTrue(\App\Models\UserNotification::where('user_id', $this->rider1->user_id)->where('title', 'Job reassigned')->exists());
+        $this->assertTrue(\App\Models\UserNotification::where('user_id', $this->rider1->user_id)->where('title', 'like', 'Job reassigned: %')->exists());
         $this->buyerPage($parcel)->assertSeeInOrder(['Rider Pedro Jose Garcia assigned for pickup', 'Pickup taken from rider Pedro Jose Garcia', 'Rider Mark Anthony Bautista assigned for pickup']);
     }
 
@@ -183,9 +183,16 @@ class L03DispatchAndHubTest extends TestCase
 
     // ── L4 Hub & Warehouse Operations ───────────────────────────
 
+    /** Scan the waybill; when it is found, confirm receipt explicitly (scanning alone records nothing). */
     private function scan(string $tracking)
     {
-        return $this->actingAs($this->logistics1)->from(route('sc.incoming-parcels'))->post(route('sc.parcels.scan'), ['tracking_number' => $tracking]);
+        $found = $this->actingAs($this->logistics1)->from(route('sc.incoming-parcels'))->post(route('sc.parcels.scan'), ['tracking_number' => $tracking]);
+        if (! session('info')) {
+            return $found;   // not found / already received
+        }
+        $parcel = Parcel::where('tracking_number', $tracking)->sole();
+        return $this->actingAs($this->logistics1)->from(route('sc.tracking.show', $parcel))
+            ->post(route('sc.tracking.receive', $parcel), ['confirm_received' => '1', 'condition' => 'good']);
     }
 
     /** LOG-HUB-001 */

@@ -74,7 +74,7 @@ class GoogleSignupTest extends TestCase
 
         $this->from(route('register'))->post(route('register'), $this->buyerPayload())
             ->assertSessionHasNoErrors()
-            ->assertRedirect(route('login'))
+            ->assertRedirect(route('home'))
             ->assertSessionHas('success');
 
         // The Google email is used even though another one was typed.
@@ -82,7 +82,8 @@ class GoogleSignupTest extends TestCase
         $user = User::where('email', 'new.person@gmail.com')->firstOrFail();
         $this->assertSame('g-555', $user->google_id);
         $this->assertNotNull($user->email_verified_at);
-        $this->assertSame('pending', $user->approval_status);
+        $this->assertSame('approved', $user->approval_status);   // buyers need no admin approval
+        $this->assertAuthenticatedAs($user);
 
         Mail::assertNotSent(LoginOtpMail::class);
         $this->assertNull(session('google_signup'));
@@ -134,11 +135,11 @@ class GoogleSignupTest extends TestCase
         ]);
         $this->fakeGoogle('half.done@gmail.com');
 
-        $this->get(route('auth.google.callback'))->assertRedirect(route('login'))->assertSessionHas('success');
+        $this->get(route('auth.google.callback'))->assertRedirect(route('home'))->assertSessionHas('success');
 
         $user->refresh();
-        $this->assertSame('pending', $user->approval_status);
+        $this->assertSame('approved', $user->approval_status);
         $this->assertNotNull($user->email_verified_at);
-        $this->assertGuest();
+        $this->assertAuthenticatedAs($user);
     }
 }

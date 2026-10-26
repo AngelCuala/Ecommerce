@@ -16,18 +16,18 @@ use Illuminate\Support\Collection;
  */
 class RiderWallet
 {
-    /** Every job once: ['at', 'type', 'tracking', 'result', 'pay', 'cod'] newest first. */
+    /** Every job once: ['at', 'type', 'tracking', 'order', 'result', 'pay', 'cod'] newest first. */
     public function history(Rider $rider, ?CarbonInterface $from = null, ?CarbonInterface $to = null): Collection
     {
         $rows = collect();
 
-        foreach (ParcelPickup::where('rider_id', $rider->id)->whereIn('status', ['picked_up', 'received'])->with('parcel')->get() as $p) {
-            $rows->push(['at' => $p->picked_up_at, 'type' => 'Pickup', 'tracking' => $p->parcel?->tracking_number,
+        foreach (ParcelPickup::where('rider_id', $rider->id)->whereIn('status', ['picked_up', 'received'])->with('parcel.order')->get() as $p) {
+            $rows->push(['at' => $p->picked_up_at, 'type' => 'Pickup', 'tracking' => $p->parcel?->tracking_number, 'order' => $p->parcel?->order?->number(),
                 'result' => $p->status === 'received' ? 'Delivered to hub' : 'Picked up', 'pay' => RiderDispatch::PAY_PICKUP, 'cod' => 0.0]);
         }
-        foreach (ParcelDelivery::where('rider_id', $rider->id)->whereIn('status', ['delivered', 'failed', 'returned'])->with('parcel')->get() as $d) {
+        foreach (ParcelDelivery::where('rider_id', $rider->id)->whereIn('status', ['delivered', 'failed', 'returned'])->with('parcel.order')->get() as $d) {
             $ok = $d->status === 'delivered';
-            $rows->push(['at' => $ok ? $d->delivered_at : $d->updated_at, 'type' => 'Delivery', 'tracking' => $d->parcel?->tracking_number,
+            $rows->push(['at' => $ok ? $d->delivered_at : $d->updated_at, 'type' => 'Delivery', 'tracking' => $d->parcel?->tracking_number, 'order' => $d->parcel?->order?->number(),
                 'result' => $ok ? 'Delivered' : 'Failed (' . ($d->failure_reason ?: $d->remarks ?: 'no reason') . ') · attempt ' . $d->attempt,
                 'pay' => $ok ? RiderDispatch::PAY_DELIVERY : 0.0, 'cod' => (float) $d->cod_collected]);
         }

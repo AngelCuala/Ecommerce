@@ -66,6 +66,26 @@ class LoginOtp
         Mail::to($user->email)->send(new LoginOtpMail($user, $code, self::TTL_MINUTES));
     }
 
+    /** Shown when the code email could not be sent. */
+    public const SEND_FAILED = 'We couldn\'t send the verification email right now. Please press "Resend code" in a moment.';
+
+    /**
+     * Like send(), but never throws: returns false (and logs why) when the email could not
+     * be sent (wrong mail settings, no internet, TLS blocked…). The unsent code and the
+     * resend cooldown are cleared so the user can try again straight away.
+     */
+    public function trySend(User $user): bool
+    {
+        try {
+            $this->send($user);
+            return true;
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('OTP email to ' . $user->email . ' failed: ' . $e->getMessage());
+            $user->forceFill(['otp_code' => null, 'otp_expires_at' => null, 'otp_sent_at' => null])->save();
+            return false;
+        }
+    }
+
     /** Check a code. On success the account is marked verified and the code is cleared. */
     public function verify(User $user, string $code): string
     {

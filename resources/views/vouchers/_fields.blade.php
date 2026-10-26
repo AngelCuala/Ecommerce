@@ -27,9 +27,9 @@
 <div class="grid gap-4 sm:grid-cols-2">
     <div>
         <label class="{{ $label }}" style="color:#3a2f29;" for="code">Voucher code *</label>
-        <input id="code" name="code" maxlength="30" value="{{ old('code', $voucher->code) }}" placeholder="e.g. SALE1111"
+        <input id="code" name="code" maxlength="12" value="{{ old('code', $voucher->code) }}" placeholder="e.g. SALE1111"
                class="{{ $input }} vf-input uppercase" @readonly($used) required>
-        @if ($err('code'))<p class="vf-err">{{ $err('code') }}</p>@else<p class="vf-hint">Letters, numbers, - and _. Buyers type or pick this at checkout.</p>@endif
+        @if ($err('code'))<p class="vf-err">{{ $err('code') }}</p>@else<p class="vf-hint">4 to 12 letters and numbers. Buyers type or pick this at checkout.</p>@endif
     </div>
     <div>
         <label class="{{ $label }}" style="color:#3a2f29;" for="name">Name *</label>
@@ -73,13 +73,13 @@
     <div>
         <label class="{{ $label }}" style="color:#3a2f29;" for="starts_at">Starts</label>
         <input id="starts_at" name="starts_at" type="datetime-local"
-               value="{{ old('starts_at', $voucher->starts_at?->format('Y-m-d\TH:i')) }}" class="{{ $input }} vf-input">
-        @if ($err('starts_at'))<p class="vf-err">{{ $err('starts_at') }}</p>@else<p class="vf-hint">Empty = starts right away.</p>@endif
+               value="{{ old('starts_at', \App\Support\VoucherRules::forInput($voucher->starts_at)) }}" class="{{ $input }} vf-input">
+        @if ($err('starts_at'))<p class="vf-err">{{ $err('starts_at') }}</p>@else<p class="vf-hint">Philippine time. Empty = starts right away.</p>@endif
     </div>
     <div>
         <label class="{{ $label }}" style="color:#3a2f29;" for="ends_at">Ends</label>
         <input id="ends_at" name="ends_at" type="datetime-local"
-               value="{{ old('ends_at', $voucher->ends_at?->format('Y-m-d\TH:i')) }}" class="{{ $input }} vf-input">
+               value="{{ old('ends_at', \App\Support\VoucherRules::forInput($voucher->ends_at)) }}" class="{{ $input }} vf-input">
         @if ($err('ends_at'))<p class="vf-err">{{ $err('ends_at') }}</p>@else<p class="vf-hint">Empty = no end date. For a flash sale, set both.</p>@endif
     </div>
 

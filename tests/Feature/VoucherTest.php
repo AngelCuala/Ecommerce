@@ -301,4 +301,34 @@ class VoucherTest extends TestCase
         $this->actingAs($this->admin)->put(route('admin.vouchers.update', $v), ['usage_limit' => 50, 'discount_value' => 50] + $form)->assertSessionHasErrors('discount_value');
         $this->actingAs($this->admin)->put(route('admin.vouchers.update', $v), ['usage_limit' => 10] + $form)->assertSessionHasErrors('usage_limit');
     }
+
+    public function test_voucher_times_are_philippine_time(): void
+    {
+        config(['app.business_timezone' => 'Asia/Manila']);
+        \Illuminate\Support\Carbon::setTestNow(\Illuminate\Support\Carbon::parse('2026-10-26 14:38', 'Asia/Manila'));
+        try {
+            // Made at 2:38 PM for 2:34 PM - 5:30 PM today (Philippine time): it must work right away.
+            $this->actingAs($this->admin)->post(route('admin.vouchers.store'), [
+                'code' => '1234', 'name' => 'SALEEEE', 'discount_type' => 'percent', 'discount_value' => 50, 'max_discount' => 300,
+                'min_spend' => 150, 'starts_at' => '2026-10-26T14:34', 'ends_at' => '2026-10-26T17:30', 'per_user_limit' => 1,
+                'is_active' => 1, 'is_claimable' => 1, 'scope' => 'platform',
+            ])->assertSessionHasNoErrors()->assertRedirect(route('admin.vouchers.index'));
+
+            $v = Voucher::where('code', '1234')->firstOrFail();
+            $this->assertSame('2026-10-26 06:34:00', $v->starts_at->utc()->toDateTimeString());
+            $this->assertSame('2026-10-26 09:30:00', $v->ends_at->utc()->toDateTimeString());
+            $this->assertTrue(Voucher::running()->whereKey($v->id)->exists());
+            $this->assertSame('Ongoing', $v->stateLabel());
+            $this->actingAs($this->admin)->get(route('admin.vouchers.index'))->assertSee('Oct 26, 2026 2:34 PM');
+            $this->actingAs($this->admin)->get(route('admin.vouchers.edit', $v))->assertSee('value="2026-10-26T17:30"', false);
+
+            // An end time already past in the Philippines is refused, and the form keeps what was typed.
+            $this->actingAs($this->admin)->post(route('admin.vouchers.store'), [
+                'code' => 'LATE1', 'name' => 'Late', 'discount_type' => 'fixed', 'discount_value' => 50,
+                'ends_at' => '2026-10-26T14:00', 'per_user_limit' => 1, 'scope' => 'platform',
+            ])->assertSessionHasErrors('ends_at')->assertSessionHasInput('ends_at', '2026-10-26T14:00');
+        } finally {
+            \Illuminate\Support\Carbon::setTestNow();
+        }
+    }
 }

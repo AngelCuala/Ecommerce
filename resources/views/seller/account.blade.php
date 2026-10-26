@@ -94,7 +94,7 @@
                     </div>
                     <div>
                         <label class="ac-label" for="phone">Mobile number</label>
-                        <input type="tel" id="phone" name="phone" value="{{ old('phone', $u->phone ?: $u->contact_no) }}" class="input" placeholder="09171234567" inputmode="tel">
+                        <input type="tel" id="phone" name="phone" value="{{ old('phone', $u->phone ?: $u->contact_no) }}" class="input" placeholder="09171234567" maxlength="13" inputmode="tel" autocomplete="tel" data-mobile oninput="this.value=this.value.startsWith('+')?('+'+this.value.slice(1).replace(/\D/g,'')).slice(0,13):this.value.replace(/\D/g,'').slice(0,11)">
                         @error('phone')<p class="ac-error">{{ $message }}</p>@enderror
                     </div>
                     <div>

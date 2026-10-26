@@ -67,7 +67,7 @@
                         <span class="text-sm" style="color:#8a7f78;">{{ $order->created_at->format('M j, Y · g:i A') }}</span>
                     </div>
                     <div class="flex items-center gap-3 text-sm">
-                        <span style="color:#8a7f78;">{{ $order->payment_method }} · {{ $order->payment_status }}</span>
+                        <span style="color:#8a7f78;">{{ $order->paymentMethodLabel() }} · {{ $order->payment_status }}</span>
                         <span class="rounded-md px-2 py-0.5 text-xs font-semibold" style="{{ $statusStyle[$order->status] ?? 'background:#F5F5F4;color:#57534E;' }}">
                             {{ isset($stepLabel[$step]) && in_array($order->status, ['Pending', 'Processing']) ? $stepLabel[$step] : $order->status }}
                         </span>

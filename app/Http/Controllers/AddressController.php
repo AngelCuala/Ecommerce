@@ -33,6 +33,9 @@ class AddressController extends Controller
             'municipality_code' => ['required', 'regex:/^\d{9,10}$/'],
             'barangay_code'     => ['nullable', 'regex:/^\d{9,10}$/'],
             'is_default'        => 'boolean',
+            // Map pin, if the buyer dropped one (must be inside the Philippines).
+            'latitude'          => 'nullable|numeric|between:4,22|required_with:longitude',
+            'longitude'         => 'nullable|numeric|between:116,127|required_with:latitude',
         ], [
             'phone.regex'                => 'Enter a valid PH mobile number: 09XXXXXXXXX (11 digits) or +639XXXXXXXXX.',
             'municipality_code.required' => 'Please choose the region, province, city and barangay from the lists.',
@@ -45,6 +48,7 @@ class AddressController extends Controller
         PsgcDirectory::normalizeCodes($request);
         $in   = $request->only(['region_code', 'province_code', 'municipality_code', 'barangay_code', 'region_psgc', 'province_psgc', 'municipality_psgc', 'barangay_psgc']);
         $addr = app(PsgcDirectory::class)->resolve($in, true, $data['barangay'], ['municipality' => 'city']);
+        \App\Support\ServiceArea::assert($addr['municipality_code'] ?? $addr['municipality_psgc'], null, null, 'city', 'delivery address');
         $data['region']            = $addr['region'];
         $data['province']          = $addr['province_display'];
         $data['city']              = $addr['municipality'];

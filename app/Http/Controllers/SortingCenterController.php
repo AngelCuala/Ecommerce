@@ -495,57 +495,102 @@ class SortingCenterController extends Controller
             'sorted'      => $this->myParcels()->where('status', 'sorted')->count(),
         ];
 
-        return view('sc.incoming-parcels', compact('parcels', 'miniStats'));
+        $recentScans = $this->recentScans();
+
+        return view('sc.incoming-parcels', compact('parcels', 'miniStats', 'recentScans'));
     }
 
-    /** Receive a parcel at the sorting center (row button). */
-    public function advanceParcel(Parcel $parcel)
+    /**
+     * Receive a parcel (row button). Receipt is only recorded with an explicit confirmation
+     * (confirm_received=1, after checking the parcel); without it the confirmation page opens.
+     */
+    public function advanceParcel(Request $request, Parcel $parcel)
     {
-        $this->guardParcel($parcel, ['pickup_approved', 'in_transit_to_hub']);
-        return $this->markReceived($parcel);
+        $incoming = ParcelTransfer::where('parcel_id', $parcel->id)->where('status', 'in_transit')->where('to_sorting_center_id', auth()->id())->exists();
+        abort_unless((int) $parcel->current_sorting_center_id === (int) auth()->id() || $incoming, 403, 'This parcel is handled by another sorting center.');
+        if (! $request->boolean('confirm_received')) {
+            return redirect()->route('sc.tracking.show', $parcel)->with('info', 'Check the parcel, then confirm you received it.');
+        }
+
+        return app(\App\Http\Controllers\SortingCenter\ShipmentController::class)->receive($request, $parcel);
     }
 
     /** Scan a parcel by tracking number to receive it. */
+    /** Printable waybill for one of this center's parcels. */
+    public function waybill(Parcel $parcel)
+    {
+        abort_unless($parcel->current_sorting_center_id === auth()->id(), 403);
+
+        return $this->waybillView(new \Illuminate\Database\Eloquent\Collection([$parcel]));
+    }
+
+    /** Several waybills on one printable page (e.g. "Print all" on a parcel list). */
+    public function waybills(Request $request)
+    {
+        $ids = collect((array) $request->input('ids'))->map(fn ($id) => (int) $id)->filter()->unique()->take(100);
+        $parcels = $this->myParcels()->whereIn('id', $ids->all() ?: [0])->orderBy('id')->get();
+        abort_if($parcels->isEmpty(), 404, 'No parcels to print.');
+
+        return $this->waybillView($parcels);
+    }
+
+    private function waybillView($parcels)
+    {
+        $parcels->loadMissing(['order', 'area', 'seller.sellerApplication', 'currentSortingCenter']);
+        foreach ($parcels as $p) {
+            $p->waybill_number ??= tap(Parcel::generateWaybill(), fn ($w) => $p->forceFill(['waybill_number' => $w])->saveQuietly());
+        }
+
+        return view('sc.waybill', ['parcels' => $parcels, 'hub' => $this->sc()]);
+    }
+
+    /** Scanning (or typing) a waybill only finds the parcel: receipt is confirmed separately. */
     public function scanParcel(Request $request)
     {
         $data = $request->validate(['tracking_number' => 'required|string|max:50']);
+        $code = strtoupper(trim($data['tracking_number']));
 
-        $parcel = $this->myParcels()->where('tracking_number', trim($data['tracking_number']))->first();
+        // Waybill / tracking numbers are letters, digits and dashes (a camera misread or stray text is refused).
+        if (! preg_match('/^[A-Z0-9-]{6,50}$/', $code)) {
+            $this->logScan($code, 'invalid', 'Not a waybill or tracking number.');
+            return back()->with('error', "\"{$code}\" is not a waybill or tracking number. Scan again or type it.");
+        }
+
+        $parcel = app(\App\Services\ShipmentWorkflow::class)->lookup($this->sc(), $code);
 
         if (! $parcel) {
             // Unknown, or another company's parcel: nothing about it is shown or changed.
-            return back()->with('error', "Parcel {$data['tracking_number']} not found at your sorting center.");
-        }
-        if ($parcel->received_at && ! in_array($parcel->status, ['pickup_approved', 'in_transit_to_hub'], true)) {
-            return back()->with('error', "{$parcel->tracking_number} was already received at " . $parcel->received_at->format('M j, g:i A') . " ({$parcel->statusLabel()}).");
-        }
-        if (! in_array($parcel->status, ['pickup_approved', 'in_transit_to_hub'], true)) {
-            return back()->with('error', "{$parcel->tracking_number} is already {$parcel->statusLabel()}.");
+            $this->logScan($code, 'not_found', 'Not found at this sorting center.');
+            return back()->with('error', "Parcel {$code} not found at your sorting center.");
         }
 
-        return $this->markReceived($parcel);
+        // An accidental second scan: nothing is recorded again.
+        if ($parcel->isAtHub() && (int) $parcel->current_sorting_center_id === (int) auth()->id() && $parcel->received_at) {
+            $this->logScan($code, 'duplicate', 'Already received ' . $parcel->received_at->tz(config('app.business_timezone'))->format('M j, g:i A') . '.', $parcel);
+            return back()->with('error', "{$parcel->tracking_number} was already received at " . $parcel->received_at->tz(config('app.business_timezone'))->format('M j, g:i A') . " ({$parcel->statusLabel()}). Nothing was recorded again.");
+        }
+
+        // Remember what was physically scanned here (a stray parcel may then be viewed and reported).
+        session()->put('sc.scanned', array_values(array_unique(array_merge((array) session('sc.scanned', []), [$parcel->id]))));
+        $this->logScan($code, 'found', 'Found: ' . $parcel->statusLabel() . '.', $parcel);
+
+        return redirect()->route('sc.tracking.show', $parcel)
+            ->with('info', "Found {$parcel->tracking_number} ({$parcel->statusLabel()}" . ($parcel->destination_municipality ? ", to {$parcel->destination_municipality}" : '')
+                . '). Check the parcel, then confirm receipt. Scanning alone records nothing.');
     }
 
-    private function markReceived(Parcel $parcel)
+    /** Scan history: one activity-log row per scan (code, result, parcel status at the time). */
+    private function logScan(string $code, string $result, string $message, ?Parcel $parcel = null): void
     {
-        if ($parcel->order && $parcel->order->status === \App\Models\Order::CANCELLED) {
-            $parcel->update(['status' => 'cancelled', 'failure_reason' => 'Order was cancelled.']);
-            $this->parcels()->notifySeller($parcel, 'Pickup cancelled', "{$parcel->tracking_number}: the order was cancelled, so the parcel was not received.", 'warning');
-            return back()->with('error', "{$parcel->tracking_number}: the order was cancelled, so it can't be received.");
-        }
+        \App\Models\ActivityLog::record('sc_scan', 'Waybill scan', $code . ': ' . $message, $parcel, $result);
+        \App\Models\ActivityLog::where('action', 'sc_scan')->where('admin_id', auth()->id())->latest('id')->first()
+            ?->update(['old_value' => \Illuminate\Support\Str::limit($code, 50, ''), 'new_value' => $parcel?->statusLabel(), 'reason' => $message]);
+    }
 
-        $parcel->update(['status' => 'picked_up', 'received_at' => now()]);
-        // The rider who brought it in has finished the pickup ("At Hub").
-        \App\Models\ParcelPickup::where('parcel_id', $parcel->id)->whereIn('status', \App\Models\ParcelPickup::OPEN)
-            ->update(['status' => 'received', 'received_at' => now(), 'received_by' => auth()->id()]);
-        \App\Models\ParcelPickup::where('parcel_id', $parcel->id)->where('status', 'received')->whereNull('picked_up_at')->update(['picked_up_at' => now()]);
-
-        $svc = $this->parcels();
-        $svc->syncOrder($parcel);
-        $svc->notifyBuyer($parcel, 'Parcel at sorting center',
-            "{$svc->orderRef($parcel)} arrived at {$this->sc()->name} and is being sorted for delivery.");
-
-        return back()->with('success', "{$parcel->tracking_number} received at the sorting center. Ready for sorting.");
+    /** This center's own recent scans, newest first. */
+    private function recentScans()
+    {
+        return \App\Models\ActivityLog::where('action', 'sc_scan')->where('admin_id', auth()->id())->latest('id')->limit(15)->get();
     }
 
     // ── Parcel Sorting ────────────────────────────────────────
@@ -559,7 +604,7 @@ class SortingCenterController extends Controller
 
         // Received parcels waiting to be sorted (not mid-transfer).
         $pending = $this->myParcels()->with(['area', 'order'])
-            ->where('status', 'picked_up')
+            ->whereIn('status', ['picked_up', 'sorting'])
             ->whereNull('transfer_status')
             ->oldest('received_at')->get();
 
@@ -579,10 +624,15 @@ class SortingCenterController extends Controller
 
     public function sortParcel(Request $request, Parcel $parcel)
     {
-        $this->guardParcel($parcel, ['picked_up']);
+        $this->guardParcel($parcel, ['picked_up', 'sorting']);
 
         if ($parcel->transfer_status === 'outgoing') {
             return back()->with('error', "{$parcel->tracking_number} is being transferred to another sorting center.");
+        }
+        // Last-mile only for addresses this hub serves; anything else must be transferred.
+        if (! $this->parcels()->coversDestination($parcel, $this->sc())) {
+            $next = app(\App\Services\ShipmentWorkflow::class)->nextDestination($parcel, $this->sc());
+            return back()->with('error', "{$parcel->tracking_number} goes to {$parcel->destination_municipality}, which your center does not serve. Next: {$next['label']}.");
         }
 
         // The chosen barangay must be one this SC covers (within its municipality).
@@ -593,10 +643,14 @@ class SortingCenterController extends Controller
             'area_id.in'       => 'That barangay is outside your municipality coverage.',
         ]);
 
-        $parcel->update(['area_id' => $request->area_id, 'status' => 'sorted', 'sorted_at' => now()]);
+        $parcel->withTracking(['location_id' => $this->sc()->id])->update(['area_id' => $request->area_id, 'status' => 'sorted', 'sorted_at' => now(), 'sorted_by' => auth()->id()]);
         $this->parcels()->syncOrder($parcel);
 
-        return back()->with('success', "{$parcel->tracking_number} sorted to {$parcel->area->name}.");
+        // Ready for last-mile: offer the delivery to this hub's nearest online rider right away.
+        $offer = app(\App\Services\RiderDispatch::class)->offer($parcel->fresh());
+
+        return back()->with('success', "{$parcel->tracking_number} sorted to {$parcel->area->name}. "
+            . ($offer ? "Delivery offered to {$offer->rider->full_name}." : 'No rider is online right now, so the delivery is waiting in Rider Dispatch.'));
     }
 
     // ── Delivery Assignment ───────────────────────────────────
@@ -649,18 +703,27 @@ class SortingCenterController extends Controller
             return back()->with('error', "{$rider->full_name} is not assigned to {$parcel->area->name}. Choose a rider for that area.");
         }
 
-        ParcelDelivery::create(app(\App\Services\RiderDispatch::class)->deliveryJob($parcel) + [
-            'parcel_id'   => $parcel->id,
-            'rider_id'    => $rider->id,
-            'area_id'     => $parcel->area_id,
-            'assigned_by' => auth()->id(),
-            'status'      => 'assigned',
-        ]);
+        // Riders are only dispatched by sorting centers inside the service area (Laguna).
+        if (! app(\App\Services\RiderDispatch::class)->inServiceArea((int) auth()->id())) {
+            return back()->with('error', 'Your sorting center is outside the service area (' . \App\Support\ServiceArea::label() . ' only), so it cannot assign riders.');
+        }
 
-        $parcel->update(['status' => 'assigned']);
+        $notice = DB::transaction(function () use ($parcel, $rider) {
+            $job = ParcelDelivery::create(app(\App\Services\RiderDispatch::class)->deliveryJob($parcel) + [
+                'parcel_id'   => $parcel->id,
+                'rider_id'    => $rider->id,
+                'area_id'     => $parcel->area_id,
+                'assigned_by' => auth()->id(),
+                'status'      => 'assigned',
+            ]);
+            $parcel->update(['status' => 'assigned']);
+
+            return app(\App\Services\RiderNotifier::class)->assigned($parcel->fresh(), $rider, \App\Models\RiderJobOffer::DELIVERY, $job->id);
+        });
         $this->parcels()->syncOrder($parcel);
 
-        return back()->with('success', "{$parcel->tracking_number} assigned to {$rider->full_name}.");
+        return back()->with('success', "{$parcel->tracking_number} assigned to {$rider->full_name}."
+            . ($notice ? ' The rider was notified.' : ' The rider could not be notified in the app; please tell them directly.'));
     }
 
     // ── Delivery Monitoring ───────────────────────────────────
@@ -975,201 +1038,129 @@ class SortingCenterController extends Controller
     // ══════════════════════════════════════════════════════════════
 
     /**
-     * Show the transfer hub: outgoing transfers I initiated,
-     * incoming transfers addressed to me (pending acceptance).
+     * Transfers between hubs: create (awaiting dispatch) → dispatch (in transit) → the destination
+     * confirms receipt. Outgoing, incoming and history, with delays flagged.
      */
     public function transfers(Request $request)
     {
-        $me = auth()->id();
+        $me = $this->sc();
+        $flow = app(\App\Services\ShipmentWorkflow::class);
+        $flow->flagDelayedTransfers();
 
-        // Parcels I currently hold that can be transferred
-        $myParcels = Parcel::with('seller')
-            ->where('current_sorting_center_id', $me)
-            ->whereIn('status', ['picked_up', 'sorted'])
+        // Parcels received here that can be sent on (no active transfer, no rider on them).
+        $myParcels = Parcel::with(['seller', 'order'])
+            ->where('current_sorting_center_id', $me->id)
+            ->whereIn('status', ['picked_up', 'sorting', 'sorted'])->whereNotNull('received_at')
             ->whereNull('transfer_status')
-            ->when($request->search, fn ($q) => $q->where('tracking_number', 'like', "%{$request->search}%"))
-            ->latest()
-            ->get();
+            ->when($request->search, fn ($q) => $q->where('tracking_number', 'like', '%' . $request->search . '%'))
+            ->latest()->get();
+        $suggested = $myParcels->mapWithKeys(fn ($p) => [$p->id => $flow->nextDestination($p, $me)]);
 
-        // Other sorting centers (excluding me)
-        $otherCenters = User::where('role', 'sorting_center')
-            ->where('id', '!=', $me)
-            ->orderBy('name')
-            ->get();
+        $otherCenters = $flow->eligibleHubs($me);
+        $transporters = \App\Models\Rider::where('sorting_center_id', $me->id)->where('application_status', 'approved')
+            ->where('is_active', true)->where('can_transport_transfers', true)->orderBy('full_name')->get();
 
-        // Outgoing transfers I initiated (still pending)
-        $outgoing = ParcelTransfer::with(['parcel', 'toSortingCenter'])
-            ->where('from_sorting_center_id', $me)
-            ->where('status', 'pending')
-            ->latest()
-            ->get();
-
-        // Incoming transfers addressed to me (pending my acceptance)
+        $outgoing = ParcelTransfer::with(['parcel', 'toSortingCenter', 'transporter'])
+            ->where('from_sorting_center_id', $me->id)->whereIn('status', ['pending', 'in_transit', 'exception'])->latest()->get();
         $incoming = ParcelTransfer::with(['parcel', 'fromSortingCenter'])
-            ->where('to_sorting_center_id', $me)
-            ->where('status', 'pending')
-            ->latest()
-            ->get();
-
-        // Transfer history (received/rejected)
+            ->where('to_sorting_center_id', $me->id)->whereIn('status', ['pending', 'in_transit', 'exception'])->latest()->get();
         $history = ParcelTransfer::with(['parcel', 'fromSortingCenter', 'toSortingCenter'])
-            ->where(fn ($q) => $q->where('from_sorting_center_id', $me)
-                ->orWhere('to_sorting_center_id', $me))
-            ->whereIn('status', ['received', 'rejected'])
-            ->latest()
-            ->take(30)
-            ->get();
+            ->where(fn ($q) => $q->where('from_sorting_center_id', $me->id)->orWhere('to_sorting_center_id', $me->id))
+            ->whereIn('status', ['received', 'rejected', 'cancelled'])->latest()->take(30)->get();
 
-        return view('sc.transfers', compact(
-            'myParcels', 'otherCenters', 'outgoing', 'incoming', 'history'
-        ));
+        return view('sc.transfers', compact('myParcels', 'otherCenters', 'outgoing', 'incoming', 'history', 'transporters', 'suggested'));
     }
 
-    /**
-     * Initiate a transfer — mark parcel as outgoing and create a transfer record.
-     */
+    /** Create a transfer (Transfer Created / Awaiting Dispatch); the parcel stays here until dispatched. */
     public function initiateTransfer(Request $request)
     {
-        $request->validate([
-            'parcel_id'               => 'required|exists:parcels,id',
-            'to_sorting_center_id'    => 'required|exists:users,id',
-            'reason'                  => 'nullable|string|max:500',
-        ]);
+        $data = $request->validate([
+            'parcel_id'            => 'required|integer',
+            'to_sorting_center_id' => 'required|integer',
+            'transporter_rider_id' => 'nullable|integer',
+            'reason'               => 'nullable|string|max:500',
+        ], ['to_sorting_center_id.required' => 'Choose the destination sorting center.']);
 
-        $parcel = Parcel::findOrFail($request->parcel_id);
-        $me     = auth()->id();
-
-        // Guard: only the SC currently holding the parcel can transfer it
-        if ((int) $parcel->current_sorting_center_id !== (int) $me) {
+        $parcel = Parcel::find($data['parcel_id']);
+        if (! $parcel || (int) $parcel->current_sorting_center_id !== (int) auth()->id()) {
             return back()->withErrors(['parcel_id' => 'You can only transfer parcels currently held by your sorting center.']);
         }
-
-        // Guard: can't transfer if already outgoing
-        if ($parcel->transfer_status === 'outgoing') {
-            return back()->withErrors(['parcel_id' => 'This parcel already has a pending outgoing transfer.']);
+        if (! in_array($parcel->status, ['picked_up', 'sorting', 'sorted'], true) || ! $parcel->received_at || $parcel->transfer_status) {
+            return back()->withErrors(['parcel_id' => "{$parcel->tracking_number} is {$parcel->statusLabel()}; only a parcel received at your hub (with no transfer in progress) can be transferred."]);
         }
-        // Only a parcel at this hub (received or sorted, no rider on it) can move to another hub.
-        if (! in_array($parcel->status, ['picked_up', 'sorted'], true)) {
-            return back()->withErrors(['parcel_id' => "{$parcel->tracking_number} is {$parcel->statusLabel()}; only parcels at your hub can be transferred."]);
-        }
-
-        $destination = User::where('id', $request->to_sorting_center_id)
-            ->where('role', 'sorting_center')
-            ->first();
-        if (! $destination || (int) $destination->id === (int) $me) {
-            return back()->withErrors(['to_sorting_center_id' => 'Choose another sorting center.']);
-        }
-        if (! $destination->hasAssignedMunicipality()) {
-            return back()->withErrors(['to_sorting_center_id' => "{$destination->name} has no municipality assigned yet, so it can't receive parcels."]);
+        try {
+            $t = app(\App\Services\ShipmentWorkflow::class)->createTransfer($parcel, $this->sc(), auth()->user(),
+                (int) $data['to_sorting_center_id'], $data['transporter_rider_id'] ?? null, $data['reason'] ?? null);
+        } catch (\RuntimeException $e) {
+            return back()->withInput()->withErrors(['to_sorting_center_id' => $e->getMessage()]);
         }
 
-        // Create transfer record
-        ParcelTransfer::create([
-            'parcel_id'               => $parcel->id,
-            'from_sorting_center_id'  => $me,
-            'to_sorting_center_id'    => $destination->id,
-            'initiated_by'            => $me,
-            'reason'                  => $request->reason,
-            'status'                  => 'pending',
-        ]);
-
-        // Mark parcel as outgoing transfer
-        $parcel->update(['transfer_status' => 'outgoing']);
-
-        return back()->with('success',
-            "Transfer of {$parcel->tracking_number} to {$destination->name} initiated. Awaiting their acceptance.");
+        return back()->with('success', "Transfer {$t->reference} created for {$parcel->tracking_number} to {\App\Support\SortingCenters::nameOf($t->toSortingCenter)}. Dispatch it when the parcel leaves.");
     }
 
-    /**
-     * Destination SC accepts the incoming transfer.
-     */
-    public function acceptTransfer(ParcelTransfer $transfer)
+    /** The parcel physically leaves this hub: In Transit to the destination sorting center. */
+    public function dispatchTransfer(ParcelTransfer $transfer)
     {
-        $me = auth()->id();
-
-        // Only the destination SC can accept
-        if ((int) $transfer->to_sorting_center_id !== (int) $me) {
-            abort(403, 'Only the destination sorting center can accept this transfer.');
+        try {
+            $t = app(\App\Services\ShipmentWorkflow::class)->dispatchTransfer($transfer, $this->sc(), auth()->user());
+        } catch (\RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
         }
 
-        if (! $transfer->isPending()) {
-            return back()->with('error', 'This transfer has already been processed.');
-        }
-
-        $parcel = $transfer->parcel;
-
-        // Update transfer record
-        $transfer->update([
-            'status'      => 'received',
-            'received_by' => $me,
-            'received_at' => now(),
-        ]);
-
-        // Hand parcel ownership to destination SC, clear transfer flag; it is sorted again there.
-        $parcel->update([
-            'current_sorting_center_id' => $me,
-            'transfer_status'           => null,
-            'status'                    => 'picked_up', // back to picked_up at new SC, ready for sorting
-            'area_id'                   => null,
-            'sorted_at'                 => null,
-        ]);
-        $svc = $this->parcels();
-        $svc->syncOrder($parcel);
-        $svc->notifyBuyer($parcel, 'Parcel transferred', "{$svc->orderRef($parcel)} moved to {$this->sc()->name}, the hub nearest you.");
-
-        return back()->with('success',
-            "Parcel {$parcel->tracking_number} received from {$transfer->fromSortingCenter->name}. It is now in your queue.");
+        return back()->with('success', "Transfer {$t->reference} dispatched. {\App\Support\SortingCenters::nameOf($t->toSortingCenter)} must confirm receipt by " . $t->expected_by->format('M j, g:i A') . '.');
     }
 
-    /**
-     * Destination SC rejects the incoming transfer.
-     */
+    /** The destination confirms the parcel physically arrived (after checking it). */
+    public function acceptTransfer(Request $request, ParcelTransfer $transfer)
+    {
+        if ((int) $transfer->to_sorting_center_id !== (int) auth()->id()) {
+            abort(403, 'Only the destination sorting center can receive this transfer.');
+        }
+        if (! $transfer->isInTransit()) {
+            return back()->with('error', $transfer->isPending()
+                ? "Transfer {$transfer->reference} has not been dispatched yet, so it can't be received."
+                : "Transfer {$transfer->reference} is already " . strtolower($transfer->statusLabel()) . '.');
+        }
+
+        return app(\App\Http\Controllers\SortingCenter\ShipmentController::class)->receive($request, $transfer->parcel);
+    }
+
+    /** The destination declines a transfer that has not left yet; the parcel stays where it is. */
     public function rejectTransfer(Request $request, ParcelTransfer $transfer)
     {
-        $me = auth()->id();
-
-        if ((int) $transfer->to_sorting_center_id !== (int) $me) {
-            abort(403, 'Only the destination sorting center can reject this transfer.');
+        if ((int) $transfer->to_sorting_center_id !== (int) auth()->id()) {
+            abort(403, 'Only the destination sorting center can decline this transfer.');
         }
-
+        $data = $request->validate(['reason' => 'nullable|string|max:300']);
         if (! $transfer->isPending()) {
-            return back()->with('error', 'This transfer has already been processed.');
+            return back()->with('error', $transfer->isInTransit()
+                ? "Transfer {$transfer->reference} was already dispatched. Receive it, or report an exception from the shipment page."
+                : "Transfer {$transfer->reference} is already " . strtolower($transfer->statusLabel()) . '.');
         }
 
-        $parcel = $transfer->parcel;
+        DB::transaction(function () use ($transfer, $data) {
+            $transfer = ParcelTransfer::lockForUpdate()->findOrFail($transfer->id);
+            $transfer->update(['status' => 'rejected', 'received_by' => auth()->id(), 'received_at' => now(), 'exception_reason' => $data['reason'] ?? null]);
+            $parcel = Parcel::lockForUpdate()->findOrFail($transfer->parcel_id);
+            $parcel->update(['transfer_status' => null]);
+            app(\App\Services\ShipmentTracker::class)->record($parcel, 'transfer_cancelled', ['transfer_id' => $transfer->id,
+                'origin_id' => $transfer->from_sorting_center_id, 'destination_id' => $transfer->to_sorting_center_id,
+                'note' => 'Declined by the destination' . (! empty($data['reason']) ? ': ' . $data['reason'] : '')]);
+            $this->parcels()->notify((int) $transfer->from_sorting_center_id, 'Transfer declined', "Transfer {$transfer->reference} ({$parcel->tracking_number}) was declined. The parcel stays with you.", 'warning', route('sc.transfers'));
+        });
 
-        $transfer->update([
-            'status'      => 'rejected',
-            'received_by' => $me,
-            'received_at' => now(),
-        ]);
-
-        // Return parcel to the originating SC, clear transfer flag
-        $parcel->update(['transfer_status' => null]);
-
-        return back()->with('success',
-            "Transfer of {$parcel->tracking_number} rejected. It remains with {$transfer->fromSortingCenter->name}.");
+        return back()->with('success', "Transfer {$transfer->reference} declined. The parcel stays with {\App\Support\SortingCenters::nameOf($transfer->fromSortingCenter)}.");
     }
 
-    /**
-     * Cancel an outgoing transfer that hasn't been accepted yet.
-     */
-    public function cancelTransfer(ParcelTransfer $transfer)
+    /** Cancel before dispatch only. */
+    public function cancelTransfer(Request $request, ParcelTransfer $transfer)
     {
-        $me = auth()->id();
-
-        if ((int) $transfer->from_sorting_center_id !== (int) $me) {
-            abort(403, 'Only the originating sorting center can cancel this transfer.');
+        try {
+            app(\App\Services\ShipmentWorkflow::class)->cancelTransfer($transfer, $this->sc(), auth()->user(), $request->input('reason'));
+        } catch (\RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
         }
 
-        if (! $transfer->isPending()) {
-            return back()->with('error', 'This transfer has already been processed.');
-        }
-
-        $parcel = $transfer->parcel;
-        $transfer->update(['status' => 'rejected', 'received_at' => now()]);
-        $parcel->update(['transfer_status' => null]);
-
-        return back()->with('success', "Transfer of {$parcel->tracking_number} cancelled.");
+        return back()->with('success', "Transfer {$transfer->reference} cancelled. {$transfer->parcel->tracking_number} stays at your hub.");
     }
 }

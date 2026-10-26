@@ -7,7 +7,6 @@
         @include('profile._sidebar')
 
         <div class="min-w-0 flex-1">
-            @if (session('success'))<div class="pf-alert pf-alert-success mb-4">{{ session('success') }}</div>@endif
 
             @php $unread = auth()->user()->notifications()->whereNull('read_at')->count(); @endphp
             <div class="mb-3 flex items-center justify-between">
