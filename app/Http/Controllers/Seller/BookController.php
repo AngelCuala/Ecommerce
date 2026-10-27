@@ -375,8 +375,11 @@ class BookController extends Controller
                                     ->orderByDesc('is_default')->get(),
             'statuses'        => self::STATUSES,
             'conditions'      => self::CONDITIONS,
+            // The seller's own categories (picked from ALVY) are listed first in the product's Category.
             'storeCategories' => \App\Models\StoreCategory::where('seller_id', auth()->id())->whereNull('parent_id')
                                     ->with('children')->orderBy('sort_order')->orderBy('name')->get(),
+            'myCategoryIds'   => \App\Models\StoreCategory::where('seller_id', auth()->id())->whereNotNull('category_id')
+                                    ->orderBy('sort_order')->orderBy('name')->pluck('category_id')->all(),
         ];
     }
 
@@ -405,6 +408,17 @@ class BookController extends Controller
         $draft = $this->isDraftSubmit($request);
         $req   = $draft ? 'nullable' : 'required';
 
+        // The sale is optional and is ONE of: a sale price, or a discount % (sale_type = none / price / percent).
+        // The other one is cleared; "none" clears the sale and its dates.
+        $saleType = $request->input('sale_type');
+        if ($saleType === 'none') {
+            $request->merge(['sale_price' => null, 'discount_percent' => null, 'sale_starts_at' => null, 'sale_ends_at' => null]);
+        } elseif ($saleType === 'price') {
+            $request->merge(['discount_percent' => null]);
+        } elseif ($saleType === 'percent') {
+            $request->merge(['sale_price' => null]);
+        }
+
         // Empty optional numbers mean "none" (a discount of 0 is not a discount).
         foreach (['discount_percent', 'sale_price', 'length_cm', 'width_cm', 'height_cm', 'sale_starts_at', 'sale_ends_at'] as $f) {
             if ($request->input($f) === '' || ($f === 'discount_percent' && $request->has($f) && $request->input($f) === null)) {
@@ -422,7 +436,8 @@ class BookController extends Controller
             'category_id'      => $req . '|exists:categories,id',
             'subcategory'      => 'nullable|string|max:255',
             'brand'            => 'nullable|string|max:255',
-            'condition'        => ['nullable', Rule::in(self::CONDITIONS)],
+            'condition'        => ['nullable', Rule::in(self::CONDITIONS)],   // no longer on the form: kept as it is ("New")
+            'sale_type'        => ['nullable', Rule::in(['none', 'price', 'percent'])],
             'description'      => $req . '|string|min:20|max:3000',
             'store_category_ids'   => 'nullable|array|max:3',
             'store_category_ids.*' => ['integer', Rule::exists('store_categories', 'id')->where('seller_id', auth()->id())],
@@ -552,6 +567,9 @@ class BookController extends Controller
         $validator = \Illuminate\Support\Facades\Validator::make($request->all(), $rules, $messages);
 
         $validator->after(function ($v) use ($request, $draft, $bookId, $book) {
+            if ($request->filled('sale_price') && (float) $request->input('discount_percent') > 0) {
+                $v->errors()->add('sale_price', 'Choose either a sale price or a discount %, not both.');
+            }
             // Publishing needs at least one photo.
             if (! $draft && $this->photoCount($request, $bookId) < 1) {
                 $v->errors()->add('images', 'Please add at least one photo.');
@@ -680,7 +698,7 @@ class BookController extends Controller
             'category_id'      => $data['category_id'] ?? null,
             'subcategory'      => $data['subcategory'] ?? null,
             'brand'            => $data['brand'] ?? null,
-            'condition'        => $data['condition'] ?? 'New',
+            'condition'        => $data['condition'] ?? 'New',   // removed from the form; see below
             'title'            => $data['title'] ?? 'Untitled draft',
             'description'      => $data['description'] ?? null,
 
@@ -689,7 +707,7 @@ class BookController extends Controller
             'discount_percent' => $data['discount_percent'] ?? 0,
             'sale_starts_at'   => $data['sale_starts_at'] ?? null,
             'sale_ends_at'     => $data['sale_ends_at'] ?? null,
-            'purchase_limit'   => $data['purchase_limit'] ?? null,
+            'purchase_limit'   => null,   // "Limit per buyer" was removed: no product has a limit
             'variation_labels' => ! empty($data['variation_types'])
                 ? collect($data['variation_types'])->pluck('name')->map(fn ($n) => trim($n))->join(', ')
                 : ($data['variation_labels'] ?? null),
@@ -824,11 +842,15 @@ class BookController extends Controller
     }
 
     /** The product's store categories (separate from the platform category). */
+    /**
+     * The product goes under its ALVY category on the store page: the seller's store category for that category
+     * (added to the store if it isn't there yet). Older free-named categories the product was in stay.
+     */
     private function syncStoreCategories(Request $request, Product $book): void
     {
-        if ($request->has('store_category_ids') || $request->boolean('store_categories_present')) {
-            $book->storeCategories()->sync(array_map('intval', (array) $request->input('store_category_ids', [])));
-        }
+        $keep = $book->storeCategories()->whereNull('store_categories.category_id')->pluck('store_categories.id')->all();
+        $store = $book->category_id ? \App\Models\StoreCategory::forPlatformCategory((int) $book->seller_id, (int) $book->category_id) : null;
+        $book->storeCategories()->sync(array_values(array_unique(array_filter([...$keep, $store?->id]))));
     }
 
     private function successMessage(Product $book, Request $request): string

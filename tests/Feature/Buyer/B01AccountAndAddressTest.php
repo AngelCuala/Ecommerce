@@ -61,8 +61,13 @@ class B01AccountAndAddressTest extends TestCase
         $change('Mamimili@2026', 'Mamimili@2027', 'Mamimili@2028')->assertSessionHasErrors(['password' => 'The new password and its confirmation do not match.']);
         $this->assertTrue(Hash::check('Mamimili@2026', $this->buyer1->fresh()->password));
 
-        // 003: the new password works, the old one doesn't.
+        // 003: after the emailed code, the new password works and the old one doesn't.
+        Mail::fake();
         $change('Mamimili@2026', 'Mamimili@2027', 'Mamimili@2027')->assertSessionHasNoErrors();
+        $this->assertTrue(Hash::check('Mamimili@2026', $this->buyer1->fresh()->password));   // not yet
+        $code = null;
+        Mail::assertSent(\App\Mail\PasswordChangeMail::class, function ($m) use (&$code) { $code = $m->code; return true; });
+        $this->actingAs($this->buyer1)->from(route('profile.security'))->post(route('password.change.verify'), ['code' => $code])->assertSessionHasNoErrors();
         $this->assertTrue(Hash::check('Mamimili@2027', $this->buyer1->fresh()->password));
         $this->assertFalse(Hash::check('Mamimili@2026', $this->buyer1->fresh()->password));
     }
@@ -136,6 +141,7 @@ class B01AccountAndAddressTest extends TestCase
             $this->actingAs($this->buyer2)->post(route('addresses.store'), $this->addressForm(['phone' => $bad]))->assertSessionHasErrors('phone');
         }
         $this->actingAs($this->buyer2)->post(route('addresses.store'), $this->addressForm(['phone' => '+639171234567']))->assertSessionHasNoErrors();
+        $this->assertSame('09171234567', $this->buyer2->addresses()->latest('id')->value('phone'));
         foreach (['full_name', 'phone', 'region', 'province', 'city', 'barangay', 'address_line'] as $field) {
             $this->actingAs($this->buyer2)->post(route('addresses.store'), $this->addressForm([$field => '']))->assertSessionHasErrors($field);
         }

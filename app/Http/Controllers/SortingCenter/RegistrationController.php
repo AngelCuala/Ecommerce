@@ -144,7 +144,7 @@ class RegistrationController extends Controller
             GoogleSignup::forget($request);
         }
 
-        return redirect()->route('sc.login')->with('success',
+        return redirect()->route('login')->with('success',
             'Registration submitted. Please wait for the administrator\'s approval, which will be sent to your email at ' . $data['email'] . '.');
     }
 }

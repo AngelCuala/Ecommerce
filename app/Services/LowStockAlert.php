@@ -12,7 +12,7 @@ use App\Models\UserNotification;
  */
 class LowStockAlert
 {
-    public const THRESHOLD = 5;
+    public const THRESHOLD = 10;
 
     public static function check(?Product $product, int $before, int $after, ?ProductVariation $variation = null): void
     {

@@ -6,7 +6,7 @@
 
     $active   = $books->where('is_archived', false);
     $outCount = $active->where('stock', 0)->count();
-    $lowCount = $active->filter(fn ($b) => $b->stock > 0 && $b->stock <= 5)->count();
+    $lowCount = $active->filter(fn ($b) => $b->isLowStock())->count();
     $stockNote = collect([
         $outCount ? $outCount . ' sold out' : null,
         $lowCount ? $lowCount . ' low on stock' : null,

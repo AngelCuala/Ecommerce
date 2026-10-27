@@ -20,7 +20,6 @@
         $existingTypes = [];
     }
     $canPublish     = auth()->user()->isApproved() || auth()->user()->isAdmin();
-    $selectedStoreCats = array_map('intval', (array) old('store_category_ids', $isEdit ? $book->storeCategories()->pluck('store_categories.id')->all() : []));
     $discountValue  = old('discount_percent', ($book->discount_percent ?? 0) > 0 ? rtrim(rtrim(number_format($book->discount_percent, 2, '.', ''), '0'), '.') : '');
     $maxPhotos    = \App\Models\Product::MAX_IMAGES;
     $existingImgs = $isEdit ? $book->images : collect();
@@ -137,13 +136,26 @@
 
                         <div>
                             <label class="pf-label" for="category_id">Category</label>
+                            @php
+                                $mine   = collect($myCategoryIds)->map(fn ($id) => $categories->firstWhere('id', $id))->filter();
+                                $others = $categories->reject(fn ($c) => in_array($c->id, $myCategoryIds, true));
+                            @endphp
                             <select id="category_id" name="category_id" class="input" x-model="categoryId" @change="onCategoryChange()">
                                 <option value="">Select category</option>
-                                @foreach ($categories as $cat)
-                                    <option value="{{ $cat->id }}" data-name="{{ $cat->name }}"
-                                        {{ (string) $selectedCat === (string) $cat->id ? 'selected' : '' }}>{{ $cat->name }}</option>
-                                @endforeach
+                                @if ($mine->isNotEmpty())
+                                    <optgroup label="Your store categories">
+                                        @foreach ($mine as $cat)
+                                            <option value="{{ $cat->id }}" data-name="{{ $cat->name }}" {{ (string) $selectedCat === (string) $cat->id ? 'selected' : '' }}>{{ $cat->name }}</option>
+                                        @endforeach
+                                    </optgroup>
+                                @endif
+                                <optgroup label="{{ $mine->isNotEmpty() ? 'Other ALVY categories (adds it to your store)' : 'ALVY categories (adds it to your store)' }}">
+                                    @foreach ($others as $cat)
+                                        <option value="{{ $cat->id }}" data-name="{{ $cat->name }}" {{ (string) $selectedCat === (string) $cat->id ? 'selected' : '' }}>{{ $cat->name }}</option>
+                                    @endforeach
+                                </optgroup>
                             </select>
+                            <p class="pf-note">The product shows under this category on your store page. <a href="{{ route('seller.store-categories.index') }}" class="font-semibold" style="color:#fa4e1c;">Your categories →</a></p>
                         </div>
 
                         <div>
@@ -164,34 +176,6 @@
                             </label>
                         </div>
 
-                        <div>
-                            <label class="pf-label" for="condition">Condition</label>
-                            <select id="condition" name="condition" class="input">
-                                @foreach ($conditions as $c)
-                                    <option value="{{ $c }}" @selected(old('condition', $book->condition ?? 'New') === $c)>{{ $c }}</option>
-                                @endforeach
-                            </select>
-                        </div>
-
-                        <div class="sm:col-span-2">
-                            <span class="pf-label">Store categories <span class="opt">— optional, up to 3; separate from the platform category</span></span>
-                            <input type="hidden" name="store_categories_present" value="1">
-                            @if ($storeCategories->isEmpty())
-                                <p class="pf-note" style="margin-top:0;">No store categories yet. <a href="{{ route('seller.store-categories.index') }}" class="font-semibold" style="color:#fa4e1c;">Create one →</a></p>
-                            @else
-                                <div class="flex flex-wrap gap-2">
-                                    @foreach ($storeCategories as $sc)
-                                        @foreach (collect([$sc])->merge($sc->children) as $opt)
-                                            <label class="inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-sm" style="border-color:#E7E5E4;">
-                                                <input type="checkbox" name="store_category_ids[]" value="{{ $opt->id }}" @checked(in_array($opt->id, $selectedStoreCats, true)) style="accent-color:#fa4e1c;">
-                                                {{ $opt->parent_id ? $sc->name . ' › ' : '' }}{{ $opt->name }}
-                                            </label>
-                                        @endforeach
-                                    @endforeach
-                                </div>
-                            @endif
-                        </div>
-
                         <div class="sm:col-span-2">
                             <label class="pf-label" for="description">Description</label>
                             <textarea id="description" name="description" rows="5" class="input" minlength="20" maxlength="3000"
@@ -209,11 +193,6 @@
                             <input type="number" id="price" step="0.01" min="1" max="1000000" name="price" x-model="price" class="input" placeholder="1.00 – 1,000,000.00">
                         </div>
                         <div>
-                            <label class="pf-label" for="sale_price">Sale price (₱) <span class="opt">— optional</span></label>
-                            <input type="number" id="sale_price" step="0.01" min="1" name="sale_price" x-model="salePrice" class="input" placeholder="—">
-                            <p class="pf-note" x-show="saleError" style="color:#B91C1C;">Must be lower than the price.</p>
-                        </div>
-                        <div>
                             <label class="pf-label" for="stock">Stock</label>
                             <input type="number" id="stock" min="0" max="99999" step="1" name="stock" x-model="stock" class="input" placeholder="0" :disabled="variations.length > 0">
                             <p class="pf-note" x-show="variations.length > 0">Total of variations: <span x-text="totalVarStock"></span></p>
@@ -223,30 +202,43 @@
                             <input type="text" id="sku" name="sku" value="{{ old('sku', $book->sku ?? '') }}" class="input" placeholder="Your own code">
                         </div>
                     </div>
+                    <div class="mt-5 rounded-lg border p-4" style="border-color:#ECE7E3;">
+                        <span class="pf-label">Sale <span class="opt">— optional</span></span>
+                        <input type="hidden" name="sale_type" :value="saleType">
+                        <div class="mb-3 flex flex-wrap gap-2" role="radiogroup" aria-label="Sale">
+                            @foreach (['none' => 'No sale', 'price' => 'Sale price (₱)', 'percent' => 'Discount %'] as $value => $label)
+                                <button type="button" role="radio" :aria-checked="saleType === '{{ $value }}'" @click="saleType = '{{ $value }}'"
+                                        class="rounded-full border px-3.5 py-1.5 text-sm font-semibold"
+                                        :style="saleType === '{{ $value }}' ? 'border-color:#fa4e1c;background:#FFF1EB;color:#C2410C;' : 'border-color:#E7E5E4;color:#57534E;'">{{ $label }}</button>
+                            @endforeach
+                        </div>
+                        <div class="grid gap-4 sm:grid-cols-3" x-show="saleType !== 'none'" x-cloak>
+                            <div x-show="saleType === 'price'">
+                                <label class="pf-label" for="sale_price">Sale price (₱)</label>
+                                <input type="number" id="sale_price" step="0.01" min="1" name="sale_price" x-model="salePrice" :disabled="saleType !== 'price'" class="input" placeholder="Lower than the price">
+                                <p class="pf-note" x-show="saleError" style="color:#B91C1C;">Must be lower than the price.</p>
+                            </div>
+                            <div x-show="saleType === 'percent'">
+                                <label class="pf-label" for="discount_percent">Discount %</label>
+                                <input type="number" id="discount_percent" step="1" min="1" max="99" name="discount_percent" value="{{ $discountValue }}" :disabled="saleType !== 'percent'" class="input" placeholder="1 – 99">
+                                <p class="pf-note">Applies to every variant's price.</p>
+                            </div>
+                            <div>
+                                <label class="pf-label" for="sale_starts_at">Sale starts <span class="opt">— blank = now</span></label>
+                                <input type="datetime-local" id="sale_starts_at" name="sale_starts_at" :disabled="saleType === 'none'" value="{{ old('sale_starts_at', optional($book->sale_starts_at ?? null)->format('Y-m-d\TH:i')) }}" class="input">
+                            </div>
+                            <div>
+                                <label class="pf-label" for="sale_ends_at">Sale ends <span class="opt">— optional</span></label>
+                                <input type="datetime-local" id="sale_ends_at" name="sale_ends_at" :disabled="saleType === 'none'" value="{{ old('sale_ends_at', optional($book->sale_ends_at ?? null)->format('Y-m-d\TH:i')) }}" class="input">
+                                <p class="pf-note">Buyers see a countdown; the sale stops at this time.</p>
+                            </div>
+                        </div>
+                        @if ($isEdit && in_array($book->saleState(), ['Upcoming', 'Ongoing'], true))
+                            <p class="pf-note"><span class="font-semibold">Sale: {{ $book->saleState() }}.</span>
+                                <button type="submit" form="end-sale-form" class="font-semibold underline" style="color:#B91C1C;">End sale now</button></p>
+                        @endif
+                    </div>
                     <div class="mt-4 grid gap-4 sm:grid-cols-2">
-                        <div>
-                            <label class="pf-label" for="discount_percent">Discount % <span class="opt">— optional</span></label>
-                            <input type="number" id="discount_percent" step="0.01" min="1" max="99" name="discount_percent" value="{{ $discountValue }}" class="input" placeholder="1 – 99">
-                            <p class="pf-note">Applies to every variant's price.</p>
-                        </div>
-                        <div>
-                            <label class="pf-label" for="sale_starts_at">Sale starts <span class="opt">— optional, blank = now</span></label>
-                            <input type="datetime-local" id="sale_starts_at" name="sale_starts_at" value="{{ old('sale_starts_at', optional($book->sale_starts_at ?? null)->format('Y-m-d\TH:i')) }}" class="input">
-                        </div>
-                        <div>
-                            <label class="pf-label" for="sale_ends_at">Sale ends <span class="opt">— optional</span></label>
-                            <input type="datetime-local" id="sale_ends_at" name="sale_ends_at" value="{{ old('sale_ends_at', optional($book->sale_ends_at ?? null)->format('Y-m-d\TH:i')) }}" class="input">
-                            <p class="pf-note">Buyers see a countdown; the sale price / discount stops at this time.</p>
-                            @if ($isEdit && in_array($book->saleState(), ['Upcoming', 'Ongoing'], true))
-                                <p class="pf-note"><span class="font-semibold">Sale: {{ $book->saleState() }}.</span>
-                                    <button type="submit" form="end-sale-form" class="font-semibold underline" style="color:#B91C1C;">End sale now</button></p>
-                            @endif
-                        </div>
-                        <div>
-                            <label class="pf-label" for="purchase_limit">Limit per buyer <span class="opt">— optional</span></label>
-                            <input type="number" id="purchase_limit" min="1" max="99999" name="purchase_limit" value="{{ old('purchase_limit', $book->purchase_limit ?? '') }}" class="input" placeholder="No limit">
-                            <p class="pf-note">Most units one buyer can buy in total (all their orders).</p>
-                        </div>
                         <div>
                             <span class="pf-label">Vouchers</span>
                             <p class="pf-note" style="margin-top:0;">
@@ -559,6 +551,7 @@ function productForm() {
         noBrand: @json(old('brand', $book->brand ?? null) === 'No Brand'),
         price: @json((string) old('price', $book->price ?? '')),
         salePrice: @json((string) old('sale_price', $book->sale_price ?? '')),
+        saleType: @json(old('sale_type', ($book->sale_price ?? null) ? 'price' : ((($book->discount_percent ?? 0) > 0) ? 'percent' : 'none'))),
         stock: @json((string) old('stock', $book->stock ?? '')),
         status: @json($currentStatus),
         variations: @json($existingVars),

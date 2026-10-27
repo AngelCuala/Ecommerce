@@ -34,7 +34,7 @@ class AddressController extends Controller
             'barangay_code'     => ['nullable', 'regex:/^\d{9,10}$/'],
             'is_default'        => 'boolean',
         ], [
-            'phone.regex'                => 'Enter a valid PH mobile number: 09XXXXXXXXX (11 digits) or +639XXXXXXXXX.',
+            'phone.regex'                => PhoneNumber::MESSAGE,
             'municipality_code.required' => 'Please choose the region, province, city and barangay from the lists.',
             'address_line.required'      => 'Please enter the house number and street.',
         ]);

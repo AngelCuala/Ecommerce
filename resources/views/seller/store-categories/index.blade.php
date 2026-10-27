@@ -14,28 +14,24 @@
     <div class="mb-5">
         <span class="section-eyebrow">Store</span>
         <h1 class="text-2xl">Store Categories</h1>
-        <p class="text-sm" style="color:#8a7f78;">Group products on your store page. These are separate from the ALVY platform categories, and a product can be in several. Two levels at most.</p>
+        <p class="text-sm" style="color:#8a7f78;">Pick the ALVY categories you sell in — e.g. motor parts <em>and</em> makeup: add "Automotive &amp; Motorcycle" and "Health &amp; Beauty". They show as tabs on your store page, and when you add a product you choose one of them.</p>
     </div>
 
     @if (session('warning'))<div class="mb-4 rounded-lg px-4 py-2.5 text-sm" style="background:#FFFBEB;color:#B45309;" role="alert">{{ session('warning') }}</div>@endif
     @if ($errors->any())<div class="mb-4 rounded-lg px-4 py-2.5 text-sm" style="background:#FEF2F2;color:#B91C1C;">@foreach ($errors->all() as $e)<p>{{ $e }}</p>@endforeach</div>@endif
 
-    <form method="POST" action="{{ route('seller.store-categories.store') }}" class="sc-card mb-5 grid gap-3 p-4 sm:grid-cols-[1fr_14rem_auto]">
+    <form method="POST" action="{{ route('seller.store-categories.store') }}" class="sc-card mb-5 grid gap-3 p-4 sm:grid-cols-[1fr_auto]">
         @csrf
         <div>
-            <label class="mb-1 block text-xs font-semibold" for="new-name">Category name</label>
-            <input id="new-name" name="name" maxlength="{{ \App\Models\StoreCategory::MAX_NAME }}" value="{{ old('name') }}" class="input" placeholder="e.g. Pasalubong Picks">
-        </div>
-        <div>
-            <label class="mb-1 block text-xs font-semibold" for="new-parent">Under</label>
-            <select id="new-parent" name="parent_id" class="input">
-                <option value="">— Top level —</option>
-                @foreach ($categories as $c)
-                    <option value="{{ $c->id }}" @selected((string) old('parent_id') === (string) $c->id)>{{ $c->name }}</option>
+            <label class="mb-1 block text-xs font-semibold" for="new-category">Add a category from ALVY</label>
+            <select id="new-category" name="category_id" class="input" @disabled($available->isEmpty())>
+                <option value="">{{ $available->isEmpty() ? 'You have added every ALVY category' : 'Choose a category' }}</option>
+                @foreach ($available as $c)
+                    <option value="{{ $c->id }}" @selected((string) old('category_id') === (string) $c->id)>{{ $c->name }}</option>
                 @endforeach
             </select>
         </div>
-        <div class="flex items-end"><button class="btn-primary w-full" style="padding:.62rem 1.2rem;">Add Category</button></div>
+        <div class="flex items-end"><button class="btn-primary w-full" style="padding:.62rem 1.2rem;" @disabled($available->isEmpty())>Add Category</button></div>
     </form>
 
     <div class="sc-card overflow-hidden">
@@ -62,6 +58,9 @@
                             <button type="button" class="sc-btn" data-move="up" aria-label="Move {{ $c->name }} up">↑</button>
                             <button type="button" class="sc-btn" data-move="down" aria-label="Move {{ $c->name }} down">↓</button>
                         @endunless
+                        @if ($c->category_id)
+                            <span class="rounded px-1.5 py-0.5 text-[11px] font-semibold" style="background:#FFF1EB;color:#C2410C;">ALVY category</span>
+                        @else
                         <details class="relative">
                             <summary class="sc-btn list-none cursor-pointer">Rename</summary>
                             <form method="POST" action="{{ route('seller.store-categories.update', $c) }}" class="absolute right-0 z-10 mt-1 flex w-72 gap-2 rounded-lg border bg-white p-2 shadow" style="border-color:#E7E5E4;">
@@ -70,6 +69,7 @@
                                 <button class="btn-primary" style="padding:.4rem .8rem;">Save</button>
                             </form>
                         </details>
+                        @endif
                         <form method="POST" action="{{ route('seller.store-categories.toggle', $c) }}">@csrf @method('PATCH')
                             <button class="sc-btn">{{ $c->is_hidden ? 'Show' : 'Hide' }}</button>
                         </form>
@@ -81,7 +81,7 @@
                 @endforeach
             </div>
         @empty
-            <p class="border-t px-4 py-10 text-center text-sm" style="border-color:#F2EEEA;color:#8a7f78;">No store categories yet. Products without one show under "All products".</p>
+            <p class="border-t px-4 py-10 text-center text-sm" style="border-color:#F2EEEA;color:#8a7f78;">No categories yet. Add the ALVY categories you sell in — or just add a product: its category is added here.</p>
         @endforelse
     </div>
 </div>

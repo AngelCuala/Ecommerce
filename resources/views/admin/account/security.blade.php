@@ -38,6 +38,7 @@
             Choose a strong password you don't use elsewhere. Minimum 8 characters.
         </p>
 
+        @include('partials.password-code')
         <form action="{{ route('admin.account.password') }}" method="POST" class="mt-5 space-y-4">
             @csrf @method('PUT')
 
@@ -70,6 +71,7 @@
             </div>
 
             <div class="pt-1">
+                @include('partials.password-code-via')
                 <button type="submit" class="rounded-xl px-8 py-2.5 text-sm font-bold text-white transition hover:opacity-90" style="background:#002b4d;">
                     Update Password
                 </button>

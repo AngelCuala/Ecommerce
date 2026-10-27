@@ -155,12 +155,12 @@
                                     @csrf @method('PATCH')
                                     <input type="number" name="stock" value="{{ $book->stock }}" min="0" max="99999" step="1" @disabled($book->variations()->exists()) aria-label="Stock for {{ $book->title }}"
                                            class="w-16 rounded-md border px-2 py-1 text-center text-sm focus:outline-none focus:ring-2 focus:ring-orange-200"
-                                           style="border-color:{{ $book->stock === 0 ? '#FCA5A5' : ($book->stock <= 5 ? '#FCD34D' : '#E7E5E4') }};color:#222;">
+                                           style="border-color:{{ $book->stock === 0 ? '#FCA5A5' : ($book->stock <= \App\Services\LowStockAlert::THRESHOLD ? '#FCD34D' : '#E7E5E4') }};color:#222;">
                                     <button type="submit" class="rounded-md border px-2 py-1 text-xs font-semibold transition hover:bg-stone-50" style="border-color:#E7E5E4;color:#57534E;">Save</button>
                                 </form>
                                 @if ($book->stock === 0)
                                     <p class="mt-1 text-xs font-semibold" style="color:#B91C1C;" data-out-of-stock>Out of Stock</p>
-                                @elseif ($book->stock <= 5)
+                                @elseif ($book->stock <= \App\Services\LowStockAlert::THRESHOLD)
                                     <p class="mt-1 text-xs" style="color:#B45309;">Low stock</p>
                                 @endif
                             </td>

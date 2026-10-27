@@ -62,6 +62,7 @@
 
             <hr style="border:none;border-top:1px solid var(--border);margin:18px 0;" />
 
+            @include('partials.password-code')
             <form method="POST" action="{{ route('sc.account.update') }}">
                 @csrf @method('PUT')
 
@@ -103,6 +104,7 @@
                     </div>
                 </div>
 
+                @include('partials.password-code-via')
                 <button type="submit" class="btn btn-blue" style="width:100%;justify-content:center;padding:9px;">
                     Save Changes
                 </button>

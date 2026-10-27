@@ -18,6 +18,7 @@ return Application::configure(basePath: dirname(__DIR__))
 
         // Every action that changes something (by any account) goes to the activity log, with IP.
         $middleware->web(append: [\App\Http\Middleware\LogUserActivity::class]);
+        $middleware->api(append: [\App\Http\Middleware\LogUserActivity::class]);   // the mobile app's actions too
 
         $middleware->alias([
             'role'         => \App\Http\Middleware\RoleMiddleware::class,
@@ -26,9 +27,19 @@ return Application::configure(basePath: dirname(__DIR__))
             'buyer_only'   => \App\Http\Middleware\BuyerOnly::class,
             'seller.approved' => \App\Http\Middleware\EnsureSellerApproved::class,
             'prevent.back' => \App\Http\Middleware\PreventBackHistory::class,
+            // Mobile app API (/api/v1)
+            'api.session'       => \App\Http\Middleware\ApiWebSession::class,
+            'api.buyer'         => \App\Http\Middleware\ApiBuyerOnly::class,
+            'api.seller'        => \App\Http\Middleware\ApiSellerOnly::class,
+            'api.courier'       => \App\Http\Middleware\ApiCourierOnly::class,
+            'api.logistics'     => \App\Http\Middleware\ApiLogisticsOnly::class,
+            'api.optional-auth' => \App\Http\Middleware\ApiOptionalAuth::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
+        // The mobile app API always answers in JSON (validation errors, 401, 403, 404…).
+        $exceptions->shouldRenderJsonWhen(fn (\Illuminate\Http\Request $request) => $request->is('api/v1/*') || $request->expectsJson());
+
         // A form left open past the 30-minute session (or after logging out in another tab):
         // instead of the bare "419 Page Expired", go back with what was typed and a fresh token.
         // (Laravel has already turned the TokenMismatchException into an HTTP 419 by now.)

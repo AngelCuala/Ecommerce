@@ -126,11 +126,7 @@ class AccountController extends Controller
             'current_password.current_password' => 'The current password you entered is incorrect.',
         ]);
 
-        auth()->user()->update([
-            'password' => Hash::make($request->password),
-        ]);
-
-        return redirect()->route('seller.account.security')
-            ->with('success', 'Your password has been changed successfully.');
+        // The new password is used once the code emailed to the account is entered.
+        return \App\Http\Controllers\PasswordChangeController::start(auth()->user(), $request->password, redirect()->route('seller.account.security'));
     }
 }

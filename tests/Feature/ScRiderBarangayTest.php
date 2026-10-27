@@ -82,6 +82,19 @@ class ScRiderBarangayTest extends TestCase
         $this->assertSame(1, DeliveryArea::count());
     }
 
+    /** Rider mobile numbers are 11 digits starting with 09 (+63 is turned into 09). */
+    public function test_rider_mobile_number_is_11_digits(): void
+    {
+        $sc = $this->sc();
+        $brgy = $this->brgy(self::LUISIANA, 'San Isidro');
+        foreach (['0917123456', '091712345678', '08171234567', '0917-abc-4567'] as $bad) {
+            $this->addRider($sc, ['barangay_psgc' => $brgy['psgc'], 'phone' => $bad])
+                ->assertSessionHasErrors(['phone' => 'Mobile numbers are 11 digits starting with 09 (e.g. 09171234567).']);
+        }
+        $this->addRider($sc, ['barangay_psgc' => $brgy['psgc'], 'phone' => '+63 917 123 4567'])->assertSessionHasNoErrors();
+        $this->assertSame('09171234567', Rider::firstOrFail()->phone);
+    }
+
     public function test_barangay_from_another_municipality_is_rejected(): void
     {
         $sc = $this->sc();

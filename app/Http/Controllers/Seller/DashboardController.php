@@ -60,7 +60,7 @@ class DashboardController extends Controller
         $toShip = (int) ($ordersByStatus['Pending'] ?? 0) + (int) ($ordersByStatus['Processing'] ?? 0);
 
         // ── Products running low or sold out ──────────────────────
-        $lowStock = Product::whereIn('id', $bookIds)->active()->where('stock', '<=', 5)
+        $lowStock = Product::whereIn('id', $bookIds)->active()->where('stock', '<=', \App\Services\LowStockAlert::THRESHOLD)
             ->orderBy('stock')->take(5)->get();
 
         return view('seller.dashboard', compact(

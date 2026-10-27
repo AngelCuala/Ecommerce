@@ -49,6 +49,8 @@ class Rider extends Model
     public function isPending(): bool   { return $this->application_status === 'pending'; }
     public function isApproved(): bool  { return $this->application_status === 'approved'; }
     public function isRejected(): bool  { return $this->application_status === 'rejected'; }
+    /** Made by the logistics company; waits for the rider to set a password from the emailed link. */
+    public function isPendingActivation(): bool { return $this->application_status === 'pending_activation'; }
     /** Approved, but turned off by the logistics company: can't go Online or take jobs. */
     public function isSuspended(): bool { return $this->isApproved() && ! $this->is_active; }
 
@@ -62,6 +64,7 @@ class Rider extends Model
     {
         return match (true) {
             $this->isPending()   => 'Pending',
+            $this->isPendingActivation() => 'Pending Activation',
             $this->isRejected()  => 'Rejected',
             $this->isSuspended() => 'Suspended',
             default              => 'Active',

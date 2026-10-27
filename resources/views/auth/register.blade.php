@@ -305,8 +305,8 @@
                     <div class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-5">
                         <div class="sm:col-span-2">
                             <label class="fld-label" for="contactNo">Contact No.*</label>
-                            <input type="tel" name="contact_no" id="contactNo" class="form-input" placeholder="09171234567"
-                                   inputmode="numeric" value="{{ old('contact_no') }}" required>
+                            <input maxlength="11" inputmode="numeric" autocomplete="tel" oninput="this.value=this.value.replace(/\D/g,'').slice(0,11)" type="tel" name="contact_no" id="contactNo" class="form-input" placeholder="09171234567"
+                                   value="{{ old('contact_no') }}" required>
                             <p class="field-error" data-error-for="contactNo">@error('contact_no'){{ $message }}@enderror @error('phone'){{ $message }}@enderror</p>
                         </div>
                         <div class="sm:col-span-2">

@@ -14,7 +14,7 @@ use Illuminate\Support\Facades\Mail;
 class LoginOtp
 {
     public const LENGTH           = 6;
-    public const TTL_MINUTES      = 10;
+    public const TTL_MINUTES      = 5;
     public const RESEND_COOLDOWN  = 60;  // seconds between sends
     public const MAX_ATTEMPTS     = 5;
 

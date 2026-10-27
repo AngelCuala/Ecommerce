@@ -25,6 +25,16 @@ class Product extends Model
     /** Most photos a single listing can have. */
     public const MAX_IMAGES = 9;
 
+    /** Stock that drops to the low-stock line tells the seller. With options, each option alerts on its own. */
+    protected static function booted(): void
+    {
+        static::updated(function (Product $p) {
+            if ($p->wasChanged('stock') && ! $p->variations()->exists()) {
+                \App\Services\LowStockAlert::check($p, (int) $p->getOriginal('stock'), (int) $p->stock);
+            }
+        });
+    }
+
     protected $fillable = [
         'category_id', 'subcategory', 'seller_id',
         'product_code', 'brand',
@@ -312,9 +322,9 @@ class Product extends Model
             ? round((float) $this->attributes['reviews_avg_rating'], 1) : null;
     }
 
-    public function isLowStock(int $threshold = 5): bool
+    public function isLowStock(?int $threshold = null): bool
     {
-        return $this->stock > 0 && $this->stock <= $threshold;
+        return $this->stock > 0 && $this->stock <= ($threshold ?? \App\Services\LowStockAlert::THRESHOLD);
     }
 
     // ── Scopes ────────────────────────────────────────────────
@@ -328,9 +338,9 @@ class Product extends Model
         return $query->where('is_archived', true);
     }
 
-    public function scopeLowStock($query, int $threshold = 5)
+    public function scopeLowStock($query, ?int $threshold = null)
     {
-        return $query->where('stock', '>', 0)->where('stock', '<=', $threshold);
+        return $query->where('stock', '>', 0)->where('stock', '<=', $threshold ?? \App\Services\LowStockAlert::THRESHOLD);
     }
 
     /** Publicly visible listings (published, approved by an admin, not archived). */

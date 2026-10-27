@@ -16,7 +16,7 @@ class Parcel extends Model
         'receiver_name', 'receiver_phone',
         'weight_kg', 'size', 'notes', 'pickup_scheduled_at',
         'area_id', 'status', 'transfer_status',
-        'current_sorting_center_id',
+        'current_sorting_center_id', 'current_hub_id',
         'verified_by', 'verified_at', 'received_at', 'sorted_at', 'failure_reason',
         'rts_rider_id', 'rts_assigned_at', 'returned_at', 'returned_received_at', 'exception_photo_path',
     ];
@@ -43,6 +43,8 @@ class Parcel extends Model
         'sorted'          => 'Sorted',
         'assigned'        => 'Assigned to Rider',
         'in_transit'      => 'Out for Delivery',
+        'linehaul'        => 'In Transit between hubs',
+        'missing_in_transit' => 'Missing in Transit',
         'delivered'       => 'Delivered',
         'failed'          => 'Delivery Failed',
         'return_to_sender' => 'Return to Sender',
@@ -58,20 +60,26 @@ class Parcel extends Model
     /** Dashboard / shipment-list groups (L1): every status is in exactly one. */
     public const BUCKETS = [
         'pending'    => ['pending_pickup', 'pickup_approved'],
-        'in_transit' => ['in_transit_to_hub', 'picked_up', 'sorted', 'assigned', 'in_transit'],
+        'in_transit' => ['in_transit_to_hub', 'picked_up', 'sorted', 'assigned', 'in_transit', 'linehaul'],
         'delivered'  => ['delivered'],
-        'failed'     => ['failed', 'return_to_sender', 'lost', 'damaged'],
+        'failed'     => ['failed', 'return_to_sender', 'lost', 'damaged', 'missing_in_transit'],
         'returned'   => ['returned', 'pickup_rejected', 'cancelled'],
     ];
 
     public function rtsRider(): BelongsTo { return $this->belongsTo(Rider::class, 'rts_rider_id'); }
+    public function currentHub(): BelongsTo { return $this->belongsTo(LogisticsHub::class, 'current_hub_id'); }
+
+    /** Set while a linehaul trip moves the parcel: the trip writes the timeline line itself. */
+    public bool $linehaulStep = false;
 
     /** Shipment steps on the buyer's order timeline (rider assignment is written by the dispatcher). */
     protected static function booted(): void
     {
         static::updated(function (Parcel $parcel) {
-            if ($parcel->wasChanged('status') && $parcel->order_id && $parcel->status !== 'assigned') {
-                $parcel->timeline($parcel->statusLabel() . ($parcel->status === 'picked_up' && $parcel->received_at ? ' — received ' . $parcel->received_at->format('M j, g:i A') : ''));
+            // Linehaul steps write their own line ("In Transit (HUB-QC → HUB-PSG)", "At Hub (HUB-PSG)").
+            if ($parcel->wasChanged('status') && $parcel->order_id && $parcel->status !== 'assigned' && ! $parcel->linehaulStep) {
+                $label = $parcel->status === 'picked_up' && $parcel->currentHub ? "At Hub ({$parcel->currentHub->code})" : $parcel->statusLabel();
+                $parcel->timeline($label . ($parcel->status === 'picked_up' && $parcel->received_at ? ' — received ' . $parcel->received_at->format('M j, g:i A') : ''));
             }
         });
     }

@@ -174,7 +174,7 @@ class ParcelService
 
         $target = match ($parcel->status) {
             'pickup_approved'                                   => 'Processing',
-            'in_transit_to_hub', 'picked_up', 'sorted', 'assigned', 'in_transit',
+            'in_transit_to_hub', 'picked_up', 'sorted', 'assigned', 'in_transit', 'linehaul',
             'delivered', 'failed', 'return_to_sender'          => 'Shipped',
             default                                             => null,
         };

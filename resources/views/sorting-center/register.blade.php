@@ -53,7 +53,7 @@
                     </div>
                     <div>
                         <label for="contact_no" class="text-xs font-semibold" style="color:#6b90aa;">Contact No. *</label>
-                        <input type="tel" id="contact_no" name="contact_no" value="{{ old('contact_no') }}" class="input mt-1" required placeholder="09xx xxx xxxx">
+                        <input maxlength="11" inputmode="numeric" autocomplete="tel" oninput="this.value=this.value.replace(/\D/g,'').slice(0,11)" type="tel" id="contact_no" name="contact_no" value="{{ old('contact_no') }}" class="input mt-1" required placeholder="09171234567">
                     </div>
                     <div>
                         <label for="birthday" class="text-xs font-semibold" style="color:#6b90aa;">Birthday *</label>
@@ -160,7 +160,7 @@
 
             <div class="flex gap-3">
                 <button type="submit" class="flex-1 rounded-xl py-3 text-sm font-bold text-white" style="background:#002b4d;">Submit Registration</button>
-                <a href="{{ route('sc.login') }}" class="rounded-xl border px-6 py-3 text-sm font-semibold" style="border-color:#cfdce8;color:#7A7A7A;">Back to Login</a>
+                <a href="{{ route('login') }}" class="rounded-xl border px-6 py-3 text-sm font-semibold" style="border-color:#cfdce8;color:#7A7A7A;">Back to Login</a>
             </div>
         </form>
     </div>

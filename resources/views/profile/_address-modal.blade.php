@@ -30,7 +30,7 @@
             </div>
             <div class="sm:col-span-2">
                 <label class="pf-label" for="addr-phone">Mobile number</label>
-                <input type="tel" name="phone" id="addr-phone" value="{{ old('phone', auth()->user()->phone) }}" class="pf-input" required placeholder="09XXXXXXXXX or +639XXXXXXXXX">
+                <input maxlength="11" inputmode="numeric" autocomplete="tel" oninput="this.value=this.value.replace(/\D/g,'').slice(0,11)" type="tel" name="phone" id="addr-phone" value="{{ old('phone', auth()->user()->phone) }}" class="pf-input" required placeholder="09XXXXXXXXX">
             </div>
 
             <div class="sm:col-span-2">
@@ -168,7 +168,7 @@
         if (a) {
             $('addr-label').value = a.label || 'Home';
             $('addr-name').value = a.full_name || '';
-            $('addr-phone').value = a.phone || '';
+            $('addr-phone').value = (a.phone || '').replace(/^\+?63(9\d{9})$/, '0$1');
             $('addr-zip').value = a.zip || '';
             $('addr-line').value = a.address_line || '';
             $('addr-default').checked = !!a.is_default;

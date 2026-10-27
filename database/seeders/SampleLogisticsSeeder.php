@@ -33,11 +33,11 @@ class SampleLogisticsSeeder extends Seeder
     public const EMAIL    = 'bilishatid.sample@example.com';
     public const PASSWORD = 'Hatid@2026';
 
-    private User $sc, $seller, $buyer;
-    private Rider $pedro, $mark;
-    private DeliveryArea $central, $commonwealth;
-    private Product $basket;
-    private UserAddress $address;
+    protected User $sc, $seller, $buyer;
+    protected Rider $pedro, $mark;
+    protected DeliveryArea $central, $commonwealth;
+    protected Product $basket;
+    protected UserAddress $address;
 
     public function run(): void
     {
@@ -54,7 +54,7 @@ class SampleLogisticsSeeder extends Seeder
         $this->command?->info('Sample logistics: ' . self::EMAIL . ' / ' . self::PASSWORD);
     }
 
-    private function user(string $role, string $email, string $name, string $password): User
+    protected function user(string $role, string $email, string $name, string $password): User
     {
         return User::create(['name' => $name, 'email' => $email, 'password' => Hash::make($password), 'role' => $role,
             'approval_status' => 'approved', 'email_verified_at' => now(), 'phone' => '09170000010']);
@@ -107,7 +107,7 @@ class SampleLogisticsSeeder extends Seeder
     }
 
     /** A ₱500.00 COD order (1 × Rattan Fruit Basket ₱450 + ₱50 shipping) and its parcel at this company. */
-    private function parcel(string $status, string $orderStatus, array $extra = [], ?\Carbon\Carbon $at = null): Parcel
+    protected function parcel(string $status, string $orderStatus, array $extra = [], ?\Carbon\Carbon $at = null): Parcel
     {
         $at ??= now();
         $a = $this->address;
@@ -137,7 +137,7 @@ class SampleLogisticsSeeder extends Seeder
         return $parcel;
     }
 
-    private function delivery(Parcel $parcel, Rider $rider, string $status, int $attempt = 1, array $extra = []): ParcelDelivery
+    protected function delivery(Parcel $parcel, Rider $rider, string $status, int $attempt = 1, array $extra = []): ParcelDelivery
     {
         return ParcelDelivery::create($extra + ['parcel_id' => $parcel->id, 'rider_id' => $rider->id, 'area_id' => $parcel->area_id,
             'assigned_by' => $this->sc->id, 'status' => $status, 'attempt' => $attempt, 'cod_amount' => 500]);

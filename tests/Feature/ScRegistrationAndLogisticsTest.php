@@ -113,12 +113,13 @@ class ScRegistrationAndLogisticsTest extends TestCase
         $this->assertStringContainsString('name="business_name"', $html);
         $this->assertStringContainsString('government_id', $html);
         $this->assertStringContainsString('business_permit', $html);
-        $this->get(route('sc.login'))->assertOk()->assertSee(route('sc.register'), false);
+        // One login page for everyone; its sign-up link leads to the same registration (Logistics is one of the roles).
+        $this->get(route('login'))->assertOk()->assertSee(route('register'), false);
     }
 
     public function test_valid_registration_creates_pending_account_and_application(): void
     {
-        $this->register()->assertSessionHasNoErrors()->assertRedirect(route('sc.login'))->assertSessionHas('success');
+        $this->register()->assertSessionHasNoErrors()->assertRedirect(route('login'))->assertSessionHas('success');
 
         $user = User::where('email', 'luisiana-sc@example.com')->firstOrFail();
         $this->assertSame('sorting_center_pending', $user->role);
@@ -243,7 +244,7 @@ class ScRegistrationAndLogisticsTest extends TestCase
     public function test_pending_account_gets_correct_message(): void
     {
         $this->register();
-        $this->from(route('sc.login'))->post(route('sc.login.store'), [
+        $this->from(route('login'))->post(route('login.attempt'), [
             'email' => 'luisiana-sc@example.com', 'password' => 'secret-pass-1',
         ])->assertSessionHasErrors(['email']);
         $this->assertStringContainsString('pending', session()->get('errors')->first('email'));
@@ -257,7 +258,7 @@ class ScRegistrationAndLogisticsTest extends TestCase
         $app->update(['status' => 'rejected', 'rejection_reason' => 'Blurry ID']);
         $app->user->update(['approval_status' => 'rejected']);
 
-        $this->from(route('sc.login'))->post(route('sc.login.store'), [
+        $this->from(route('login'))->post(route('login.attempt'), [
             'email' => 'luisiana-sc@example.com', 'password' => 'secret-pass-1',
         ])->assertSessionHasErrors(['email']);
         $this->assertStringContainsString('not approved', session()->get('errors')->first('email'));
@@ -268,7 +269,7 @@ class ScRegistrationAndLogisticsTest extends TestCase
     public function test_approved_account_can_login(): void
     {
         $sc = $this->sc('approved@e.com');
-        $this->from(route('sc.login'))->post(route('sc.login.store'), ['email' => 'approved@e.com', 'password' => 'password'])
+        $this->from(route('login'))->post(route('login.attempt'), ['email' => 'approved@e.com', 'password' => 'password'])
             ->assertRedirect(route('sc.dashboard'));
         $this->assertAuthenticatedAs($sc);
     }
@@ -277,15 +278,18 @@ class ScRegistrationAndLogisticsTest extends TestCase
     {
         $suspended = $this->sc('sus@e.com');
         $suspended->update(['role' => 'suspended']);
-        $this->from(route('sc.login'))->post(route('sc.login.store'), ['email' => 'sus@e.com', 'password' => 'password'])
+        $this->from(route('login'))->post(route('login.attempt'), ['email' => 'sus@e.com', 'password' => 'password'])
             ->assertSessionHasErrors('email');
         $this->assertGuest();
     }
 
     public function test_old_sorting_center_urls_redirect(): void
     {
-        $this->get('/sorting-center/login')->assertRedirect('/sc/login');
-        $this->get('/sorting-center')->assertRedirect('/sc/login');
+        // One login for everyone: the old logistics entrances lead to it.
+        $this->get('/sorting-center/login')->assertRedirect('/login');
+        $this->get('/sorting-center')->assertRedirect('/login');
+        $this->get('/sc/login')->assertRedirect('/login');
+        $this->get('/logistics/login')->assertRedirect('/login');
     }
 
     // ── 4. Logistics process ──────────────────────────────────

@@ -102,6 +102,12 @@ class AuthenticatedSessionController extends Controller
                 ->with('info', $this->courierWaitingMessage($user));
         }
 
+        // Logistics company sign-ups waiting for (or turned down by) the administrator: say which, with the reason.
+        if ($user->role === 'sorting_center_pending') {
+            Auth::guard('web')->logout();
+            throw ValidationException::withMessages(['email' => \App\Models\SortingCenterApplication::loginRefusal($user)]);
+        }
+
         // Block accounts pending admin approval or rejected
         if ($user->isPending()) {
             Auth::guard('web')->logout();
@@ -181,8 +187,7 @@ class AuthenticatedSessionController extends Controller
         if ($user->isAdmin()) {
             \App\Models\ActivityLog::record('admin_login', 'Admin signed in', $user->name . ' signed in.');
 
-            // The main login always opens the admin panel. The logistics / sorting
-            // panel has its own entrance at /logistics/login.
+            // The login opens the admin panel; its Logistics menu opens the logistics panel.
             return redirect()->route('admin.dashboard')
                 ->with('success', 'Welcome back, ' . $user->name . '!');
         }
@@ -269,11 +274,19 @@ class AuthenticatedSessionController extends Controller
     }
 
     /**
-     * A new account's email is confirmed (by the emailed code, or by Google):
-     * it moves from "unverified" to the approval queue.
+     * A new account's email is confirmed (by the emailed code, or by Google). A buyer is active right away and
+     * signed in; sellers and couriers move to their approval queue.
      */
     public function finishSignup(Request $request, User $user, bool $remember = false, string $verified = 'Email verified!')
     {
+        if ($user->role === 'buyer') {
+            $user->forceFill(['approval_status' => 'approved'])->save();
+            Auth::login($user, $remember);
+            $request->session()->regenerate();
+
+            return redirect()->route('home')->with('success', $verified . ' Welcome to ALVY, ' . ($user->first_name ?: $user->name) . '!');
+        }
+
         $user->forceFill(['approval_status' => 'pending'])->save();
 
         // Sellers can watch their application on the status page.

@@ -47,6 +47,7 @@
         <button type="submit" class="rounded-md px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90" style="background:#222;">Apply</button>
         <a href="{{ route('seller.reports', ['from' => $from, 'to' => $to, 'export' => 'csv']) }}" class="rp-preset">Export CSV</a>
         <a href="{{ route('seller.reports', ['from' => $from, 'to' => $to, 'export' => 'xlsx']) }}" class="rp-preset">Export XLSX</a>
+        <a href="{{ route('seller.reports', ['from' => $from, 'to' => $to, 'export' => 'pdf']) }}" class="rp-preset">Download PDF</a>
         <div class="ml-auto flex flex-wrap gap-2">
             @foreach ($presets as $label => [$pFrom, $pTo])
                 <a href="{{ route('seller.reports', ['from' => $pFrom, 'to' => $pTo]) }}"

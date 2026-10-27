@@ -8,6 +8,7 @@
         <p class="mt-0.5 text-sm pl-muted">Use at least 8 characters, and don't reuse a password from another site.</p>
     </div>
 
+    @include('partials.password-code')
     <form action="{{ route('seller.account.password') }}" method="POST" class="pl-card pl-body space-y-4">
         @csrf @method('PUT')
 
@@ -38,6 +39,7 @@
         </div>
 
         <div class="flex justify-end border-t pt-4" style="border-color:#F2EEEA;">
+            @include('partials.password-code-via')
             <button type="submit" class="pl-btn">Update password</button>
         </div>
     </form>

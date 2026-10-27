@@ -50,7 +50,7 @@
                 </div>
                 <div>
                     <label class="form-label" for="rider_phone">Phone</label>
-                    <input type="text" id="rider_phone" name="phone" class="form-input" placeholder="09xx…" value="{{ old('phone') }}">
+                    <input maxlength="11" inputmode="numeric" autocomplete="tel" oninput="this.value=this.value.replace(/\D/g,'').slice(0,11)" type="text" id="rider_phone" name="phone" class="form-input" placeholder="09171234567" value="{{ old('phone') }}">
                 </div>
                 <div>
                     <label class="form-label" for="rider_vehicle">Vehicle</label>

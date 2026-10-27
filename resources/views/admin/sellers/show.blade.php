@@ -196,7 +196,7 @@
                             <span class="block text-xs line-through" style="color:#9db3c4;">₱{{ number_format($p->price, 2) }}</span>
                         @endif
                     </td>
-                    <td class="px-3 py-2 text-right" style="{{ $p->stock <= 5 ? 'color:#B91C1C;font-weight:600;' : '' }}">{{ $p->stock }}</td>
+                    <td class="px-3 py-2 text-right" style="{{ $p->isLowStock() || $p->stock === 0 ? 'color:#B91C1C;font-weight:600;' : '' }}">{{ $p->stock }}</td>
                     <td class="px-3 py-2 text-right">{{ (int) $p->sold }}</td>
                     <td class="px-3 py-2">
                         <span class="rounded-md px-2 py-0.5 text-xs font-semibold" style="{{ $stateStyle }}">{{ $stateLabel }}</span>

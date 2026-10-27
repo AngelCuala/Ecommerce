@@ -45,6 +45,13 @@ return [
         'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
     ],
 
+    // Text messages (password-change codes by SMS). Without a key the codes go by email only.
+    'semaphore' => [
+        'key'    => env('SEMAPHORE_API_KEY'),
+        'sender' => env('SEMAPHORE_SENDER_NAME'),   // an approved sender name, e.g. ALVY (blank = Semaphore's default)
+        'url'    => env('SEMAPHORE_URL', 'https://api.semaphore.co/api/v4/messages'),
+    ],
+
     'slack' => [
         'notifications' => [
             'bot_user_oauth_token' => env('SLACK_BOT_USER_OAUTH_TOKEN'),

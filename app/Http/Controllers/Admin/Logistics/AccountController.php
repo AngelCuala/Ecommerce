@@ -50,9 +50,8 @@ class AccountController extends Controller
             'password'         => ['required', 'confirmed', Password::min(8)],
         ]);
 
-        auth()->user()->update(['password' => Hash::make($request->password)]);
-
-        return back()->with('success', 'Password changed successfully.');
+        // The new password is used once the code emailed to the account is entered.
+        return \App\Http\Controllers\PasswordChangeController::start(auth()->user(), $request->password);
     }
 
     public function logout(Request $request)

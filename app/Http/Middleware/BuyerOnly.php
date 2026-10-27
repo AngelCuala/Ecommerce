@@ -23,6 +23,12 @@ class BuyerOnly
         if ($user && $user->isAdmin()) {
             return redirect()->route('admin.dashboard');
         }
+        // Courier and rider accounts work, they don't shop with the same login.
+        if ($user && ($user->isCourier() || $user->isCourierPending())) {
+            $home = $user->isCourierPending() ? 'courier.status' : ($user->courier?->isApproved() ? 'courier.dashboard' : 'courier.rider');
+            return redirect()->route($home)
+                ->with('error', 'Courier and rider accounts are for deliveries. Please sign in with a buyer account to shop.');
+        }
 
         return $next($request);
     }

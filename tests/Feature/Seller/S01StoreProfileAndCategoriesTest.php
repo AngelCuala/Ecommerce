@@ -235,55 +235,66 @@ class S01StoreProfileAndCategoriesTest extends TestCase
 
     // ── S2 Store Categories ─────────────────────────────────────
 
-    /** SEL-SCAT-001 (A7) */
+    /** SEL-SCAT-001: the seller adds ALVY categories to the store; a product saved in one shows under it. */
     public function test_sel_scat_001_create_a_store_category_and_assign_a_product(): void
     {
-        $this->actingAs($this->seller1)->get(route('seller.store-categories.index'))->assertOk()->assertSee('Kitchen &amp; Dining', false);
-        $this->actingAs($this->seller1)->post(route('seller.store-categories.store'), ['name' => 'Pasalubong Picks'])->assertSessionHasNoErrors();
-        $cat = StoreCategory::where('name', 'Pasalubong Picks')->sole();
+        $beauty = \App\Models\Category::firstOrCreate(['name' => 'Health & Beauty']);
+        $page = $this->actingAs($this->seller1)->get(route('seller.store-categories.index'))->assertOk()->assertSee('Add a category from ALVY');
+        $page->assertSee('<option value="' . $beauty->id . '"', false);
 
-        $this->actingAs($this->seller1)->put(route('seller.books.update', $this->p01), $this->editForm($this->p01, ['store_category_ids' => [$cat->id]]))
+        $this->actingAs($this->seller1)->post(route('seller.store-categories.store'), ['category_id' => $beauty->id])
+            ->assertSessionHasNoErrors()->assertSessionHas('success', 'Category "Health & Beauty" added to your store. Pick it when you add a product.');
+        $cat = StoreCategory::where('seller_id', $this->seller1->id)->where('category_id', $beauty->id)->sole();
+        $this->assertSame('Health & Beauty', $cat->name);
+        // Already added: not offered again.
+        $this->actingAs($this->seller1)->get(route('seller.store-categories.index'))->assertDontSee('<option value="' . $beauty->id . '"', false);
+
+        // The product's Category lists the store's categories first; saving it there tags it.
+        $form = $this->actingAs($this->seller1)->get(route('seller.books.edit', $this->p01))->assertOk()->getContent();
+        $this->assertLessThan(strpos($form, 'Other ALVY categories'), strpos($form, 'Your store categories'));
+        $this->actingAs($this->seller1)->put(route('seller.books.update', $this->p01), $this->editForm($this->p01, ['category_id' => $beauty->id]))
             ->assertSessionHasNoErrors();
+        $this->assertSame($beauty->id, $this->p01->fresh()->category_id);
+        $this->assertTrue($this->p01->storeCategories()->whereKey($cat->id)->exists());
 
         $html = $this->actingAs($this->buyer1)->get(route('stores.show', [$this->seller1->id, 'scat' => $cat->id]))->assertOk()
-            ->assertSee('data-store-category="Pasalubong Picks"', false)->assertSee('Abaca Woven Tote Bag')->getContent();
+            ->assertSee('data-store-category="Health &amp; Beauty"', false)->assertSee('Abaca Woven Tote Bag')->getContent();
         $this->assertStringNotContainsString('alt="Rattan Fruit Basket"', $html);
     }
 
-    /** SEL-SCAT-002 (A25) */
+    /** SEL-SCAT-002: only an ALVY category can be added. */
     public function test_sel_scat_002_empty_spaces_only_and_over_length_names(): void
     {
-        $store = fn ($name) => $this->actingAs($this->seller1)->from(route('seller.store-categories.index'))->post(route('seller.store-categories.store'), ['name' => $name]);
+        $store = fn (array $data) => $this->actingAs($this->seller1)->from(route('seller.store-categories.index'))->post(route('seller.store-categories.store'), $data);
 
-        $store('')->assertSessionHasErrors(['name' => 'Please enter a category name.']);
-        $store('   ')->assertSessionHasErrors(['name' => 'Please enter a category name.']);
-        $store(str_repeat('a', 51))->assertSessionHasErrors(['name' => 'Category names can be up to 50 characters.']);
-        $store('B')->assertSessionHasNoErrors();
-        $store(str_repeat('c', 50))->assertSessionHasNoErrors();
-
-        $this->assertTrue(StoreCategory::where('name', 'B')->exists());
-        $this->assertTrue(StoreCategory::where('name', str_repeat('c', 50))->exists());
-        $this->assertFalse(StoreCategory::where('name', '')->orWhereRaw('LENGTH(name) > 50')->exists());
+        $store([])->assertSessionHasErrors(['category_id' => 'Please choose a category.']);
+        $store(['category_id' => 999999])->assertSessionHasErrors(['category_id' => 'Please choose one of the ALVY categories.']);
+        // A typed name is not a category any more.
+        $store(['name' => 'Pasalubong Picks'])->assertSessionHasErrors(['category_id' => 'Please choose a category.']);
+        $this->assertFalse(StoreCategory::where('name', 'Pasalubong Picks')->exists());
     }
 
-    /** SEL-SCAT-003 (A25) */
+    /** SEL-SCAT-003: the same ALVY category can't be added twice to a store. */
     public function test_sel_scat_003_duplicate_category_name_in_the_same_store(): void
     {
-        foreach (['Bags', 'BAGS', ' Bags '] as $name) {
-            $this->actingAs($this->seller1)->post(route('seller.store-categories.store'), ['name' => $name])
-                ->assertSessionHasErrors(['name' => 'A category named "' . trim($name) . '" already exists in your store.']);
-        }
-        $this->assertSame(1, StoreCategory::where('seller_id', $this->seller1->id)->whereRaw('LOWER(name) = ?', ['bags'])->count());
+        $toys = \App\Models\Category::firstOrCreate(['name' => 'Toys & Games']);
+        $this->actingAs($this->seller1)->post(route('seller.store-categories.store'), ['category_id' => $toys->id])->assertSessionHasNoErrors();
+        $this->actingAs($this->seller1)->post(route('seller.store-categories.store'), ['category_id' => $toys->id])
+            ->assertSessionHasErrors(['category_id' => 'That category is already in your store.']);
+        $this->assertSame(1, StoreCategory::where('seller_id', $this->seller1->id)->where('category_id', $toys->id)->count());
     }
 
-    /** SEL-SCAT-004 */
+    /** SEL-SCAT-004: another store can add the same ALVY category. */
     public function test_sel_scat_004_same_category_name_in_a_different_store(): void
     {
+        $toys = \App\Models\Category::firstOrCreate(['name' => 'Toys & Games']);
         $before = StoreCategory::where('seller_id', $this->seller1->id)->pluck('name', 'id')->all();
-        $this->actingAs($this->seller2)->post(route('seller.store-categories.store'), ['name' => 'Bags'])->assertSessionHasNoErrors();
+        $this->actingAs($this->seller1)->post(route('seller.store-categories.store'), ['category_id' => $toys->id])->assertSessionHasNoErrors();
+        $this->actingAs($this->seller2)->post(route('seller.store-categories.store'), ['category_id' => $toys->id])->assertSessionHasNoErrors();
 
-        $this->assertSame(2, StoreCategory::where('name', 'Bags')->count());
-        $this->assertSame($before, StoreCategory::where('seller_id', $this->seller1->id)->pluck('name', 'id')->all());
+        $this->assertSame(2, StoreCategory::where('category_id', $toys->id)->count());
+        $this->assertSame($before + [StoreCategory::where('seller_id', $this->seller1->id)->where('category_id', $toys->id)->value('id') => 'Toys & Games'],
+            StoreCategory::where('seller_id', $this->seller1->id)->pluck('name', 'id')->all());
     }
 
     /** SEL-SCAT-005 (A25) */
@@ -367,49 +378,58 @@ class S01StoreProfileAndCategoriesTest extends TestCase
         $this->assertTrue($this->p03->fresh()->isPublished());
     }
 
-    /** SEL-SCAT-011 (A7) */
+    /** SEL-SCAT-011: an ALVY category keeps ALVY's name (it can't be renamed); an older typed one can. */
     public function test_sel_scat_011_subcategory_nesting_at_the_depth_limit(): void
     {
-        $this->actingAs($this->seller1)->post(route('seller.store-categories.store'), ['name' => 'Wall Decor', 'parent_id' => $this->cat2->id])->assertSessionHasNoErrors();
-        $this->actingAs($this->seller1)->post(route('seller.store-categories.store'), ['name' => 'Table Lamps', 'parent_id' => $this->cat3->id])
-            ->assertSessionHasErrors(['parent_id' => 'Store categories have at most 2 levels: a subcategory can\'t have its own subcategory.']);
-        $this->assertFalse(StoreCategory::where('name', 'Table Lamps')->exists());
+        $toys = \App\Models\Category::firstOrCreate(['name' => 'Toys & Games']);
+        $cat = StoreCategory::forPlatformCategory($this->seller1->id, $toys->id);
 
-        // Level 3 isn't offered: only top-level categories can be chosen as the parent.
-        $html = $this->actingAs($this->seller1)->get(route('seller.store-categories.index'))->getContent();
-        $this->assertStringNotContainsString('<option value="' . $this->cat3->id . '"', $html);
+        $this->actingAs($this->seller1)->from(route('seller.store-categories.index'))->put(route('seller.store-categories.update', $cat), ['name' => 'Laruan'])
+            ->assertSessionHas('error', "This category comes from ALVY, so its name can't be changed. Delete it and add another one instead.");
+        $this->assertSame('Toys & Games', $cat->fresh()->name);
+        $this->actingAs($this->seller1)->put(route('seller.store-categories.update', $this->cat5), ['name' => 'Kitchen'])->assertSessionHasNoErrors();
+
+        // The page marks it as an ALVY category and offers no Rename for it.
+        $html = $this->actingAs($this->seller1)->get(route('seller.store-categories.index'))->assertSee('ALVY category')->getContent();
+        $this->assertSame(1, substr_count($html, 'action="' . route('seller.store-categories.update', $cat) . '"'));         // Delete only
+        $this->assertSame(2, substr_count($html, 'action="' . route('seller.store-categories.update', $this->cat5) . '"'));  // Rename + Delete
+
+        // When ALVY renames the category, the store's name follows.
+        $toys->update(['name' => 'Toys, Games & Hobbies']);
+        $this->assertSame('Toys, Games & Hobbies', $cat->fresh()->name);
     }
 
-    /** SEL-SCAT-012 (A7) */
+    /** SEL-SCAT-012: a product sits under its ALVY category; moving it moves it; a new category is added to the store. */
     public function test_sel_scat_012_product_in_several_store_categories_at_the_limit(): void
     {
-        $best = StoreCategory::create(['seller_id' => $this->seller1->id, 'name' => 'Best Sellers', 'sort_order' => 9]);
-        $gift = StoreCategory::create(['seller_id' => $this->seller1->id, 'name' => 'Gift Ideas', 'sort_order' => 10]);
-        $new  = StoreCategory::create(['seller_id' => $this->seller1->id, 'name' => 'New Arrivals', 'sort_order' => 11]);
+        $home = $this->p03->category_id;
+        $toys = \App\Models\Category::firstOrCreate(['name' => 'Toys & Games']);
+        $this->p03->storeCategories()->sync([$this->cat3->id]);   // an older typed category
 
-        $this->actingAs($this->seller1)->put(route('seller.books.update', $this->p03), $this->editForm($this->p03, ['store_category_ids' => [$this->cat3->id, $best->id, $gift->id]]))
-            ->assertSessionHasNoErrors();
-        $this->actingAs($this->seller1)->put(route('seller.books.update', $this->p03), $this->editForm($this->p03, ['store_category_ids' => [$this->cat3->id, $best->id, $gift->id, $new->id]]))
-            ->assertSessionHasErrors(['store_category_ids' => 'A product can be in up to 3 store categories.']);
-        $this->assertSame(3, $this->p03->storeCategories()->count());
+        $this->actingAs($this->seller1)->put(route('seller.books.update', $this->p03), $this->editForm($this->p03))->assertSessionHasNoErrors();
+        $homeCat = StoreCategory::where('seller_id', $this->seller1->id)->where('category_id', $home)->sole();
+        $this->assertEqualsCanonicalizing([$this->cat3->id, $homeCat->id], $this->p03->storeCategories()->pluck('store_categories.id')->all());
 
-        foreach ([$this->cat3, $best, $gift] as $cat) {
+        // Another ALVY category the store didn't have: added to the store, and the product moves there.
+        $this->actingAs($this->seller1)->put(route('seller.books.update', $this->p03), $this->editForm($this->p03, ['category_id' => $toys->id]))->assertSessionHasNoErrors();
+        $toysCat = StoreCategory::where('seller_id', $this->seller1->id)->where('category_id', $toys->id)->sole();
+        $this->assertEqualsCanonicalizing([$this->cat3->id, $toysCat->id], $this->p03->storeCategories()->pluck('store_categories.id')->all());
+
+        foreach ([$toysCat, $this->cat3] as $cat) {
             $html = $this->actingAs($this->buyer1)->get(route('stores.show', [$this->seller1->id, 'scat' => $cat->id]))->getContent();
             $this->assertSame(1, substr_count($html, 'alt="Capiz Shell Lamp"'), $cat->name);
         }
     }
 
-    /** SEL-SCAT-013 */
+    /** SEL-SCAT-013: the store tab is the product's ALVY category; sellers still can't make ALVY categories. */
     public function test_sel_scat_013_store_category_is_separate_from_platform_category(): void
     {
-        $platform = $this->p01->category_id;
-        $this->actingAs($this->seller1)->put(route('seller.books.update', $this->p01), $this->editForm($this->p01, ['store_category_ids' => [$this->cat5->id]]))
-            ->assertSessionHasNoErrors();
+        $this->actingAs($this->seller1)->put(route('seller.books.update', $this->p01), $this->editForm($this->p01))->assertSessionHasNoErrors();
+        $cat = StoreCategory::where('seller_id', $this->seller1->id)->where('category_id', $this->p01->category_id)->sole();
+        $this->assertSame($this->p01->category->name, $cat->name);
 
-        $this->assertSame($platform, $this->p01->fresh()->category_id);
-        $this->assertSame([$this->cat5->id], $this->p01->storeCategories()->pluck('store_categories.id')->all());
         $this->actingAs($this->buyer1)->get(route('shop.index', ['search' => 'Tote', 'category' => 'Bags & Luggage']))->assertSee('Abaca Woven Tote Bag');
-        $this->actingAs($this->buyer1)->get(route('stores.show', [$this->seller1->id, 'scat' => $this->cat5->id]))->assertSee('Abaca Woven Tote Bag');
+        $this->actingAs($this->buyer1)->get(route('stores.show', [$this->seller1->id, 'scat' => $cat->id]))->assertSee('Abaca Woven Tote Bag');
         // Sellers have no way to create or rename platform categories.
         $this->actingAs($this->seller1)->post('/admin/categories', ['name' => 'Seller Made'])->assertStatus(403);
         $this->assertFalse(\App\Models\Category::where('name', 'Seller Made')->exists());

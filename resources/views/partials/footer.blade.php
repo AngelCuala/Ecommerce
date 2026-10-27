@@ -14,6 +14,7 @@
         ],
         'ALVY' => [
             ['About us', $policy('about_us')],
+            ['Get the app', route('app.page')],
             ['Sell on ALVY', route('seller.register')],
             ['Seller policy', $policy('seller_policy')],
         ],

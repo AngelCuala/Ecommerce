@@ -14,6 +14,8 @@
            class="btn btn-orange">Export CSV</a>
         <a href="{{ route('sc.reports', array_merge(request()->only('from','to','tab'), ['export'=>'xlsx'])) }}"
            class="btn btn-orange">Export XLSX</a>
+        <a href="{{ route('sc.reports', array_merge(request()->only('from','to','tab'), ['export'=>'pdf'])) }}"
+           class="btn btn-orange">Download PDF</a>
     </form>
 @endsection
 

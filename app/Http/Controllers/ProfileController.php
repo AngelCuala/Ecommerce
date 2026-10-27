@@ -190,7 +190,7 @@ class ProfileController extends Controller
                     }
                 }],
         ], [
-            'phone.regex'  => 'Enter a valid PH mobile number: 09XXXXXXXXX (11 digits) or +639XXXXXXXXX.',
+            'phone.regex'  => PhoneNumber::MESSAGE,
             'phone.not_in' => 'That is already your phone number.',
         ]);
 
@@ -298,8 +298,6 @@ class ProfileController extends Controller
                 ->with('password_error', true);
         }
 
-        $user->update(['password' => Hash::make($request->password)]);
-
-        return back()->with('success', 'Password changed successfully.');
+        return \App\Http\Controllers\PasswordChangeController::start($user, $request->password);
     }
 }

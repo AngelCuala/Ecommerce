@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Courier;
 
 use App\Http\Controllers\Controller;
+use App\Support\PhoneNumber;
 use App\Models\Courier;
 use App\Models\UserNotification;
 use App\Support\SortingCenters;
@@ -32,12 +33,13 @@ class RegistrationController extends Controller
             return back()->with('error', 'You already have a courier application on file.');
         }
 
+        $request->merge(['contact_no' => PhoneNumber::normalize($request->input('contact_no'))]);
         $data = $request->validate([
             'last_name'       => 'required|string|max:100',
             'first_name'      => 'required|string|max:100',
             'middle_initial'  => 'nullable|string|max:5',
             'sex'             => 'required|in:Male,Female',
-            'contact_no'      => 'required|string|max:20',
+            'contact_no'      => ['required', 'string', 'regex:' . PhoneNumber::PATTERN],
             'birthday'        => 'required|date|before:today',
             'province'        => 'required|string|max:120',
             'municipality'    => 'required|string|max:120',
@@ -51,6 +53,7 @@ class RegistrationController extends Controller
             'or_cr'           => 'required|file|mimes:jpg,jpeg,png,pdf|max:5120',
             'id_upload'       => 'required|file|mimes:jpg,jpeg,png,pdf|max:5120',
         ], [
+            'contact_no.regex'   => PhoneNumber::MESSAGE,
             'or_cr.required'     => 'The OR/CR document is required.',
             'id_upload.required' => "A valid ID or driver's license is required.",
             'sorting_center_id.required' => 'Please choose the sorting center you want to apply to.',

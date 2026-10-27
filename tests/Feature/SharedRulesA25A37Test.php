@@ -185,7 +185,7 @@ class SharedRulesA25A37Test extends TestCase
         $this->assertFalse($dispatch->isUnassigned($waiting->parcel->fresh()));
     }
 
-    /** A36: reports export as CSV and XLSX with the on-screen rows and totals. */
+    /** A36: reports export as CSV, XLSX and PDF with the on-screen rows and totals. */
     public function test_a36_report_exports(): void
     {
         $this->moveTo($this->placeOrder($this->buyer1, [$this->cart($this->buyer1, $this->p02, 2)])->first(), Order::COMPLETED);
@@ -205,6 +205,20 @@ class SharedRulesA25A37Test extends TestCase
         $this->assertStringContainsString('<v>900</v>', $sheet);
 
         $this->actingAs($this->logistics1)->get(route('sc.reports', ['export' => 'xlsx']))->assertOk()->assertHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+
+        // PDF: the same rows in a printable table (seller, logistics hub, admin logistics).
+        $pdf = $this->actingAs($this->seller1)->get(route('seller.reports', ['export' => 'pdf']))->assertOk()->assertHeader('Content-Type', 'application/pdf');
+        $this->assertStringStartsWith('%PDF', $pdf->getContent());
+        foreach (['daily', 'rider', 'area', 'cod'] as $tab) {
+            $this->actingAs($this->logistics1)->get(route('sc.reports', ['export' => 'pdf', 'tab' => $tab]))->assertOk()->assertHeader('Content-Type', 'application/pdf');
+        }
+        $html = view('exports.table-pdf', ['title' => 'Sales Report — Maria Clara Handicrafts', 'subtitle' => 'Oct 01, 2026 – Oct 20, 2026',
+            'header' => ['Product', 'Units sold', 'Gross sales', 'Net earnings'], 'rows' => [['Rattan Fruit Basket', 2, 900.0, 855.0], ['Total', 2, 900.0, 855.0]],
+            'generatedAt' => now(), 'generatedBy' => 'Maria'])->render();
+        $this->assertStringContainsString('Sales Report — Maria Clara Handicrafts', $html);
+        $this->assertStringContainsString('<td class="r">900.00</td>', $html);
+        $this->assertMatchesRegularExpression('/<tfoot>\s*<tr><td class="">Total<\/td>/', $html);
+        $this->actingAs($this->seller1)->get(route('seller.reports'))->assertSee('Download PDF');
     }
 
     /** A37: pressing Publish twice (or Back and resubmit) creates one product. */

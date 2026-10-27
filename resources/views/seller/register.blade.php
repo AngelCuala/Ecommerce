@@ -74,7 +74,7 @@
                         </div>
                         <div>
                             <label class="fld-label" for="phone">Mobile Number *</label>
-                            <input type="tel" id="phone" name="phone" value="{{ old('phone') }}" placeholder="09171234567" inputmode="tel"
+                            <input maxlength="11" inputmode="numeric" autocomplete="tel" oninput="this.value=this.value.replace(/\D/g,'').slice(0,11)" type="tel" id="phone" name="phone" value="{{ old('phone') }}" placeholder="09171234567"
                                    class="form-input @error('phone') is-invalid @enderror">
                             @error('phone')<p class="field-error">{{ $message }}</p>@enderror
                         </div>

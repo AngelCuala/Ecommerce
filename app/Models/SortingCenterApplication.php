@@ -29,6 +29,16 @@ class SortingCenterApplication extends Model
     public function isApproved(): bool { return $this->status === 'approved'; }
     public function isRejected(): bool { return $this->status === 'rejected'; }
 
+    /** Why a logistics company that signed up can't sign in yet: still waiting, or not approved (with the reason). */
+    public static function loginRefusal(User $user): string
+    {
+        $app = self::where('user_id', $user->id)->latest()->first();
+
+        return $app?->isRejected()
+            ? 'Your sorting center registration was not approved.' . ($app->rejection_reason ? ' Reason: ' . $app->rejection_reason : '')
+            : 'Your sorting center registration is pending administrator approval. You will be notified by email.';
+    }
+
     public function fullName(): string
     {
         $mid = $this->middle_initial ? rtrim($this->middle_initial, '.') . '. ' : '';

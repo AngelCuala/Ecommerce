@@ -528,10 +528,9 @@ class CheckoutController extends Controller
                     $flashUse[$line->id]->increment('sold', $line->flashUnits());
                 }
                 if ($line->variation_id) {
-                    $before = (int) $variations[$line->variation_id]->stock;
+                    // decrement() on the option sends its low-stock alert (ProductVariation::booted).
                     $variations[$line->variation_id]->decrement('stock', $line->quantity);
                     Product::whereKey($line->product_id)->update(['stock' => ProductVariation::where('product_id', $line->product_id)->sum('stock')]);
-                    \App\Services\LowStockAlert::check($line->product, $before, $before - $line->quantity, $variations[$line->variation_id]);
                 } else {
                     $before = (int) $products[$line->product_id]->stock;
                     Product::whereKey($line->product_id)->decrement('stock', $line->quantity);

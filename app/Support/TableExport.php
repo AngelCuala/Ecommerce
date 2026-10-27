@@ -5,17 +5,30 @@ namespace App\Support;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
- * Report export as CSV or XLSX (A36). The rows are exactly the ones shown on screen.
- * XLSX is written directly (one sheet, inline strings) so no spreadsheet library is needed.
+ * Report export as CSV, XLSX or PDF (A36). The rows are exactly the ones shown on screen.
+ * XLSX is written directly (one sheet, inline strings) so no spreadsheet library is needed;
+ * the PDF is a printable table (dompdf) with the report's title and period.
  */
 class TableExport
 {
-    public const FORMATS = ['csv', 'xlsx'];
+    public const FORMATS = ['csv', 'xlsx', 'pdf'];
 
-    /** @param array<int, array<int, scalar|null>> $rows */
-    public static function download(string $basename, array $header, iterable $rows, string $format = 'csv')
+    /**
+     * @param array<int, array<int, scalar|null>> $rows
+     * @param string|null $title   PDF heading (default: the file name in words)
+     * @param string|null $subtitle PDF line under the heading, e.g. the period
+     */
+    public static function download(string $basename, array $header, iterable $rows, string $format = 'csv', ?string $title = null, ?string $subtitle = null)
     {
         $rows = array_map(fn ($r) => array_values((array) $r), is_array($rows) ? $rows : iterator_to_array($rows, false));
+
+        if ($format === 'pdf') {
+            $title ??= ucfirst(str_replace(['-', '_'], ' ', $basename));
+            return \Barryvdh\DomPDF\Facade\Pdf::loadView('exports.table-pdf', [
+                'title' => $title, 'subtitle' => $subtitle, 'header' => $header, 'rows' => $rows,
+                'generatedAt' => now(), 'generatedBy' => auth()->user()?->name,
+            ])->setPaper('a4', count($header) > 6 ? 'landscape' : 'portrait')->download($basename . '.pdf');
+        }
 
         if ($format === 'xlsx') {
             $path = self::xlsx($header, $rows);

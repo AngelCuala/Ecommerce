@@ -61,7 +61,7 @@
     <div class="cx-grid cx-cols-2" style="margin-top:24px;">
         <div>
             <label class="cx-label">Contact No. *</label>
-            <input type="text" name="contact_no" value="{{ old('contact_no', $courier->contact_no ?? $user->phone) }}" class="input cx-field-mt" required>
+            <input maxlength="11" inputmode="numeric" autocomplete="tel" oninput="this.value=this.value.replace(/\D/g,'').slice(0,11)" type="text" name="contact_no" value="{{ old('contact_no', $courier->contact_no ?? $user->phone) }}" class="input cx-field-mt" required>
         </div>
         <div style="display:flex;align-items:flex-end;">
             <button type="submit" class="cx-btn cx-btn-orange">Save Changes</button>

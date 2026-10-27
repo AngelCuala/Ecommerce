@@ -40,13 +40,13 @@ use App\Http\Controllers\ShopController;
 use Illuminate\Support\Facades\Route;
 
 // ── Sorting Center Portal ────────────────────────────────────
-Route::get('/sc/login',  [\App\Http\Controllers\SortingCenter\LoginController::class, 'create'])->name('sc.login')->middleware('guest');
-Route::post('/sc/login', [\App\Http\Controllers\SortingCenter\LoginController::class, 'store'])->name('sc.login.store')->middleware('guest');
+// Everyone signs in at /login (logistics companies too); the old logistics entrances lead there.
+Route::redirect('/sc/login', '/login');
 Route::get('/sc/register',  [\App\Http\Controllers\SortingCenter\RegistrationController::class, 'create'])->name('sc.register')->middleware('guest');
 Route::post('/sc/register', [\App\Http\Controllers\SortingCenter\RegistrationController::class, 'store'])->name('sc.register.store')->middleware('guest');
 
 // Old entry points now redirect to the canonical login.
-Route::redirect('/sorting-center/login', '/sc/login')->name('sorting-center.login');
+Route::redirect('/sorting-center/login', '/login')->name('sorting-center.login');
 
 Route::middleware(['auth', 'is_sc', 'prevent.back'])->prefix('sc')->name('sc.')->group(function () {
     Route::get('/dashboard',            [\App\Http\Controllers\SortingCenterController::class, 'dashboard'])->name('dashboard');
@@ -141,15 +141,14 @@ Route::middleware(['auth', 'is_sc', 'prevent.back'])->prefix('sc')->name('sc.')-
 });
 
 // Old sorting-center links go to the current login.
-Route::redirect('/sorting-center', '/sc/login');
+Route::redirect('/sorting-center', '/login');
 
 // ── Public ───────────────────────────────────────────────────
 // Storefront: guests and buyers only (sellers/admins are sent to their own panels).
 Route::get('/', [HomeController::class, 'index'])->middleware('buyer_only')->name('home');
 
-// ── Logistics Login ──────────────────────────────────────────
-Route::get('/logistics/login',  [\App\Http\Controllers\Admin\Logistics\LoginController::class, 'create'])->name('logistics.login')->middleware('guest');
-Route::post('/logistics/login', [\App\Http\Controllers\Admin\Logistics\LoginController::class, 'store'])->name('logistics.login.store')->middleware('guest');
+// The admin's logistics panel is opened from the admin panel after the one login.
+Route::redirect('/logistics/login', '/login');
 
 Route::middleware('buyer_only')->group(function () {
     Route::get('/categories', [\App\Http\Controllers\CategoryPageController::class, 'index'])->name('categories.page');
@@ -160,6 +159,14 @@ Route::middleware('buyer_only')->group(function () {
 });
 Route::get('/dbconn', fn() => view('dbconn'));
 Route::get('/policies/{key}', [\App\Http\Controllers\PolicyController::class, 'show'])->name('policies.show');
+
+// Get the app: the Android app to download (it uses this same site as its backend).
+Route::get('/app',          [\App\Http\Controllers\AppDownloadController::class, 'show'])->name('app.page');
+Route::get('/app/download', [\App\Http\Controllers\AppDownloadController::class, 'download'])->name('app.download');
+
+// A rider or courier made by a logistics company sets a password from the emailed link (24 hours).
+Route::get('/activate/{token}',  [\App\Http\Controllers\AccountActivationController::class, 'show'])->name('account.activate');
+Route::post('/activate/{token}', [\App\Http\Controllers\AccountActivationController::class, 'store'])->middleware('throttle:10,1')->name('account.activate.store');
 
 // ── PSGC Address API proxy (server-side to avoid CORS/SSL issues) ──
 Route::get('/api/psgc/regions',                          [\App\Http\Controllers\PsgcController::class, 'regions']);
@@ -260,6 +267,11 @@ Route::middleware(['auth', 'buyer_only', 'prevent.back'])->group(function () {
 
 // ── Authenticated (all roles) ─────────────────────────────────
 Route::middleware('auth')->group(function () {
+
+    // A password change waits for the code emailed to the account (every account type).
+    Route::post('/account/password/verify', [\App\Http\Controllers\PasswordChangeController::class, 'verify'])->middleware('throttle:10,1')->name('password.change.verify');
+    Route::post('/account/password/resend', [\App\Http\Controllers\PasswordChangeController::class, 'resend'])->middleware('throttle:3,1')->name('password.change.resend');
+    Route::post('/account/password/cancel', [\App\Http\Controllers\PasswordChangeController::class, 'cancel'])->name('password.change.cancel');
 
     // Seller application — a buyer upgrading to a shop
     Route::get('/become-seller',  [SellerApplicationController::class, 'create'])->middleware('buyer_only')->name('seller.apply');

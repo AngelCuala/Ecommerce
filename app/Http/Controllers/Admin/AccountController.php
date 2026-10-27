@@ -85,19 +85,8 @@ class AccountController extends Controller
             'current_password.current_password' => 'The current password you entered is incorrect.',
         ]);
 
-        auth()->user()->update([
-            'password' => Hash::make($request->password),
-        ]);
-
-        // Record the event only — never the password itself.
-        \App\Models\ActivityLog::record(
-            'admin_password_changed',
-            'Password Changed',
-            'Admin account password was changed.'
-        );
-
-        return redirect()->route('admin.account.security')
-            ->with('success', 'Your password has been changed successfully.');
+        // The new password is used once the code emailed to the account is entered (logged then).
+        return \App\Http\Controllers\PasswordChangeController::start(auth()->user(), $request->password, redirect()->route('admin.account.security'));
     }
 
     /**

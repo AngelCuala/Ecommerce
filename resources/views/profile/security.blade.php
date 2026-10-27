@@ -70,7 +70,7 @@
                         <label class="pf-label">Phone number</label>
                         <p class="mb-2 text-sm" style="color:#222;">{{ $user->phone ?: 'Not set' }}</p>
                         <div class="flex gap-2">
-                            <input type="tel" name="phone" value="{{ old('phone') }}" class="pf-input" placeholder="09XXXXXXXXX" required>
+                            <input maxlength="11" inputmode="numeric" autocomplete="tel" oninput="this.value=this.value.replace(/\D/g,'').slice(0,11)" type="tel" name="phone" value="{{ old('phone') }}" class="pf-input" placeholder="09XXXXXXXXX" required>
                             <button class="pf-btn shrink-0 px-4">Change</button>
                         </div>
                         <p class="mt-1.5 text-[11px] pf-muted">We send a code to your email to confirm the new number.</p>
@@ -110,6 +110,7 @@
                     </div>
                 </div>
 
+                @include('partials.password-code')
                 <form action="{{ route('profile.change-password') }}" method="POST" class="grid gap-4 sm:grid-cols-2">
                     @csrf @method('PATCH')
 
@@ -149,6 +150,7 @@
                     </div>
 
                     <div class="flex flex-wrap gap-3 border-t pt-5 sm:col-span-2" style="border-color:#F0E4DC;">
+                        @include('partials.password-code-via')
                         <button type="submit" class="pf-btn px-8">Update Password</button>
                     </div>
                 </form>
