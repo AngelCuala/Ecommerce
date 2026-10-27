@@ -186,7 +186,7 @@ class RegistrationRulesAndOtpTest extends TestCase
         $this->register(['birthday' => now()->subYears(18)->toDateString()])->assertSessionDoesntHaveErrors('birthday');
     }
 
-    // ── Sign-up → email code → pending approval ─────────────
+    // ── Sign-up → email code → shopping (buyers need no admin approval) ─────────────
 
     public function test_valid_registration_creates_an_unverified_account_and_emails_a_code(): void
     {
@@ -217,6 +217,20 @@ class RegistrationRulesAndOtpTest extends TestCase
         $this->assertSame('approved', $user->approval_status);
         $this->assertNotNull($user->email_verified_at);
         $this->assertAuthenticatedAs($user);
+
+        // No admin step: signing out and back in works straight away.
+        auth()->logout();
+        $this->post('/login', ['email' => 'juan@gmail.com', 'password' => 'Secret@123'])->assertRedirect(route('home'));
+        $this->assertAuthenticatedAs($user->fresh());
+    }
+
+    public function test_a_buyer_left_pending_before_this_change_can_log_in(): void
+    {
+        $user = $this->makeUser(['approval_status' => 'pending', 'email_verified_at' => now()]);
+
+        $this->post('/login', ['email' => 'maria@gmail.com', 'password' => 'Secret@123'])->assertRedirect(route('home'));
+        $this->assertAuthenticatedAs($user);
+        $this->assertSame('approved', $user->fresh()->approval_status);
     }
 
     // ── Logging in never asks for a code ────────────────────
@@ -241,7 +255,8 @@ class RegistrationRulesAndOtpTest extends TestCase
 
     public function test_pending_account_cannot_log_in_and_gets_no_code(): void
     {
-        $this->makeUser(['approval_status' => 'pending', 'email_verified_at' => now()]);
+        // Accounts other than buyers still wait for approval.
+        $this->makeUser(['role' => 'sorting_center_pending', 'approval_status' => 'pending', 'email_verified_at' => now()]);
 
         $this->from('/login')->post('/login', ['email' => 'maria@gmail.com', 'password' => 'Secret@123'])
             ->assertSessionHasErrors('email');

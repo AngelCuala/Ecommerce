@@ -10,12 +10,6 @@
 
         <div class="min-w-0 flex-1 space-y-5">
 
-            @if (session('success'))
-                <div class="pf-alert pf-alert-success">
-                    <svg class="mt-0.5 h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6 9 17l-5-5"/></svg>
-                    {{ session('success') }}
-                </div>
-            @endif
 
             {{-- ═══════════ GENERAL SETTINGS ═══════════ --}}
             <div class="pf-card p-6 sm:p-7">

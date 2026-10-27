@@ -10,6 +10,11 @@
             @if (session('success'))<div class="pf-alert pf-alert-success">{{ session('success') }}</div>@endif
             @if (session('error'))<div class="pf-alert pf-alert-error">{{ session('error') }}</div>@endif
 
+            <a href="{{ route('vouchers.center') }}" class="pf-card flex items-center justify-between gap-3 p-4 transition hover:bg-[#fff5f3]">
+                <span class="text-sm"><span class="font-bold" style="color:#222;">Voucher Center</span> <span class="pf-muted">· claim free shipping and discount vouchers</span></span>
+                <span class="text-sm font-semibold" style="color:#fa4e1c;">Browse &rarr;</span>
+            </a>
+
             <div class="pf-card p-5">
                 <h3 class="pf-card-title mb-3">Claimed</h3>
                 @forelse ($claims as $claim)
@@ -20,13 +25,13 @@
                             <p class="font-semibold" style="color:#222;">{{ $v->discountLabel() }}@if ($v->min_spend > 0) <span class="font-normal pf-muted">· min spend ₱{{ number_format($v->min_spend, 0) }}</span>@endif</p>
                             <p class="text-xs pf-muted">
                                 {{ $v->scope === 'seller' ? ($v->seller?->storeName() ?? 'Store') . ' voucher' : ($v->isShipping() ? 'Shipping voucher' : 'ALVY voucher') }}
-                                @if ($v->ends_at) · until {{ $v->ends_at->format('M d, Y') }}@endif
+                                @if ($v->ends_at) · until {{ $v->ends_at->copy()->tz(config('app.business_timezone'))->format('M d, Y') }}@endif
                             </p>
                         </div>
                         <span class="rounded-full px-2.5 py-0.5 text-[11px] font-semibold" style="{{ $ok ? 'background:#ECFDF5;color:#047857;' : 'background:#F5F5F4;color:#57534E;' }}">{{ $claim->state }}</span>
                     </div>
                 @empty
-                    <p class="text-sm pf-muted">No vouchers yet. Claim them on store pages, product pages, or below.</p>
+                    <p class="text-sm pf-muted">No vouchers yet. <a href="{{ route('vouchers.center') }}" class="font-semibold" style="color:#fa4e1c;">Browse the Voucher Center</a> to claim some.</p>
                 @endforelse
             </div>
 

@@ -301,8 +301,10 @@ class ScRegistrationAndLogisticsTest extends TestCase
         $order = $this->order($buyer);
         $parcel = $this->parcel($sc, $this->seller(), $order, 'pickup_approved');
 
-        $this->actingAs($sc)->post(route('sc.parcels.scan'), ['tracking_number' => $parcel->tracking_number])
-            ->assertSessionHas('success');
+        // Scanning finds it; receipt is confirmed explicitly after checking the parcel.
+        $this->actingAs($sc)->post(route('sc.parcels.scan'), ['tracking_number' => $parcel->tracking_number])->assertRedirect(route('sc.tracking.show', $parcel));
+        $this->assertSame('pickup_approved', $parcel->fresh()->status);
+        $this->actingAs($sc)->post(route('sc.parcels.advance', $parcel), ['confirm_received' => '1'])->assertSessionHas('success');
         $this->assertSame('picked_up', $parcel->fresh()->status);
         $this->assertSame('Shipped', $order->fresh()->status);
     }
@@ -315,7 +317,7 @@ class ScRegistrationAndLogisticsTest extends TestCase
         $order  = $this->order($buyer, 'Cancelled');
         $parcel = $this->parcel($sc, $seller, $order, 'pickup_approved');
 
-        $this->actingAs($sc)->post(route('sc.parcels.advance', $parcel))->assertSessionHas('error');
+        $this->actingAs($sc)->post(route('sc.parcels.advance', $parcel), ['confirm_received' => '1'])->assertSessionHas('error');
         $this->assertSame('cancelled', $parcel->fresh()->status);
         $this->assertDatabaseHas('user_notifications', ['user_id' => $seller->id, 'title' => 'Pickup cancelled']);
     }
@@ -350,7 +352,7 @@ class ScRegistrationAndLogisticsTest extends TestCase
         $order  = $this->order($buyer, 'Shipped');
         $area   = DeliveryArea::create(['sorting_center_id' => $from->id, 'name' => 'San Antonio', 'code' => 'BGY-1',
             'municipality_code' => self::LUISIANA, 'barangay_code' => '043412010']);
-        $parcel = $this->parcel($from, $seller, $order, 'sorted', ['area_id' => $area->id, 'sorted_at' => now()]);
+        $parcel = $this->parcel($from, $seller, $order, 'sorted', ['area_id' => $area->id, 'sorted_at' => now(), 'received_at' => now()]);
         $rider  = Rider::forceCreate(['user_id' => $from->id, 'sorting_center_id' => $from->id, 'full_name' => 'R',
             'area_id' => $area->id, 'application_status' => 'approved', 'is_active' => true]);
 
@@ -374,11 +376,15 @@ class ScRegistrationAndLogisticsTest extends TestCase
         $this->actingAs($from)->post(route('sc.parcels.assign', $parcel), ['rider_id' => $rider->id])->assertSessionHas('error');
         $this->assertDatabaseCount('parcel_deliveries', 0);
 
-        // Only destination can accept.
+        // Only the destination can receive, and only after the sender dispatched it.
         $transfer = ParcelTransfer::firstOrFail();
-        $this->actingAs($from)->post(route('sc.transfers.accept', $transfer))->assertForbidden();
+        $this->actingAs($from)->post(route('sc.transfers.accept', $transfer), ['confirm_received' => '1'])->assertForbidden();
+        $this->actingAs($to)->post(route('sc.transfers.accept', $transfer), ['confirm_received' => '1'])->assertSessionHas('error', fn ($m) => str_contains($m, 'not been dispatched'));
+        $this->assertSame('sorted', $parcel->fresh()->status);
 
-        $this->actingAs($to)->post(route('sc.transfers.accept', $transfer))->assertSessionHas('success');
+        $this->actingAs($from)->post(route('sc.transfers.dispatch', $transfer))->assertSessionHas('success');
+        $this->assertSame('in_transfer', $parcel->fresh()->status);
+        $this->actingAs($to)->post(route('sc.transfers.accept', $transfer), ['confirm_received' => '1'])->assertSessionHas('success');
         $p = $parcel->fresh();
         $this->assertSame((int) $to->id, (int) $p->current_sorting_center_id);
         $this->assertSame('picked_up', $p->status);
@@ -386,7 +392,7 @@ class ScRegistrationAndLogisticsTest extends TestCase
         $this->assertNull($p->transfer_status);
         $this->assertSame('received', $transfer->fresh()->status);
         $this->assertSame('Shipped', $order->fresh()->status);
-        $this->assertDatabaseHas('user_notifications', ['user_id' => $buyer->id, 'title' => 'Parcel transferred']);
+        $this->assertTrue(\App\Models\UserNotification::where('user_id', $buyer->id)->where('title', 'like', 'At Destination Sorting Center:%')->exists());
     }
 
     public function test_reject_and_cancel_transfer_release_hold(): void
@@ -396,7 +402,7 @@ class ScRegistrationAndLogisticsTest extends TestCase
         $buyer = $this->buyer(); $seller = $this->seller();
 
         foreach (['reject' => $to, 'cancel' => $from] as $action => $actor) {
-            $parcel = $this->parcel($from, $seller, $this->order($buyer, 'Shipped'), 'picked_up');
+            $parcel = $this->parcel($from, $seller, $this->order($buyer, 'Shipped'), 'picked_up', ['received_at' => now()]);
             $this->actingAs($from)->post(route('sc.transfers.initiate'), ['parcel_id' => $parcel->id, 'to_sorting_center_id' => $to->id]);
             $transfer = ParcelTransfer::where('parcel_id', $parcel->id)->firstOrFail();
             $this->actingAs($actor)->post(route("sc.transfers.{$action}", $transfer))->assertSessionHas('success');

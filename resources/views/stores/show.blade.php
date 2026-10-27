@@ -16,7 +16,8 @@
             <span class="flex h-16 w-16 items-center justify-center rounded-full text-2xl font-extrabold" style="background:#fa4e1c;">{{ strtoupper(substr($seller->storeName(), 0, 1)) }}</span>
         @endif
         <div class="min-w-0 flex-1">
-            <h1 class="font-display text-2xl font-extrabold">{{ $seller->storeName() }}
+            {{-- Explicit white: the site-wide heading colour (navy) would otherwise hide it on this banner. --}}
+            <h1 class="font-display text-2xl font-extrabold" style="color:#fff;">{{ $seller->storeName() }}
                 @if ($app?->is_on_vacation)<span class="ml-2 rounded px-2 py-0.5 align-middle text-xs font-semibold" style="background:#FFFBEB;color:#B45309;">On vacation</span>@endif
             </h1>
             <p class="text-sm opacity-80">
@@ -52,7 +53,7 @@
                 <div class="flex items-center gap-3 rounded-lg border border-dashed px-4 py-2.5" style="border-color:#FDBA9B;background:#FFF8F4;">
                     <div>
                         <p class="text-sm font-bold" style="color:#C2410C;">{{ $v->discountLabel() }}</p>
-                        <p class="text-xs" style="color:#8a7f78;">{{ $v->min_spend > 0 ? 'Min spend ₱' . number_format($v->min_spend, 0) : 'No minimum' }}@if ($v->ends_at) · until {{ $v->ends_at->format('M d') }}@endif</p>
+                        <p class="text-xs" style="color:#8a7f78;">{{ $v->min_spend > 0 ? 'Min spend ₱' . number_format($v->min_spend, 0) : 'No minimum' }}@if ($v->ends_at) · until {{ $v->ends_at->copy()->tz(config('app.business_timezone'))->format('M d') }}@endif</p>
                     </div>
                     @if (in_array($v->id, $claimed))
                         <span class="text-xs font-semibold" style="color:#059669;">Claimed</span>

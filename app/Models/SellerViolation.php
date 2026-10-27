@@ -37,6 +37,13 @@ class SellerViolation extends Model
         ];
     }
 
+    /** Actions an admin can take now. "Product removed" stays in actionLabels() only for old records:
+    admins can't change or delete a seller's products. */
+    public static function adminActionLabels(): array
+    {
+        return array_diff_key(self::actionLabels(), ['product_removed' => true]);
+    }
+
     public function typeLabel(): string  { return self::typeLabels()[$this->type]   ?? ucfirst($this->type); }
     public function actionLabel(): string{ return self::actionLabels()[$this->action] ?? ucfirst($this->action); }
 

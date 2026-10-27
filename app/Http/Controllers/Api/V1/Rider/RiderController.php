@@ -100,8 +100,8 @@ class RiderController extends Controller
 
     public function profile(): JsonResponse
     {
-        $d = $this->pageData($this->web(WebRider::class, 'profile'));
-        return response()->json(['rider' => RiderJson::rider($d['rider']), 'vehicles' => $d['vehicles']]);
+        $rider = \App\Models\Rider::where('user_id', auth()->id())->firstOrFail();
+        return response()->json(['rider' => RiderJson::rider($rider), 'vehicles' => WebRider::VEHICLES]);
     }
 
     /** Multipart: vehicle_type, plate_number, license_number, license_expiry, license_file, or_cr_file. */

@@ -1,4 +1,5 @@
-<x-auth-shell title="Sign In — ALVY" heading="Welcome back 👋" subtitle="Log in to continue shopping on ALVY" tab="login">
+@php $portalName = \App\Support\Portal::enabled() && \App\Support\Portal::current() !== 'shop' ? \App\Support\Portal::LABELS[\App\Support\Portal::current()] : null; @endphp
+<x-auth-shell :title="$portalName ? 'Sign In — ' . $portalName : 'Sign In — ALVY'" heading="Welcome back 👋" :subtitle="$portalName ? 'Log in to the ALVY ' . $portalName : 'Log in to continue shopping on ALVY'" tab="login">
     <x-slot:head>
         <style>
             .fld { width:100%;border-radius:.75rem;border:1px solid #E6D9CF;background:#fff;padding:.8rem 1rem;font-size:.9rem;color:#222;outline:none;transition:border-color .15s,box-shadow .15s; }
@@ -41,7 +42,7 @@
             <span class="h-px flex-1" style="background:#F0E4DC;"></span> or log in with email <span class="h-px flex-1" style="background:#F0E4DC;"></span>
         </div>
 
-        <form action="{{ route('login') }}" method="POST" class="space-y-5">
+        <form action="{{ \App\Support\Portal::loginAction() }}" method="POST" class="space-y-5">
             @csrf
 
             <div>
@@ -56,7 +57,7 @@
             <div>
                 <div class="mb-1.5 flex items-center justify-between">
                     <label class="fld-label !mb-0" for="password">Password</label>
-                    <a href="#" class="text-xs font-semibold hover:underline" style="color:#fa4e1c;">Forgot password?</a>
+                    <a href="{{ route('password.request') }}" class="text-xs font-semibold hover:underline" style="color:#fa4e1c;">Forgot password?</a>
                 </div>
                 <div class="relative">
                     <svg class="pointer-events-none absolute left-3.5 top-1/2 h-[18px] w-[18px] -translate-y-1/2" style="color:#b5a79d;" fill="none" stroke="currentColor" stroke-width="1.9" viewBox="0 0 24 24"><rect x="4" y="11" width="16" height="10" rx="2"/><path stroke-linecap="round" d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>

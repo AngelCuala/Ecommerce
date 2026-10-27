@@ -14,3 +14,6 @@ Schedule::command('riders:expire-offers')->everyMinute();
 
 // Return requests the seller hasn't answered in 3 days are approved (A31).
 Schedule::command('returns:auto-approve')->hourly();
+
+// Hub-to-hub transfers not received in time are flagged for investigation (also checked when boards open).
+Schedule::command('shipments:flag-delayed')->everyFifteenMinutes();

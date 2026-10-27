@@ -18,17 +18,22 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::table('users', function (Blueprint $t) {
-            $t->string('pending_email')->nullable()->after('email');
-            $t->string('pending_phone', 20)->nullable()->after('phone');
-            $t->string('contact_otp')->nullable();                 // hashed code for an email / phone change
-            $t->timestamp('contact_otp_expires_at')->nullable();
-            $t->unsignedTinyInteger('contact_otp_attempts')->default(0);
+        // Guarded: a database may already have some of these (an earlier partial run of this
+        // migration, or the address-book migration that added user_addresses.region).
+        $has = fn (string $table, string $column) => Schema::hasColumn($table, $column);
+        Schema::table('users', function (Blueprint $t) use ($has) {
+            if (! $has('users', 'pending_email'))          $t->string('pending_email')->nullable()->after('email');
+            if (! $has('users', 'pending_phone'))          $t->string('pending_phone', 20)->nullable()->after('phone');
+            if (! $has('users', 'contact_otp'))            $t->string('contact_otp')->nullable();   // hashed code for an email / phone change
+            if (! $has('users', 'contact_otp_expires_at')) $t->timestamp('contact_otp_expires_at')->nullable();
+            if (! $has('users', 'contact_otp_attempts'))   $t->unsignedTinyInteger('contact_otp_attempts')->default(0);
         });
 
-        Schema::table('user_addresses', function (Blueprint $t) {
-            $t->string('region', 120)->nullable()->after('barangay');
-        });
+        if (! $has('user_addresses', 'region')) {
+            Schema::table('user_addresses', function (Blueprint $t) {
+                $t->string('region', 120)->nullable()->after('barangay');
+            });
+        }
         // PSGC codes (the shared database already has them from the app API's migrations).
         foreach (['user_addresses' => ['province_code', 'municipality_code', 'barangay_code'], 'orders' => ['barangay', 'barangay_code']] as $table => $columns) {
             foreach ($columns as $column) {

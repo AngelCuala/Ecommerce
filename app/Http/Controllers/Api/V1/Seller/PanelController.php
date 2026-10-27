@@ -26,23 +26,26 @@ class PanelController extends Controller
     {
         $d = $this->pageData($this->web(DashboardController::class, 'index'));
 
+        $money = $d['money'];
+        $chart = $d['earningsChart'];
+
         return response()->json([
-            'total_earnings'   => round((float) $d['totalEarnings'], 2),
-            'total_revenue'    => round((float) $d['totalRevenue'], 2),
-            'total_commission' => round((float) $d['totalCommission'], 2),
-            'total_orders'     => (int) $d['totalOrders'],
+            'total_earnings'   => (float) $money['net'],
+            'total_revenue'    => (float) $money['gross'],
+            'total_commission' => (float) $money['commission'],
+            'total_orders'     => (int) $d['orderCounts']['total'],
+            'order_counts'     => $d['orderCounts'],
             'commission_rate'  => (float) $d['commissionRate'],
-            'this_month'       => round((float) $d['thisMonthEarnings'], 2),
-            'last_month'       => round((float) $d['lastMonthEarnings'], 2),
-            'chart'            => $d['earningsChart']->map(fn ($m) => ['label' => $m->label, 'value' => round($m->value, 2)])->values(),
-            'orders_by_status' => (object) $d['ordersByStatus']->all(),
+            'this_month'       => (float) ($chart->last()->value ?? 0),
+            'last_month'       => (float) ($chart->slice(-2, 1)->first()->value ?? 0),
+            'chart'            => $chart->map(fn ($m) => ['label' => $m->label, 'value' => round($m->value, 2)])->values(),
             'to_ship'          => (int) $d['toShip'],
             'product_count'    => $d['books']->count(),
             'low_stock'        => $d['lowStock']->map(fn ($p) => SellerJson::productRow($p))->values(),
             // The warning at the top of the dashboard: listings at 10 or fewer, sold out, and the bell's count.
-            'low_stock_threshold'  => \App\Services\LowStockAlert::THRESHOLD,
-            'low_stock_count'      => $d['books']->where('is_archived', false)->filter(fn ($p) => $p->isLowStock())->count(),
-            'sold_out_count'       => $d['books']->where('is_archived', false)->where('stock', 0)->count(),
+            'low_stock_threshold'  => (int) config('marketplace.low_stock_threshold', 10),
+            'low_stock_count'      => (int) $d['productCounts']['low_stock'],
+            'sold_out_count'       => (int) $d['productCounts']['out_of_stock'],
             'unread_notifications' => auth()->user()->notifications()->whereNull('read_at')->count(),
             'recent_orders'    => $d['recentOrders']->map(fn ($i) => [
                 'order_id' => $i->order_id, 'number' => $i->order?->number(), 'buyer' => $i->order?->user?->name,

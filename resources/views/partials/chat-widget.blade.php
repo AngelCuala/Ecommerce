@@ -3,7 +3,13 @@
 <div id="chat-widget" style="position:fixed;bottom:20px;right:20px;z-index:60;font-family:'Inter',sans-serif;">
 
     {{-- Launcher button --}}
-    <button id="chat-launcher" type="button"
+    <style>
+        [data-chat-drag] { cursor: grab; touch-action: none; user-select: none; }
+        #chat-widget.chat-dragging, #chat-widget.chat-dragging [data-chat-drag] { cursor: grabbing; }
+        #chat-widget.chat-dragging #chat-panel { box-shadow: 0 30px 70px -20px rgba(0,43,77,.55); }
+        .chat-grip { display: inline-flex; align-items: center; justify-content: center; height: 1.4rem; width: 1rem; color: #c3d0dc; }
+    </style>
+    <button id="chat-launcher" type="button" data-chat-drag title="Chat (drag to move)"
             class="flex items-center gap-2 rounded-lg px-4 py-3 text-sm font-bold text-white shadow-lg transition"
             style="background:#fa4e1c;"
             onmouseover="this.style.background='#E14F00';" onmouseout="this.style.background='#fa4e1c';">
@@ -22,8 +28,11 @@
 
             {{-- Left: thread list --}}
             <div class="flex w-[260px] shrink-0 flex-col border-r" style="border-color:#eef2f6;">
-                <div class="flex items-center justify-between px-4 py-3 border-b" style="border-color:#eef2f6;">
-                    <span class="font-display font-bold text-base" style="color:#fa4e1c;">Chat</span>
+                <div class="flex items-center justify-between px-4 py-3 border-b" style="border-color:#eef2f6;" data-chat-drag title="Drag to move · double-click to put it back">
+                    <span class="flex items-center gap-1.5">
+                        <span class="chat-grip" aria-hidden="true"><svg width="10" height="16" viewBox="0 0 10 16" fill="currentColor"><circle cx="2.5" cy="3" r="1.4"/><circle cx="7.5" cy="3" r="1.4"/><circle cx="2.5" cy="8" r="1.4"/><circle cx="7.5" cy="8" r="1.4"/><circle cx="2.5" cy="13" r="1.4"/><circle cx="7.5" cy="13" r="1.4"/></svg></span>
+                        <span class="font-display font-bold text-base" style="color:#fa4e1c;">Chat</span>
+                    </span>
                     <button id="chat-close" class="text-xl leading-none" style="color:#9db3c4;" aria-label="Close">&times;</button>
                 </div>
                 <div class="px-3 py-2">
@@ -38,7 +47,7 @@
 
             {{-- Right: conversation --}}
             <div class="flex flex-1 flex-col min-w-0">
-                <div class="flex items-center gap-2 px-4 py-3 border-b" style="border-color:#eef2f6;">
+                <div class="flex items-center gap-2 px-4 py-3 border-b" style="border-color:#eef2f6;" data-chat-drag>
                     <p id="chat-thread-title" class="font-semibold text-sm truncate" style="color:#002b4d;">Select a conversation</p>
                 </div>
                 <div id="chat-messages" class="flex-1 overflow-y-auto p-4 space-y-3" style="background:#fafbfc;">
@@ -74,13 +83,81 @@
     var current = null;      // {type, id}
     var allThreads = [];
 
-    function open()  { panel.classList.remove('hidden'); loadThreads(); }
-    function close() { panel.classList.add('hidden'); }
+    function open()  { panel.classList.remove('hidden'); reposition(); loadThreads(); }
+    function close() { panel.classList.add('hidden'); clamp(); }
 
-    launcher.addEventListener('click', function () {
+    launcher.addEventListener('click', function (e) {
+        if (justDragged) { e.preventDefault(); return; }   // the end of a drag isn't a click
         panel.classList.contains('hidden') ? open() : close();
     });
     closeBtn.addEventListener('click', close);
+
+    // ── Movable: drag the Chat button, or the window by its header. The spot is remembered. ──
+    var widget = document.getElementById('chat-widget'), KEY = 'alvy-chat-pos', GAP = 8, justDragged = false;
+
+    // The window opens toward the side with room (up or down, left or right of the button).
+    function place() {
+        if (panel.classList.contains('hidden')) return;
+        var b = launcher.getBoundingClientRect();
+        panel.style.left = panel.style.right = panel.style.top = panel.style.bottom = '';
+        var w = panel.offsetWidth, h = panel.offsetHeight;
+        if (b.right - w < GAP && b.left + w <= window.innerWidth - GAP) { panel.style.left = '0'; } else { panel.style.right = '0'; }
+        if (b.bottom - h < GAP && b.top + h <= window.innerHeight - GAP) { panel.style.top = '0'; } else { panel.style.bottom = '0'; }
+    }
+    // Open toward the roomier side, then nudge the whole chat back on screen if it still doesn't fit.
+    function reposition() { place(); clamp(); }
+    // Keep what's visible (the window when open, else the button) on screen.
+    function clamp() {
+        if (!widget.style.left) return;   // still in its default corner
+        var box = (panel.classList.contains('hidden') ? launcher : panel).getBoundingClientRect();
+        var x = parseFloat(widget.style.left), y = parseFloat(widget.style.top);
+        x += Math.max(0, GAP - box.left) - Math.max(0, box.right - (window.innerWidth - GAP));
+        y += Math.max(0, GAP - box.top) - Math.max(0, box.bottom - (window.innerHeight - GAP));
+        setPos(x, y);
+    }
+    function setPos(x, y) {
+        widget.style.left = x + 'px'; widget.style.top = y + 'px';
+        widget.style.right = widget.style.bottom = 'auto';
+    }
+    function save() { try { localStorage.setItem(KEY, JSON.stringify({ x: parseFloat(widget.style.left), y: parseFloat(widget.style.top) })); } catch (e) {} }
+    function resetPos() {
+        widget.style.left = widget.style.top = ''; widget.style.right = '20px'; widget.style.bottom = '20px';
+        try { localStorage.removeItem(KEY); } catch (e) {}
+        place();
+    }
+    try {
+        var saved = JSON.parse(localStorage.getItem(KEY) || 'null');
+        if (saved && isFinite(saved.x) && isFinite(saved.y)) { setPos(saved.x, saved.y); clamp(); }
+    } catch (e) {}
+
+    widget.querySelectorAll('[data-chat-drag]').forEach(function (handle) {
+        handle.addEventListener('pointerdown', function (e) {
+            if (e.button !== 0) return;
+            if (handle !== launcher && e.target.closest('button, input, a')) return;   // the close button etc. still work
+            var start = widget.getBoundingClientRect(), sx = e.clientX, sy = e.clientY, moved = false;
+            function move(ev) {
+                var dx = ev.clientX - sx, dy = ev.clientY - sy;
+                if (!moved && Math.abs(dx) + Math.abs(dy) < 6) return;   // small wobble = still a click
+                moved = true;
+                widget.classList.add('chat-dragging');
+                setPos(start.left + dx, start.top + dy);
+                clamp();
+            }
+            function up() {
+                document.removeEventListener('pointermove', move);
+                document.removeEventListener('pointerup', up);
+                widget.classList.remove('chat-dragging');
+                if (moved) {
+                    reposition(); save();
+                    justDragged = true; setTimeout(function () { justDragged = false; }, 0);
+                }
+            }
+            document.addEventListener('pointermove', move);
+            document.addEventListener('pointerup', up);
+        });
+        if (handle !== launcher) handle.addEventListener('dblclick', function (e) { if (!e.target.closest('button, input, a')) resetPos(); });
+    });
+    window.addEventListener('resize', reposition);
 
     function renderThreads(threads) {
         if (!threads.length) {
@@ -108,7 +185,7 @@
     }
 
     function loadThreads() {
-        fetch('{{ route('chat.threads') }}', { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+        fetch('{{ \App\Support\Portal::route('chat.threads') }}', { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
             .then(function (r) { return r.json(); })
             .then(function (data) {
                 allThreads = data.threads;
@@ -125,7 +202,7 @@
         form.classList.add('flex');
         msgsEl.innerHTML = '<p class="pt-16 text-center text-xs" style="color:#9db3c4;">Loading…</p>';
 
-        fetch('{{ url('chat/thread') }}/' + current.type + '/' + encodeURIComponent(current.id), { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+        fetch('{{ \App\Support\Portal::url('chat/thread') }}/' + current.type + '/' + encodeURIComponent(current.id), { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
             .then(function (r) { return r.json(); })
             .then(function (data) {
                 titleEl.textContent = data.title;
@@ -157,7 +234,7 @@
         var body = input.value.trim();
         input.value = '';
 
-        fetch('{{ url('chat/send') }}/' + current.type + '/' + encodeURIComponent(current.id), {
+        fetch('{{ \App\Support\Portal::url('chat/send') }}/' + current.type + '/' + encodeURIComponent(current.id), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF, 'X-Requested-With': 'XMLHttpRequest' },
             body: JSON.stringify({ body: body })
@@ -179,6 +256,7 @@
     // widget on a specific conversation, e.g. openChatThread('order:12').
     window.openChatThread = function (key) {
         panel.classList.remove('hidden');
+        reposition();
         loadThreads();          // refresh the thread list in the background
         openThread(key);        // open the requested conversation right away
     };

@@ -81,14 +81,10 @@ class RegistrationController extends Controller
                 return $done;
             }
 
-            try {
-                app(LoginOtp::class)->send($user);
-            } catch (\Throwable $e) {
-                // The account exists; the user can press "Resend code" on the next page.
-                Log::warning('Seller sign-up OTP email failed: ' . $e->getMessage());
-            }
+            // The account exists either way; if the email fails the user can press "Resend code".
+            $sent = app(LoginOtp::class)->trySend($user);
 
-            return $this->toOtpStep($request, $user);
+            return $this->toOtpStep($request, $user, $sent);
         });
     }
 
@@ -108,10 +104,14 @@ class RegistrationController extends Controller
         return $user && Hash::check($password, $user->password) ? $user : null;
     }
 
-    private function toOtpStep(Request $request, User $user)
+    private function toOtpStep(Request $request, User $user, bool $sent = true)
     {
         $request->session()->put('otp.user_id', $user->id);
         $request->session()->put('otp.remember', false);
+
+        if (! $sent) {
+            return redirect()->route('otp.show')->withErrors(['otp' => LoginOtp::SEND_FAILED]);
+        }
 
         return redirect()->route('otp.show')->with('success',
             'Almost done! We sent a 6-digit verification code to ' . LoginOtp::maskEmail($user->email) . '.');

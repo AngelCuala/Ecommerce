@@ -124,6 +124,7 @@ class HubController extends Controller
     {
         $p = Parcel::findOrFail($parcel);
         $this->atHub($p);
+        request()->merge(['confirm_received' => true]);   // tapping Receive in the app is the confirmation
 
         return $this->actionJson($this->web(WebSc::class, 'advanceParcel', ['parcel' => $p]));
     }
@@ -261,9 +262,18 @@ class HubController extends Controller
         return $this->with($this->web(WebSc::class, 'initiateTransfer'), fn () => $this->transfers());
     }
 
+    /** The destination receives it: tapping Accept in the app confirms the parcel is physically there. */
     public function acceptTransfer(ParcelTransfer $transfer): JsonResponse
     {
+        request()->merge(['confirm_received' => true]);
+
         return $this->with($this->web(WebSc::class, 'acceptTransfer', ['transfer' => $transfer]), fn () => $this->transfers());
+    }
+
+    /** The parcel leaves this hub: In Transit to the destination, which then receives it. */
+    public function dispatchTransfer(ParcelTransfer $transfer): JsonResponse
+    {
+        return $this->with($this->web(WebSc::class, 'dispatchTransfer', ['transfer' => $transfer]), fn () => $this->transfers());
     }
 
     public function rejectTransfer(ParcelTransfer $transfer): JsonResponse

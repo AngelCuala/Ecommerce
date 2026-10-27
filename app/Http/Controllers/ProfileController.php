@@ -298,6 +298,62 @@ class ProfileController extends Controller
                 ->with('password_error', true);
         }
 
-        return \App\Http\Controllers\PasswordChangeController::start($user, $request->password);
+        // The app's Security screen uses the shared code flow of every account type (email or SMS, /api/v1/account/password-code).
+        if ($request->is('api/*')) {
+            return \App\Http\Controllers\PasswordChangeController::start($user, $request->password);
+        }
+
+        // Step 1 of 2: nothing changes yet. The new password waits (hashed) until the emailed code is entered.
+        $codes = app(\App\Services\PasswordChangeCode::class);
+        if ($wait = $codes->cooldown()) {   // one email a minute, however often the form is sent
+            return back()->withErrors(['password' => "We just emailed you a code. Please wait {$wait} seconds before asking again."]);
+        }
+        if (! $codes->start($user, $request->password)) {
+            return back()->with('error', \App\Services\PasswordChangeCode::SEND_FAILED);
+        }
+
+        return back()->with('success', 'We sent a 6-digit code to ' . \App\Services\LoginOtp::maskEmail($user->email)
+            . '. Enter it below to confirm your new password.');
+    }
+
+    /** Step 2 of 2: the emailed code makes the new password the account's password. */
+    public function confirmPasswordChange(Request $request)
+    {
+        $request->validate(['code' => 'required|digits:6'], [
+            'code.required' => 'Enter the 6-digit code from the email.',
+            'code.digits'   => 'The code is the 6 digits from the email.',
+        ]);
+        $codes = app(\App\Services\PasswordChangeCode::class);
+
+        return match ($codes->confirm(auth()->user(), $request->code)) {
+            $codes::OK      => back()->with('success', 'Your password has been changed. Other devices signed in to your account were signed out.'),
+            $codes::NONE    => back()->with('error', 'There is no password change waiting for a code. Start again below.'),
+            $codes::EXPIRED => back()->withErrors(['code' => 'This code has expired. Send a new one.']),
+            $codes::LOCKED  => back()->withErrors(['code' => 'Too many wrong codes. Send a new one.']),
+            default         => back()->withErrors(['code' => 'That code is not correct.']),
+        };
+    }
+
+    public function resendPasswordCode()
+    {
+        $codes = app(\App\Services\PasswordChangeCode::class);
+        if (! $codes->pending()) {
+            return back()->with('error', 'There is no password change waiting for a code. Start again below.');
+        }
+        if ($wait = $codes->cooldown()) {
+            return back()->withErrors(['code' => "Please wait {$wait} seconds before asking for a new code."]);
+        }
+        if (! $codes->send(auth()->user())) {
+            return back()->with('error', \App\Services\PasswordChangeCode::SEND_FAILED);
+        }
+
+        return back()->with('success', 'We sent a new code to ' . \App\Services\LoginOtp::maskEmail(auth()->user()->email) . '. The old code no longer works.');
+    }
+
+    public function cancelPasswordChange()
+    {
+        app(\App\Services\PasswordChangeCode::class)->cancel();
+
+        return back()->with('success', 'Password change cancelled. Your password was not changed.');
     }
 }

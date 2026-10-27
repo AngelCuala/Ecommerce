@@ -1,7 +1,7 @@
 <x-seller-layout :title="isset($book) ? 'Edit: '.$book->title : 'Add Product'" active="products">
 @php
     $isEdit       = isset($book);
-    $selectedCat  = old('category_id', $book->category_id ?? '');
+    $selectedCat  = old('category_id', $book->category_id ?? ($businessCategoryId ?? ''));
     $selectedName = optional($categories->firstWhere('id', (int) $selectedCat))->name;
     $currentSpecs = old('specs', $book->specs ?? []);
     $currentSub   = old('subcategory', $book->subcategory ?? '');
@@ -56,7 +56,7 @@
 
     <div class="mb-5 flex flex-wrap items-end justify-between gap-3">
         <div>
-            <a href="{{ route('seller.books.index') }}" class="text-sm hover:underline" style="color:#8a7f78;">&larr; Inventory</a>
+            <a href="{{ route('seller.books.index', session('seller_inventory_query', [])) }}" class="text-sm hover:underline" style="color:#8a7f78;">&larr; Inventory</a>
             <h1 class="mt-1 font-display text-2xl font-bold" style="color:#222;">{{ $isEdit ? 'Edit product' : 'Add a product' }}</h1>
             @if ($isEdit && $book->product_code)
                 <p class="mt-0.5 text-sm" style="color:#8a7f78;">Product ID {{ $book->product_code }}</p>
@@ -237,6 +237,13 @@
                             <p class="pf-note"><span class="font-semibold">Sale: {{ $book->saleState() }}.</span>
                                 <button type="submit" form="end-sale-form" class="font-semibold underline" style="color:#B91C1C;">End sale now</button></p>
                         @endif
+                    </div>
+                    <div class="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                        <div>
+                            <label class="pf-label" for="low_stock_threshold">Low-stock alert at <span class="opt">— optional</span></label>
+                            <input type="number" id="low_stock_threshold" min="0" max="99999" step="1" name="low_stock_threshold" value="{{ old('low_stock_threshold', $book->low_stock_threshold ?? '') }}" class="input" placeholder="{{ config('marketplace.low_stock_threshold', 5) }} (default)">
+                            <p class="pf-note">We notify you when stock drops to this or fewer.</p>
+                        </div>
                     </div>
                     <div class="mt-4 grid gap-4 sm:grid-cols-2">
                         <div>

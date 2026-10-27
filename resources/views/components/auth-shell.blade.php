@@ -40,6 +40,8 @@
                 linear-gradient(180deg, #fff8f4 0%, #fbeee8 100%);
         }
         .auth-blob { position:fixed; border-radius:9999px; filter:blur(60px); opacity:.55; pointer-events:none; z-index:0; }
+        /* Shopping photo behind everything: blurred and faint (photo: Unsplash License, public/images/auth) */
+        .auth-photo { position:fixed; inset:-40px; z-index:0; pointer-events:none; background:url('{{ asset('images/auth/login-bg.jpg') }}?v=2') center/cover no-repeat; filter:blur(12px) saturate(1.1); opacity:.32; }
 
         .auth-card {
             background:#fff;
@@ -70,6 +72,7 @@
     <div class="auth-progress" id="authProgress"></div>
 @endif
 
+<span class="auth-photo" aria-hidden="true"></span>
 <span class="auth-blob" style="width:340px;height:340px;left:-120px;top:30%;background:#ffc3a8;"></span>
 <span class="auth-blob" style="width:300px;height:300px;right:-100px;bottom:5%;background:#ffd9a8;"></span>
 

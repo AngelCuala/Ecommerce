@@ -53,7 +53,7 @@
                             @endphp
                             <div class="flex gap-4 border-b px-5 py-4 last:border-b-0" style="border-color:#F7F3F0;{{ $blocked ? 'background:#FAFAF9;' : '' }}">
                                 <input type="checkbox" name="items[]" value="{{ $item->id }}" form="checkoutPick"
-                                       class="mt-1 h-4 w-4 shrink-0 accent-orange-600" data-pick data-amount="{{ $item->subtotal() }}" data-qty="{{ $item->quantity }}"
+                                       class="mt-1 h-4 w-4 shrink-0 accent-orange-600" data-pick data-product="{{ $item->product_id }}" data-amount="{{ $item->subtotal() }}" data-qty="{{ $item->quantity }}"
                                        @disabled($problem) aria-label="Select {{ $item->product->title ?? 'item' }}">
 
                                 @if ($item->product)
@@ -117,7 +117,7 @@
                     <p class="mt-2 text-xs" style="color:#8a7f78;">Shipping (per store, by weight and address) and vouchers are added at checkout.</p>
                     <button type="submit" form="checkoutPick" id="pickCheckout" disabled
                             class="mt-5 w-full rounded-xl py-3 text-base font-bold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-                            style="background:#fa4e1c;">Check out</button>
+                            style="background:#fa4e1c;">Check out (<span id="pickProducts">0</span>)</button>
                     <a href="{{ route('shop.index') }}" class="mt-3 block text-center text-sm font-medium" style="color:#fa4e1c;">Continue shopping</a>
                 </div>
             </aside>
@@ -132,10 +132,13 @@
     var peso = function (n) { return '₱' + n.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); };
 
     function update() {
-        var total = 0, count = 0;
-        picks.forEach(function (p) { if (p.checked) { total += +p.dataset.amount; count += +p.dataset.qty; } });
+        // count = units (quantity); products = different product IDs selected (two options of one product = 1), shown on the Check out button
+        var total = 0, count = 0, ids = {};
+        picks.forEach(function (p) { if (p.checked) { total += +p.dataset.amount; count += +p.dataset.qty; ids[p.dataset.product] = true; } });
+        var products = Object.keys(ids).length;
         document.getElementById('pickTotal').textContent = peso(total);
         document.getElementById('pickCount').textContent = count;
+        document.getElementById('pickProducts').textContent = products;
         document.getElementById('pickCheckout').disabled = count === 0;
         document.querySelectorAll('[data-store-group]').forEach(function (g) {
             var box = g.querySelector('[data-pick-store]');

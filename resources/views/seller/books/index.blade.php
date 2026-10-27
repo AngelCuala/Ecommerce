@@ -60,24 +60,38 @@
     <div class="mb-5 flex flex-wrap items-end justify-between gap-3 border-b" style="border-color:#ECE7E3;">
         <nav class="flex flex-wrap">
             @foreach ($statuses as $key => $tab)
-                <a href="{{ route('seller.books.index', ['status' => $key, 'search' => request('search')]) }}"
+                <a href="{{ request()->fullUrlWithQuery(['status' => $key, 'page' => null]) }}"
                    class="inv-tab {{ $status === $key ? 'is-active' : '' }}">
                     {{ $tab['label'] }}<span class="tab-count">{{ $tab['count'] }}</span>
                 </a>
             @endforeach
         </nav>
-        <form method="GET" class="mb-2 flex items-center gap-2">
-            <input type="hidden" name="status" value="{{ $status }}">
-            <div class="relative">
-                <svg class="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2" style="color:#b3a79f;" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path stroke-linecap="round" d="m20 20-3.5-3.5"/></svg>
-                <input type="text" name="search" value="{{ request('search') }}" placeholder="Search title or SKU"
-                       class="input !py-1.5 !pl-8 text-sm" style="width:15rem;">
-            </div>
-            @if (request('search'))
-                <a href="{{ route('seller.books.index', ['status' => $status]) }}" class="text-sm font-medium hover:underline" style="color:#8a7f78;">Clear</a>
-            @endif
-        </form>
     </div>
+
+    {{-- Filters: all combine; Reset keeps only the tab --}}
+    @php $filtered = request()->hasAny(['search', 'category_id', 'min_price', 'max_price']) || request('sort', 'newest') !== 'newest'; @endphp
+    <form method="GET" class="mb-4 flex flex-wrap items-end gap-2 rounded-xl border bg-white px-4 py-3 text-sm" style="border-color:#ECE7E3;" data-inventory-filters>
+        <input type="hidden" name="status" value="{{ $status }}">
+        <div class="relative">
+            <svg class="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2" style="color:#b3a79f;" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path stroke-linecap="round" d="m20 20-3.5-3.5"/></svg>
+            <input type="text" name="search" value="{{ request('search') }}" placeholder="Search title or SKU" aria-label="Search"
+                   class="input !py-1.5 !pl-8 text-sm" style="width:14rem;">
+        </div>
+        <select name="category_id" class="input !py-1.5 text-sm" style="width:auto;" aria-label="Category">
+            <option value="">All categories</option>
+            @foreach ($categories as $id => $name)<option value="{{ $id }}" @selected((string) request('category_id') === (string) $id)>{{ $name }}</option>@endforeach
+        </select>
+        <input type="number" name="min_price" value="{{ request('min_price') }}" min="0" step="0.01" placeholder="₱ Min" aria-label="Minimum price" class="input !py-1.5 text-sm" style="width:6.5rem;">
+        <input type="number" name="max_price" value="{{ request('max_price') }}" min="0" step="0.01" placeholder="₱ Max" aria-label="Maximum price" class="input !py-1.5 text-sm" style="width:6.5rem;">
+        <select name="sort" class="input !py-1.5 text-sm" style="width:auto;" aria-label="Sort">
+            @foreach (\App\Http\Controllers\Seller\BookController::SORTS as $key => $label)<option value="{{ $key }}" @selected($sort === $key)>{{ $label }}</option>@endforeach
+        </select>
+        <button class="rounded-md px-3 py-1.5 font-semibold text-white" style="background:#fa4e1c;">Apply</button>
+        @if ($filtered)
+            <a href="{{ route('seller.books.index', ['status' => $status]) }}" class="rounded-md border px-3 py-1.5 font-semibold" style="border-color:#E7E5E4;color:#57534E;">Reset</a>
+        @endif
+        <span class="ml-auto self-center text-xs" style="color:#8a7f78;">{{ $books->total() }} {{ \Illuminate\Support\Str::plural('product', $books->total()) }}</span>
+    </form>
 
     {{-- Bulk actions on the ticked products --}}
     <form method="POST" action="{{ route('seller.books.bulk') }}" id="bulk-form" class="mb-2 flex flex-wrap items-center gap-2 text-sm"
@@ -155,13 +169,13 @@
                                     @csrf @method('PATCH')
                                     <input type="number" name="stock" value="{{ $book->stock }}" min="0" max="99999" step="1" @disabled($book->variations()->exists()) aria-label="Stock for {{ $book->title }}"
                                            class="w-16 rounded-md border px-2 py-1 text-center text-sm focus:outline-none focus:ring-2 focus:ring-orange-200"
-                                           style="border-color:{{ $book->stock === 0 ? '#FCA5A5' : ($book->stock <= \App\Services\LowStockAlert::THRESHOLD ? '#FCD34D' : '#E7E5E4') }};color:#222;">
+                                           style="border-color:{{ $book->stock === 0 ? '#FCA5A5' : ($book->isLowStock() ? '#FCD34D' : '#E7E5E4') }};color:#222;">
                                     <button type="submit" class="rounded-md border px-2 py-1 text-xs font-semibold transition hover:bg-stone-50" style="border-color:#E7E5E4;color:#57534E;">Save</button>
                                 </form>
                                 @if ($book->stock === 0)
                                     <p class="mt-1 text-xs font-semibold" style="color:#B91C1C;" data-out-of-stock>Out of Stock</p>
-                                @elseif ($book->stock <= \App\Services\LowStockAlert::THRESHOLD)
-                                    <p class="mt-1 text-xs" style="color:#B45309;">Low stock</p>
+                                @elseif ($book->isLowStock())
+                                    <p class="mt-1 text-xs" style="color:#B45309;">Low stock (alert at {{ $book->lowStockThreshold() }})</p>
                                 @endif
                             </td>
                             <td>
@@ -212,6 +226,7 @@
                             <td colspan="7" class="px-6 py-14 text-center">
                                 <p class="font-medium" style="color:#222;">
                                     @if (request('search')) No products match "{{ request('search') }}"
+                                    @elseif ($filtered) No products match these filters
                                     @elseif ($status === 'archived') No inactive products
                                     @elseif ($status === 'review') Nothing waiting for approval
                                     @elseif ($status === 'draft') No drafts
@@ -229,6 +244,9 @@
                 </tbody>
             </table>
         </div>
+        @if ($books->hasPages())
+            <div class="border-t px-4 py-3" style="border-color:#F2EEEA;">{{ $books->links() }}</div>
+        @endif
     </div>
 </div>
 </x-seller-layout>

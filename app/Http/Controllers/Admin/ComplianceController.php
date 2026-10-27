@@ -59,9 +59,9 @@ class ComplianceController extends Controller
     {
         $data = $request->validate([
             'seller_id' => 'required|exists:users,id',
-            'product_id'   => 'nullable|exists:books,id',
+            'product_id'   => 'nullable|exists:products,id',
             'type'      => 'required|in:wrong_category,prohibited_product,inappropriate_content,misleading_info,other',
-            'action'    => 'required|in:warning,product_removed,account_suspended,account_deactivated',
+            'action'    => 'required|in:warning,account_suspended,account_deactivated',   // admins can't remove products
             'note'      => 'required|string|max:1000',
         ]);
 
@@ -73,9 +73,6 @@ class ComplianceController extends Controller
 
         // Execute the action
         match ($data['action']) {
-            'product_removed'     => $data['product_id']
-                ? Product::findOrFail($data['product_id'])->delete()
-                : null,
             'account_suspended'   => $seller->update(['role' => 'suspended']),
             'account_deactivated' => $seller->update(['role' => 'deactivated']),
             default               => null, // warning — no automated action

@@ -68,6 +68,12 @@ return [
     'timezone' => 'UTC',
 
     /*
+    | Where ALVY's people are. Stored times stay in UTC (above); pages that work in days and weeks
+    | ("today", "this week") and show times to riders use this zone.
+    */
+    'business_timezone' => env('BUSINESS_TIMEZONE', 'Asia/Manila'),
+
+    /*
     |--------------------------------------------------------------------------
     | Application Locale Configuration
     |--------------------------------------------------------------------------

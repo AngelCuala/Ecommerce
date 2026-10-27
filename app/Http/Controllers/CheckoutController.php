@@ -122,7 +122,7 @@ class CheckoutController extends Controller
             ? $this->shipping->unserviceableReason($address->municipality_code, $address->province_code)
             : 'Please add a delivery address.';
 
-        $shipping = $unserviceable ? [] : $this->shipping->quote($groups, $this->shipping->zoneOf($address->municipality_code ?: $address->province_code));
+        $shipping = $unserviceable ? [] : $this->shipping->quote($groups, $this->shipping->zoneOf($address->municipality_code ?: $address->province_code), $address->municipality_code);
         $fees = array_map(fn ($s) => $s['fee'], $shipping);
 
         $quote = $this->vouchers->quote($lines, auth()->user(), $codes['platform'] ?? null, $codes['sellers'] ?? [],
@@ -166,7 +166,7 @@ class CheckoutController extends Controller
         // First visit: the cheapest vouchers. Coming back: what the buyer chose (dropped with a notice if it no longer applies).
         $fees = $address && ! $this->shipping->unserviceableReason($address->municipality_code, $address->province_code)
             ? array_sum(array_column($this->shipping->quote($this->vouchers->groupBySeller($lines),
-                $this->shipping->zoneOf($address->municipality_code ?: $address->province_code)), 'fee'))
+                $this->shipping->zoneOf($address->municipality_code ?: $address->province_code), $address->municipality_code), 'fee'))
             : 0;
         $options = $this->vouchers->options($lines, $user, $fees);
         $best = [
@@ -200,6 +200,7 @@ class CheckoutController extends Controller
             'user'      => $user,
             'buyNow'    => $buyNow,
             'paymentMethods' => app(PaymentService::class)->methods(),
+            'gcashAccount'   => self::gcashAccount(),
             'token'     => (string) Str::uuid(),
             'prices'    => $this->priceMap($lines),
         ]);
@@ -263,6 +264,7 @@ class CheckoutController extends Controller
                 'shipping'   => $summary['shipping'][$sellerId]['fee'] ?? null,
                 'weight'     => $summary['shipping'][$sellerId]['weight'] ?? null,
                 'chargeable' => $summary['shipping'][$sellerId]['chargeable'] ?? null,
+                'route'      => $summary['shipping'][$sellerId]['route'] ?? null,
                 'discount'   => $q['seller_discounts'][$sellerId] ?? 0,
                 'promo'      => $g['promo'] ?? 0,
             ])->all(),
@@ -283,7 +285,9 @@ class CheckoutController extends Controller
     {
         $request->validate([
             'address_id'        => 'required|integer',
-            'payment_method'    => ['required', 'in:' . implode(',', array_merge(['cod'], array_keys(app(PaymentService::class)->methods())))],
+            'payment_method'    => ['required', 'in:' . implode(',', array_merge(['cod'], self::gcashAccount() ? ['gcash_receipt'] : [], array_keys(app(PaymentService::class)->methods())))],
+            'payment_proof'     => ['required_if:payment_method,gcash_receipt', 'nullable', 'file', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
+            'payment_reference' => ['nullable', 'string', 'regex:/^[0-9 ]{6,20}$/'],
             'checkout_token'    => 'required|uuid',
             'prices'            => 'nullable|array',
             'buyer_notes'       => 'nullable|array',
@@ -295,6 +299,11 @@ class CheckoutController extends Controller
             'voucher_code'      => 'nullable|string|max:30',
         ], [
             'payment_method.required' => 'Please choose a payment method.',
+            'payment_proof.required_if' => 'Upload the screenshot of your GCash receipt.',
+            'payment_proof.image'     => 'The GCash receipt must be a photo or screenshot (JPG, PNG or WebP).',
+            'payment_proof.mimes'     => 'The GCash receipt must be a photo or screenshot (JPG, PNG or WebP).',
+            'payment_proof.max'       => 'The GCash receipt must be 5 MB or smaller.',
+            'payment_reference.regex' => 'The GCash reference number is the 13-digit "Ref No." on your receipt.',
             'address_id.required'     => 'Please choose a delivery address.',
             'buyer_notes.*.max'       => 'A note to the seller can be at most 200 characters.',
         ]);
@@ -350,10 +359,12 @@ class CheckoutController extends Controller
             return redirect()->route('profile.orders')->with('success', 'Your order was already placed.');
         }
 
+        $proof = $request->payment_method === 'gcash_receipt' ? $request->file('payment_proof')->store('payment-proofs', 'local') : null;
         try {
-            $orders = DB::transaction(fn () => $this->createOrders($lines, $summary, $address, $request, $group, $request->payment_method));
+            $orders = DB::transaction(fn () => $this->createOrders($lines, $summary, $address, $request, $group, $request->payment_method, $proof));
         } catch (\App\Exceptions\CheckoutProblem $e) {   // ran out of stock / over a purchase limit while checking out
             Cache::forget($tokenKey);
+            $proof && \Illuminate\Support\Facades\Storage::disk('local')->delete($proof);
             return redirect()->route($buyNow ? 'checkout.index' : 'cart.index', $buyNow ? ['buy_now' => 1] : [])->with('error', $e->getMessage());
         }
 
@@ -380,7 +391,7 @@ class CheckoutController extends Controller
         Session::put('last_checkout_group', $group);
 
         // E-wallet / card: straight to the payment page. The orders wait in To Pay until it is paid.
-        if ($request->payment_method !== 'cod') {
+        if (! in_array($request->payment_method, ['cod', 'gcash_receipt'], true)) {
             try {
                 $payment = app(PaymentService::class)->start($user, $group, $request->payment_method);
                 return redirect()->away($payment->checkout_url);
@@ -395,9 +406,10 @@ class CheckoutController extends Controller
     }
 
     /** @return array<int, Order> one order per seller */
-    private function createOrders(Collection $lines, array $summary, UserAddress $address, Request $request, string $group, string $method = 'cod'): array
+    private function createOrders(Collection $lines, array $summary, UserAddress $address, Request $request, string $group, string $method = 'cod', ?string $proof = null): array
     {
-        $online = $method !== 'cod';
+        $receipt = $method === 'gcash_receipt';
+        $online = ! in_array($method, ['cod', 'gcash_receipt'], true);
         $quote = $summary['quote'];
         $user  = auth()->user();
 
@@ -476,8 +488,10 @@ class CheckoutController extends Controller
                 'shipping_voucher_id' => $shipOff > 0 ? $quote['shipping_voucher']?->id : null,
                 'shipping_discount' => $shipOff,
                 'total_price'       => round(max(0, $subtotal - $promoOff - $storeOff - $alvyOff) + max(0, $fee - $shipOff), 2),
-                'payment_method'    => strtoupper($method),
-                'payment_status'    => $online ? 'Unpaid' : 'Pending',
+                'payment_method'    => $receipt ? Order::GCASH_RECEIPT : strtoupper($method),
+                'payment_status'    => $online ? 'Unpaid' : ($receipt ? 'For verification' : 'Pending'),
+                'payment_proof_path' => $receipt ? $proof : null,
+                'payment_reference' => $receipt && $request->filled('payment_reference') ? preg_replace('/\s+/', '', $request->payment_reference) : null,
                 'pay_by'            => $online ? now()->addMinutes((int) config('payments.unpaid_minutes', 60)) : null,
                 'status'            => $online ? Order::AWAITING_PAYMENT : Order::PENDING,
             ]);
@@ -585,5 +599,12 @@ class CheckoutController extends Controller
         }
 
         return view('checkout.confirmation', compact('orders'));
+    }
+
+    /** The shop's GCash account buyers send to (GCASH_NUMBER, GCASH_ACCOUNT_NAME), or null when not set up. */
+    public static function gcashAccount(): ?array
+    {
+        $number = trim((string) config('payments.gcash_receipt.number'));
+        return $number === '' ? null : ['number' => $number, 'name' => trim((string) config('payments.gcash_receipt.name')) ?: 'ALVY'];
     }
 }

@@ -36,6 +36,39 @@ class VoucherWalletController extends Controller
         return view('vouchers.wallet', compact('claims', 'claimable'));
     }
 
+    /**
+     * Voucher Center: every voucher buyers can claim right now, Shopee-style, filtered by
+     * type (free shipping, discounts, store vouchers). Guests can browse; claiming needs login.
+     */
+    public function center()
+    {
+        $tab = in_array(request('tab'), ['shipping', 'discount', 'store'], true) ? request('tab') : 'all';
+
+        $all = Voucher::running()->where('is_claimable', true)
+            ->with('seller.sellerApplication')
+            ->orderByRaw("CASE scope WHEN 'shipping' THEN 0 WHEN 'platform' THEN 1 ELSE 2 END")
+            ->orderBy('min_spend')->get();
+
+        $counts = [
+            'all'      => $all->count(),
+            'shipping' => $all->where('scope', Voucher::SCOPE_SHIPPING)->count(),
+            'discount' => $all->where('scope', Voucher::SCOPE_PLATFORM)->count(),
+            'store'    => $all->where('scope', Voucher::SCOPE_SELLER)->count(),
+        ];
+        $vouchers = match ($tab) {
+            'shipping' => $all->where('scope', Voucher::SCOPE_SHIPPING),
+            'discount' => $all->where('scope', Voucher::SCOPE_PLATFORM),
+            'store'    => $all->where('scope', Voucher::SCOPE_SELLER),
+            default    => $all,
+        };
+
+        $user = auth()->user();
+        $claimedIds = $user ? VoucherClaim::where('user_id', $user->id)->pluck('voucher_id')->all() : [];
+        $used = $user ? app(VoucherService::class)->usesByUser($user) : collect();
+
+        return view('vouchers.center', compact('tab', 'vouchers', 'counts', 'claimedIds', 'used'));
+    }
+
     public function claim(Voucher $voucher)
     {
         if (! $voucher->is_claimable || $voucher->stateLabel() !== 'Ongoing') {

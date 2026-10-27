@@ -11,13 +11,7 @@
 
         <div class="min-w-0 flex-1 space-y-5">
 
-            {{-- Flash / errors --}}
-            @if (session('success'))
-                <div class="pf-alert pf-alert-success">
-                    <svg class="mt-0.5 h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6 9 17l-5-5"/></svg>
-                    {{ session('success') }}
-                </div>
-            @endif
+            {{-- Success and error messages show as the pop-up (components/layout) --}}
             @if ($errors->any())
                 <div class="pf-alert pf-alert-error">
                     <svg class="mt-0.5 h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
@@ -97,8 +91,8 @@
                                 </svg>
                             </div>
                             <div class="min-w-0">
-                                <h3 class="font-display text-lg font-extrabold">Start selling on ALVY</h3>
-                                <p class="mt-0.5 text-sm text-white/75">
+                                <h3 class="font-display text-lg font-extrabold" style="color:#fff;">Start selling on ALVY</h3>
+                                <p class="mt-0.5 text-sm" style="color:rgba(255,255,255,.85);">
                                     Turn your buyer account into a seller account and reach more customers. It only takes a few minutes to apply.
                                 </p>
                             </div>

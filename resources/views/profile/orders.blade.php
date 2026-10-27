@@ -7,8 +7,6 @@
         @include('profile._sidebar')
 
         <div class="min-w-0 flex-1 space-y-4">
-            @if (session('success'))<div class="pf-alert pf-alert-success">{{ session('success') }}</div>@endif
-            @if (session('error'))<div class="pf-alert pf-alert-error">{{ session('error') }}</div>@endif
 
             {{-- Tabs --}}
             <nav class="pf-card pf-nav-scroll flex gap-1 overflow-x-auto p-1.5 text-sm">

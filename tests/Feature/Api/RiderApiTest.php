@@ -60,7 +60,7 @@ class RiderApiTest extends TestCase
 
         $offer = $this->dispatcher()->offer($this->parcel());
         $o = $this->api('GET', '/rider/jobs')->assertOk()->json('offers.0');
-        $this->assertSame(['pickup', 'Maria Clara Santos', 'Bilis Hatid Express Inc. hub', 500.0, 30.0],
+        $this->assertSame(['pickup', 'Maria Clara Santos', 'Bilis Hatid Express Inc. hub', 490.0, 30.0],
             [$o['kind'], $o['pickup_name'], $o['dropoff'], (float) $o['cod'], (float) $o['pay']]);
         $this->assertGreaterThan(0, $o['seconds_left']);
 
@@ -94,7 +94,7 @@ class RiderApiTest extends TestCase
     {
         $d = $this->deliveryFor($this->rider1);
         $detail = $this->api('GET', "/rider/deliveries/{$d->id}")->assertOk()->json('delivery');
-        $this->assertSame([true, false, 500.0, 1, 3], [$detail['actions']['start'], $detail['actions']['deliver'], (float) $detail['cod_amount'], $detail['attempt'], $detail['max_attempts']]);
+        $this->assertSame([true, false, 490.0, 1, 3], [$detail['actions']['start'], $detail['actions']['deliver'], (float) $detail['cod_amount'], $detail['attempt'], $detail['max_attempts']]);
 
         $this->api('POST', "/rider/deliveries/{$d->id}/start")->assertOk()
             ->assertJsonPath('message', 'Out for delivery. Ask the buyer for the OTP on their order page.')
@@ -102,14 +102,14 @@ class RiderApiTest extends TestCase
         $otp = $d->fresh()->otp_code;
 
         $form = fn (array $over = []) => $this->withToken($this->token)->post("/api/v1/rider/deliveries/{$d->id}/deliver", $over + [
-            'pod_photo' => UploadedFile::fake()->image('pod.jpg'), 'otp' => $otp, 'cod_collected' => '500',
+            'pod_photo' => UploadedFile::fake()->image('pod.jpg'), 'otp' => $otp, 'cod_collected' => '490',
         ], ['Accept' => 'application/json']);
 
         $form(['pod_photo' => null])->assertStatus(422)->assertJsonValidationErrors(['pod_photo' => 'Take a proof-of-delivery photo.']);
         $form(['otp' => $otp === '000000' ? '111111' : '000000'])->assertStatus(422)->assertJsonValidationErrors(['otp' => 'Wrong OTP. 4 tries left.']);
         $form(['cod_collected' => '450'])->assertStatus(422)
-            ->assertJsonValidationErrors(['cod_collected' => 'The COD amount doesn\'t match. Collect exactly ₱500.00.']);
-        $form()->assertOk()->assertJsonPath('message', 'Delivered. You earned ₱50.00 and collected ₱500.00 COD to remit.')
+            ->assertJsonValidationErrors(['cod_collected' => 'The COD amount doesn\'t match. Collect exactly ₱490.00.']);
+        $form()->assertOk()->assertJsonPath('message', 'Delivered. You earned ₱50.00 and collected ₱490.00 COD to remit.')
             ->assertJsonPath('delivery.status', 'delivered');
         $this->assertNotNull($this->api('GET', "/rider/deliveries/{$d->id}")->json('delivery.pod_url'));
 
@@ -118,12 +118,12 @@ class RiderApiTest extends TestCase
         $this->assertSame('Delivered', $this->api('GET', '/rider/history')->assertOk()->json('rows.0.result'));
 
         $cod = $this->api('GET', '/rider/cod')->assertOk();
-        $this->assertSame(500.0, (float) $cod->json('balance'));
+        $this->assertSame(490.0, (float) $cod->json('balance'));
         $this->api('POST', '/rider/cod/remit', ['amount' => 600, 'request_token' => $cod->json('request_token')])->assertStatus(422)
-            ->assertJsonValidationErrors(['amount' => 'You can remit up to your COD balance of ₱500.00.']);
-        $this->api('POST', '/rider/cod/remit', ['amount' => 500, 'request_token' => $cod->json('request_token')])->assertOk()
-            ->assertJsonPath('message', 'Remittance of ₱500.00 sent. It stays Pending until Bilis Hatid Express Inc. confirms it.')
-            ->assertJsonPath('pending', 500);
+            ->assertJsonValidationErrors(['amount' => 'You can remit up to your COD balance of ₱490.00.']);
+        $this->api('POST', '/rider/cod/remit', ['amount' => 490, 'request_token' => $cod->json('request_token')])->assertOk()
+            ->assertJsonPath('message', 'Remittance of ₱490.00 sent. It stays Pending until Bilis Hatid Express Inc. confirms it.')
+            ->assertJsonPath('pending', 490);
     }
 
     public function test_failed_delivery_and_return_to_sender(): void

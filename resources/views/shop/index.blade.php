@@ -2,7 +2,7 @@
 @php
     $sorts = \App\Support\ProductSearch::SORTS;
     $sort  = request('sort', $term !== '' ? 'relevance' : 'newest');
-    $active = request()->hasAny(['min_price', 'max_price', 'rating', 'category', 'location']);
+    $active = request()->hasAny(['min_price', 'max_price', 'rating', 'category', 'location', 'store', 'availability']);
 @endphp
 <div style="background:#F7F5F3;min-height:80vh;">
     <div class="border-b bg-white" style="border-color:#EFEFEF;">
@@ -56,6 +56,20 @@
                     @foreach ($locations as $l)<option value="{{ $l }}" @selected(request('location') === $l)>{{ $l }}</option>@endforeach
                 </select>
             </div>
+            <div>
+                <p class="mb-2 font-bold" style="color:#222;">Store</p>
+                <select name="store" class="w-full rounded border px-2 py-1.5 text-xs" style="border-color:#E0E0E0;">
+                    <option value="">All stores</option>
+                    @foreach ($stores as $id => $name)<option value="{{ $id }}" @selected((string) request('store') === (string) $id)>{{ $name }}</option>@endforeach
+                </select>
+            </div>
+            <div>
+                <p class="mb-2 font-bold" style="color:#222;">Availability</p>
+                <label class="flex items-center gap-2 py-0.5">
+                    <input type="checkbox" name="availability" value="all" @checked(request('availability') === 'all') class="accent-orange-600">
+                    <span style="color:#555;">Show sold-out items too</span>
+                </label>
+            </div>
             <div class="flex gap-2">
                 <button type="submit" class="flex-1 rounded px-3 py-2 text-xs font-semibold text-white" style="background:#fa4e1c;">Apply</button>
                 @if ($active)
@@ -74,6 +88,29 @@
                        style="{{ $sort === $value ? 'background:#fa4e1c;color:#fff;' : 'background:#fff;color:#555;border:1px solid #E0E0E0;' }}">{{ $label }}</a>
                 @endforeach
             </div>
+
+            {{-- Stores whose name matches the search --}}
+            @if ($matchedStores->isNotEmpty())
+                <div class="mb-4 rounded-lg bg-white px-4 py-3" style="border:1px solid #EFEFEF;" data-store-results>
+                    <p class="mb-2 text-sm font-medium" style="color:#555;">Shops related to "{{ $term }}"</p>
+                    <div class="grid gap-2 sm:grid-cols-2">
+                        @foreach ($matchedStores as $store)
+                            <a href="{{ route('stores.show', $store->user_id) }}" class="flex items-center gap-3 rounded-md px-3 py-2 transition hover:bg-orange-50" style="border:1px solid #F2EEEA;">
+                                @if ($store->logo_path)
+                                    <img src="{{ asset('storage/' . $store->logo_path) }}" alt="" class="h-10 w-10 shrink-0 rounded-full object-cover">
+                                @else
+                                    <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-bold" style="background:#FFF1EE;color:#fa4e1c;">{{ strtoupper(mb_substr($store->shop_name, 0, 1)) }}</span>
+                                @endif
+                                <span class="min-w-0 flex-1">
+                                    <span class="block truncate text-sm font-semibold" style="color:#222;">{{ $store->shop_name }}</span>
+                                    @if ($store->municipality)<span class="block truncate text-xs" style="color:#999;">{{ $store->municipality }}{{ $store->province ? ', ' . $store->province : '' }}</span>@endif
+                                </span>
+                                <span class="shrink-0 text-xs font-semibold" style="color:#fa4e1c;">Visit shop</span>
+                            </a>
+                        @endforeach
+                    </div>
+                </div>
+            @endif
 
             @foreach ($notes as $note)
                 <p class="mb-3 rounded-md px-3 py-2 text-xs" style="background:#FFFBEB;color:#92400E;">{{ $note }}</p>

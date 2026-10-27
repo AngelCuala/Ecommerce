@@ -26,18 +26,20 @@ class ParcelDelivery extends Model
         'delivered'        => 'Delivered',
         'failed'           => 'Failed Delivery',
         'returned'         => 'Return to Sender',
+        'declined'         => 'Declined by rider',
     ];
 
     protected $fillable = [
         'parcel_id', 'rider_id', 'area_id', 'assigned_by',
         'status', 'remarks',
-        'picked_up_at', 'delivered_at',
+        'picked_up_at', 'delivered_at', 'acknowledged_at',
         'attempt', 'failure_reason', 'otp_code', 'otp_attempts', 'otp_locked_until', 'pod_path', 'cod_amount', 'cod_collected',
     ];
 
     protected $casts = [
         'picked_up_at'     => 'datetime',
         'delivered_at'     => 'datetime',
+        'acknowledged_at'  => 'datetime',
         'otp_locked_until' => 'datetime',
         'attempt'          => 'integer',
         'otp_attempts'     => 'integer',

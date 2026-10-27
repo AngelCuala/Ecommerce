@@ -87,9 +87,9 @@
 
 <script>
     window.CHAT_ROUTES = {
-        threads: '{{ route('chat.threads') }}',
-        thread:  '{{ url('chat/thread') }}',
-        send:    '{{ url('chat/send') }}',
+        threads: '{{ \App\Support\Portal::route('chat.threads') }}',
+        thread:  '{{ \App\Support\Portal::url('chat/thread') }}',
+        send:    '{{ \App\Support\Portal::url('chat/send') }}',
     };
 </script>
 <script src="{{ asset('js/messages-inbox.js') }}"></script>

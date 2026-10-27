@@ -70,23 +70,34 @@ class CourierController extends Controller
     public function history(): JsonResponse
     {
         $d = $this->pageData($this->web(DeliveryController::class, 'history'));
-        return response()->json(ApiJson::page($d['deliveries'], fn ($x) => RiderJson::courierDelivery($x)));
+        return response()->json(ApiJson::page($d['deliveries'], fn ($x) => [
+            'order_number' => $x->order, 'tracking' => $x->tracking, 'buyer' => $x->buyer, 'place' => $x->place, 'seller' => $x->seller,
+            'status' => $x->group === 'in_progress' ? 'in_progress' : $x->group, 'status_label' => $x->label, 'note' => $x->note,
+            'attempt' => $x->attempt, 'cod' => $x->cod, 'fee' => $x->pay,
+            'delivered_at' => $x->group === 'delivered' ? $x->at?->toIso8601String() : null, 'created_at' => $x->at?->toIso8601String(),
+        ]) + ['summary' => $d['summary']]);
     }
 
     public function profit(): JsonResponse
     {
+        // The web's My Earnings: every paid job (hub pickups and deliveries, and courier-marketplace deliveries).
         $d = $this->pageData($this->web(ProfitController::class, 'index'));
+        $s = $d['stats'];
 
         return response()->json([
-            'total_earnings'   => round((float) $d['totalEarnings'], 2),
-            'total_deliveries' => (int) $d['totalDeliveries'],
-            'avg_per_delivery' => round((float) $d['avgPerDelivery'], 2),
-            'today'            => round((float) $d['todayEarnings'], 2),
-            'week'             => round((float) $d['weekEarnings'], 2),
-            'month'            => round((float) $d['monthEarnings'], 2),
-            'pending'          => round((float) $d['pendingEarnings'], 2),
-            'by_month'         => $d['earningsByMonth']->map(fn ($m) => ['month' => $m->month, 'count' => $m->count, 'total' => round($m->total, 2)])->values(),
-            'recent'           => $d['recentDeliveries']->map(fn ($x) => RiderJson::courierDelivery($x))->values(),
+            'total_earnings'   => (float) $s['total'],
+            'total_deliveries' => (int) $s['deliveries'],
+            'total_pickups'    => (int) $s['pickups'],
+            'avg_per_delivery' => (float) $s['average'],
+            'today'            => (float) $s['today'],
+            'week'             => (float) $s['week'],
+            'month'            => (float) $s['month'],
+            'pending'          => (float) $s['pending'],
+            'by_month'         => $d['months']->map(fn ($m) => ['month' => $m->label . ' ' . $m->year, 'count' => $m->jobs, 'total' => (float) $m->total])->values(),
+            'recent'           => $d['recent']->map(fn ($r) => [
+                'order_number' => $r['order'], 'buyer' => trim($r['type'] . ' · ' . ($r['tracking'] ?? '')), 'result' => $r['result'],
+                'delivered_at' => $r['at']?->toIso8601String(), 'fee' => (float) $r['pay'],
+            ])->values(),
         ]);
     }
 

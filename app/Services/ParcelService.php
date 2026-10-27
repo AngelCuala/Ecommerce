@@ -41,7 +41,7 @@ class ParcelService
         $sc = $chosen ?? $this->routeSortingCenter($seller, $order);
 
         $parcel->fill([
-            'tracking_number'           => $parcel->tracking_number ?: Parcel::generateTracking(),
+            'tracking_number'           => $parcel->tracking_number ?: ($order->tracking_number && ! Parcel::where('tracking_number', $order->tracking_number)->exists() ? $order->tracking_number : Parcel::generateTracking()),
             'pickup_address'            => $this->sellerAddress($seller),
             'dropoff_address'           => $order->fullAddress() ?: ($order->shipping_address ?? '—'),
             'destination_municipality'  => $order->city,
@@ -229,8 +229,7 @@ class ParcelService
                 $delivery->update(['status' => 'delivered', 'delivered_at' => now(), 'remarks' => $reason,
                     'cod_collected' => round((float) $delivery->cod_amount, 2)]);   // the rider handed it over, so the cash is with the rider
                 $parcel->update(['status' => 'delivered']);
-                $this->notifyBuyer($parcel, 'Parcel delivered', "{$ref} was delivered. Please confirm with \"Order Received\" to complete your order.");
-                $this->notifySeller($parcel, 'Parcel delivered', "{$ref} ({$parcel->tracking_number}) was delivered to the buyer.");
+                // The buyer and seller are told by the tracking event (ShipmentTracker).
                 break;
 
             case 'failed':

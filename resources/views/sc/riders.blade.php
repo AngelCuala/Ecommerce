@@ -50,7 +50,7 @@
                 </div>
                 <div>
                     <label class="form-label" for="rider_phone">Phone</label>
-                    <input maxlength="11" inputmode="numeric" autocomplete="tel" oninput="this.value=this.value.replace(/\D/g,'').slice(0,11)" type="text" id="rider_phone" name="phone" class="form-input" placeholder="09171234567" value="{{ old('phone') }}">
+                    <input type="text" id="rider_phone" name="phone" class="form-input" placeholder="09xx…" value="{{ old('phone') }}" maxlength="13" inputmode="tel" autocomplete="tel" data-mobile oninput="this.value=this.value.startsWith('+')?('+'+this.value.slice(1).replace(/\D/g,'')).slice(0,13):this.value.replace(/\D/g,'').slice(0,11)">
                 </div>
                 <div>
                     <label class="form-label" for="rider_vehicle">Vehicle</label>
@@ -113,8 +113,13 @@
         </div>
     </div>
 
-    <div class="card">
-        <table class="data-table">
+    {{-- Ten columns: let the headers wrap and keep cells a little tighter so Actions stays in view. --}}
+    <style>
+        .riders-table th { white-space: normal; vertical-align: bottom; }
+        .riders-table th, .riders-table td { padding-left: 12px; padding-right: 12px; }
+    </style>
+    <div class="card" style="overflow-x:auto;">
+        <table class="data-table riders-table">
             <thead>
                 <tr>
                     <th>Rider ID</th><th>Name</th><th>Vehicle</th><th>Area</th>
@@ -159,10 +164,14 @@
                                     <button class="btn btn-red btn-sm">Reject</button>
                                 </form>
                             @elseif($isActive)
-                                <form method="POST" action="{{ route('sc.riders.toggle',$rider) }}" style="display:flex;gap:4px;">@csrf
-                                    <input name="reason" class="form-input" style="padding:4px 6px;font-size:11px;width:150px;" placeholder="Reason (10–300)" minlength="10" maxlength="300" required aria-label="Reason for suspending {{ $rider->full_name }}">
-                                    <button class="btn btn-red btn-sm">Suspend</button>
-                                </form>
+                                {{-- Suspend asks for a reason: the field opens under the button, so the column stays narrow. --}}
+                                <details data-suspend="{{ $rider->id }}">
+                                    <summary class="btn btn-red btn-sm" style="list-style:none;cursor:pointer;">Suspend</summary>
+                                    <form method="POST" action="{{ route('sc.riders.toggle',$rider) }}" style="display:flex;flex-direction:column;gap:4px;margin-top:6px;width:170px;">@csrf
+                                        <input name="reason" class="form-input" style="padding:4px 6px;font-size:11px;width:100%;" placeholder="Reason (10–300)" minlength="10" maxlength="300" required aria-label="Reason for suspending {{ $rider->full_name }}">
+                                        <button class="btn btn-red btn-sm">Confirm suspend</button>
+                                    </form>
+                                </details>
                             @elseif($isInactive)
                                 <form method="POST" action="{{ route('sc.riders.toggle',$rider) }}">@csrf
                                     <button class="btn btn-green btn-sm">Reactivate</button>

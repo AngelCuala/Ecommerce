@@ -40,8 +40,8 @@
                 <td class="px-4 py-3 font-semibold" style="color:#fa4e1c;">{{ $v->discountLabel() }}</td>
                 <td class="px-4 py-3">{{ $v->min_spend > 0 ? '₱' . number_format($v->min_spend, 2) : 'None' }}</td>
                 <td class="px-4 py-3 text-xs" style="color:#555;">
-                    {{ $v->starts_at ? $v->starts_at->format('M d, Y g:i A') : 'Now' }}<br>
-                    to {{ $v->ends_at ? $v->ends_at->format('M d, Y g:i A') : 'no end' }}
+                    {{ $v->starts_at ? $v->starts_at->copy()->tz(config('app.business_timezone'))->format('M d, Y g:i A') : 'Now' }}<br>
+                    to {{ $v->ends_at ? $v->ends_at->copy()->tz(config('app.business_timezone'))->format('M d, Y g:i A') : 'no end' }}
                 </td>
                 <td class="px-4 py-3">{{ $v->used_count }}{{ $v->usage_limit ? ' / ' . $v->usage_limit : '' }}</td>
                 <td class="px-4 py-3"><span class="rounded-md px-2 py-0.5 text-xs font-semibold" style="{{ $stateStyle[$state] }}">{{ $state }}</span></td>

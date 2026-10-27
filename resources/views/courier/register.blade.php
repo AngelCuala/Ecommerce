@@ -113,7 +113,7 @@
                             <input maxlength="11" inputmode="numeric" autocomplete="tel" oninput="this.value=this.value.replace(/\D/g,'').slice(0,11)" type="text" name="contact_no" value="{{ old('contact_no', auth()->user()->contact_no ?? auth()->user()->phone ?? '') }}"
                                    class="w-full rounded-xl border px-4 py-2.5 text-sm outline-none" style="border-color:#cfdce8;"
                                    onfocus="this.style.borderColor='#fa4e1c';" onblur="this.style.borderColor='#cfdce8';"
-                                   placeholder="+63 912 345 6789" required>
+                                   placeholder="+63 912 345 6789" required maxlength="13" inputmode="tel" autocomplete="tel" data-mobile oninput="this.value=this.value.startsWith('+')?('+'+this.value.slice(1).replace(/\D/g,'')).slice(0,13):this.value.replace(/\D/g,'').slice(0,11)">
                         </div>
 
                         <div>

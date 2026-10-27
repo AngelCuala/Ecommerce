@@ -103,6 +103,23 @@ class Voucher extends Model
         return '₱' . number_format($this->discount_value, 0) . ' off';
     }
 
+    /** Where the voucher works, for voucher tickets: "All stores", "Only at Lucy", "Selected items at Lucy". */
+    public function whereText(): string
+    {
+        if ($this->scope !== self::SCOPE_SELLER) {
+            return $this->isShipping() ? 'Any order' : 'All stores';
+        }
+        $store = $this->seller?->storeName() ?? 'this store';
+
+        return empty($this->product_ids) ? 'Only at ' . $store : 'Selected items at ' . $store;
+    }
+
+    /** Share of the total uses already taken (0–100), or null when there is no total limit. */
+    public function usedPercent(): ?int
+    {
+        return $this->usage_limit ? (int) min(100, round($this->used_count / $this->usage_limit * 100)) : null;
+    }
+
     /** Discount this voucher gives on an amount, never more than the amount itself. */
     public function discountFor(float $amount): float
     {

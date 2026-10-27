@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Models\Delivery;
-use App\Models\Message;
 use App\Models\Order;
 use App\Models\ReturnRequest;
 use Illuminate\Http\Request;
@@ -88,16 +87,7 @@ class OrderController extends Controller
             }
         }
 
-        foreach ($order->items->pluck('product.seller_id')->filter()->unique() as $sellerId) {
-            Message::create([
-                'order_id'    => $order->id,
-                'sender_id'   => auth()->id(),
-                'receiver_id' => $sellerId,
-                'body'        => '✅ Order ' . $order->number() . ' was received by the buyer (' . auth()->user()->name
-                               . ') on ' . now()->format('M d, Y h:i A') . '.',
-                'is_read'     => false,
-            ]);
-        }
+        // The seller is told in Notifications ("Order … completed", App\Services\OrderNotifier), not in Messages.
 
         return back()->with('success', 'Thanks! The order is complete. You can now rate your items.');
     }

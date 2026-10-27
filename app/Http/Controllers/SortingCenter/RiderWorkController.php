@@ -48,6 +48,17 @@ class RiderWorkController extends Controller
                 $r->online_now  = $r->isOnlineNow();
             });
         $eligible = $this->dispatch->eligibleRiders($this->scId());
+        // Every rider of this hub for the "Choose rider" lists: available ones to pick, the rest shown with why not.
+        $riderChoices = $riders->map(fn (Rider $r) => (object) [
+            'rider'     => $r,
+            'available' => $eligible->contains('id', $r->id),
+            'why'       => match (true) {
+                $r->isSuspended()                           => 'suspended',
+                ! $r->online_now                            => 'offline',
+                $r->active_jobs >= RiderDispatch::MAX_ACTIVE => 'full',
+                default                                     => 'unavailable',
+            },
+        ])->sortBy(fn ($c) => [$c->available ? 0 : 1, $c->rider->full_name])->values();
         $withRiders = ParcelPickup::where('sorting_center_id', $this->scId())->whereIn('status', ParcelPickup::OPEN)->with('parcel', 'rider')->latest()->get();
         // L3: jobs given to a rider who hasn't started them yet — these can still be reassigned.
         $mine = fn ($q) => $q->where('current_sorting_center_id', $this->scId());
@@ -62,6 +73,7 @@ class RiderWorkController extends Controller
             'unassigned' => $parcels->filter->unassigned->values(),
             'riders'     => $riders,
             'eligible'   => $eligible,
+            'riderChoices' => $riderChoices,
             'withRiders' => $withRiders,
             'notStarted' => $notStarted,
         ]);
@@ -99,11 +111,11 @@ class RiderWorkController extends Controller
         } catch (\RuntimeException $e) {
             return back()->with('error', $e->getMessage());
         }
-        UserNotification::create(['user_id' => $rider->user_id, 'title' => 'New ' . $kind . ' job',
-            'body' => 'You were assigned the ' . $kind . ' of ' . $parcel->tracking_number . '.', 'type' => 'info', 'link' => route('courier.rider')]);
         \App\Models\ActivityLog::note($parcel->tracking_number . ' ' . $kind . ' assigned to ' . $rider->full_name, $parcel);
 
-        return back()->with('success', "{$parcel->tracking_number} assigned to {$rider->full_name}.");
+        return back()->with('success', "{$parcel->tracking_number} assigned to {$rider->full_name}." . ($this->dispatch->lastNotification
+            ? ' The rider was notified.'
+            : ' The rider could not be notified in the app; please tell them directly.'));
     }
 
     // ── Rider record ────────────────────────────────────────────

@@ -40,13 +40,19 @@
                    class="tab {{ request('area_id')==$area->id ? 'active' : '' }}">{{ $area->name }}</a>
             @endforeach
         </div>
+        @if ($parcels->isNotEmpty())
+            <a href="{{ route('sc.waybills', ['ids' => $parcels->pluck('id')->all()]) }}" target="_blank" class="btn btn-ghost btn-sm" style="gap:6px;">
+                <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 9V2h12v7M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2M6 14h12v8H6z"/></svg>
+                Print waybills
+            </a>
+        @endif
     </div>
 
     <div class="card">
         <table class="data-table">
             <thead>
                 <tr>
-                    <th>Tracking</th><th>Recipient</th><th>Area</th><th>Address</th>
+                    <th>Waybill</th><th>Recipient</th><th>Area</th><th>Address</th>
                     <th>Weight</th><th>Rider for This Area</th><th>Action</th>
                 </tr>
             </thead>
@@ -55,7 +61,8 @@
                 @php $areaRiders = $ridersByArea->get($parcel->area_id, collect()); @endphp
                 <tr>
                     <td>
-                        <span class="id-link">{{ $parcel->tracking_number }}</span>
+                        <span class="id-link">{{ $parcel->waybill_number ?? $parcel->tracking_number }}</span>
+                        <div class="text-muted text-sm" style="white-space:nowrap;"><a href="{{ route('sc.parcels.waybill', $parcel) }}" target="_blank" style="color:var(--accent-blue);font-weight:600;">Waybill</a></div>
                         @if($parcel->deliveries()->where('status','failed')->exists())
                             <div><span class="badge badge-red" style="font-size:10px;margin-top:4px;">Re-delivery</span></div>
                         @endif

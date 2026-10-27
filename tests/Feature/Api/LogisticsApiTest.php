@@ -81,8 +81,10 @@ class LogisticsApiTest extends TestCase
 
         $this->api('POST', '/incoming/scan', ['tracking_number' => 'ALVY-NOPE'])->assertStatus(422)
             ->assertJsonPath('message', 'Parcel ALVY-NOPE not found at your sorting center.');
+        // Scanning finds the parcel; receiving it is confirmed separately.
         $this->api('POST', '/incoming/scan', ['tracking_number' => $parcel->tracking_number])->assertOk()
-            ->assertJsonPath('message', "{$parcel->tracking_number} received at the sorting center. Ready for sorting.");
+            ->assertJsonPath('message', "Found {$parcel->tracking_number} (Pickup Confirmed, to Quezon City). Check the parcel, then confirm receipt. Scanning alone records nothing.");
+        $this->api('POST', "/incoming/{$parcel->id}/receive")->assertOk();
         $this->assertSame(1, $this->api('GET', '/incoming')->assertOk()->json('stats.for_sorting'));
 
         $sorting = $this->api('GET', '/sorting')->assertOk();
@@ -90,7 +92,7 @@ class LogisticsApiTest extends TestCase
         $this->api('POST', "/sorting/{$parcel->id}", ['area_id' => 99999])->assertStatus(422)
             ->assertJsonValidationErrors(['area_id' => 'That barangay is outside your municipality coverage.']);
         $this->api('POST', "/sorting/{$parcel->id}", ['area_id' => $this->central->id])->assertOk()
-            ->assertJsonPath('message', "{$parcel->tracking_number} sorted to Central.")->assertJsonCount(0, 'pending');
+            ->assertJsonPath('message', "{$parcel->tracking_number} sorted to Central. No rider is online right now, so the delivery is waiting in Rider Dispatch.")->assertJsonCount(0, 'pending');
 
         $a = $this->api('GET', '/assignment')->assertOk();
         $this->assertSame($parcel->id, $a->json('data.0.id'));
@@ -98,7 +100,7 @@ class LogisticsApiTest extends TestCase
         $this->api('POST', "/assignment/{$parcel->id}", ['rider_id' => $this->agilaRider->id])->assertStatus(422)
             ->assertJsonPath('message', 'You can only assign riders that belong to your sorting center.');
         $this->api('POST', "/assignment/{$parcel->id}", ['rider_id' => $this->rider1->id])->assertOk()
-            ->assertJsonPath('message', "{$parcel->tracking_number} assigned to Pedro Jose Garcia.");
+            ->assertJsonPath('message', "{$parcel->tracking_number} assigned to Pedro Jose Garcia. The rider was notified.");
 
         // Monitoring, a logistics override (with a reason), then reschedule a failed attempt.
         $m = $this->api('GET', '/monitoring')->assertOk();
@@ -125,9 +127,9 @@ class LogisticsApiTest extends TestCase
         $this->api('POST', "/dispatch/{$other->id}/assign", ['rider_id' => $this->rider3->id])->assertStatus(422)
             ->assertJsonPath('message', 'Ramon Cruz is suspended.');
         $this->api('POST', "/dispatch/{$other->id}/assign", ['rider_id' => $this->rider2->id])->assertOk()
-            ->assertJsonPath('message', "{$other->tracking_number} assigned to Mark Anthony Bautista.");
+            ->assertJsonPath('message', "{$other->tracking_number} assigned to Mark Anthony Bautista. The rider was notified.");
         $this->api('POST', "/dispatch/{$other->id}/reassign", ['rider_id' => $this->rider1->id])->assertOk()
-            ->assertJsonPath('message', "{$other->tracking_number} reassigned to Pedro Jose Garcia.");
+            ->assertJsonPath('message', "{$other->tracking_number} reassigned to Pedro Jose Garcia. The rider was notified.");
 
         // Return to Sender: give the return trip to a rider.
         $rts = $this->parcel('return_to_sender');
@@ -145,11 +147,14 @@ class LogisticsApiTest extends TestCase
             ->assertOk()->assertJsonPath('parcel.status', 'damaged')->assertJsonPath('parcel.can_mark_exception', false);
 
         // Transfers: to another hub, which accepts it.
-        $atHub = $this->parcel('picked_up');
+        $atHub = $this->parcel('picked_up', ['received_at' => now()]);   // only parcels the hub received can be sent on
         $this->logistics2->forceFill(['assigned_municipality' => 'Luisiana', 'assigned_municipality_code' => self::LUISIANA])->save();
         $this->assertContains($atHub->id, collect($this->api('GET', '/transfers')->json('parcels'))->pluck('id')->all());
         $this->api('POST', '/transfers', ['parcel_id' => $atHub->id, 'to_sorting_center_id' => $this->logistics2->id, 'reason' => 'Closer hub'])->assertOk()
             ->assertJsonPath('outgoing.0.tracking', $atHub->tracking_number);
+        // It must leave this hub (Dispatch) before the other hub can receive it.
+        $this->api('POST', '/transfers/' . $this->api('GET', '/transfers')->json('outgoing.0.id') . '/dispatch')->assertOk()
+            ->assertJsonPath('outgoing.0.status', 'in_transit');
         $t2 = $this->logistics2->createToken('t')->plainTextToken;
         $incoming = $this->api('GET', '/transfers', [], $t2)->assertOk()->json('incoming.0');
         $this->api('POST', "/transfers/{$incoming['id']}/accept", [], $t2)->assertOk()->assertJsonCount(0, 'incoming');
@@ -224,11 +229,12 @@ class LogisticsApiTest extends TestCase
     public function test_rates_reports_activity_chat_and_account(): void
     {
         $rates = $this->api('GET', '/rates')->assertOk();
-        $this->assertSame('NCR → NCR', $rates->json('rates.0.label'));
+        $this->assertSame('Same city', $rates->json('rates.0.label'));
         $this->api('POST', '/rates', ['route' => 'NCR-NCR', 'first_kg' => '0', 'additional_kg' => '15'])->assertStatus(422)
             ->assertJsonValidationErrors(['first_kg' => 'The first-kg rate must be an amount of at least ₱0.01.']);
         $this->api('POST', '/rates', ['route' => 'NCR-NCR', 'first_kg' => '55.00', 'additional_kg' => '15'])->assertOk()
-            ->assertJsonPath('message', 'Rate for NCR → NCR saved. It applies to checkouts started from now on.')->assertJsonPath('rates.0.first_kg', 55);
+            ->assertJsonPath('message', 'Rate for NCR → NCR saved. It applies to checkouts started from now on.');
+        $this->assertSame(55, collect($this->api('GET', '/rates')->json('rates'))->firstWhere('label', 'NCR → NCR')['first_kg'] ?? null);
         $uncovered = $rates->json('uncovered.0');
         $this->api('POST', '/zones', ['province_code' => $uncovered['code'], 'first_kg' => '120', 'additional_kg' => '40'])->assertOk()
             ->assertJsonPath('message', "{$uncovered['name']} is now covered. Buyers there can check out.");

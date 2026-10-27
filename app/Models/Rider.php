@@ -24,7 +24,7 @@ class Rider extends Model
         'application_status', 'rejection_reason', 'approved_at', 'approved_by',
         'is_active',
         'plate_number', 'license_expiry', 'license_path', 'or_cr_path', 'needs_reverification',
-        'is_online', 'last_seen_at',
+        'is_online', 'last_seen_at', 'can_transport_transfers',
     ];
 
     protected $casts = [
@@ -33,6 +33,7 @@ class Rider extends Model
         'license_expiry'       => 'date',
         'needs_reverification' => 'boolean',
         'is_online'            => 'boolean',
+        'can_transport_transfers' => 'boolean',
         'last_seen_at'         => 'datetime',
     ];
 

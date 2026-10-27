@@ -35,6 +35,14 @@
                 <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
                 Dashboard
             </a>
+            <a href="{{ route('sc.tracking') }}" class="nav-link {{ request()->routeIs('sc.tracking*') ? 'active' : '' }}">
+                @php $scExceptions = \App\Models\ShipmentException::where('status', 'open')->where(fn ($q) => $q->where('sorting_center_id', auth()->id())->orWhereHas('parcel', fn ($p) => $p->where('current_sorting_center_id', auth()->id())))->count(); @endphp
+                <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M3 7h18M3 12h18M3 17h12"/><circle cx="19" cy="17" r="2"/></svg>
+                Shipment Board
+                @if($scExceptions > 0)
+                    <span style="margin-left:auto;background:#DC2626;color:#fff;border-radius:999px;padding:1px 7px;font-size:10px;font-weight:700;" title="Open exceptions">{{ $scExceptions }}</span>
+                @endif
+            </a>
             <a href="{{ route('sc.riders') }}" class="nav-link {{ request()->routeIs('sc.riders') ? 'active' : '' }}">
                 <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
                 Rider Management
@@ -91,6 +99,10 @@
                 <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/></svg>
                 COD Remittances
             </a>
+            <a href="{{ route('sc.commissions') }}" class="nav-link {{ request()->routeIs('sc.commissions') ? 'active' : '' }}">
+                <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+                Commission &amp; Earnings
+            </a>
             <a href="{{ route('sc.delivery-monitoring') }}" class="nav-link {{ request()->routeIs('sc.delivery-monitoring') ? 'active' : '' }}">
                 <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
                 Delivery Monitoring
@@ -100,7 +112,7 @@
                 Reports
             </a>
             <a href="{{ route('sc.transfers') }}" class="nav-link {{ request()->routeIs('sc.transfers*') ? 'active' : '' }}">
-                @php $pendingIncoming = \App\Models\ParcelTransfer::where('to_sorting_center_id', auth()->id())->where('status','pending')->count(); @endphp
+                @php $pendingIncoming = \App\Models\ParcelTransfer::where('to_sorting_center_id', auth()->id())->where('status','in_transit')->count(); @endphp
                 <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>
                 SC Transfers
                 @if($pendingIncoming > 0)
@@ -146,6 +158,9 @@
         <div class="content">
             @if(session('success'))
                 <div style="padding:10px 22px 0;"><div class="flash flash-success">{{ session('success') }}</div></div>
+            @endif
+            @if(session('info'))
+                <div style="padding:10px 22px 0;"><div class="flash" style="background:#EFF6FF;color:#1D4ED8;border:1px solid #BFDBFE;">{{ session('info') }}</div></div>
             @endif
             @if(session('error'))
                 <div style="padding:10px 22px 0;"><div class="flash flash-error">{{ session('error') }}</div></div>

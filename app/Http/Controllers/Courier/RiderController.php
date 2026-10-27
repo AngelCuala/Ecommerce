@@ -54,8 +54,87 @@ class RiderController extends Controller
         $pickups = ParcelPickup::where('rider_id', $rider->id)->whereIn('status', ParcelPickup::OPEN)->with('parcel.seller')->oldest()->get();
         $deliveries = ParcelDelivery::where('rider_id', $rider->id)->whereIn('status', ParcelDelivery::OPEN)->with('parcel.order')->oldest()->get();
         $returns = \App\Models\Parcel::where('rts_rider_id', $rider->id)->where('status', 'return_to_sender')->whereNull('returned_at')->with('seller')->oldest('rts_assigned_at')->get();
+        // Hub-to-hub transport (only riders the hub allowed to carry transfers ever get one).
+        $transfers = \App\Models\ParcelTransfer::where('transporter_rider_id', $rider->id)->whereIn('status', ['pending', 'in_transit'])
+            ->with('parcel', 'fromSortingCenter', 'toSortingCenter')->latest()->get();
+        $recent = ParcelDelivery::where('rider_id', $rider->id)->whereIn('status', ['delivered', 'failed'])->with('parcel')->latest('updated_at')->take(10)->get();
 
-        return view('courier.rider.jobs', compact('rider', 'offers', 'pickups', 'deliveries', 'returns'));
+        return view('courier.rider.jobs', compact('rider', 'offers', 'pickups', 'deliveries', 'returns', 'transfers', 'recent'));
+    }
+
+    /**
+     * The rider confirms they saw a job a hub assigned to them. Only their own open job; the
+     * matching notification is marked read. Sending it twice changes nothing.
+     */
+    public function acknowledge(string $kind, int $job)
+    {
+        $rider = $this->rider();
+        $model = $kind === 'pickup' ? ParcelPickup::class : ParcelDelivery::class;
+        $row = $model::where('rider_id', $rider->id)->whereKey($job)->firstOrFail();   // someone else's job: 404
+        if ($row->status !== 'assigned') {
+            return back()->with('error', 'This job has already moved on (' . $row->statusLabel() . ').');
+        }
+        if (! $row->acknowledged_at) {
+            $row->forceFill(['acknowledged_at' => now()])->save();
+            app(\App\Services\ShipmentTracker::class)->record($row->parcel, $kind === 'delivery' ? 'delivery_rider_accepted' : 'pickup_rider_accepted', [
+                $kind . '_id' => $row->id, 'dedupe_key' => "rider-job:{$kind}:{$row->id}:accepted"]);
+            \App\Models\UserNotification::where('user_id', auth()->id())->where('dedupe_key', "rider-job:{$kind}:{$row->id}:assigned")
+                ->whereNull('read_at')->update(['read_at' => now()]);
+        }
+
+        return back()->with('success', ucfirst($kind) . ' of ' . ($row->parcel->waybill_number ?: $row->parcel->tracking_number) . ' acknowledged.');
+    }
+
+    public const DECLINE_REASONS = ['Vehicle problem', 'Outside my area', 'Too many jobs', 'Not available at that time', 'Other'];
+
+    /**
+     * The rider can't do a job a hub assigned (before starting it): the reason is recorded, the job
+     * is closed (kept in the history) and the parcel waits for an authorized reassignment.
+     */
+    public function declineJob(Request $request, string $kind, int $job)
+    {
+        $rider = $this->rider();
+        $data = $request->validate(['reason' => ['required', \Illuminate\Validation\Rule::in(self::DECLINE_REASONS)]], ['reason.required' => 'Choose why you can\'t do it.']);
+
+        return DB::transaction(function () use ($rider, $kind, $job, $data) {
+            $model = $kind === 'pickup' ? ParcelPickup::class : ParcelDelivery::class;
+            $row = $model::where('rider_id', $rider->id)->lockForUpdate()->whereKey($job)->firstOrFail();   // someone else's job: 404
+            if ($row->status !== 'assigned') {
+                return back()->with('error', 'This job has already moved on (' . $row->statusLabel() . '). It can no longer be declined.');
+            }
+            $parcel = \App\Models\Parcel::lockForUpdate()->findOrFail($row->parcel_id);
+            $row->update(['status' => 'declined', 'remarks' => 'Declined by the rider: ' . $data['reason']]);
+            app(\App\Services\ShipmentTracker::class)->record($parcel, $kind . '_rider_declined', [$kind . '_id' => $row->id, 'note' => $data['reason'],
+                'dedupe_key' => "rider-job:{$kind}:{$row->id}:declined"]);
+            if ($kind === 'delivery') {
+                $parcel->update(['status' => 'sorted', 'unassigned_at' => now()]);
+            } else {
+                $parcel->forceFill(['unassigned_at' => now()])->save();
+            }
+            if ($parcel->current_sorting_center_id) {
+                app(ParcelService::class)->notify((int) $parcel->current_sorting_center_id, ucfirst($kind) . ' declined',
+                    "{$rider->full_name} declined the {$kind} of {$parcel->tracking_number}: {$data['reason']}. Please reassign it.", 'warning', route('sc.dispatch'));
+            }
+
+            return redirect()->route('courier.rider')->with('success', ucfirst($kind) . ' declined. The hub will reassign it.');
+        });
+    }
+
+    /** "On my way" to the seller: Rider Arriving (the parcel is not collected yet). */
+    public function arriving(int $pickup)
+    {
+        $rider = $this->rider();
+        $row = ParcelPickup::where('rider_id', $rider->id)->findOrFail($pickup);
+        if ($row->status !== 'assigned') {
+            return back()->with('error', 'This pickup is already ' . $row->statusLabel() . '.');
+        }
+        if (! $row->en_route_at) {
+            $row->forceFill(['en_route_at' => now(), 'acknowledged_at' => $row->acknowledged_at ?? now()])->save();
+            app(\App\Services\ShipmentTracker::class)->record($row->parcel, 'pickup_rider_arriving', ['pickup_id' => $row->id,
+                'dedupe_key' => "rider-job:pickup:{$row->id}:arriving"]);
+        }
+
+        return back()->with('success', 'The seller was told you are on the way. Confirm the pickup once you have the parcel.');
     }
 
     /** Return to Sender: the rider handed the parcel back to the seller (A10). The seller then confirms receipt. */
@@ -248,7 +327,7 @@ class RiderController extends Controller
 
             $svc = app(ParcelService::class);
             $svc->syncOrder($parcel);   // every parcel delivered → order Delivered (a COD order paid)
-            $svc->notifySeller($parcel, 'Parcel delivered', "{$svc->orderRef($parcel)} ({$parcel->tracking_number}) was delivered to the buyer.");
+            // The buyer and seller are told by the tracking event (ShipmentTracker).
             if ($scId = $parcel->current_sorting_center_id) {
                 $svc->notify((int) $scId, 'Parcel delivered', "{$parcel->tracking_number} delivered by {$rider->full_name}" . ($cod ? ' · COD ₱' . number_format($delivery->cod_amount, 2) . ' collected.' : '.'));
             }
@@ -307,7 +386,8 @@ class RiderController extends Controller
         $me = $this->rider();
         abort_if($rider !== null && $rider !== $me->id, 403, 'You can only view your own rider profile.');
 
-        return view('courier.rider.profile', ['rider' => $me, 'vehicles' => self::VEHICLES]);
+        // The rider profile now lives on the Account page.
+        return redirect()->to(route('courier.account') . '#rider-profile');
     }
 
     public function updateProfile(Request $request)
@@ -363,7 +443,7 @@ class RiderController extends Controller
         }
         \App\Models\ActivityLog::note('Rider profile · plate ' . $data['plate_number'], $rider);
 
-        return redirect()->route('courier.rider.profile')->with('success', $vehicleChanged
+        return redirect()->to(route('courier.account') . '#rider-profile')->with('success', $vehicleChanged
             ? 'Profile saved. Your new vehicle details were sent to ' . $rider->companyName() . ' for re-verification.'
             : 'Profile saved.');
     }
@@ -398,13 +478,61 @@ class RiderController extends Controller
         return view('courier.rider.history', compact('rider', 'rows'));
     }
 
-    public function earnings()
+    /** Periods on Rider Pay. Days and weeks are counted in the business time zone (Philippine time), not UTC. */
+    public const PAY_PERIODS = ['today' => 'Today', 'week' => 'This week', 'last_week' => 'Last week', 'month' => 'This month'];
+
+    public function earnings(Request $request)
     {
         $rider = $this->rider();
-        $today = $this->wallet->history($rider, now()->startOfDay(), now()->endOfDay());
-        $week  = $this->wallet->pay($rider, now()->startOfWeek(), now()->endOfWeek());
+        $request->validate(['period' => 'nullable|in:' . implode(',', array_keys(self::PAY_PERIODS))]);
+        $period = $request->input('period', 'week');
+        $tz = config('app.business_timezone', 'Asia/Manila');
+        $now = now($tz);
 
-        return view('courier.rider.earnings', ['rider' => $rider, 'today' => $today, 'todayPay' => round($today->sum('pay'), 2), 'weekPay' => $week]);
+        $ranges = [
+            'today'     => [$now->copy()->startOfDay(), $now->copy()->endOfDay()],
+            'week'      => [$now->copy()->startOfWeek(), $now->copy()->endOfWeek()],
+            'last_week' => [$now->copy()->subWeek()->startOfWeek(), $now->copy()->subWeek()->endOfWeek()],
+            'month'     => [$now->copy()->startOfMonth(), $now->copy()->endOfMonth()],
+        ];
+        $all = $this->wallet->history($rider);
+        $in = fn (array $r) => $all->filter(fn ($j) => $j['at']->between($r[0], $r[1]))->values();
+        $sum = fn ($jobs) => round((float) $jobs->sum('pay'), 2);
+
+        // The three headline cards.
+        $cards = collect(['today', 'week', 'month'])->mapWithKeys(fn ($k) => [$k => ['pay' => $sum($in($ranges[$k])), 'jobs' => $in($ranges[$k])->count()]]);
+
+        // The chosen period: totals by kind, day by day, and every job.
+        [$from, $to] = $ranges[$period];
+        $jobs = $in($ranges[$period]);
+        $paid = fn (string $type) => $jobs->where('type', $type)->where('pay', '>', 0);
+        $breakdown = [
+            'pickups'    => ['count' => $paid('Pickup')->count(), 'pay' => $sum($paid('Pickup'))],
+            'deliveries' => ['count' => $paid('Delivery')->count(), 'pay' => $sum($paid('Delivery'))],
+            'failed'     => $jobs->where('pay', 0)->count(),
+            'cod'        => round((float) $jobs->sum('cod'), 2),
+            'total'      => $sum($jobs),
+        ];
+        $days = collect();
+        if ($period !== 'today') {
+            for ($d = $from->copy()->startOfDay(); $d->lte($to) && $d->lte($now); $d->addDay()) {
+                $day = $jobs->filter(fn ($j) => $j['at']->copy()->tz($tz)->isSameDay($d));
+                $days->push(['label' => $period === 'month' ? $d->format('M j') : $d->format('D, M j'), 'pay' => $sum($day), 'jobs' => $day->count(), 'today' => $d->isSameDay($now)]);
+            }
+            $days = $period === 'month' ? $days->filter(fn ($d) => $d['jobs'] > 0)->values() : $days;
+        }
+
+        // What jobs already given to the rider will pay once done.
+        $pending = ParcelPickup::where('rider_id', $rider->id)->where('status', 'assigned')->count() * RiderDispatch::PAY_PICKUP
+            + ParcelDelivery::where('rider_id', $rider->id)->whereIn('status', ParcelDelivery::OPEN)->count() * RiderDispatch::PAY_DELIVERY;
+
+        return view('courier.rider.earnings', [
+            'rider' => $rider, 'tz' => $tz, 'period' => $period, 'from' => $from, 'to' => $to,
+            'cards' => $cards, 'jobs' => $jobs, 'breakdown' => $breakdown, 'days' => $days,
+            'peak' => max(1, (float) $days->max('pay')), 'pending' => round((float) $pending, 2),
+            // Kept for anything that reads the old names.
+            'today' => $in($ranges['today']), 'todayPay' => $cards['today']['pay'], 'weekPay' => $cards['week']['pay'],
+        ]);
     }
 
     public function cod()
@@ -430,8 +558,8 @@ class RiderController extends Controller
         ]);
 
         return Cache::lock('rider-remit:' . $rider->id, 10)->block(8, function () use ($rider, $data) {
-            if (RiderRemittance::where('request_token', $data['request_token'])->exists()) {
-                return redirect()->route('courier.rider.cod')->with('success', 'Your remittance was already sent.');
+            if ($sent = RiderRemittance::where('request_token', $data['request_token'])->first()) {
+                return redirect()->route('courier.rider.cod.receipt', $sent)->with('success', 'Your remittance was already sent.');
             }
             if ($this->wallet->pendingRemittance($rider) > 0) {
                 return back()->withErrors(['amount' => 'You already have a remittance waiting for confirmation.']);
@@ -448,7 +576,24 @@ class RiderController extends Controller
                     . ($remit->shortfall() > 0 ? ' Shortfall ₱' . number_format($remit->shortfall(), 2) . '.' : ''), 'type' => 'info', 'link' => route('sc.remittances')]);
             \App\Models\ActivityLog::note('COD remittance ₱' . number_format($remit->amount, 2), $remit);
 
-            return redirect()->route('courier.rider.cod')->with('success', 'Remittance of ₱' . number_format($remit->amount, 2) . ' sent. It stays Pending until ' . $rider->companyName() . ' confirms it.');
+            return redirect()->route('courier.rider.cod.receipt', $remit)->with('success', 'Remittance of ₱' . number_format($remit->amount, 2) . ' sent. It stays Pending until ' . $rider->companyName() . ' confirms it.');
         });
+    }
+
+    /** The receipt for one of this rider's remittances (print or save as PDF from the browser). */
+    public function remittanceReceipt(RiderRemittance $remittance)
+    {
+        $rider = $this->rider();
+        abort_unless((int) $remittance->rider_id === (int) $rider->id, 404);
+        $remittance->load(['sortingCenter', 'confirmer']);
+        $deliveries = $remittance->coveredDeliveries();
+
+        return view('courier.rider.remittance-receipt', [
+            'remittance'  => $remittance,
+            'rider'       => $rider,
+            'deliveries'  => $deliveries,
+            'carriedOver' => round(max(0, (float) $remittance->expected_amount - (float) $deliveries->sum('cod_collected')), 2),
+            'tz'          => config('app.business_timezone'),
+        ]);
     }
 }

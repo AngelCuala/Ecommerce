@@ -60,7 +60,7 @@
                             {{ $order->status }}
                         </span>
                     </td>
-                    <td class="px-3 py-3 text-xs capitalize" style="color:#555555;">{{ $order->payment_method }}</td>
+                    <td class="px-3 py-3 text-xs" style="color:#555555;">{{ $order->paymentMethodLabel() }}</td>
                     <td class="px-5 py-3 text-right font-bold" style="color:#222222;">${{ number_format($order->total_price, 2) }}</td>
                 </tr>
             @empty

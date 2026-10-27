@@ -70,7 +70,7 @@
             <div class="ss-body grid gap-4 sm:grid-cols-2">
                 <div class="sm:col-span-2">
                     <label class="ss-label" for="phone">Contact number *</label>
-                    <input maxlength="11" inputmode="numeric" autocomplete="tel" oninput="this.value=this.value.replace(/\D/g,'').slice(0,11)" id="phone" name="phone" value="{{ old('phone', $a->phone) }}" placeholder="09171234567" class="input @error('phone') is-invalid @enderror">
+                    <input id="phone" name="phone" value="{{ old('phone', $a->phone) }}" placeholder="09171234567" class="input @error('phone') is-invalid @enderror" maxlength="13" inputmode="tel" autocomplete="tel" data-mobile oninput="this.value=this.value.startsWith('+')?('+'+this.value.slice(1).replace(/\D/g,'')).slice(0,13):this.value.replace(/\D/g,'').slice(0,11)">
                     @error('phone')<p class="ss-error">{{ $message }}</p>@enderror
                 </div>
                 <div class="sm:col-span-2">

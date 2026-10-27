@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Services\PsgcDirectory;
+use App\Support\ServiceArea;
 
 /**
  * Address dropdown data, served from the local PSA PSGC dataset (resources/data/psgc/).
@@ -25,9 +26,22 @@ class PsgcController extends Controller
         }, $items));
     }
 
+    /**
+     * The dropdowns only offer the service area (Laguna by default, config/service_area.php), so nobody
+     * picks an address the server will refuse. The server still checks every submitted address.
+     */
+    private function inArea(array $items, string $key): array
+    {
+        if (! ServiceArea::enabled()) {
+            return $items;
+        }
+        $allowed = array_column(ServiceArea::provinces(), $key);
+        return array_values(array_filter($items, fn ($i) => in_array($i['psgc'] ?? null, $allowed, true)));
+    }
+
     public function regions()
     {
-        return $this->json($this->psgc->regions());
+        return $this->json($this->inArea($this->psgc->regions(), 'region'));
     }
 
     /** Province-level choices of a region. Empty for NCR (its cities sit directly under it). */
@@ -35,13 +49,13 @@ class PsgcController extends Controller
     {
         $region = $this->psgc->region($code);
         abort_unless($region, 404, 'Unknown region.');
-        return $this->json($this->psgc->provincesOfRegion($region));
+        return $this->json($this->inArea($this->psgc->provincesOfRegion($region), 'psgc'));
     }
 
     /** All province-level choices nationwide (forms without a region dropdown). */
     public function provinces()
     {
-        return $this->json($this->psgc->allProvinceChoices());
+        return $this->json($this->inArea($this->psgc->allProvinceChoices(), 'psgc'));
     }
 
     /** Cities/municipalities under a province, a special parent, or directly under a region. */

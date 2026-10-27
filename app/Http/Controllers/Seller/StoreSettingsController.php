@@ -49,7 +49,7 @@ class StoreSettingsController extends Controller
             'phone'             => ['required', 'regex:/^09\d{9}$/'],
             'region'            => 'required|string|max:120',
             'province'          => 'required|string|max:120',
-            'municipality'      => 'required|string|max:120',
+            'municipality'      => ['required', 'string', 'max:120', new \App\Rules\InServiceArea('pickup address')],
             'barangay'          => 'required|string|max:120',
             'street'            => 'required|string|max:255',
             'zip_code'          => ['required', 'regex:/^\d{4}$/'],

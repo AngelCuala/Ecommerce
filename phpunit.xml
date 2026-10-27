@@ -30,6 +30,10 @@
         <env name="MAIL_MAILER" value="array"/>
         <!-- Never call the real ID-check API from tests; tests that need a verdict fake the checker. -->
         <env name="ID_CHECK_ENABLED" value="false"/>
+        <!-- Older test fixtures use addresses all over the country; ServiceAreaTest turns the Laguna rule on itself. -->
+        <env name="SERVICE_AREA_PROVINCES" value=""/>
+        <!-- The older tests use one login for the whole site; PortalSessionTest turns per-portal logins on. -->
+        <env name="SESSION_PER_PORTAL" value="false"/>
         <env name="QUEUE_CONNECTION" value="sync"/>
         <env name="SESSION_DRIVER" value="array"/>
         <env name="PULSE_ENABLED" value="false"/>

@@ -41,10 +41,9 @@ class DashboardController extends Controller
             ->whereDate('delivered_at', today())
             ->count();
 
-        // Earnings come from the delivered records themselves.
-        $totalEarnings = (float) Delivery::where('courier_id', $courier->id)
-            ->where('status', 'delivered')
-            ->sum('delivery_fee');
+        // Same total as My Earnings: logistics-company jobs at the rider rates plus older courier jobs.
+        $rider = \App\Models\Rider::where('user_id', auth()->id())->where('application_status', 'approved')->first();
+        $totalEarnings = app(ProfitController::class)->totalEarned(app(\App\Services\RiderWallet::class), $rider, $courier);
 
         return view('courier.dashboard', compact(
             'courier', 'available', 'forPickup', 'forDelivery', 'todayDone', 'totalEarnings'
@@ -56,10 +55,27 @@ class DashboardController extends Controller
     {
         $user = auth()->user();
 
-        $notifications = $user->notifications()->latest()->get();
+        $notifications = $user->notifications()->latest()->paginate(30);
+        $unread = $user->notifications()->whereNull('read_at')->count();
 
-        $user->notifications()->whereNull('read_at')->update(['read_at' => now()]);
+        return view('courier.notifications', compact('notifications', 'unread'));
+    }
 
-        return view('courier.notifications', compact('notifications'));
+    /** Open one notification: it is marked read, then its page opens. Only the user's own. */
+    public function openNotification(int $id)
+    {
+        $note = auth()->user()->notifications()->findOrFail($id);
+        if ($note->isUnread()) {
+            $note->update(['read_at' => now()]);
+        }
+
+        return $note->link ? redirect($note->link) : redirect()->route('courier.notifications');
+    }
+
+    public function readAllNotifications()
+    {
+        auth()->user()->notifications()->whereNull('read_at')->update(['read_at' => now()]);
+
+        return back()->with('success', 'All notifications marked as read.');
     }
 }

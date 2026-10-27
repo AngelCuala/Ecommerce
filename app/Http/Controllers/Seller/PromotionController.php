@@ -25,6 +25,12 @@ class PromotionController extends Controller
     public function store(Request $request)
     {
         $own = Rule::exists('products', 'id')->where('seller_id', auth()->id())->whereNull('deleted_at');
+
+        // The form's times are Philippine time; the app stores UTC (as for vouchers). On a validation
+        // error the form gets back what was typed.
+        $typed = $request->only('starts_at', 'ends_at');
+        $request->merge(array_map(fn ($v) => \App\Support\VoucherRules::toUtc($v), $typed));
+        try {
         $data = $request->validate([
             'name'             => 'required|string|max:120',
             'type'             => ['required', Rule::in([Promotion::BUNDLE, Promotion::BXGY])],
@@ -45,6 +51,10 @@ class PromotionController extends Controller
             'free_product_id.required_if'  => 'Choose the free product.',
             'ends_at.after'                => 'The end must be in the future and after the start.',
         ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            $request->merge($typed);
+            throw $e;
+        }
 
         $promotion = Promotion::create([
             'seller_id'        => auth()->id(),

@@ -167,7 +167,7 @@ class SellerApiTest extends TestCase
         $waybill = $this->api('GET', "/orders/{$order->id}/waybill")->assertOk()->json('waybill');
         $this->assertSame('ALVY', substr($waybill['tracking'], 0, 4));
         $this->assertSame(['COD', 'Maria Clara Handicrafts'], [$waybill['payment_method'], $waybill['seller']['name']]);
-        $this->assertSame(500.0, (float) $waybill['cod']);
+        $this->assertSame(490.0, (float) $waybill['cod']);   // ₱450 + ₱40 same-city shipping
         $this->assertNotEmpty($waybill['seller']['phone']);
 
         $other = $this->placeOrder($this->buyer1, [$this->cart($this->buyer1, $this->p02)])->first();

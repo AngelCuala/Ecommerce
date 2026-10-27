@@ -16,7 +16,38 @@
     .co-addr:has(input:checked) { border-color:#fa4e1c; background:#FFF8F4; }
     .co-select { width:100%; border:1px solid #E6D9CF; border-radius:.5rem; padding:.45rem .6rem; font-size:.8125rem; background:#fff; }
     .co-row { display:flex; justify-content:space-between; gap:1rem; }
+    .co-row.hidden { display:none; }   /* zero discounts are hidden (checkout.js toggles this) */
     .co-off { color:#059669; }
+    /* Voucher pickers */
+    .vp-bar { display:flex; width:100%; align-items:center; gap:.6rem; border:1px solid #ECE7E3; border-radius:.6rem; background:#fff; padding:.6rem .75rem; text-align:left; transition:border-color .15s, background .15s; }
+    .vp-bar:hover:not(:disabled) { border-color:#F5C4B2; background:#FFFAF8; }
+    .vp-bar:disabled { cursor:default; opacity:.75; }
+    .vp-ico { display:flex; width:1.9rem; height:1.9rem; flex-shrink:0; align-items:center; justify-content:center; border-radius:.45rem; }
+    .vp-ico svg { width:1.05rem; height:1.05rem; }
+    .vp-ico-seller, .vp-ico-platform { background:#FFF1EB; color:#E0431A; }
+    .vp-ico-shipping { background:#E8F7F4; color:#0F9F8A; }
+    .vp-title { flex:1; font-size:.8125rem; font-weight:600; color:#222; }
+    .vp-state { font-size:.75rem; color:#a39890; white-space:nowrap; }
+    .vp-state.is-applied { border:1px solid #F5A88C; border-radius:.3rem; background:#FFF6F2; padding:.12rem .45rem; font-weight:700; color:#E0431A; }
+    .vp-chev { width:1rem; height:1rem; flex-shrink:0; color:#c4b8b0; }
+    .vp-modal { position:fixed; inset:0; z-index:70; display:flex; align-items:flex-end; justify-content:center; background:rgba(34,24,18,.5); }
+    @media (min-width:640px) { .vp-modal { align-items:center; padding:1.5rem; } }
+    .vp-modal.hidden { display:none; }
+    .vp-panel { display:flex; width:100%; max-width:34rem; max-height:85vh; flex-direction:column; overflow:hidden; border-radius:1rem 1rem 0 0; background:#F7F5F3; }
+    @media (min-width:640px) { .vp-panel { border-radius:1rem; } }
+    .vp-head { display:flex; align-items:center; justify-content:space-between; background:#fff; padding:.9rem 1.1rem; border-bottom:1px solid #ECE7E3; }
+    .vp-head h3 { font-family:'Nunito',ui-sans-serif,system-ui; font-size:1.05rem; font-weight:800; color:#222; }
+    .vp-x { font-size:1.6rem; line-height:1; color:#8a7f78; }
+    .vp-list { flex:1; overflow-y:auto; padding:.9rem 1.1rem; display:flex; flex-direction:column; gap:.6rem; }
+    .vp-none { display:flex; align-items:center; gap:.6rem; cursor:pointer; border:1px solid #ECE7E3; border-radius:.625rem; background:#fff; padding:.75rem .9rem; font-size:.8125rem; font-weight:600; color:#57534E; }
+    .vp-none input, .vp-radio { width:1.1rem; height:1.1rem; accent-color:#fa4e1c; }
+    .vp-item { display:block; cursor:pointer; }
+    .vp-item.is-blocked { cursor:not-allowed; }
+    .vp-item:has(input:checked) .vt, .vp-none:has(input:checked) { border-color:#fa4e1c; box-shadow:0 0 0 1px #fa4e1c; }
+    .vp-empty { font-size:.8125rem; color:#8a7f78; } .vp-empty a { color:#fa4e1c; font-weight:600; }
+    .vp-foot { display:flex; align-items:center; justify-content:space-between; gap:1rem; background:#fff; border-top:1px solid #ECE7E3; padding:.8rem 1.1rem; }
+    .vp-more { font-size:.8125rem; font-weight:600; color:#fa4e1c; } .vp-more:hover { text-decoration:underline; }
+    .vp-ok { min-width:6.5rem; border-radius:.5rem; background:#fa4e1c; padding:.55rem 1rem; font-size:.875rem; font-weight:700; color:#fff; } .vp-ok:hover { background:#e2400f; }
 </style>
 
 <div class="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
@@ -37,7 +68,7 @@
         </div>
     @endif
 
-    <form id="checkoutForm" action="{{ route('checkout.store') }}" method="POST" class="mt-6 grid gap-6 lg:grid-cols-[1fr_380px]"
+    <form id="checkoutForm" action="{{ route('checkout.store') }}" method="POST" enctype="multipart/form-data" class="mt-6 grid gap-6 lg:grid-cols-[1fr_380px]"
           data-preview-url="{{ route('checkout.preview') }}">
         @csrf
         <input type="hidden" name="checkout_token" value="{{ $token }}">
@@ -110,35 +141,33 @@
 
                     <div class="space-y-3 border-t px-5 py-4 text-sm" style="border-color:#F2EEEA;background:#FCFBFA;">
                         @if ($sellerId)
-                            <div class="grid gap-1 sm:grid-cols-[9rem_1fr] sm:items-center">
-                                <label class="text-xs font-semibold" style="color:#57534E;" for="sv-{{ $sellerId }}">Store voucher</label>
-                                <select id="sv-{{ $sellerId }}" name="seller_vouchers[{{ $sellerId }}]" class="co-select v-select" data-kind="seller">
-                                    <option value="">{{ count($storeVouchers) ? 'No store voucher' : 'No vouchers from this store' }}</option>
-                                    @foreach ($storeVouchers as $v)
-                                        <option value="{{ $v['code'] }}" @disabled($blocks($v)) @selected(($chosen['sellers'][$sellerId] ?? null) === $v['code'])>
-                                            {{ $optionText($v) }}{{ $v['reason'] ? ' — ' . $v['reason'] : '' }}
-                                        </option>
-                                    @endforeach
-                                    @if (($code = $chosen['sellers'][$sellerId] ?? null) && ! collect($storeVouchers)->contains('code', $code))
-                                        <option value="{{ $code }}" selected>{{ $code }}</option>
-                                    @endif
-                                </select>
+                            @include('checkout._voucher-picker', [
+                                'kind' => 'seller', 'id' => 'sv-' . $sellerId, 'name' => 'seller_vouchers[' . $sellerId . ']',
+                                'title' => 'Store voucher', 'options' => $storeVouchers, 'chosen' => $chosen['sellers'][$sellerId] ?? null,
+                                'where' => 'Only at ' . $group['name'], 'blocks' => $blocks,
+                            ])
+                        @endif
+                        <div>
+                            <label class="mb-1 flex items-center justify-between text-xs font-semibold" style="color:#57534E;" for="note-{{ $sellerId }}">
+                                <span>Message to seller <span class="font-normal" style="color:#a39890;">(optional)</span></span>
+                                <span class="font-normal" style="color:#a39890;" data-note-count>{{ mb_strlen(old('buyer_notes.' . $sellerId, '')) }}/200</span>
+                            </label>
+                            <input id="note-{{ $sellerId }}" type="text" name="buyer_notes[{{ $sellerId }}]" maxlength="200"
+                                   value="{{ old('buyer_notes.' . $sellerId) }}" class="co-select" placeholder="e.g. Paki-wrap po as gift"
+                                   oninput="this.previousElementSibling.querySelector('[data-note-count]').textContent = this.value.length + '/200'">
+                        </div>
+                        {{-- Always shown: the fee depends on how far the buyer is from this store. --}}
+                        <div class="co-row" style="color:#57534E;" data-store-shipping-row="{{ $sellerId }}">
+                            <span>Shipping <span class="text-xs" style="color:#a39890;" data-store-weight="{{ $sellerId }}">
+                                @if ($ship)· {{ $ship['route'] }} · {{ $ship['chargeable'] }} kg @endif</span></span>
+                            <span data-store-shipping="{{ $sellerId }}" @unless ($ship) style="color:#a39890;" @endunless>{{ $ship ? $peso($ship['fee']) : 'Select an address' }}</span>
+                        </div>
+                        @php $storePromo = $q['groups'][$sellerId] ?? null; @endphp
+                        @if ($storePromo && $storePromo['promo'] > 0)
+                            <div class="co-row co-off" data-store-promo-row="{{ $sellerId }}">
+                                <span>{{ implode(', ', $storePromo['promo_labels']) }}</span><span>−{{ $peso($storePromo['promo']) }}</span>
                             </div>
                         @endif
-                        <div class="grid gap-1 sm:grid-cols-[9rem_1fr] sm:items-center">
-                            <label class="text-xs font-semibold" style="color:#57534E;" for="note-{{ $sellerId }}">Note to seller</label>
-                            <div>
-                                <input id="note-{{ $sellerId }}" type="text" name="buyer_notes[{{ $sellerId }}]" maxlength="200"
-                                       value="{{ old('buyer_notes.' . $sellerId) }}" class="co-select" placeholder="Optional, e.g. Paki-wrap po as gift"
-                                       oninput="this.nextElementSibling.textContent = this.value.length + '/200'">
-                                <span class="mt-0.5 block text-right text-[10px]" style="color:#a39890;">0/200</span>
-                            </div>
-                        </div>
-                        <div class="co-row" style="color:#57534E;">
-                            <span>Shipping <span class="text-xs" style="color:#a39890;" data-store-weight="{{ $sellerId }}">
-                                @if ($ship)({{ rtrim(rtrim(number_format($ship['weight'], 2), '0'), '.') }} kg → {{ $ship['chargeable'] }} kg)@endif</span></span>
-                            <span data-store-shipping="{{ $sellerId }}">{{ $ship ? $peso($ship['fee']) : '—' }}</span>
-                        </div>
                         <div class="co-row co-off {{ ($q['seller_discounts'][$sellerId] ?? 0) > 0 ? '' : 'hidden' }}" data-store-discount-row="{{ $sellerId }}">
                             <span>Store voucher</span><span data-store-discount="{{ $sellerId }}">−{{ $peso($q['seller_discounts'][$sellerId] ?? 0) }}</span>
                         </div>
@@ -156,6 +185,65 @@
                         <span class="block text-xs" style="color:#8a7f78;">Pay in cash when each parcel arrives. No advance payment needed.</span>
                     </span>
                 </label>
+                @if ($gcashAccount)
+                    <label class="co-addr mb-2">
+                        <input type="radio" name="payment_method" value="gcash_receipt" class="mt-1 accent-orange-600" @checked(old('payment_method') === 'gcash_receipt') data-gcash-radio>
+                        <span class="text-sm">
+                            <span class="font-semibold" style="color:#222;">GCash</span>
+                            <span class="block text-xs" style="color:#8a7f78;">Send the total to our GCash, then upload a screenshot of the receipt. The seller checks it before shipping.</span>
+                        </span>
+                    </label>
+                    <div class="mb-2 hidden rounded-xl border p-4" style="border-color:#BFDBFE;background:#F5F9FF;" data-gcash-box>
+                        <div class="flex flex-wrap items-center gap-3">
+                            <span class="flex h-10 w-10 items-center justify-center rounded-xl font-display text-sm font-extrabold" style="color:#fff;background:#007DFE;" aria-hidden="true">G</span>
+                            <div class="min-w-0 flex-1 text-sm">
+                                <p style="color:#1E3A8A;">Send <strong data-gcash-amount>{{ $peso($q['total']) }}</strong> to</p>
+                                <p class="font-mono text-base font-bold" style="color:#0B2A5B;">{{ $gcashAccount['number'] }}
+                                    <button type="button" class="ml-1 rounded px-1.5 py-0.5 align-middle font-sans text-[11px] font-semibold" style="color:#007DFE;background:#E0EDFF;"
+                                            onclick="navigator.clipboard && navigator.clipboard.writeText('{{ $gcashAccount['number'] }}').then(() => { this.textContent = 'Copied'; setTimeout(() => this.textContent = 'Copy', 1500); })">Copy</button>
+                                </p>
+                                <p class="text-xs" style="color:#3B5B8C;">{{ $gcashAccount['name'] }}</p>
+                            </div>
+                        </div>
+                        <div class="mt-4 grid gap-3 sm:grid-cols-[1fr_200px]">
+                            <div>
+                                <label class="mb-1 block text-xs font-semibold" style="color:#1E3A8A;" for="payment_proof">Screenshot of the GCash receipt</label>
+                                <input type="file" id="payment_proof" name="payment_proof" accept="image/jpeg,image/png,image/webp" data-gcash-file
+                                       class="block w-full rounded-lg border bg-white px-3 py-2 text-xs" style="border-color:#BFDBFE;">
+                                <p class="mt-1 text-[11px]" style="color:#5B7BA8;">JPG, PNG or WebP, up to 5 MB. Make sure the amount and Ref No. are visible.</p>
+                                @error('payment_proof')<p class="mt-1 text-xs font-medium" style="color:#B91C1C;">{{ $message }}</p>@enderror
+                            </div>
+                            <div>
+                                <label class="mb-1 block text-xs font-semibold" style="color:#1E3A8A;" for="payment_reference">Ref No. <span class="font-normal">(optional)</span></label>
+                                <input type="text" id="payment_reference" name="payment_reference" value="{{ old('payment_reference') }}" inputmode="numeric" maxlength="20"
+                                       placeholder="e.g. 1012 345 678901" class="block w-full rounded-lg border bg-white px-3 py-2 text-sm" style="border-color:#BFDBFE;">
+                                @error('payment_reference')<p class="mt-1 text-xs font-medium" style="color:#B91C1C;">{{ $message }}</p>@enderror
+                            </div>
+                        </div>
+                        <img alt="Receipt preview" class="mt-3 hidden max-h-48 rounded-lg border" style="border-color:#BFDBFE;" data-gcash-preview>
+                    </div>
+                    <script>
+                    (function () {
+                        var box = document.querySelector('[data-gcash-box]'), file = document.querySelector('[data-gcash-file]');
+                        var preview = document.querySelector('[data-gcash-preview]'), amount = document.querySelector('[data-gcash-amount]');
+                        var total = document.querySelector('[data-total="total"]');
+                        function sync() {
+                            var on = document.querySelector('[data-gcash-radio]').checked;
+                            box.classList.toggle('hidden', !on);
+                            file.required = on;   // the receipt is needed only for GCash
+                        }
+                        document.querySelectorAll('input[name="payment_method"]').forEach(function (r) { r.addEventListener('change', sync); });
+                        file.addEventListener('change', function () {
+                            var f = file.files && file.files[0];
+                            if (!f) { preview.classList.add('hidden'); return; }
+                            preview.src = URL.createObjectURL(f); preview.classList.remove('hidden');
+                        });
+                        // The amount to send follows the order total (vouchers, address changes).
+                        if (total) new MutationObserver(function () { amount.textContent = total.textContent; }).observe(total, { childList: true, characterData: true, subtree: true });
+                        sync();
+                    })();
+                    </script>
+                @endif
                 @foreach ($paymentMethods as $code => $label)
                     <label class="co-addr mb-2">
                         <input type="radio" name="payment_method" value="{{ $code }}" class="mt-1 accent-orange-600" @checked(old('payment_method') === $code)>
@@ -175,7 +263,7 @@
         <aside class="lg:sticky lg:top-24 lg:self-start">
             <div class="co-card overflow-hidden">
                 <div class="px-5 py-4" style="background:#002b4d;">
-                    <h2 class="font-display text-lg font-extrabold text-white">Order summary</h2>
+                    <h2 class="font-display text-lg font-extrabold" style="color:#fff;">Order summary</h2>
                 </div>
                 <div class="space-y-4 p-5">
 
@@ -195,31 +283,16 @@
                             @endforeach
                         </div>
 
-                        <label class="block text-xs font-semibold" style="color:#57534E;" for="platformVoucher">ALVY voucher</label>
-                        <select id="platformVoucher" name="platform_voucher" class="co-select v-select" data-kind="platform">
-                            <option value="">{{ count($vouchers['platform']) ? 'No ALVY voucher' : 'No ALVY vouchers right now' }}</option>
-                            @foreach ($vouchers['platform'] as $v)
-                                <option value="{{ $v['code'] }}" @disabled($blocks($v)) @selected($chosen['platform'] === $v['code'])>
-                                    {{ $optionText($v) }}{{ $blocks($v) ? ' — ' . $v['reason'] : '' }}
-                                </option>
-                            @endforeach
-                            @if ($chosen['platform'] && ! collect($vouchers['platform'])->contains('code', $chosen['platform']))
-                                <option value="{{ $chosen['platform'] }}" selected>{{ $chosen['platform'] }}</option>
-                            @endif
-                        </select>
-
-                        <label class="block text-xs font-semibold" style="color:#57534E;" for="shippingVoucher">Shipping voucher</label>
-                        <select id="shippingVoucher" name="shipping_voucher" class="co-select v-select" data-kind="shipping">
-                            <option value="">{{ count($vouchers['shipping']) ? 'No shipping voucher' : 'No shipping vouchers right now' }}</option>
-                            @foreach ($vouchers['shipping'] as $v)
-                                <option value="{{ $v['code'] }}" @disabled($blocks($v)) @selected($chosen['shipping'] === $v['code'])>
-                                    {{ $optionText($v) }}{{ $blocks($v) ? ' — ' . $v['reason'] : '' }}
-                                </option>
-                            @endforeach
-                            @if ($chosen['shipping'] && ! collect($vouchers['shipping'])->contains('code', $chosen['shipping']))
-                                <option value="{{ $chosen['shipping'] }}" selected>{{ $chosen['shipping'] }}</option>
-                            @endif
-                        </select>
+                        @include('checkout._voucher-picker', [
+                            'kind' => 'platform', 'id' => 'platformVoucher', 'name' => 'platform_voucher',
+                            'title' => 'ALVY discount voucher', 'options' => $vouchers['platform'], 'chosen' => $chosen['platform'],
+                            'where' => 'All stores', 'blocks' => $blocks,
+                        ])
+                        @include('checkout._voucher-picker', [
+                            'kind' => 'shipping', 'id' => 'shippingVoucher', 'name' => 'shipping_voucher',
+                            'title' => 'Free shipping voucher', 'options' => $vouchers['shipping'], 'chosen' => $chosen['shipping'],
+                            'where' => 'Any order', 'blocks' => $blocks,
+                        ])
 
                         <div class="flex gap-2 pt-1">
                             <input type="text" id="voucherCode" maxlength="30" placeholder="Have a code?" class="co-select uppercase" autocomplete="off">
@@ -232,7 +305,7 @@
                     <div class="space-y-1.5 border-t pt-4 text-sm" style="border-color:#F2EEEA;color:#57534E;">
                         <div class="co-row"><span>Merchandise subtotal</span><span data-total="subtotal">{{ $peso($q['merchandise']) }}</span></div>
                         <div class="co-row co-off {{ $q['promo_discount'] > 0 ? '' : 'hidden' }}" data-row="promo_discount"><span>Bundle deals &amp; promos</span><span data-total="promo_discount">−{{ $peso($q['promo_discount']) }}</span></div>
-                        <div class="co-row"><span>Shipping</span><span data-total="shipping_total">{{ $summary['unserviceable'] ? '—' : $peso($q['shipping_total']) }}</span></div>
+                        <div class="co-row" data-row="shipping_total"><span>Shipping</span><span data-total="shipping_total" @if ($summary['unserviceable']) style="color:#a39890;" @endif>{{ $summary['unserviceable'] ? 'Select an address' : $peso($q['shipping_total']) }}</span></div>
                         <div class="co-row co-off {{ $q['seller_discount'] > 0 ? '' : 'hidden' }}" data-row="seller_discount"><span>Store vouchers</span><span data-total="seller_discount">−{{ $peso($q['seller_discount']) }}</span></div>
                         <div class="co-row co-off {{ $q['platform_discount'] > 0 ? '' : 'hidden' }}" data-row="platform_discount"><span>ALVY voucher</span><span data-total="platform_discount">−{{ $peso($q['platform_discount']) }}</span></div>
                         <div class="co-row co-off {{ $q['shipping_discount'] > 0 ? '' : 'hidden' }}" data-row="shipping_discount"><span>Shipping voucher</span><span data-total="shipping_discount">−{{ $peso($q['shipping_discount']) }}</span></div>
@@ -254,5 +327,6 @@
     </form>
 </div>
 
-<script src="{{ asset('js/checkout.js') }}?v=3"></script>
+<script src="{{ asset('js/checkout.js') }}?v=6"></script>
+<script src="{{ asset('js/voucher-picker.js') }}?v=2"></script>
 </x-layout>

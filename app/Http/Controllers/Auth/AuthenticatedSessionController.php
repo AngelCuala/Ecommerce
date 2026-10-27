@@ -108,6 +108,11 @@ class AuthenticatedSessionController extends Controller
             throw ValidationException::withMessages(['email' => \App\Models\SortingCenterApplication::loginRefusal($user)]);
         }
 
+        // Buyers don't need admin approval: one still marked pending (signed up before that changed) is let in.
+        if ($user->isPending() && $user->isBuyer()) {
+            $user->forceFill(['approval_status' => 'approved'])->save();
+        }
+
         // Block accounts pending admin approval or rejected
         if ($user->isPending()) {
             Auth::guard('web')->logout();
@@ -137,8 +142,8 @@ class AuthenticatedSessionController extends Controller
         $request->session()->put('otp.user_id', $user->id);
         $request->session()->put('otp.remember', $request->boolean('remember'));
 
-        if (! $otp->hasActiveCode($user) || $otp->cooldownRemaining($user) === 0) {
-            $otp->send($user);
+        if ((! $otp->hasActiveCode($user) || $otp->cooldownRemaining($user) === 0) && ! $otp->trySend($user)) {
+            return redirect()->route('otp.show')->withErrors(['otp' => LoginOtp::SEND_FAILED]);
         }
 
         return redirect()->route('otp.show')
@@ -279,15 +284,15 @@ class AuthenticatedSessionController extends Controller
      */
     public function finishSignup(Request $request, User $user, bool $remember = false, string $verified = 'Email verified!')
     {
-        if ($user->role === 'buyer') {
-            $user->forceFill(['approval_status' => 'approved'])->save();
+        // Buyers can shop right away; other accounts go to the approval queue.
+        $user->forceFill(['approval_status' => $user->isBuyer() ? 'approved' : 'pending'])->save();
+
+        if ($user->isBuyer()) {
             Auth::login($user, $remember);
             $request->session()->regenerate();
 
-            return redirect()->route('home')->with('success', $verified . ' Welcome to ALVY, ' . ($user->first_name ?: $user->name) . '!');
+            return $this->completeLogin($request, $user)->with('success', $verified . ' Welcome to ALVY, ' . ($user->first_name ?: $user->name) . '!');
         }
-
-        $user->forceFill(['approval_status' => 'pending'])->save();
 
         // Sellers can watch their application on the status page.
         if ($user->isSeller()) {
@@ -335,7 +340,9 @@ class AuthenticatedSessionController extends Controller
                 ->withErrors(['otp' => "Please wait {$wait} seconds before requesting a new code."]);
         }
 
-        $otp->send($user);
+        if (! $otp->trySend($user)) {
+            return redirect()->route('otp.show')->withErrors(['otp' => LoginOtp::SEND_FAILED]);
+        }
 
         return redirect()->route('otp.show')
             ->with('success', 'A new code was sent to ' . $this->maskEmail($user->email) . '. Your previous code no longer works.');
@@ -355,7 +362,7 @@ class AuthenticatedSessionController extends Controller
 
         // Add cache control headers to prevent accessing cached dashboard pages
         return response()
-            ->redirectTo('/')
+            ->redirectTo(\App\Support\Portal::current() === \App\Support\Portal::SHOP ? '/' : \App\Support\Portal::loginUrl())
             ->with('success', 'You have been signed out.')
             ->header('Cache-Control', 'no-cache, no-store, max-age=0, must-revalidate')
             ->header('Pragma', 'no-cache')

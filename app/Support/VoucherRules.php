@@ -14,6 +14,41 @@ class VoucherRules
         // Codes are case-insensitive; store them in upper case.
         $request->merge(['code' => strtoupper(trim((string) $request->input('code')))]);
 
+        // The form's times are Philippine time; the app stores UTC. Convert first so every check below
+        // ("after:now", locked-field comparisons) and the saved value use UTC. On a validation error the
+        // form gets back what was typed.
+        $typed = $request->only('starts_at', 'ends_at');
+        $request->merge(array_map(fn ($v) => self::toUtc($v), $typed));
+        try {
+            return self::check($request, $voucher, $sellerId);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            $request->merge($typed);
+            throw $e;
+        }
+    }
+
+    /** A datetime-local value typed in business time, as a UTC string (unparseable values pass through to validation). Also used for promotions. */
+    public static function toUtc($value)
+    {
+        if (! is_string($value) || trim($value) === '') {
+            return $value;
+        }
+        try {
+            return \Carbon\Carbon::parse($value, config('app.business_timezone'))->utc()->format('Y-m-d H:i:s');
+        } catch (\Throwable $e) {
+            return $value;
+        }
+    }
+
+    /** A stored UTC time as a datetime-local value in business time, for the form. */
+    public static function forInput($at): ?string
+    {
+        return $at ? $at->copy()->tz(config('app.business_timezone'))->format('Y-m-d\TH:i') : null;
+    }
+
+    private static function check(Request $request, ?Voucher $voucher, ?int $sellerId): array
+    {
+
         // A27: once any buyer has claimed (or used) it, only the end date and usage limit can change.
         $locked = $voucher && ($voucher->used_count > 0 || $voucher->claims()->exists());
 

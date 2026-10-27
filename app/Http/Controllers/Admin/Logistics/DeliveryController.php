@@ -47,19 +47,24 @@ class DeliveryController extends Controller
             return back()->with('error', "{$rider->full_name} works for another logistics company than the one holding this parcel.");
         }
 
-        ParcelDelivery::create(app(\App\Services\RiderDispatch::class)->deliveryJob($parcel) + [
-            'parcel_id'   => $parcel->id,
-            'rider_id'    => $rider->id,
-            'area_id'     => $parcel->area_id,
-            'assigned_by' => auth()->id(),
-            'status'      => 'assigned',
-        ]);
+        $notice = \Illuminate\Support\Facades\DB::transaction(function () use ($parcel, $rider) {
+            $job = ParcelDelivery::create(app(\App\Services\RiderDispatch::class)->deliveryJob($parcel) + [
+                'parcel_id'   => $parcel->id,
+                'rider_id'    => $rider->id,
+                'area_id'     => $parcel->area_id,
+                'assigned_by' => auth()->id(),
+                'status'      => 'assigned',
+            ]);
+            $parcel->update(['status' => 'assigned']);
 
-        $parcel->update(['status' => 'assigned']);
+            return app(\App\Services\RiderNotifier::class)->assigned($parcel->fresh(), $rider, \App\Models\RiderJobOffer::DELIVERY, $job->id);
+        });
+
         app(\App\Services\ParcelService::class)->syncOrder($parcel->fresh());
         \App\Models\ActivityLog::note($parcel->tracking_number . ' delivery assigned to ' . $rider->full_name, $parcel);
 
-        return back()->with('success', "{$parcel->tracking_number} assigned to {$rider->full_name}.");
+        return back()->with('success', "{$parcel->tracking_number} assigned to {$rider->full_name}."
+            . ($notice ? ' The rider was notified.' : ' The rider could not be notified in the app; please tell them directly.'));
     }
 
     public function monitor(Request $request)

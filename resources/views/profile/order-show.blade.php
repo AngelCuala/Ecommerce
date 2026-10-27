@@ -1,5 +1,8 @@
 <x-layout :title="'Order ' . $order->number() . ' — ALVY'">
+@include('profile._styles')
 @php
+    $riderDelivery = \App\Models\ParcelDelivery::whereHas('parcel', fn ($q) => $q->where('order_id', $order->id))
+        ->whereIn('status', ['out_for_delivery', 'delivered'])->with('rider')->latest('id')->first();
     $c = $order->statusColor();
     $return = $order->returnRequests->first();
     $eventLabel = fn ($status) => match ($status) {
@@ -25,8 +28,6 @@
     </div>
     <p class="text-sm pf-muted">{{ $order->seller?->storeName() ?? 'ALVY' }} · placed {{ $order->created_at->format('M j, Y g:i A') }}</p>
 
-    @if (session('success'))<div class="pf-alert pf-alert-success mt-4">{{ session('success') }}</div>@endif
-    @if (session('error'))<div class="pf-alert pf-alert-error mt-4">{{ session('error') }}</div>@endif
     @if ($errors->any())
         <div class="pf-alert pf-alert-error mt-4"><ul class="list-inside list-disc">@foreach ($errors->all() as $e)<li>{{ $e }}</li>@endforeach</ul></div>
     @endif
@@ -54,9 +55,122 @@
     <div class="mt-5 grid gap-5 lg:grid-cols-[1fr_320px]">
         <div class="space-y-5">
 
+            {{-- Rider delivery: the OTP to give the rider, then the proof of delivery --}}
+            @if ($riderDelivery && $riderDelivery->status === 'out_for_delivery')
+                @php $rider = $riderDelivery->rider; $cod = (float) $riderDelivery->cod_amount; @endphp
+                <section class="pf-card overflow-hidden" data-delivery-otp>
+                    <div class="flex flex-wrap items-center gap-3 border-b px-5 py-4" style="border-color:#F0E4DC;background:linear-gradient(90deg,#FFF1EA 0,#FFFFFF 85%);">
+                        <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-white" style="background:#fa4e1c;" aria-hidden="true">
+                            <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 7h11v9H3zM14 10h4l3 3v3h-7M7.5 19a1.5 1.5 0 100-3 1.5 1.5 0 000 3zM17.5 19a1.5 1.5 0 100-3 1.5 1.5 0 000 3z"/></svg>
+                        </span>
+                        <div class="min-w-0 flex-1">
+                            <h2 class="text-base font-bold" style="color:#222;">Out for delivery</h2>
+                            <p class="text-sm" style="color:#57534E;">
+                                <strong style="color:#222;">{{ $rider->full_name ?? 'Your rider' }}</strong> is bringing your parcel
+                                @if ($rider && ($rider->vehicle_type || $rider->plate_number))
+                                    <span class="pf-muted">· {{ trim(($rider->vehicle_type ?? '') . ' ' . ($rider->plate_number ?? '')) }}</span>
+                                @endif
+                            </p>
+                        </div>
+                        <span class="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold" style="background:#FFF7ED;color:#C2410C;">
+                            <span class="relative flex h-2 w-2"><span class="absolute inline-flex h-full w-full animate-ping rounded-full opacity-60" style="background:#fa4e1c;"></span><span class="relative inline-flex h-2 w-2 rounded-full" style="background:#fa4e1c;"></span></span>
+                            On the way
+                        </span>
+                    </div>
+
+                    <div class="grid gap-5 px-5 py-5 sm:grid-cols-[auto_1fr] sm:items-center sm:gap-8">
+                        <div>
+                            <p class="pf-label">Your delivery code</p>
+                            <div class="flex gap-1.5" aria-hidden="true">
+                                @foreach (str_split((string) $riderDelivery->otp_code) as $digit)
+                                    <span class="flex h-14 w-11 items-center justify-center rounded-xl border-2 font-display text-2xl font-extrabold tabular-nums"
+                                          style="border-color:#FBD5C5;background:#FFF7F3;color:#fa4e1c;">{{ $digit }}</span>
+                                @endforeach
+                            </div>
+                            <span class="sr-only">Your delivery code is {{ $riderDelivery->otp_code }}</span>
+                        </div>
+                        <ul class="space-y-2 text-sm" style="color:#57534E;">
+                            @foreach (['Give it to the rider only when the parcel is in your hands.', 'The rider enters it to confirm the delivery.', 'ALVY and riders never ask for it by call, text or chat.'] as $tip)
+                                <li class="flex gap-2">
+                                    <svg class="mt-0.5 h-4 w-4 shrink-0" style="color:#059669;" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                                    <span>{{ $tip }}</span>
+                                </li>
+                            @endforeach
+                        </ul>
+                    </div>
+
+                    @if ($cod > 0)
+                        <div class="flex flex-wrap items-center justify-between gap-2 border-t px-5 py-3" style="background:#FFFBEB;border-color:#FDE68A;" data-cod-due>
+                            <p class="flex items-center gap-2 text-sm" style="color:#92400E;">
+                                <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/></svg>
+                                Cash on delivery · please prepare the exact amount
+                            </p>
+                            <p class="font-display text-lg font-extrabold" style="color:#92400E;">₱{{ number_format($cod, 2) }}</p>
+                        </div>
+                    @endif
+                </section>
+            @elseif ($riderDelivery && $riderDelivery->status === 'delivered' && $riderDelivery->pod_path)
+                @php $podUrl = \App\Support\Portal::route('shipments.pod', $order); @endphp
+                <section class="pf-card overflow-hidden" data-proof-of-delivery>
+                    <div class="flex flex-wrap items-center gap-3 border-b px-5 py-4" style="border-color:#D1FAE5;background:linear-gradient(90deg,#ECFDF5 0,#FFFFFF 85%);">
+                        <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-white" style="background:#059669;box-shadow:0 0 0 5px #D1FAE5;" aria-hidden="true">
+                            <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2.6" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                        </span>
+                        <div class="min-w-0 flex-1">
+                            <h2 class="text-base font-bold" style="color:#222;">Delivered</h2>
+                            <p class="text-sm pf-muted">Your parcel was handed over {{ $riderDelivery->delivered_at?->diffForHumans() }}.</p>
+                        </div>
+                        @if ($order->status === \App\Models\Order::COMPLETED)
+                            <span class="rounded-full px-3 py-1 text-xs font-semibold" style="background:#ECFDF5;color:#047857;">Order completed</span>
+                        @endif
+                    </div>
+
+                    <div class="grid gap-5 px-5 py-5 sm:grid-cols-[1fr_auto] sm:items-start">
+                        <div>
+                            <dl class="grid gap-3 sm:grid-cols-2">
+                                <div class="rounded-xl p-3" style="background:#FAF7F5;">
+                                    <dt class="text-[11px] font-semibold uppercase tracking-wide pf-muted">Delivered on</dt>
+                                    <dd class="mt-1 text-sm font-semibold" style="color:#222;">{{ $riderDelivery->delivered_at?->format('M j, Y') }}<span class="block text-xs font-normal pf-muted">{{ $riderDelivery->delivered_at?->format('g:i A') }}</span></dd>
+                                </div>
+                                <div class="rounded-xl p-3" style="background:#FAF7F5;">
+                                    <dt class="text-[11px] font-semibold uppercase tracking-wide pf-muted">Delivered by</dt>
+                                    <dd class="mt-1 text-sm font-semibold" style="color:#222;">{{ $riderDelivery->rider->full_name ?? 'ALVY rider' }}<span class="block text-xs font-normal pf-muted">{{ $riderDelivery->rider?->sortingCenter ? \App\Support\SortingCenters::displayName($riderDelivery->rider->sortingCenter) : 'ALVY logistics' }}</span></dd>
+                                </div>
+                                @if ((float) $riderDelivery->cod_collected > 0)
+                                    <div class="rounded-xl p-3 sm:col-span-2" style="background:#FAF7F5;">
+                                        <dt class="text-[11px] font-semibold uppercase tracking-wide pf-muted">Cash paid to the rider</dt>
+                                        <dd class="mt-1 text-sm font-semibold" style="color:#222;">₱{{ number_format($riderDelivery->cod_collected, 2) }}</dd>
+                                    </div>
+                                @endif
+                            </dl>
+
+                            @if ($order->canConfirmReceived())
+                                <div class="mt-4 rounded-xl border p-3.5 text-sm" style="border-color:#FBD5C5;background:#FFF7F3;color:#57534E;">
+                                    <p class="font-semibold" style="color:#222;">Got everything in good condition?</p>
+                                    <p class="mt-0.5 text-xs">Tap <strong>Order Received</strong> to complete the order. Something wrong? You can request a return until {{ $order->returnDeadline()?->format('M j, Y') }}.</p>
+                                </div>
+                            @elseif ($order->reviewWindowOpen() && $order->items->contains(fn ($i) => ! $i->review))
+                                <p class="mt-4 text-xs pf-muted">Enjoying it? <a href="#rate" class="font-semibold" style="color:#fa4e1c;">Rate your items</a> to help other buyers.</p>
+                            @endif
+                        </div>
+
+                        <figure class="sm:w-48">
+                            <a href="{{ $podUrl }}" target="_blank" rel="noopener" class="group relative block overflow-hidden rounded-xl border" style="border-color:#F0E4DC;" title="Open the full photo">
+                                <img src="{{ $podUrl }}" alt="Proof of delivery" class="h-48 w-full object-cover transition duration-200 group-hover:scale-[1.03]">
+                                <span class="absolute inset-x-0 bottom-0 flex items-center justify-center gap-1.5 py-1.5 text-[11px] font-semibold text-white" style="background:linear-gradient(0deg,rgba(0,0,0,.55),transparent);">
+                                    <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
+                                    View full photo
+                                </span>
+                            </a>
+                            <figcaption class="mt-1.5 text-center text-[11px] pf-muted">Proof of delivery · taken by the rider</figcaption>
+                        </figure>
+                    </div>
+                </section>
+            @endif
+
             {{-- Items (+ rating) --}}
             <section class="pf-card overflow-hidden" id="rate">
-                <h2 class="border-b px-5 py-3 text-sm font-bold" style="border-color:#F0E4DC;color:#222;">Items</h2>
+                <h2 class="border-b px-5 py-3.5 text-sm font-bold" style="border-color:#F0E4DC;color:#222;">Items <span class="font-normal pf-muted">· {{ $order->items->sum('quantity') }}</span></h2>
                 @foreach ($order->items as $item)
                     <div class="border-b px-5 py-4 last:border-b-0" style="border-color:#F7F3F0;">
                         <div class="flex items-center gap-3">
@@ -97,24 +211,8 @@
                 @endforeach
             </section>
 
-            {{-- Rider delivery: the OTP to give the rider, then the proof of delivery --}}
-            @php
-                $riderDelivery = \App\Models\ParcelDelivery::whereHas('parcel', fn ($q) => $q->where('order_id', $order->id))
-                    ->whereIn('status', ['out_for_delivery', 'delivered'])->with('rider')->latest('id')->first();
-            @endphp
-            @if ($riderDelivery && $riderDelivery->status === 'out_for_delivery')
-                <section class="pf-card p-5" data-delivery-otp>
-                    <h2 class="text-sm font-bold" style="color:#222;">Out for delivery</h2>
-                    <p class="mt-1 text-sm" style="color:#57534E;">Rider {{ $riderDelivery->rider->full_name ?? '' }} is on the way. Give this code to the rider when you receive your parcel:</p>
-                    <p class="mt-2 font-display text-3xl font-extrabold tracking-[.3em]" style="color:#fa4e1c;">{{ $riderDelivery->otp_code }}</p>
-                    @if ((float) $riderDelivery->cod_amount > 0)<p class="mt-1 text-xs" style="color:#8a7f78;">Cash on delivery: ₱{{ number_format($riderDelivery->cod_amount, 2) }}</p>@endif
-                </section>
-            @elseif ($riderDelivery && $riderDelivery->status === 'delivered' && $riderDelivery->pod_path)
-                <section class="pf-card p-5" data-proof-of-delivery>
-                    <h2 class="text-sm font-bold" style="color:#222;">Delivered {{ $riderDelivery->delivered_at?->format('M j, Y g:i A') }}</h2>
-                    <img src="{{ asset('storage/' . $riderDelivery->pod_path) }}" alt="Proof of delivery" class="mt-2 h-32 rounded-md object-cover">
-                </section>
-            @endif
+            {{-- Shipment tracking (verified logistics events) --}}
+            @include('shipment._tracking', ['track' => \App\Support\ShipmentProgress::for($order)])
 
             {{-- Timeline --}}
             <section class="pf-card p-5">
@@ -190,28 +288,74 @@
 
         {{-- Summary + actions --}}
         <aside class="space-y-5">
-            <section class="pf-card p-5 text-sm">
-                <h2 class="mb-2 font-bold" style="color:#222;">Payment</h2>
-                <dl class="space-y-1" style="color:#57534E;">
-                    <div class="flex justify-between"><dt>Merchandise</dt><dd>₱{{ number_format($order->subtotal, 2) }}</dd></div>
-                    <div class="flex justify-between"><dt>Shipping{{ $order->shipping_weight_kg ? ' (' . (float) $order->shipping_weight_kg . ' kg)' : '' }}</dt><dd>₱{{ number_format($order->shipping_fee, 2) }}</dd></div>
-                    @if ($order->promo_discount > 0)<div class="flex justify-between" style="color:#059669;"><dt>Bundle deals &amp; promos</dt><dd>−₱{{ number_format($order->promo_discount, 2) }}</dd></div>@endif
-                    @if ($order->seller_discount > 0)<div class="flex justify-between" style="color:#059669;"><dt>Store voucher</dt><dd>−₱{{ number_format($order->seller_discount, 2) }}</dd></div>@endif
-                    @if ($order->platform_discount > 0)<div class="flex justify-between" style="color:#059669;"><dt>ALVY voucher {{ $order->platformVoucher?->code }}</dt><dd>−₱{{ number_format($order->platform_discount, 2) }}</dd></div>@endif
-                    @if ($order->shipping_discount > 0)<div class="flex justify-between" style="color:#059669;"><dt>Shipping voucher {{ $order->shippingVoucher?->code }}</dt><dd>−₱{{ number_format($order->shipping_discount, 2) }}</dd></div>@endif
-                    <div class="flex justify-between border-t pt-2 font-semibold" style="border-color:#F0E4DC;color:#222;"><dt>Total</dt><dd style="color:#fa4e1c;">₱{{ number_format($order->total_price, 2) }}</dd></div>
-                    <div class="flex justify-between text-xs"><dt>Method</dt><dd>{{ $order->payment_method }} · {{ $order->payment_status }}</dd></div>
-                    @if ((float) $order->refunded_amount > 0)
-                        <div class="flex justify-between text-xs" style="color:#047857;"><dt>Refunded</dt><dd>₱{{ number_format($order->refunded_amount, 2) }}</dd></div>
-                    @endif
+            @php
+                $methodLabel = $order->paymentMethodLabel();
+                $paid = $order->payment_status === 'Paid';
+                $line = fn ($label, $amount, $green = false) => '<div class="flex justify-between gap-3' . ($green ? '" style="color:#059669;' : '') . '"><dt>' . e($label) . '</dt><dd class="tabular-nums">' . ($green ? '−' : '') . '₱' . number_format((float) $amount, 2) . '</dd></div>';
+                // Street = address_line without the barangay / city / province / region / ZIP it repeats.
+                $known = collect([$order->barangay, $order->city, $order->province, $order->region, $order->zip_code])->filter()->map(fn ($p) => mb_strtolower(trim($p)));
+                $street = collect(explode(',', (string) $order->address_line))->map(fn ($p) => trim($p))->filter(fn ($p) => $p !== '' && ! $known->contains(mb_strtolower($p)))->implode(', ');
+                $areaLine = collect([$order->barangay, $order->city, $order->province])->filter()->implode(', ');
+                $regionLine = collect([$order->region, $order->zip_code])->filter()->implode(' · ');
+            @endphp
+            <section class="pf-card overflow-hidden text-sm">
+                <div class="flex items-center justify-between gap-2 border-b px-5 py-3.5" style="border-color:#F0E4DC;">
+                    <h2 class="flex items-center gap-2 font-bold" style="color:#222;">
+                        <svg class="h-4 w-4" style="color:#fa4e1c;" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 14l2 2 4-4M7 3h10a2 2 0 012 2v16l-3-2-2 2-2-2-2 2-2-2-3 2V5a2 2 0 012-2z"/></svg>
+                        Payment
+                    </h2>
+                    <span class="rounded-full px-2.5 py-0.5 text-[11px] font-bold" style="{{ $paid ? 'background:#ECFDF5;color:#047857;' : ($order->payment_status === 'For verification' ? 'background:#FFFBEB;color:#B45309;' : 'background:#FFF7ED;color:#C2410C;') }}">{{ $order->payment_status }}</span>
+                </div>
+                <dl class="space-y-1.5 px-5 py-4" style="color:#57534E;">
+                    {!! $line('Merchandise', $order->subtotal) !!}
+                    {!! $line('Shipping' . ($order->shipping_weight_kg ? ' (' . (float) $order->shipping_weight_kg . ' kg)' : ''), $order->shipping_fee) !!}
+                    @if ($order->promo_discount > 0){!! $line('Bundle deals & promos', $order->promo_discount, true) !!}@endif
+                    @if ($order->seller_discount > 0){!! $line('Store voucher', $order->seller_discount, true) !!}@endif
+                    @if ($order->platform_discount > 0){!! $line('ALVY voucher ' . $order->platformVoucher?->code, $order->platform_discount, true) !!}@endif
+                    @if ($order->shipping_discount > 0){!! $line('Shipping voucher ' . $order->shippingVoucher?->code, $order->shipping_discount, true) !!}@endif
                 </dl>
+                <div class="border-t border-dashed px-5 py-3.5" style="border-color:#E6D9CF;background:#FFFBF9;">
+                    <div class="flex items-baseline justify-between gap-3">
+                        <span class="font-bold" style="color:#222;">Total</span>
+                        <span class="font-display text-xl font-extrabold tabular-nums" style="color:#fa4e1c;">₱{{ number_format($order->total_price, 2) }}</span>
+                    </div>
+                    <div class="mt-1 flex justify-between text-xs pf-muted"><span>Method</span><span>{{ $methodLabel }} · {{ $order->payment_status }}</span></div>
+                    @if ((float) $order->refunded_amount > 0)
+                        <div class="mt-1 flex justify-between text-xs font-semibold" style="color:#047857;"><span>Refunded</span><span>₱{{ number_format($order->refunded_amount, 2) }}</span></div>
+                    @endif
+                    @if ($order->isGcashReceipt())
+                        <div class="mt-3 flex items-center justify-between gap-2 rounded-lg px-3 py-2 text-xs" style="background:#F5F9FF;color:#1E3A8A;" data-gcash-receipt>
+                            <span>{{ $order->payment_reference ? 'Ref No. ' . $order->payment_reference : 'GCash receipt' }}
+                                @if ($order->payment_status === 'For verification')<span class="block" style="color:#5B7BA8;">The seller is checking your payment.</span>@endif
+                            </span>
+                            @if ($order->payment_proof_path)<a href="{{ \App\Support\Portal::route('orders.payment-proof', $order) }}" target="_blank" rel="noopener" class="shrink-0 font-semibold hover:underline" style="color:#007DFE;">View your GCash receipt</a>@endif
+                        </div>
+                    @endif
+                </div>
             </section>
 
             <section class="pf-card p-5 text-sm">
-                <h2 class="mb-2 font-bold" style="color:#222;">Deliver to</h2>
-                <p style="color:#222;">{{ $order->full_name }} · {{ $order->phone }}</p>
-                <p class="pf-muted">{{ $order->fullAddress() }}</p>
-                @if ($order->buyer_note)<p class="mt-2 text-xs"><strong>Your note:</strong> {{ $order->buyer_note }}</p>@endif
+                <h2 class="mb-3 flex items-center gap-2 font-bold" style="color:#222;">
+                    <svg class="h-4 w-4" style="color:#fa4e1c;" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                    Deliver to
+                </h2>
+                <p class="font-semibold" style="color:#222;">{{ $order->full_name }}</p>
+                <p class="mt-0.5 flex items-center gap-1.5 text-xs pf-muted">
+                    <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.13.96.36 1.9.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0122 16.92z"/></svg>
+                    {{ $order->phone }}
+                </p>
+                <div class="mt-3 border-l-2 pl-3 leading-relaxed" style="border-color:#FBD5C5;" title="{{ $order->fullAddress() }}">
+                    @if ($street !== '' && $areaLine !== '')
+                        <p class="font-semibold" style="color:#222;">{{ $street }}</p>
+                        <p class="pf-text">{{ $areaLine }}</p>
+                        @if ($regionLine)<p class="text-xs pf-muted">{{ $regionLine }}</p>@endif
+                    @else
+                        <p class="pf-text">{{ $order->fullAddress() }}</p>
+                    @endif
+                </div>
+                @if ($order->buyer_note)
+                    <p class="mt-3 rounded-lg px-3 py-2 text-xs" style="background:#FAF7F5;color:#57534E;"><strong>Your note:</strong> {{ $order->buyer_note }}</p>
+                @endif
             </section>
 
             @if ($order->canConfirmReceived())
@@ -238,9 +382,16 @@
             @endif
 
             @if ($order->seller_id)
-                <form action="{{ route('messages.new') }}" method="POST">@csrf
+                <form action="{{ \App\Support\Portal::route('messages.new') }}" method="POST" class="pf-card">@csrf
                     <input type="hidden" name="receiver_id" value="{{ $order->seller_id }}">
-                    <button class="pf-btn-ghost w-full rounded-lg border py-2 text-sm font-semibold" style="border-color:#E7E5E4;">Message the seller</button>
+                    <button class="flex w-full items-center gap-3 rounded-[1.25rem] px-4 py-3.5 text-left transition hover:bg-[#FFF7F3]">
+                        <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full font-display text-sm font-extrabold" style="color:#fff;background:#fa4e1c;" aria-hidden="true">{{ mb_strtoupper(mb_substr($order->seller?->storeName() ?? 'S', 0, 1)) }}</span>
+                        <span class="min-w-0 flex-1">
+                            <span class="block text-sm font-bold" style="color:#222;">Message the seller</span>
+                            <span class="block truncate text-xs pf-muted">{{ $order->seller?->storeName() ?? 'Seller' }}</span>
+                        </span>
+                        <svg class="h-5 w-5 shrink-0" style="color:#fa4e1c;" fill="none" stroke="currentColor" stroke-width="1.9" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M8 10h8M8 14h5M21 12a8 8 0 01-11.6 7.1L4 20l1-4.4A8 8 0 1121 12z"/></svg>
+                    </button>
                 </form>
             @endif
         </aside>

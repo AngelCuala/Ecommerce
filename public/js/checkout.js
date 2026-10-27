@@ -54,14 +54,18 @@
 
         Object.keys(d.stores).forEach(function (id) {
             var s = d.stores[id];
-            setText('[data-store-shipping="' + id + '"]', s.shipping === null ? '—' : peso(s.shipping));
-            setText('[data-store-weight="' + id + '"]', s.weight === null ? '' : '(' + (+s.weight).toString() + ' kg → ' + s.chargeable + ' kg)');
+            setText('[data-store-shipping="' + id + '"]', s.shipping === null ? 'Select an address' : peso(s.shipping));
+            var feeEl = form.querySelector('[data-store-shipping="' + id + '"]');
+            if (feeEl) feeEl.style.color = s.shipping === null ? '#a39890' : '';
+            setText('[data-store-weight="' + id + '"]', s.weight === null ? '' : '· ' + (s.route ? s.route + ' · ' : '') + s.chargeable + ' kg');
             setText('[data-store-discount="' + id + '"]', '−' + peso(s.discount));
             toggleRow('[data-store-discount-row="' + id + '"]', s.discount > 0);
         });
 
         setText('[data-total="subtotal"]', peso(d.subtotal));
-        setText('[data-total="shipping_total"]', d.unserviceable ? '—' : peso(d.shipping_total));
+        setText('[data-total="shipping_total"]', d.unserviceable ? 'Select an address' : peso(d.shipping_total));
+        var shipTotal = form.querySelector('[data-total="shipping_total"]');
+        if (shipTotal) shipTotal.style.color = d.unserviceable ? '#a39890' : '';
         ['promo_discount', 'seller_discount', 'platform_discount', 'shipping_discount'].forEach(function (k) {
             setText('[data-total="' + k + '"]', '−' + peso(d[k]));
             toggleRow('[data-row="' + k + '"]', d[k] > 0);
@@ -84,6 +88,9 @@
             p.textContent = n;
             box.appendChild(p);
         });
+
+        // Let the voucher pickers (voucher-picker.js) update their labels.
+        document.dispatchEvent(new CustomEvent('checkout:rendered'));
     }
 
     function refresh(extra) {

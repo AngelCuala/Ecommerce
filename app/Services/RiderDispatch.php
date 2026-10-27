@@ -53,8 +53,24 @@ class RiderDispatch
     }
 
     /** Riders of this company who can take a job right now. */
+    /**
+     * The notification sent to the rider by the last assignManually() call, or null when none could be
+     * created. The hub's message only says the rider was notified when this is set.
+     */
+    public ?UserNotification $lastNotification = null;
+
+    /** Riders work for a sorting center; only centers inside the service area (Laguna) dispatch them. */
+    public function inServiceArea(int $scId): bool
+    {
+        return ! \App\Support\ServiceArea::enabled()
+            || \App\Support\ServiceArea::coversLocality(User::whereKey($scId)->value('assigned_municipality_code'));
+    }
+
     public function eligibleRiders(int $scId): Collection
     {
+        if (! $this->inServiceArea($scId)) {
+            return collect();
+        }
         return Rider::where('sorting_center_id', $scId)->where('application_status', 'approved')->where('is_active', true)
             ->orderBy('id')->get()
             ->filter(fn (Rider $r) => $r->isOnlineNow() && $r->activeJobsCount() < self::MAX_ACTIVE)
@@ -66,6 +82,7 @@ class RiderDispatch
     {
         return match (true) {
             (int) $rider->sorting_center_id !== $scId => 'This rider belongs to another logistics company.',
+            ! $this->inServiceArea($scId)            => 'This sorting center is outside the service area (' . \App\Support\ServiceArea::label() . ' only), so it cannot assign riders.',
             ! $rider->isApproved()                    => "{$rider->full_name} is not an approved rider.",
             $rider->isSuspended()                     => "{$rider->full_name} is suspended.",
             ! $rider->isOnlineNow()                   => "{$rider->full_name} is offline.",
@@ -98,6 +115,9 @@ class RiderDispatch
             $n = 0;
             foreach (ParcelPickup::where('rider_id', $rider->id)->where('status', 'assigned')->get() as $pickup) {
                 $pickup->update(['status' => 'cancelled', 'remarks' => 'Rider suspended.']);
+                if ($p = Parcel::find($pickup->parcel_id)) {
+                    app(RiderNotifier::class)->cancelled($p, $rider, RiderJobOffer::PICKUP, $pickup->id, 'Your rider account was suspended');
+                }
                 Parcel::whereKey($pickup->parcel_id)->update(['unassigned_at' => now()]);
                 $n++;
             }
@@ -157,8 +177,7 @@ class RiderDispatch
             'parcel_id' => $parcel->id, 'kind' => $kind, 'attempt' => $attempt, 'rider_id' => $rider->id,
             'sorting_center_id' => $scId, 'status' => 'pending', 'expires_at' => now()->addSeconds(self::OFFER_SECONDS),
         ]);
-        $this->notify($rider->user_id, 'New ' . $kind . ' job offer',
-            ucfirst($kind) . ' of ' . $parcel->tracking_number . '. Accept within ' . self::OFFER_SECONDS . ' seconds.', route('courier.rider'));
+        app(RiderNotifier::class)->offered($offer, $parcel, $rider, self::OFFER_SECONDS);
 
         return $offer;
     }
@@ -233,6 +252,8 @@ class RiderDispatch
 
     public function assignManually(Parcel $parcel, Rider $rider, User $by): string
     {
+        $this->lastNotification = null;
+
         return DB::transaction(function () use ($parcel, $rider, $by) {
             $parcel = Parcel::lockForUpdate()->findOrFail($parcel->id);
             $kind = $this->jobKind($parcel);
@@ -260,20 +281,28 @@ class RiderDispatch
             $parcel->timeline('Rider ' . $rider->full_name . ' assigned for ' . $kind);
         }
 
+        // A rider who accepted an offer already knows; a hub assignment is announced to the rider.
+        $notify = fn (int $jobId) => $by !== null
+            ? $this->lastNotification = app(RiderNotifier::class)->assigned($parcel->fresh(), $rider, $kind, $jobId)
+            : null;
+
         if ($kind === RiderJobOffer::PICKUP) {
-            ParcelPickup::create([
+            $job = ParcelPickup::create([
                 'parcel_id' => $parcel->id, 'rider_id' => $rider->id, 'sorting_center_id' => $parcel->current_sorting_center_id,
                 'assigned_by' => $by, 'status' => 'assigned',
             ]);
+            $notify($job->id);
+            app(ShipmentTracker::class)->record($parcel, 'pickup_rider_assigned', ['pickup_id' => $job->id, 'dedupe_key' => 'rider-job:pickup:' . $job->id . ':assigned-event']);
             $svc->notifySeller($parcel, 'Rider on the way for pickup',
                 "Rider {$rider->full_name} will pick up {$parcel->tracking_number}. Please have it packed and labeled.");
             return;
         }
 
-        ParcelDelivery::create($this->deliveryJob($parcel) + [
+        $job = ParcelDelivery::create($this->deliveryJob($parcel) + [
             'parcel_id' => $parcel->id, 'rider_id' => $rider->id, 'area_id' => $parcel->area_id, 'assigned_by' => $by, 'status' => 'assigned',
         ]);
         $parcel->update(['status' => 'assigned']);
+        $notify($job->id);
         $svc->syncOrder($parcel);
     }
 
@@ -287,12 +316,5 @@ class RiderDispatch
         $cod = $order && strtoupper((string) $order->payment_method) === 'COD' && $order->payment_status !== 'Paid' ? (float) $order->total_price : 0.0;
 
         return ['attempt' => $this->attempt($parcel, RiderJobOffer::DELIVERY), 'cod_amount' => $cod];
-    }
-
-    private function notify(?int $userId, string $title, string $body, ?string $link = null): void
-    {
-        if ($userId) {
-            UserNotification::create(['user_id' => $userId, 'title' => $title, 'body' => $body, 'type' => 'info', 'link' => $link]);
-        }
     }
 }

@@ -115,6 +115,7 @@ class L07RatesAndCodTest extends TestCase
     {
         $d = $this->deliveryFor($rider ?? $this->rider1);
         $d->update(['status' => 'delivered', 'delivered_at' => now(), 'cod_amount' => $amount, 'cod_collected' => $amount]);
+        $d->parcel->update(['status' => 'in_transit']);   // out for delivery first: a parcel can't jump to Delivered
         $d->parcel->update(['status' => 'delivered']);
         return $d->fresh();
     }

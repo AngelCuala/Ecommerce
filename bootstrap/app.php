@@ -20,6 +20,15 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->web(append: [\App\Http\Middleware\LogUserActivity::class]);
         $middleware->api(append: [\App\Http\Middleware\LogUserActivity::class]);   // the mobile app's actions too
 
+        // Login time limits: idle timeout and a maximum login length (config/session.php).
+        $middleware->web(append: [\App\Http\Middleware\EnforceLoginTimeLimit::class]);
+
+        // One login per portal (shop, Seller Centre, sorting center, courier, admin): each has its own
+        // session cookie, and a login made in the wrong portal is handed to the right one (App\Support\Portal).
+        $middleware->web(replace: [\Illuminate\Session\Middleware\StartSession::class => \App\Http\Middleware\StartPortalSession::class]);
+        $middleware->web(append: [\App\Http\Middleware\PortalHandoff::class]);
+        $middleware->redirectGuestsTo(fn () => \App\Support\Portal::loginUrl());
+
         $middleware->alias([
             'role'         => \App\Http\Middleware\RoleMiddleware::class,
             'is_admin'     => \App\Http\Middleware\IsAdmin::class,

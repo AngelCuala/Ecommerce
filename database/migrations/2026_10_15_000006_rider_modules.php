@@ -68,7 +68,7 @@ return new class extends Migration
             $t->foreignId('rider_id')->constrained('riders')->cascadeOnDelete();
             $t->foreignId('sorting_center_id')->constrained('users')->cascadeOnDelete();
             $t->string('status', 20)->default('pending');        // pending | accepted | declined | expired | cancelled
-            $t->timestamp('expires_at');
+            $t->dateTime('expires_at');   // not timestamp: MariaDB would make it auto-update on every change
             $t->timestamp('responded_at')->nullable();
             $t->timestamps();
             $t->index(['parcel_id', 'kind', 'attempt', 'status']);

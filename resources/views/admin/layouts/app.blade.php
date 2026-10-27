@@ -51,6 +51,12 @@
                 Pickup Requests
             </a>
 
+            <a href="{{ route('admin.logistics.shipments.index') }}"
+               class="nav-item {{ request()->routeIs('admin.logistics.shipments.*') ? 'active' : '' }}">
+                <svg class="nav-item__icon" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M3 7h18M3 12h18M3 17h12"/><circle cx="19" cy="17" r="2"/></svg>
+                Shipments &amp; Exceptions
+            </a>
+
             <a href="{{ route('admin.logistics.parcels.index') }}"
                class="nav-item {{ request()->routeIs('admin.logistics.parcels.index') || request()->routeIs('admin.logistics.parcels.show') ? 'active' : '' }}">
                 <svg class="nav-item__icon" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
@@ -81,7 +87,7 @@
                 Reports
             </a>
 
-            <a href="{{ route('messages.inbox') }}"
+            <a href="{{ \App\Support\Portal::route('messages.inbox') }}"
                class="nav-item {{ request()->routeIs('messages.*') ? 'active' : '' }}">
                 <svg class="nav-item__icon" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
                 Messages
@@ -99,7 +105,7 @@
         {{-- Footer --}}
         <div class="sidebar__footer">
             <div class="sidebar__footer-user">{{ auth()->user()->name ?? '' }}<br>{{ auth()->user()->email ?? '' }}</div>
-            <form method="POST" action="{{ route('logout') }}">
+            <form method="POST" action="{{ \App\Support\Portal::route('logout') }}">
                 @csrf
                 <button class="btn btn--ghost btn--sm" style="width:100%;justify-content:flex-start;">
                     <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/></svg>

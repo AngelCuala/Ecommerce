@@ -7,6 +7,8 @@
     $hasDiscount = $isProduct && $product->hasDiscount() && $price < $product->price;
     $discountPercent = $hasDiscount ? (int) round(($product->price - $price) / $product->price * 100) : 0;
     $outOfStock = ($product->stock ?? 1) <= 0;
+    // Few left (at or below the product's low-stock level): a small nudge for buyers.
+    $lowStock = ! $outOfStock && $product instanceof \App\Models\Product && $product->isLowStock();
     $sold = (int) ($product->sold ?? 0);
     $url = isset($product->slug) ? route('products.show', $product->slug) : '#';
     $categoryName = $isProduct && $product->relationLoaded('category') ? $product->category?->name : null;
@@ -97,6 +99,9 @@
                 @if ($sold > 0)<span>{{ number_format($sold) }} sold</span>@endif
             </div>
         @endif
+        @if ($lowStock)
+            <p class="mt-1 text-[11px] font-semibold" style="color:#B45309;" data-card-low-stock>Only {{ $product->stock }} left</p>
+        @endif
 
         {{-- Price + cart --}}
         <div class="mt-auto flex items-center justify-between gap-2 pt-2">
@@ -116,8 +121,10 @@
             @elseif ($outOfStock)
                 <span class="text-[11px] font-medium" style="color:#8a7f78;">Sold out</span>
             @else
-                <form action="{{ route('cart.store', $product->id) }}" method="POST">
+                <form action="{{ route('cart.store', $product->id) }}" method="POST"
+                      onsubmit="if (this.dataset.sending) return false; this.dataset.sending = 1; this.querySelector('button').setAttribute('aria-busy', 'true'); this.querySelector('button').style.opacity = '.5';">
                     @csrf
+                    <input type="hidden" name="cart_token" value="{{ \Illuminate\Support\Str::uuid() }}">
                     <button type="submit" class="pc-cart" title="Add to cart" aria-label="Add {{ $product->title }} to cart">
                         <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                             <circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/>

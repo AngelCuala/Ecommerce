@@ -1,7 +1,7 @@
 <x-messages-layout :title="'Chat with ' . $otherUser->name" active="messages">
 <div class="mx-auto max-w-3xl">
 
-    <a href="{{ route('messages.inbox') }}" class="text-sm hover:underline" style="color:#8a7f78;">&larr; All messages</a>
+    <a href="{{ \App\Support\Portal::route('messages.inbox') }}" class="text-sm hover:underline" style="color:#8a7f78;">&larr; All messages</a>
 
     <div class="mt-3 overflow-hidden rounded-xl border bg-white" style="border-color:#ECE7E3;">
         <header class="flex items-center gap-3 border-b px-4 py-3" style="border-color:#F2EEEA;">
@@ -55,7 +55,7 @@
                 @include('messages._product-card', ['product' => $aboutProduct])
             </div>
         @endif
-        <form action="{{ route('messages.direct.store', $threadKey) }}" method="POST" enctype="multipart/form-data" class="flex items-end gap-2 border-t px-4 py-3" style="border-color:#F2EEEA;">
+        <form action="{{ \App\Support\Portal::route('messages.direct.store', $threadKey) }}" method="POST" enctype="multipart/form-data" class="flex items-end gap-2 border-t px-4 py-3" style="border-color:#F2EEEA;">
             @csrf
             <label class="flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-lg border" style="border-color:#E7E5E4;color:#57534E;" title="Attach a photo (JPG or PNG, up to 5 MB)">
                 <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.6-4.6a2 2 0 012.8 0L16 16m-2-2l1.6-1.6a2 2 0 012.8 0L20 14M14 8h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>

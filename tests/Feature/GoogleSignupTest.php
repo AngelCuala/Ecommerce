@@ -82,7 +82,8 @@ class GoogleSignupTest extends TestCase
         $user = User::where('email', 'new.person@gmail.com')->firstOrFail();
         $this->assertSame('g-555', $user->google_id);
         $this->assertNotNull($user->email_verified_at);
-        $this->assertSame('approved', $user->approval_status);   // a buyer is active once the email is confirmed
+        $this->assertSame('approved', $user->approval_status);   // buyers need no admin approval
+        $this->assertAuthenticatedAs($user);
 
         Mail::assertNotSent(LoginOtpMail::class);
         $this->assertNull(session('google_signup'));

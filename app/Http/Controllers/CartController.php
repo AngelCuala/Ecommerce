@@ -35,6 +35,7 @@ class CartController extends Controller
         $request->validate([
             'quantity'     => 'nullable|integer|min:1|max:99999',
             'variation_id' => 'nullable|integer',
+            'cart_token'   => 'nullable|uuid',
         ], [
             'quantity.integer' => 'Please enter a whole number for the quantity.',
             'quantity.min'     => 'The quantity must be at least 1.',
@@ -56,6 +57,40 @@ class CartController extends Controller
 
         $qty = (int) $request->input('quantity', 1);
 
+        // The same form sent twice (double click, resend): add it once. One add at a time per buyer,
+        // so two quick requests can't both pass the stock check.
+        $token = $request->input('cart_token');
+        $lock = \Illuminate\Support\Facades\Cache::lock('cart-add:' . auth()->id(), 10);
+        if (! $lock->block(5)) {
+            return back()->with('error', 'Please wait a moment and try again.');
+        }
+        try {
+            $key = $token && $request->input('action') !== 'buy_now' ? 'cart-token:' . auth()->id() . ':' . $token : null;
+            if ($key && \Illuminate\Support\Facades\Cache::has($key)) {
+                return back()->with('success', self::addedMessage($product))->with('cart_added', $product->id);
+            }
+
+            $response = $this->addLine($request, $product, $variation, $stock, $qty);
+            if ($key && $this->added) {
+                \Illuminate\Support\Facades\Cache::put($key, 1, now()->addHour());   // only a successful add uses up the form
+            }
+            return $response;
+        } finally {
+            $lock->release();
+        }
+    }
+
+    /** The pop-up after adding: names the product (no IDs shown to buyers). */
+    public static function addedMessage(Product $product): string
+    {
+        return '"' . $product->title . '" was added to your cart.';
+    }
+
+    /** Set by addLine() when the line was saved. */
+    private bool $added = false;
+
+    private function addLine(Request $request, Product $product, ?\App\Models\ProductVariation $variation, int $stock, int $qty)
+    {
         $line = CartItem::firstOrNew([
             'user_id' => auth()->id(), 'product_id' => $product->id, 'variation_id' => $variation?->id,
         ]);
@@ -78,9 +113,10 @@ class CartController extends Controller
         // The same product and option merges into one line.
         $line->quantity = $inCart + $qty;
         $line->save();
+        $this->added = true;
         \App\Models\ActivityLog::note($label . ' ×' . $qty . ' (now ' . $line->quantity . ' in cart)', $product);
 
-        return back()->with('success', $label . ' added to your cart.');
+        return back()->with('success', self::addedMessage($product))->with('cart_added', $product->id);
     }
 
     public function update(Request $request, int $cartItemId)

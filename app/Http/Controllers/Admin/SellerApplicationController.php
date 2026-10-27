@@ -34,6 +34,10 @@ class SellerApplicationController extends Controller
         if (! $sellerApplication->isPending()) {
             return back()->with('error', 'Only applications pending approval can be approved.');
         }
+        if (! \App\Support\ServiceArea::covers($sellerApplication->municipality_code, $sellerApplication->province, $sellerApplication->municipality)) {
+            return back()->with('error', "This store's business address ({$sellerApplication->municipality}, {$sellerApplication->province}) is outside the service area. "
+                . 'ALVY currently operates in ' . \App\Support\ServiceArea::label() . ' only.');
+        }
 
         $sellerApplication->update(['status' => 'approved', 'rejection_reason' => null]);
 

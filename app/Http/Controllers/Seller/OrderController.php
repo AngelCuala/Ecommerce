@@ -101,10 +101,12 @@ class OrderController extends Controller
         if ($order->sellerStep() !== 'new') {
             return back()->with('error', 'Only a new order can be accepted.');
         }
-        $order->update(['status' => Order::PROCESSING, 'accepted_at' => now()]);
-        \App\Models\ActivityLog::note('Order ' . $order->number() . ' accepted', $order);
+        // GCash with a receipt: accepting means the seller saw the money arrive.
+        $gcash = $order->isGcashReceipt() && $order->payment_status === 'For verification';
+        $order->update(['status' => Order::PROCESSING, 'accepted_at' => now()] + ($gcash ? ['payment_status' => 'Paid'] : []));
+        \App\Models\ActivityLog::note('Order ' . $order->number() . ' accepted' . ($gcash ? ' · GCash payment confirmed' : ''), $order);
 
-        return back()->with('success', 'Order ' . $order->number() . ' accepted. Pack it next.');
+        return back()->with('success', 'Order ' . $order->number() . ' accepted' . ($gcash ? ' and its GCash payment marked as received' : '') . '. Pack it next.');
     }
 
     /** Step 2: Accepted → Packed. */
@@ -188,7 +190,7 @@ class OrderController extends Controller
     public function waybill(int $id)
     {
         $order = $this->ownOrder($id);
-        if (! in_array($order->sellerStep(), ['packed', 'ready', 'done'], true) || $order->status === Order::CANCELLED) {
+        if (! $order->canPrintWaybill()) {
             return redirect()->route('seller.orders.show', $id)->with('error', 'Pack the order before printing its waybill.');
         }
         $bookIds = Product::withTrashed()->where('seller_id', auth()->id())->pluck('id');
@@ -199,7 +201,10 @@ class OrderController extends Controller
         $tracking = $parcel->tracking_number ?? $delivery->tracking_number ?? ('ALVY-' . str_pad((string) $order->id, 8, '0', STR_PAD_LEFT));
         $weight   = $order->shipping_weight_kg ?? $items->sum(fn ($i) => (float) ($i->product->weight_kg ?? 0) * $i->quantity);
 
-        return view('seller.orders.waybill', compact('order', 'items', 'seller', 'tracking', 'weight'));
+        // Same waybill number (and barcode) the sorting center prints for this parcel.
+        $waybill  = $parcel?->waybill_number;
+
+        return view('seller.orders.waybill', compact('order', 'items', 'seller', 'tracking', 'weight', 'waybill'));
     }
 
     /** Approve or reject the buyer's return / refund request. */

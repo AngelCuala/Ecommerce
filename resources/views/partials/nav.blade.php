@@ -1,6 +1,7 @@
 @php
     $cartCount   = auth()->check()
-        ? \App\Models\CartItem::where('user_id', auth()->id())->sum('quantity')
+        // Number of different products (by product ID) in the cart, not the total quantity.
+        ? \App\Models\CartItem::where('user_id', auth()->id())->distinct()->count('product_id')
         : 0;
     $unreadMsgs  = auth()->check()
         ? \App\Models\Message::where('receiver_id', auth()->id())->where('is_read', false)->count()
@@ -76,6 +77,16 @@
                         <span class="absolute -right-1 -top-1 flex h-4 min-w-[1rem] items-center justify-center rounded-full px-1 text-[9px] font-bold"
                               style="background:#fa4e1c;color:#fff;">{{ $unreadNotifs > 9 ? '9+' : $unreadNotifs }}</span>
                     @endif
+                </a>
+                {{-- Voucher Center --}}
+                <a href="{{ route('vouchers.center') }}" title="Voucher Center" aria-label="Voucher Center"
+                   class="relative hidden h-9 w-9 items-center justify-center rounded-xl transition sm:flex"
+                   style="color:#fff;"
+                   onmouseover="this.style.background='rgba(255,255,255,.15)';"
+                   onmouseout="this.style.background='';">
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z"/>
+                    </svg>
                 </a>
                 {{-- Wishlist --}}
                 <a href="{{ route('wishlist.index') }}" title="Wishlist" aria-label="Wishlist"
@@ -163,7 +174,7 @@
                             My Purchases
                         </a>
                         <div style="height:1px;background:#dce8f0;margin:0 .75rem;"></div>
-                        <form action="{{ route('logout') }}" method="POST">
+                        <form action="{{ \App\Support\Portal::route('logout') }}" method="POST">
                             @csrf
                             <button type="submit"
                                     class="flex w-full items-center gap-2 px-4 py-2.5 text-sm transition"
@@ -177,16 +188,41 @@
                     </div>
                 </div>
             @else
-                <a href="{{ route('login') }}"
-                   class="ml-1 rounded-full px-4 py-1.5 text-sm font-semibold transition"
-                   style="background:#fff;color:#fa4e1c;"
-                   onmouseover="this.style.background='#FFE3CC';"
-                   onmouseout="this.style.background='#fff';">Sign In</a>
-                <a href="{{ route('register') }}"
-                   class="hidden rounded-full px-4 py-1.5 text-sm font-semibold transition sm:inline-block"
-                   style="border:1px solid rgba(255,255,255,.6);color:#fff;"
-                   onmouseover="this.style.background='rgba(255,255,255,.12)';"
-                   onmouseout="this.style.background='';">Sign Up</a>
+                {{-- One account button: click to sign in; hover / focus shows sign in and create account. --}}
+                <style>
+                    .nav-guest { position: relative; margin-left: .25rem; }
+                    .nav-guest-btn { display: inline-flex; align-items: center; gap: .55rem; border-radius: 999px; padding: .3rem .9rem .3rem .3rem;
+                                     background: #fff; color: #fa4e1c; font-size: .875rem; font-weight: 700; transition: box-shadow .15s, transform .15s; }
+                    .nav-guest-btn:hover { box-shadow: 0 0 0 4px rgba(255,255,255,.18); }
+                    .nav-guest-ico { display: flex; height: 1.75rem; width: 1.75rem; align-items: center; justify-content: center; border-radius: 999px;
+                                     background: linear-gradient(135deg, #fa4e1c, #ff7a45); color: #fff; }
+                    .nav-guest-chev { transition: transform .15s; }
+                    .nav-guest:hover .nav-guest-chev, .nav-guest:focus-within .nav-guest-chev { transform: rotate(180deg); }
+                    .nav-guest-pop { position: absolute; right: 0; top: 100%; z-index: 60; width: 16rem; padding-top: .6rem;
+                                     opacity: 0; visibility: hidden; transform: translateY(-4px); transition: opacity .15s, transform .15s, visibility .15s; }
+                    .nav-guest:hover .nav-guest-pop, .nav-guest:focus-within .nav-guest-pop { opacity: 1; visibility: visible; transform: none; }
+                    .nav-guest-card { border-radius: 1rem; background: #fff; padding: 1rem; box-shadow: 0 18px 40px -16px rgba(0,43,77,.45); border: 1px solid #F0E4DC; }
+                    @media (hover: none) { .nav-guest-pop { display: none; } }   /* touch: the button goes straight to sign in */
+                </style>
+                <div class="nav-guest">
+                    <a href="{{ route('login') }}" class="nav-guest-btn" aria-haspopup="true" data-nav-signin>
+                        <span class="nav-guest-ico" aria-hidden="true">
+                            <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M20 21v-1a6 6 0 00-6-6h-4a6 6 0 00-6 6v1M12 11a4 4 0 100-8 4 4 0 000 8z"/></svg>
+                        </span>
+                        Sign In
+                        <svg class="nav-guest-chev hidden h-3.5 w-3.5 sm:block" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6 9l6 6 6-6"/></svg>
+                    </a>
+                    <div class="nav-guest-pop">
+                        <div class="nav-guest-card">
+                            <p class="text-sm font-bold" style="color:#222;">Welcome to ALVY</p>
+                            <p class="mt-0.5 text-xs" style="color:#8a7a70;">Sign in to check out, track orders and save your wishlist.</p>
+                            <a href="{{ route('login') }}" class="mt-3 block rounded-xl py-2.5 text-center text-sm font-bold text-white" style="background:linear-gradient(135deg,#fa4e1c,#ff7a45);">Sign In</a>
+                            <p class="mt-3 text-center text-xs" style="color:#8a7a70;">New to ALVY?
+                                <a href="{{ route('register') }}" class="font-bold hover:underline" style="color:#fa4e1c;">Create an account</a>
+                            </p>
+                        </div>
+                    </div>
+                </div>
             @endauth
         </div>
     </div>
@@ -215,7 +251,7 @@
             @auth
                 <div class="flex gap-2">
                     <a href="{{ route('profile.show') }}" class="flex-1 rounded-xl py-2.5 text-center text-sm font-semibold" style="background:rgba(255,255,255,.15);color:#fff;">Profile</a>
-                    <form action="{{ route('logout') }}" method="POST" class="flex-1">
+                    <form action="{{ \App\Support\Portal::route('logout') }}" method="POST" class="flex-1">
                         @csrf
                         <button type="submit" class="w-full rounded-xl py-2.5 text-center text-sm font-semibold" style="background:rgba(255,255,255,.15);color:#fff;">Sign Out</button>
                     </form>
@@ -228,4 +264,4 @@
     </div>
 </header>
 
-<script src="{{ asset('js/nav.js') }}"></script>
+<script src="{{ asset('js/nav.js') }}?v={{ filemtime(public_path('js/nav.js')) }}"></script>

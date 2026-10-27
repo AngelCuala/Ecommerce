@@ -36,11 +36,19 @@
     </div>
 
     @php $cur = request('status',''); @endphp
-    <div class="tab-bar mb-16">
+    <div class="flex-between mb-16">
+    <div class="tab-bar" style="margin-bottom:0;">
         @foreach([''=> 'All','assigned'=>'Assigned','out_for_delivery'=>'Out for Delivery','delivered'=>'Delivered','failed'=>'Failed','returned'=>'Returned'] as $val=>$lbl)
             <a href="{{ route('sc.delivery-monitoring',['status'=>$val]) }}"
                class="tab {{ $cur===$val ? 'active' : '' }}">{{ $lbl }}</a>
         @endforeach
+    </div>
+        @if ($deliveries->isNotEmpty())
+            <a href="{{ route('sc.waybills', ['ids' => $deliveries->pluck('parcel_id')->filter()->unique()->values()->all()]) }}" target="_blank" class="btn btn-ghost btn-sm" style="gap:6px;">
+                <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 9V2h12v7M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2M6 14h12v8H6z"/></svg>
+                Print waybills
+            </a>
+        @endif
     </div>
 
     <div class="card">
@@ -72,7 +80,8 @@
                 @endphp
                 <tr>
                     <td>
-                        <span class="id-link">{{ $d->parcel->tracking_number ?? '—' }}</span>
+                        <span class="id-link">{{ $d->parcel->waybill_number ?? $d->parcel->tracking_number ?? '—' }}</span>
+                        @if ($d->parcel)<div class="text-muted text-sm" style="white-space:nowrap;"><a href="{{ route('sc.parcels.waybill', $d->parcel) }}" target="_blank" style="color:var(--accent-blue);font-weight:600;">Waybill</a></div>@endif
                         @if($d->parcel?->order_id)
                             <div class="text-muted text-sm">Order #{{ str_pad($d->parcel->order_id,6,'0',STR_PAD_LEFT) }}</div>
                         @endif

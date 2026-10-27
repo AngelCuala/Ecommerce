@@ -56,7 +56,7 @@ class S07VouchersFlashAndBundlesTest extends TestCase
     /** MCH50 as an edit form (A27 tests). */
     private function mch50Edit(Voucher $v, array $over = []): array
     {
-        return array_merge($this->voucherForm(['name' => $v->name, 'starts_at' => '', 'ends_at' => $v->ends_at->format('Y-m-d\TH:i')]), $over);
+        return array_merge($this->voucherForm(['name' => $v->name, 'starts_at' => '', 'ends_at' => \App\Support\VoucherRules::forInput($v->ends_at)]), $over);   // the form shows Philippine time
     }
 
     // ── S7 Store Vouchers ───────────────────────────────────────
@@ -203,7 +203,7 @@ class S07VouchersFlashAndBundlesTest extends TestCase
         $this->assertEquals([300.0, 50.0], [(float) $v->fresh()->min_spend, (float) $v->fresh()->discount_value]);
 
         $newEnd = $v->ends_at->copy()->addDays(7);
-        $this->actingAs($this->seller1)->put(route('seller.vouchers.update', $v), $this->mch50Edit($v, ['usage_limit' => '150', 'ends_at' => $newEnd->format('Y-m-d\TH:i')]))
+        $this->actingAs($this->seller1)->put(route('seller.vouchers.update', $v), $this->mch50Edit($v, ['usage_limit' => '150', 'ends_at' => \App\Support\VoucherRules::forInput($newEnd)]))
             ->assertSessionHasNoErrors();
         $this->assertSame(150, $v->fresh()->usage_limit);
         $this->assertSame($newEnd->format('Y-m-d H:i'), $v->fresh()->ends_at->format('Y-m-d H:i'));

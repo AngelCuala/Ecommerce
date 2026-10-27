@@ -142,7 +142,10 @@
                 </div>
                 <div class="flex items-center justify-between">
                     <span class="text-xs" style="color:#6b90aa;">Method</span>
-                    <span class="text-xs font-semibold" style="color:#222222;">{{ $order->payment_method }}</span>
+                    <span class="text-xs font-semibold" style="color:#222222;">{{ $order->paymentMethodLabel() }}</span>
+                    @if ($order->isGcashReceipt() && $order->payment_proof_path)
+                        <a href="{{ \App\Support\Portal::route('orders.payment-proof', $order) }}" target="_blank" rel="noopener" class="ml-2 text-xs font-semibold hover:underline" style="color:#007DFE;">View GCash receipt{{ $order->payment_reference ? ' (Ref ' . $order->payment_reference . ')' : '' }}</a>
+                    @endif
                 </div>
                 <div class="flex items-center justify-between">
                     <span class="text-xs" style="color:#6b90aa;">Placed</span>

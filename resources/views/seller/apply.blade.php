@@ -101,9 +101,9 @@
                     </div>
                     <div>
                         <label class="pf-label" for="phone">Mobile Number *</label>
-                        <input maxlength="11" inputmode="numeric" autocomplete="tel" oninput="this.value=this.value.replace(/\D/g,'').slice(0,11)" type="tel" id="phone" name="phone" placeholder="09171234567"
+                        <input type="tel" id="phone" name="phone" placeholder="09171234567"
                                value="{{ old('phone', $u->contact_no ?: $u->phone) }}"
-                               class="pf-input @error('phone') is-invalid @enderror" required>
+                               class="pf-input @error('phone') is-invalid @enderror" required maxlength="13" inputmode="tel" autocomplete="tel" data-mobile oninput="this.value=this.value.startsWith('+')?('+'+this.value.slice(1).replace(/\D/g,'')).slice(0,13):this.value.replace(/\D/g,'').slice(0,11)">
                         @error('phone')<p class="fld-error">{{ $message }}</p>@enderror
                     </div>
                 </div>

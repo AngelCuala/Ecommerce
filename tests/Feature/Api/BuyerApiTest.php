@@ -80,7 +80,7 @@ class BuyerApiTest extends TestCase
         // Same rules as the web's cart.
         $this->api('POST', '/cart/' . $this->p01->id)->assertStatus(422)->assertJsonPath('message', 'Please select a variation.');
         $this->api('POST', '/cart/' . $this->p02->id, ['quantity' => 2])->assertOk()
-            ->assertJsonPath('message', '"Rattan Fruit Basket" added to your cart.');
+            ->assertJsonPath('message', '"Rattan Fruit Basket" was added to your cart.');
         $line = CartItem::where('user_id', $this->buyer1->id)->sole();
         $this->api('PATCH', '/cart/item/' . $line->id, ['quantity' => 0])->assertStatus(422);
         $this->api('PATCH', '/cart/item/' . $line->id, ['quantity' => 1])->assertOk()->assertJsonPath('message', 'Cart updated.');
@@ -89,20 +89,20 @@ class BuyerApiTest extends TestCase
         // Checkout: ticked lines, best vouchers, shipping and totals as on the website.
         $co = $this->api('GET', '/checkout?' . http_build_query(['items' => [$line->id]]))->assertOk();
         $this->assertSame(450.0, (float) $co->json('subtotal'));
-        $this->assertSame(50.0, (float) $co->json('shipping_total'));
+        $this->assertSame(40.0, (float) $co->json('shipping_total'));   // same city
         $this->assertSame($this->addr1->id, $co->json('address_id'));
         $this->assertNotEmpty($co->json('checkout_token'));
 
         $preview = $this->api('POST', '/checkout/preview', ['address_id' => $this->addr1->id, 'seller_vouchers' => [$this->seller1->id => 'MCH50']])->assertOk();
         $this->assertSame(50.0, (float) $preview->json('seller_discount'));
-        $this->assertSame(450.0, (float) $preview->json('total'));   // 450 + 50 − 50
+        $this->assertSame(440.0, (float) $preview->json('total'));   // 450 + 40 (same city) − 50
 
         $form = ['address_id' => $this->addr1->id, 'payment_method' => 'cod', 'checkout_token' => $co->json('checkout_token'),
             'prices' => $co->json('prices'), 'seller_vouchers' => [$this->seller1->id => 'MCH50']];
         $placed = $this->api('POST', '/checkout', $form)->assertOk();
         $this->assertCount(1, $placed->json('orders'));
         $order = Order::sole();
-        $this->assertSame([Order::PENDING, 450.0], [$order->status, (float) $order->total_price]);
+        $this->assertSame([Order::PENDING, 440.0], [$order->status, (float) $order->total_price]);
         $this->assertSame(19, $this->p02->fresh()->stock);
         $this->assertSame(0, CartItem::where('user_id', $this->buyer1->id)->count());
 

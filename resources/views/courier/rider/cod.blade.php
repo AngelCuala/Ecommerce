@@ -33,12 +33,12 @@
 <h2 class="cx-section-title">Remittances</h2>
 <div class="card cx-table-wrap">
     <table class="cx-table">
-        <thead><tr><th>Sent</th><th>Amount</th><th>Status</th><th>Shortfall</th></tr></thead>
+        <thead><tr><th>Sent</th><th>Amount</th><th>Status</th><th>Shortfall</th><th>Receipt</th></tr></thead>
         <tbody>
         @forelse($remittances as $rm)
-            <tr><td>{{ $rm->created_at->format('M j, g:i A') }}</td><td>₱{{ number_format($rm->amount, 2) }}</td><td>{{ ucfirst($rm->status) }}</td><td>{{ $rm->shortfall() > 0 ? '₱' . number_format($rm->shortfall(), 2) : '—' }}</td></tr>
+            <tr><td>{{ $rm->created_at->format('M j, g:i A') }}</td><td>₱{{ number_format($rm->amount, 2) }}</td><td>{{ ucfirst($rm->status) }}</td><td>{{ $rm->shortfall() > 0 ? '₱' . number_format($rm->shortfall(), 2) : '—' }}</td><td><a href="{{ route('courier.rider.cod.receipt', $rm) }}" style="color:var(--accent);font-weight:600;" data-receipt-link>{{ $rm->receiptNumber() }}</a></td></tr>
         @empty
-            <tr><td colspan="4" style="text-align:center;padding:24px;">No remittances yet.</td></tr>
+            <tr><td colspan="5" style="text-align:center;padding:24px;">No remittances yet.</td></tr>
         @endforelse
         </tbody>
     </table>

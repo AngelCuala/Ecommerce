@@ -23,10 +23,14 @@ class UserAddress extends Model
         'municipality_code',
         'barangay_code',
         'is_default',
+        'latitude',           // map pin (optional)
+        'longitude',
     ];
 
     protected $casts = [
         'is_default' => 'boolean',
+        'latitude'   => 'float',
+        'longitude'  => 'float',
     ];
 
     public function user(): BelongsTo

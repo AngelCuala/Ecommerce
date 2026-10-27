@@ -41,6 +41,8 @@ return [
         'web' => [
             'driver' => 'session',
             'provider' => 'users',
+            // "Remember me" never outlasts the login time limit (minutes).
+            'remember' => (int) env('SESSION_MAX_LOGIN_MINUTES', 480) ?: 576000,
         ],
     ],
 
@@ -96,8 +98,9 @@ return [
         'users' => [
             'provider' => 'users',
             'table' => env('AUTH_PASSWORD_RESET_TOKEN_TABLE', 'password_reset_tokens'),
-            'expire' => 60,
-            'throttle' => 60,
+            // Minutes a "Forgot password?" link stays valid, and seconds before another can be sent for the same email.
+            'expire' => (int) env('AUTH_PASSWORD_RESET_EXPIRE', 60),
+            'throttle' => (int) env('AUTH_PASSWORD_RESET_THROTTLE', 60),
         ],
     ],
 

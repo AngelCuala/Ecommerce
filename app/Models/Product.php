@@ -41,7 +41,7 @@ class Product extends Model
         'title', 'author', 'isbn',
         'publisher', 'publication_year', 'edition', 'language', 'pages', 'format',
         'price', 'sale_price', 'discount_percent', 'voucher_code',
-        'stock', 'sku', 'availability', 'status',
+        'stock', 'low_stock_threshold', 'sku', 'availability', 'status',
         'description', 'specs', 'image', 'video_path',
         'weight_kg', 'length_cm', 'width_cm', 'height_cm', 'address_id',
         'is_archived', 'archived_at',
@@ -54,6 +54,7 @@ class Product extends Model
         'sale_price'       => 'float',
         'discount_percent' => 'float',
         'stock'            => 'integer',
+        'low_stock_threshold' => 'integer',
         'pages'            => 'integer',
         'specs'            => 'array',
         'weight_kg'        => 'float',
@@ -322,11 +323,6 @@ class Product extends Model
             ? round((float) $this->attributes['reviews_avg_rating'], 1) : null;
     }
 
-    public function isLowStock(?int $threshold = null): bool
-    {
-        return $this->stock > 0 && $this->stock <= ($threshold ?? \App\Services\LowStockAlert::THRESHOLD);
-    }
-
     // ── Scopes ────────────────────────────────────────────────
     public function scopeActive($query)
     {
@@ -338,9 +334,30 @@ class Product extends Model
         return $query->where('is_archived', true);
     }
 
+    /** Units at or below which the seller is alerted: this product's own level, else the store-wide default. */
+    public function lowStockThreshold(): int
+    {
+        return $this->low_stock_threshold ?? (int) config('marketplace.low_stock_threshold', 5);
+    }
+
+    public function isLowStock(?int $threshold = null): bool
+    {
+        return $this->stock > 0 && $this->stock <= ($threshold ?? $this->lowStockThreshold());
+    }
+
+    /** In stock but at or below each product's alert level (or a fixed level when one is given). */
     public function scopeLowStock($query, ?int $threshold = null)
     {
-        return $query->where('stock', '>', 0)->where('stock', '<=', $threshold ?? \App\Services\LowStockAlert::THRESHOLD);
+        $query->where('stock', '>', 0);
+        return $threshold !== null
+            ? $query->where('stock', '<=', $threshold)
+            : $query->whereRaw('stock <= COALESCE(low_stock_threshold, ?)', [(int) config('marketplace.low_stock_threshold', 5)]);
+    }
+
+    /** Low or sold out (what the stock alerts list). */
+    public function scopeNeedsRestock($query)
+    {
+        return $query->whereRaw('stock <= COALESCE(low_stock_threshold, ?)', [(int) config('marketplace.low_stock_threshold', 5)]);
     }
 
     /** Publicly visible listings (published, approved by an admin, not archived). */

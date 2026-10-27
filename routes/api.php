@@ -205,6 +205,7 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         Route::post('/transfers/{transfer}/accept',      [Logistics\HubController::class, 'acceptTransfer'])->name('transfers.accept');
         Route::post('/transfers/{transfer}/reject',      [Logistics\HubController::class, 'rejectTransfer'])->name('transfers.reject');
         Route::post('/transfers/{transfer}/cancel',      [Logistics\HubController::class, 'cancelTransfer'])->name('transfers.cancel');
+        Route::post('/transfers/{transfer}/dispatch',    [Logistics\HubController::class, 'dispatchTransfer'])->name('transfers.dispatch');
 
         // Riders, dispatch, COD, courier applications
         Route::get('/dispatch',                          [Logistics\RidersController::class, 'dispatch'])->name('dispatch');

@@ -118,7 +118,6 @@ $navSections = [
                 'reports'             => ['route' => 'admin.reports.index',             'label' => 'Sales Reports',                'icon' => 'orders'],
             ],
             'Catalog' => [
-                'products'            => ['route' => 'admin.products.index',            'label' => 'Products',                     'icon' => 'box'],
                 'vouchers'            => ['route' => 'admin.vouchers.index',            'label' => 'Vouchers',                     'icon' => 'ticket'],
             ],
             'People' => [
@@ -136,7 +135,7 @@ $navSections = [
             ],
             'System' => [
                 'notifications'       => ['route' => 'admin.notifications.index',       'label' => 'Notifications',                'icon' => 'bell'],
-                'messages'            => ['route' => 'messages.inbox',                  'label' => 'Messages',                     'icon' => 'chat'],
+                'messages'            => ['route' => \App\Support\Portal::enabled() ? 'admin.messages.inbox' : 'messages.inbox', 'label' => 'Messages', 'icon' => 'chat'],
                 'activity'            => ['route' => 'admin.activity.index',            'label' => 'Activity Logs',                'icon' => 'activity'],
                 'settings'            => ['route' => 'admin.settings.index',            'label' => 'System Settings',              'icon' => 'cog'],
             ],
