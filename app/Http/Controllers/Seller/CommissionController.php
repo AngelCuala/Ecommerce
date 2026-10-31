@@ -17,7 +17,7 @@ class CommissionController extends Controller
     public function index(Request $request, SellerCommission $commission)
     {
         $range = DateRange::fromRequest($request, 'month');
-        $request->validate(['status' => 'nullable|in:' . implode(',', array_keys(SellerCommission::STATUSES)), 'export' => 'nullable|in:csv,xlsx']);
+        $request->validate(['status' => 'nullable|in:' . implode(',', array_keys(SellerCommission::STATUSES)), 'export' => 'nullable|in:pdf,csv,xlsx']);
         $status   = $request->input('status');
         $sellerId = (int) auth()->id();
 
@@ -30,14 +30,21 @@ class CommissionController extends Controller
         }
         $lines->orderByDesc('order_id')->orderBy('id');
 
+        // The export is always a PDF (older csv / xlsx links get the PDF too), with the lines on screen.
         if ($request->filled('export')) {
             $rows = $lines->get()->map(fn ($i) => [
-                $i->order?->number(), $i->order?->created_at?->format('Y-m-d H:i'), $i->product->title ?? 'Removed product', $i->variation_name,
-                $i->quantity, SellerCommission::gross($i), (float) $i->commission_rate, (float) $i->commission_amount, (float) $i->seller_earning,
-                SellerCommission::STATUSES[$commission->statusOf($i)],
+                'order' => $i->order?->number(), 'placed' => $i->order?->created_at,
+                'product' => $i->product->title ?? 'Removed product', 'option' => $i->variation_name, 'qty' => (int) $i->quantity,
+                'gross' => SellerCommission::gross($i), 'rate' => (float) $i->commission_rate,
+                'commission' => (float) $i->commission_amount, 'net' => (float) $i->seller_earning,
+                'status' => $commission->statusOf($i),
             ]);
-            return \App\Support\TableExport::download('commission_' . $range->from->toDateString() . '_to_' . $range->to->toDateString(),
-                ['Order', 'Placed', 'Product', 'Option', 'Qty', 'Gross (PHP)', 'Rate (%)', 'Commission (PHP)', 'Net (PHP)', 'Status'], $rows, $request->export);
+            return \Barryvdh\DomPDF\Facade\Pdf::loadView('seller.commissions.pdf', [
+                'rows' => $rows, 'summary' => $summary, 'range' => $range, 'status' => $status,
+                'store' => auth()->user()->storeName(), 'generatedAt' => now(),
+            ])->setPaper('a4', 'landscape')
+                ->setOption('isFontSubsettingEnabled', true)   // embed only the glyphs used
+                ->download('commission_' . $range->from->toDateString() . '_to_' . $range->to->toDateString() . '.pdf');
         }
 
         $items = $lines->paginate(25)->withQueryString();

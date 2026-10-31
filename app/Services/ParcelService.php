@@ -208,7 +208,7 @@ class ParcelService
 
     /**
      * A logistics / admin override of a delivery (the rider's app was offline, etc.). It has the same
-     * effects as the rider doing it: an OTP for the buyer when it goes out, the COD cash counted as with
+     * effects as the rider doing it: the buyer is told when it goes out, the COD cash counted as with
      * the rider when it is delivered, Return to Sender after the last failed attempt, and the order synced.
      */
     public function overrideDelivery(\App\Models\ParcelDelivery $delivery, string $status, string $reason): Parcel
@@ -218,11 +218,10 @@ class ParcelService
 
         switch ($status) {
             case 'out_for_delivery':
-                $delivery->update(['status' => 'out_for_delivery', 'picked_up_at' => now(), 'remarks' => $reason,
-                    'otp_code' => str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT), 'otp_attempts' => 0, 'otp_locked_until' => null]);
+                $delivery->update(['status' => 'out_for_delivery', 'picked_up_at' => now(), 'remarks' => $reason]);
                 $parcel->update(['status' => 'in_transit']);
                 $this->notifyBuyer($parcel, 'Out for delivery', "{$ref} is out for delivery with " . ($delivery->rider->full_name ?? 'the rider')
-                    . '. Your delivery OTP is on the order page.');
+                    . '. Please be ready to receive it.');
                 break;
 
             case 'delivered':

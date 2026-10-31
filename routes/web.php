@@ -1,6 +1,5 @@
 <?php
 
-use App\Http\Controllers\Admin\AccountController as AdminAccountController;
 use App\Http\Controllers\Admin\CategoryController as AdminCategoryController;
 use App\Http\Controllers\Admin\ComplianceController as AdminComplianceController;
 use App\Http\Controllers\Admin\CourierController as AdminCourierController;
@@ -176,6 +175,12 @@ Route::middleware(['auth', 'is_sc', 'prevent.back'])->prefix('sc')->name('sc.')-
     // Account
     Route::get('/account',              [\App\Http\Controllers\SortingCenterController::class, 'account'])->name('account');
     Route::put('/account',              [\App\Http\Controllers\SortingCenterController::class, 'updateAccount'])->name('account.update');
+    // Security: change password (step 1 emails a code, step 2 enters it).
+    Route::get('/account/security',                   [\App\Http\Controllers\SortingCenterController::class, 'security'])->name('account.security');
+    Route::put('/account/security',                   [\App\Http\Controllers\SortingCenterController::class, 'changePassword'])->middleware('throttle:10,1')->name('account.password');
+    Route::post('/account/security/password/confirm', [\App\Http\Controllers\SortingCenterController::class, 'confirmPasswordChange'])->middleware('throttle:10,1')->name('account.password.confirm');
+    Route::post('/account/security/password/resend',  [\App\Http\Controllers\SortingCenterController::class, 'resendPasswordCode'])->middleware('throttle:3,1')->name('account.password.resend');
+    Route::post('/account/security/password/cancel',  [\App\Http\Controllers\SortingCenterController::class, 'cancelPasswordChange'])->name('account.password.cancel');
 
     // Logout
     Route::post('/logout',              [\App\Http\Controllers\SortingCenterController::class, 'logout'])->name('logout');
@@ -326,6 +331,7 @@ Route::middleware(['auth', 'buyer_only', 'prevent.back'])->group(function () {
     Route::post('/store/{sellerId}/follow',       [\App\Http\Controllers\StoreController::class, 'toggleFollow'])->name('stores.follow');
     Route::get('/following',                      [\App\Http\Controllers\StoreController::class, 'following'])->name('stores.following');
     Route::get('/my-vouchers',                    [\App\Http\Controllers\VoucherWalletController::class, 'index'])->name('vouchers.wallet');
+    Route::post('/vouchers/claim-all',            [\App\Http\Controllers\VoucherWalletController::class, 'claimAll'])->middleware('throttle:10,1')->name('vouchers.claim-all');
     Route::post('/vouchers/{voucher}/claim',      [\App\Http\Controllers\VoucherWalletController::class, 'claim'])->name('vouchers.claim');
 
     // Online payment (e-wallet / card) and flash sale reminders
@@ -449,7 +455,11 @@ Route::middleware(['auth', 'role:seller,admin', 'seller.approved', 'prevent.back
     Route::get('/account',                   [SellerAccountController::class, 'index'])->name('account');
     Route::patch('/account',                 [SellerAccountController::class, 'update'])->name('account.update');
     Route::get('/account/security',          [SellerAccountController::class, 'security'])->name('account.security');
-    Route::put('/account/security',          [SellerAccountController::class, 'updatePassword'])->name('account.password');
+    // Password change: step 1 emails a code, step 2 enters it.
+    Route::put('/account/security',                  [SellerAccountController::class, 'changePassword'])->middleware('throttle:10,1')->name('account.password');
+    Route::post('/account/security/password/confirm', [SellerAccountController::class, 'confirmPasswordChange'])->middleware('throttle:10,1')->name('account.password.confirm');
+    Route::post('/account/security/password/resend',  [SellerAccountController::class, 'resendPasswordCode'])->middleware('throttle:3,1')->name('account.password.resend');
+    Route::post('/account/security/password/cancel',  [SellerAccountController::class, 'cancelPasswordChange'])->name('account.password.cancel');
 });
 
 // ── Admin panel ──────────────────────────────────────────────
@@ -557,11 +567,6 @@ Route::middleware(['auth', 'role:admin', 'prevent.back'])
     Route::get('/settings/policies/{key}',              [AdminSettingsController::class, 'showPolicy'])->name('settings.policies.show');
     Route::put('/settings/policies/{key}',              [AdminSettingsController::class, 'updatePolicy'])->name('settings.policies.update');
 
-    // Admin account: profile + security (separate pages)
-    Route::get('/account',           [AdminAccountController::class, 'edit'])->name('account.edit');
-    Route::put('/account',           [AdminAccountController::class, 'update'])->name('account.update');
-    Route::get('/account/security',  [AdminAccountController::class, 'security'])->name('account.security');
-    Route::put('/account/security',  [AdminAccountController::class, 'updatePassword'])->name('account.password');
     Route::put('/settings/policies/{key}',              [AdminSettingsController::class, 'updatePolicy'])->name('settings.policies.update');
 
     // Sorting center / courier management
@@ -609,11 +614,6 @@ Route::middleware(['auth', 'role:admin', 'prevent.back'])
         Route::get('/chat',                              [\App\Http\Controllers\Admin\Logistics\ChatController::class, 'index'])->name('chat.index');
         Route::post('/chat/send',                        [\App\Http\Controllers\Admin\Logistics\ChatController::class, 'send'])->name('chat.send');
         Route::get('/chat/poll',                         [\App\Http\Controllers\Admin\Logistics\ChatController::class, 'poll'])->name('chat.poll');
-
-        Route::get('/account',                           [\App\Http\Controllers\Admin\Logistics\AccountController::class, 'edit'])->name('account.edit');
-        Route::put('/account',                           [\App\Http\Controllers\Admin\Logistics\AccountController::class, 'update'])->name('account.update');
-        Route::put('/account/password',                  [\App\Http\Controllers\Admin\Logistics\AccountController::class, 'updatePassword'])->name('account.password');
-        Route::post('/logout',                           [\App\Http\Controllers\Admin\Logistics\AccountController::class, 'logout'])->name('logout');
     });
 });
 

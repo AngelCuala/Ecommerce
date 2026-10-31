@@ -113,7 +113,10 @@ class ScRegistrationAndLogisticsTest extends TestCase
         $this->assertStringContainsString('name="business_name"', $html);
         $this->assertStringContainsString('government_id', $html);
         $this->assertStringContainsString('business_permit', $html);
-        $this->get(route('sc.login'))->assertOk()->assertSee(route('sc.register'), false);
+        // Unlisted: no link on the SC login, and no Logistics choice on the plain sign-up page.
+        $this->get(route('sc.login'))->assertOk()->assertDontSee(route('sc.register'), false)->assertDontSee('New sorting center?');
+        $this->get(route('register'))->assertOk()->assertDontSee('data-role="logistics"', false);
+        $this->assertStringContainsString('data-role="logistics"', $html);
     }
 
     public function test_valid_registration_creates_pending_account_and_application(): void
@@ -167,7 +170,10 @@ class ScRegistrationAndLogisticsTest extends TestCase
 
         $this->actingAs($admin)->get(route('admin.sc-applications.index'))->assertOk()->assertSee('Luisiana Sorting Center');
         $this->actingAs($admin)->get(route('admin.sc-applications.show', $app))->assertOk()
-            ->assertSee('Maria')->assertSee(self::LUISIANA)->assertSee('Approve')->assertSee('Disapprove');
+            ->assertSee('Maria')->assertSee(self::LUISIANA)->assertSee('Approve')->assertSee('Disapprove')
+            ->assertSee('data-review-checklist', false)->assertSee('data-coverage', false)
+            ->assertSee('data-confirm-title="Approve this sorting center?"', false)->assertSee('data-reason=', false)
+            ->assertSee(route('admin.sc-applications.document', [$app, 'id']), false);   // documents load through the private route
         $this->actingAs($admin)->get(route('admin.sc-applications.document', [$app, 'id']))->assertOk();
         $this->actingAs($admin)->get(route('admin.sc-applications.document', [$app, 'permit']))->assertOk();
         $this->actingAs($admin)->get('/admin/sc-applications/'.$app->id.'/document/other')->assertNotFound();

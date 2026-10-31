@@ -19,7 +19,6 @@ class ActivityLabels
         'sc.login.store'            => 'Signed in (sorting center)',
         'sc.logout'                 => 'Signed out (sorting center)',
         'logistics.login.store'     => 'Signed in (logistics)',
-        'admin.logistics.logout'    => 'Signed out (logistics)',
         'courier.register.store'    => 'Applied as a courier',
         'seller.apply.store'        => 'Applied to become a seller',
 

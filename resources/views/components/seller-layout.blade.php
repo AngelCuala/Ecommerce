@@ -82,6 +82,7 @@
       @media(prefers-reduced-motion:reduce){ *{ transition-duration:.001ms!important; } }
     </style>
     <link rel="stylesheet" href="{{ asset('css/hover-effects.css') }}">
+    <link rel="stylesheet" href="{{ asset('css/password-field.css') }}">
 </head>
 <body class="min-h-screen" style="background:#F5F5F5;">
 
@@ -224,5 +225,6 @@ $navSections = [
 <script src="{{ asset('js/sidebar-drawer.js') }}"></script>
 <script src="{{ asset('js/Seller.js') }}"></script>
 <script src="{{ asset('js/prevent-back.js') }}"></script>
+<script src="{{ asset('js/logout-confirm.js') }}?v={{ filemtime(public_path('js/logout-confirm.js')) }}"></script>
 </body>
 </html>

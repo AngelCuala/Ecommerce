@@ -14,6 +14,7 @@
     <link rel="stylesheet" href="{{ asset('css/courier.css') }}?v={{ filemtime(public_path('css/courier.css')) }}">
     <link rel="stylesheet" href="{{ asset('css/hover-effects.css') }}">
     @stack('styles')
+    <link rel="stylesheet" href="{{ asset('css/password-field.css') }}">
 </head>
 <body>
 
@@ -74,13 +75,6 @@
                     <div class="cx-user-mail">{{ $u->email ?? '' }}</div>
                 </div>
             </div>
-            <form action="{{ \App\Support\Portal::route('logout') }}" method="POST">
-                @csrf
-                <button type="submit" class="cx-logout">
-                    @include('courier.partials.icon', ['name' => 'logout', 'size' => 14, 'sw' => 2])
-                    Sign Out
-                </button>
-            </form>
         </div>
     </aside>
 
@@ -105,15 +99,6 @@
                 </a>
             @endforeach
         </nav>
-        <div class="cx-foot">
-            <form action="{{ \App\Support\Portal::route('logout') }}" method="POST">
-                @csrf
-                <button type="submit" class="cx-logout">
-                    @include('courier.partials.icon', ['name' => 'logout', 'size' => 14, 'sw' => 2])
-                    Sign Out
-                </button>
-            </form>
-        </div>
     </aside>
 
     {{-- ══════════ MAIN ══════════ --}}
@@ -173,5 +158,6 @@ document.querySelectorAll('.cx-table').forEach(function (table) {
 
 @stack('scripts')
 <script src="{{ asset('js/prevent-back.js') }}"></script>
+<script src="{{ asset('js/logout-confirm.js') }}?v={{ filemtime(public_path('js/logout-confirm.js')) }}"></script>
 </body>
 </html>

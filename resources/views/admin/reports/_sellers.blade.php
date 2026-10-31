@@ -27,7 +27,6 @@
         <span class="flex flex-wrap items-center gap-2">
             <input type="text" id="sellerBoxSearch" placeholder="Find a seller…" class="input !py-1.5 text-sm" style="width:13rem;">
             <a href="{{ request()->fullUrlWithQuery(['export' => 'pdf']) }}" class="btn-outline !py-1.5 px-4 text-sm">Download PDF</a>
-            <a href="{{ request()->fullUrlWithQuery(['export' => 'csv']) }}" class="btn-outline !py-1.5 px-4 text-sm">Download CSV</a>
         </span>
     </div>
 
@@ -94,18 +93,55 @@
 
 @else
     {{-- ── One seller ──────────────────────────────── --}}
+    @php $sellerApp = $seller->id ? \App\Models\SellerApplication::where('user_id', $seller->id)->first(['logo_path', 'line_of_business', 'municipality', 'province']) : null; @endphp
     <a href="{{ route('admin.reports.index', ['type' => 'sellers', 'from' => $from, 'to' => $to]) }}"
-       class="mb-4 inline-block text-sm font-semibold" style="color:#fa4e1c;">← All sellers</a>
+       class="mb-4 inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold transition hover:bg-white"
+       style="border-color:#E7E5E4;color:#57534E;">
+        <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 18l-6-6 6-6"/></svg>
+        All sellers
+    </a>
 
-    <div class="mb-6 flex flex-wrap items-end justify-between gap-3">
-        <div>
-            <h2 class="font-display text-xl font-bold" style="color:#002b4d;">{{ $seller->name }}</h2>
-            <p class="text-sm" style="color:#6b90aa;">{{ $seller->shop ? $seller->shop . ' · ' : '' }}{{ $seller->email }} · {{ $range }}</p>
+    {{-- Seller header --}}
+    <div class="card mb-6 overflow-hidden" data-seller-report-head>
+        <div class="h-1.5" style="background:linear-gradient(90deg,#fa4e1c,#fb7048 45%,#002b4d);"></div>
+        <div class="flex flex-wrap items-center gap-4 p-5">
+            @if ($sellerApp?->logo_path)
+                <img src="{{ asset('storage/' . $sellerApp->logo_path) }}" alt="" class="h-14 w-14 shrink-0 rounded-2xl object-cover" style="border:1px solid #ECE7E3;">
+            @else
+                <span class="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl font-display text-2xl font-bold"
+                      style="background:#FFF1EE;color:#fa4e1c;">{{ strtoupper(mb_substr($seller->shop ?: $seller->name, 0, 1)) }}</span>
+            @endif
+
+            <div class="min-w-0 flex-1">
+                <h2 class="truncate font-display text-xl font-bold" style="color:#002b4d;">{{ $seller->shop ?: $seller->name }}</h2>
+                <p class="mt-0.5 truncate text-sm" style="color:#57534E;">
+                    @if ($seller->shop)<span>Owned by <strong style="color:#222;">{{ $seller->name }}</strong></span> · @endif
+                    <a href="mailto:{{ $seller->email }}" class="hover:underline" style="color:#6b90aa;">{{ $seller->email }}</a>
+                </p>
+                <div class="mt-2 flex flex-wrap items-center gap-1.5 text-xs font-semibold">
+                    @if ($sellerApp?->line_of_business)
+                        <span class="rounded-full px-2.5 py-1" style="background:#FFF7ED;color:#C2410C;">{{ $sellerApp->line_of_business }}</span>
+                    @endif
+                    @if ($sellerApp?->municipality)
+                        <span class="rounded-full px-2.5 py-1" style="background:#F1F5F9;color:#475569;">{{ $sellerApp->municipality }}{{ $sellerApp->province ? ', ' . $sellerApp->province : '' }}</span>
+                    @endif
+                    <span class="inline-flex items-center gap-1 rounded-full px-2.5 py-1" style="background:#e8f0f6;color:#1a4d6e;">
+                        <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+                        {{ $range }}
+                    </span>
+                </div>
+            </div>
+
+            <div class="flex shrink-0 flex-wrap gap-2">
+                @if ($seller->id)
+                    <a href="{{ route('admin.sellers.show', $seller->id) }}" class="btn-outline inline-flex items-center !py-1.5 px-4 text-sm">View seller</a>
+                @endif
+                <a href="{{ request()->fullUrlWithQuery(['export' => 'pdf']) }}" class="btn-gold inline-flex items-center gap-1.5 !py-1.5 px-4 text-sm" style="background:#fa4e1c;border-color:#fa4e1c;color:#fff;">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v12m0 0l-4-4m4 4l4-4M5 21h14"/></svg>
+                    Download PDF
+                </a>
+            </div>
         </div>
-        <span class="flex gap-2">
-                <a href="{{ request()->fullUrlWithQuery(['export' => 'pdf']) }}" class="btn-outline !py-1.5 px-4 text-sm">Download PDF</a>
-                <a href="{{ request()->fullUrlWithQuery(['export' => 'csv']) }}" class="btn-outline !py-1.5 px-4 text-sm">Download CSV</a>
-            </span>
     </div>
 
     <div class="grid gap-4 sm:grid-cols-4 mb-6">

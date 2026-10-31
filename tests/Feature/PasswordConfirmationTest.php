@@ -31,7 +31,6 @@ class PasswordConfirmationTest extends TestCase
             'birthday' => '2000-01-15', 'region' => 'CALABARZON', 'province' => 'Laguna', 'province_code' => '043400000',
             'municipality' => 'Magdalena', 'municipality_code' => '043415000', 'barangay' => 'Poblacion',
             'house_number' => '12B', 'street' => 'Rizal Street', 'terms' => '1',
-            'valid_id' => UploadedFile::fake()->create('id.jpg', 100, 'image/jpeg'),
         ], $over);
     }
 

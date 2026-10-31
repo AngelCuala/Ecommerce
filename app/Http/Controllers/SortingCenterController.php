@@ -16,6 +16,8 @@ use Illuminate\Support\Facades\Hash;
 
 class SortingCenterController extends Controller
 {
+    use \App\Http\Controllers\Concerns\ConfirmsPasswordChange;   // Security page: change password, confirmed with an emailed code
+
     /** The currently authenticated sorting-center account. */
     private function sc(): User
     {
@@ -547,13 +549,19 @@ class SortingCenterController extends Controller
     /** Scanning (or typing) a waybill only finds the parcel: receipt is confirmed separately. */
     public function scanParcel(Request $request)
     {
+        // The "Scan Waybill" pop-up asks for JSON and stays open on a miss; the plain form still redirects back.
+        $popup = $request->expectsJson();
+        if ($popup && blank($request->input('tracking_number'))) {
+            return \App\Support\WaybillScan::invalid();
+        }
         $data = $request->validate(['tracking_number' => 'required|string|max:50']);
-        $code = strtoupper(trim($data['tracking_number']));
+        $code = \App\Support\WaybillScan::normalize($data['tracking_number']);
 
         // Waybill / tracking numbers are letters, digits and dashes (a camera misread or stray text is refused).
-        if (! preg_match('/^[A-Z0-9-]{6,50}$/', $code)) {
+        if (! \App\Support\WaybillScan::looksValid($code)) {
             $this->logScan($code, 'invalid', 'Not a waybill or tracking number.');
-            return back()->with('error', "\"{$code}\" is not a waybill or tracking number. Scan again or type it.");
+            return $popup ? \App\Support\WaybillScan::invalid()
+                : back()->with('error', "\"{$code}\" is not a waybill or tracking number. Scan again or type it.");
         }
 
         $parcel = app(\App\Services\ShipmentWorkflow::class)->lookup($this->sc(), $code);
@@ -561,22 +569,34 @@ class SortingCenterController extends Controller
         if (! $parcel) {
             // Unknown, or another company's parcel: nothing about it is shown or changed.
             $this->logScan($code, 'not_found', 'Not found at this sorting center.');
-            return back()->with('error', "Parcel {$code} not found at your sorting center.");
-        }
-
-        // An accidental second scan: nothing is recorded again.
-        if ($parcel->isAtHub() && (int) $parcel->current_sorting_center_id === (int) auth()->id() && $parcel->received_at) {
-            $this->logScan($code, 'duplicate', 'Already received ' . $parcel->received_at->tz(config('app.business_timezone'))->format('M j, g:i A') . '.', $parcel);
-            return back()->with('error', "{$parcel->tracking_number} was already received at " . $parcel->received_at->tz(config('app.business_timezone'))->format('M j, g:i A') . " ({$parcel->statusLabel()}). Nothing was recorded again.");
+            return $popup ? \App\Support\WaybillScan::notFound()
+                : back()->with('error', "Parcel {$code} not found at your sorting center.");
         }
 
         // Remember what was physically scanned here (a stray parcel may then be viewed and reported).
         session()->put('sc.scanned', array_values(array_unique(array_merge((array) session('sc.scanned', []), [$parcel->id]))));
-        $this->logScan($code, 'found', 'Found: ' . $parcel->statusLabel() . '.', $parcel);
 
-        return redirect()->route('sc.tracking.show', $parcel)
-            ->with('info', "Found {$parcel->tracking_number} ({$parcel->statusLabel()}" . ($parcel->destination_municipality ? ", to {$parcel->destination_municipality}" : '')
-                . '). Check the parcel, then confirm receipt. Scanning alone records nothing.');
+        // An accidental second scan: nothing is recorded again.
+        if ($parcel->isAtHub() && (int) $parcel->current_sorting_center_id === (int) auth()->id() && $parcel->received_at) {
+            $at = $parcel->received_at->tz(config('app.business_timezone'))->format('M j, g:i A');
+            $this->logScan($code, 'duplicate', 'Already received ' . $at . '.', $parcel);
+            $note = "{$parcel->tracking_number} was already received at {$at} ({$parcel->statusLabel()}). Nothing was recorded again.";
+            // The pop-up still opens the parcel (staff scanned it to look at it); the form keeps its old answer.
+            return $popup
+                ? tap(\App\Support\WaybillScan::found(route('sc.tracking.show', $parcel), $note), fn () => session()->flash('info', $note))
+                : back()->with('error', $note);
+        }
+
+        $this->logScan($code, 'found', 'Found: ' . $parcel->statusLabel() . '.', $parcel);
+        $info = "Found {$parcel->tracking_number} ({$parcel->statusLabel()}" . ($parcel->destination_municipality ? ", to {$parcel->destination_municipality}" : '')
+            . '). Check the parcel, then confirm receipt. Scanning alone records nothing.';
+
+        if ($popup) {
+            session()->flash('info', $info);   // shown on the parcel page the pop-up opens
+            return \App\Support\WaybillScan::found(route('sc.tracking.show', $parcel), "Found {$parcel->tracking_number}. Opening the parcel…");
+        }
+
+        return redirect()->route('sc.tracking.show', $parcel)->with('info', $info);
     }
 
     /** Scan history: one activity-log row per scan (code, result, parcel status at the time). */
@@ -672,10 +692,16 @@ class SortingCenterController extends Controller
             ->where('application_status', 'approved')->where('is_active', true)
             ->with('area')->orderBy('full_name')->get();
 
-        // Only this SC's barangays for the area tabs.
+        // Only this SC's barangays for the area filter.
         $areas = DeliveryArea::where('sorting_center_id', $sc->id)->orderBy('name')->get();
 
-        return view('sc.delivery-assignment', compact('sc', 'parcels', 'riders', 'areas'));
+        // Sorted parcels waiting per barangay (the filter lists the busy ones first), and each rider's open deliveries.
+        $waiting = $this->myParcels()->where('status', 'sorted')->whereIn('area_id', $myAreas ?: [0])
+            ->selectRaw('area_id, COUNT(*) as n')->groupBy('area_id')->pluck('n', 'area_id');
+        $openJobs = \App\Models\ParcelDelivery::whereIn('rider_id', $riders->pluck('id'))->whereIn('status', \App\Models\ParcelDelivery::OPEN)
+            ->selectRaw('rider_id, COUNT(*) as n')->groupBy('rider_id')->pluck('n', 'rider_id');
+
+        return view('sc.delivery-assignment', compact('sc', 'parcels', 'riders', 'areas', 'waiting', 'openJobs'));
     }
 
     public function assignParcel(Request $request, Parcel $parcel)
@@ -897,40 +923,59 @@ class SortingCenterController extends Controller
                 'amount'   => (float) $d->cod_collected,
             ]);
 
-        if ($request->filled('export')) {
-            $format = $request->get('export') === 'xlsx' ? 'xlsx' : 'csv';   // export=1 / csv / xlsx
-            return $this->exportReport($request->get('tab', 'daily'), $from, $to, $days, $riderPerformance, $areaSummary, $format, $codRows);
+        if ($request->filled('export')) {   // always a PDF (older csv / xlsx links get the PDF too)
+            return $this->exportReport($request->get('tab', 'daily'), $from, $to, $days, $riderPerformance, $areaSummary, $codRows);
         }
 
         return view('sc.reports', compact('from', 'to', 'riderPerformance', 'areaSummary', 'codRows')
             + ['dailyData' => $days]);
     }
 
-    /** Download the current report tab as CSV. */
-    private function exportReport(string $tab, $from, $to, $days, $riders, $areas, string $format = 'csv', $cod = null)
+    /** Download the current report tab as a PDF (the same numbers as the screen). */
+    private function exportReport(string $tab, $from, $to, $days, $riders, $areas, $cod = null)
     {
-        [$header, $rows] = match ($tab) {
+        $peso = fn ($n) => '₱' . number_format((float) $n, 2);
+        $cod = collect($cod);
+        [$title, $header, $rows, $totals, $right] = match ($tab) {
             'cod' => [
+                'COD Collections',
                 ['Delivered at', 'Rider', 'Order', 'Tracking', 'COD collected'],
-                collect($cod)->map(fn ($c) => [$c->date, $c->rider, $c->order, $c->tracking, number_format($c->amount, 2, '.', '')]),
+                $cod->map(fn ($c) => [$c->date, $c->rider, $c->order, $c->tracking, $peso($c->amount)]),
+                ['Total', '', '', $cod->count() . ' ' . \Illuminate\Support\Str::plural('delivery', $cod->count()), $peso($cod->sum('amount'))],
+                [4],
             ],
             'rider' => [
-                ['Rider', 'Area', 'Assigned', 'Delivered', 'Failed', 'Returned', 'Success Rate %', 'Active'],
-                $riders->map(fn ($r) => [$r->name, $r->area, $r->total, $r->delivered, $r->failed, $r->returned, $r->rate, $r->active ? 'Yes' : 'No']),
+                'Rider Performance',
+                ['Rider', 'Barangay', 'Assigned', 'Delivered', 'Failed', 'Returned', 'Success rate', 'Active'],
+                $riders->map(fn ($r) => [$r->name, $r->area, $r->total, $r->delivered, $r->failed, $r->returned, $r->rate . '%', $r->active ? 'Yes' : 'No']),
+                ['Total', '', $riders->sum('total'), $riders->sum('delivered'), $riders->sum('failed'), $riders->sum('returned'), '', ''],
+                [2, 3, 4, 5, 6],
             ],
             'area' => [
-                ['Area', 'Code', 'Assigned', 'Delivered', 'Failed', 'Returned', 'Pending', 'Success Rate %'],
-                $areas->map(fn ($a) => [$a->name, $a->code, $a->total, $a->delivered, $a->failed, $a->returned, $a->pending, $a->rate]),
+                'Barangay Summary',
+                ['Barangay', 'Code', 'Assigned', 'Delivered', 'Failed', 'Returned', 'Pending', 'Success rate'],
+                $areas->map(fn ($a) => [$a->name, $a->code, $a->total, $a->delivered, $a->failed, $a->returned, $a->pending, $a->rate . '%']),
+                ['Total', '', $areas->sum('total'), $areas->sum('delivered'), $areas->sum('failed'), $areas->sum('returned'), $areas->sum('pending'), ''],
+                [2, 3, 4, 5, 6, 7],
             ],
             default => [
+                'Daily Summary',
                 ['Date', 'Received', 'Sorted', 'Delivered', 'Failed', 'Returned'],
                 $days->map(fn ($d) => [$d->date, $d->received, $d->sorted, $d->delivered, $d->failed, $d->returned]),
+                ['Total', $days->sum('received'), $days->sum('sorted'), $days->sum('delivered'), $days->sum('failed'), $days->sum('returned')],
+                [1, 2, 3, 4, 5],
             ],
         };
 
-        $name = sprintf('sc-%s-report_%s_to_%s', $tab, $from->toDateString(), $to->toDateString());
+        $name = sprintf('sc-%s-report_%s_to_%s.pdf', $tab === 'area' ? 'barangay' : ($tab ?: 'daily'), $from->toDateString(), $to->toDateString());
 
-        return \App\Support\TableExport::download($name, $header, $rows->all(), $format);
+        return \Barryvdh\DomPDF\Facade\Pdf::loadView('sc.reports-pdf', [
+            'title' => $title, 'header' => $header, 'rows' => $rows->values()->all(), 'totals' => $rows->isEmpty() ? null : $totals,
+            'right' => $right, 'from' => $from, 'to' => $to, 'center' => \App\Support\SortingCenters::nameOf($this->sc()),
+            'generatedAt' => now(), 'generatedBy' => auth()->user()?->name,
+        ])->setPaper('a4', count($header) > 6 ? 'landscape' : 'portrait')
+            ->setOption('isFontSubsettingEnabled', true)   // embed only the glyphs used
+            ->download($name);
     }
 
     // ── Chat ──────────────────────────────────────────────────
@@ -1013,15 +1058,14 @@ class SortingCenterController extends Controller
 
         $user->update($request->only('name', 'email'));
 
-        if ($request->filled('current_password')) {
-            $request->validate([
-                'current_password' => 'required|current_password',
-                'password'         => 'required|confirmed|min:8',
-            ]);
-            $user->update(['password' => Hash::make($request->password)]);
-        }
-
+        // Passwords change only on the Security page (same rules as everyone, confirmed by an emailed code).
         return back()->with('success', 'Account updated successfully.');
+    }
+
+    /** Security: change the password (rules + a 6-digit code emailed to the account, like buyers and sellers). */
+    public function security()
+    {
+        return view('sc.security', ['user' => auth()->user()]);
     }
 
     // ── Logout ────────────────────────────────────────────────
@@ -1095,7 +1139,7 @@ class SortingCenterController extends Controller
             return back()->withInput()->withErrors(['to_sorting_center_id' => $e->getMessage()]);
         }
 
-        return back()->with('success', "Transfer {$t->reference} created for {$parcel->tracking_number} to {\App\Support\SortingCenters::nameOf($t->toSortingCenter)}. Dispatch it when the parcel leaves.");
+        return back()->with('success', "Transfer {$t->reference} created for {$parcel->tracking_number} to " . \App\Support\SortingCenters::nameOf($t->toSortingCenter) . '. Dispatch it when the parcel leaves.');
     }
 
     /** The parcel physically leaves this hub: In Transit to the destination sorting center. */
@@ -1107,7 +1151,7 @@ class SortingCenterController extends Controller
             return back()->with('error', $e->getMessage());
         }
 
-        return back()->with('success', "Transfer {$t->reference} dispatched. {\App\Support\SortingCenters::nameOf($t->toSortingCenter)} must confirm receipt by " . $t->expected_by->format('M j, g:i A') . '.');
+        return back()->with('success', "Transfer {$t->reference} dispatched. " . \App\Support\SortingCenters::nameOf($t->toSortingCenter) . ' must confirm receipt by ' . $t->expected_by->format('M j, g:i A') . '.');
     }
 
     /** The destination confirms the parcel physically arrived (after checking it). */
@@ -1149,7 +1193,7 @@ class SortingCenterController extends Controller
             $this->parcels()->notify((int) $transfer->from_sorting_center_id, 'Transfer declined', "Transfer {$transfer->reference} ({$parcel->tracking_number}) was declined. The parcel stays with you.", 'warning', route('sc.transfers'));
         });
 
-        return back()->with('success', "Transfer {$transfer->reference} declined. The parcel stays with {\App\Support\SortingCenters::nameOf($transfer->fromSortingCenter)}.");
+        return back()->with('success', "Transfer {$transfer->reference} declined. The parcel stays with " . \App\Support\SortingCenters::nameOf($transfer->fromSortingCenter) . '.');
     }
 
     /** Cancel before dispatch only. */

@@ -64,7 +64,8 @@ class WaybillTest extends TestCase
         $this->actingAs($mine)->get(route('sc.parcels.waybill', $p1))->assertOk()
             ->assertSee($p1->waybill_number)->assertSee('LAG-CAL')->assertSee('Juan Dela Cruz')
             ->assertSee('0917***4567')->assertDontSee('09171234567')      // phone is partly hidden
-            ->assertSee('<svg', false);                                   // the barcode
+            ->assertSee('<svg', false)                                    // the barcode
+            ->assertSee('data-waybill-qr', false)->assertSee('aria-label="QR code"', false)->assertSee('SCAN ME');   // and the QR code
         $this->actingAs($mine)->get(route('sc.parcels.waybill', $theirs))->assertForbidden();
 
         $this->actingAs($mine)->get(route('sc.waybills', ['ids' => [$p1->id, $p2->id, $theirs->id]]))->assertOk()

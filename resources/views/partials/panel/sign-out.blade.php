@@ -1,5 +1,5 @@
-{{-- Sign Out button for the seller/admin account pages --}}
-<form action="{{ \App\Support\Portal::route('logout') }}" method="POST" onsubmit="return confirm('Sign out of ALVY?')">
+{{-- Sign Out button for the account pages (seller account, buyer My Profile) --}}
+<form action="{{ \App\Support\Portal::route('logout') }}" method="POST">
     @csrf
     <button type="submit"
             class="inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90"

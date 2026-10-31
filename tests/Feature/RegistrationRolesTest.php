@@ -51,7 +51,7 @@ class RegistrationRolesTest extends TestCase
     public function test_buyer_zip_code_is_saved(): void
     {
         $this->post(route('register'), $this->base([
-            'role' => 'buyer', 'valid_id' => UploadedFile::fake()->create('id.jpg', 100, 'image/jpeg'),
+            'role' => 'buyer',
         ]))->assertRedirect(route('otp.show'));
 
         $this->assertSame('4007', User::where('email', 'mario@example.com')->value('zip'));

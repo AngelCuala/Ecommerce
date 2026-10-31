@@ -55,10 +55,10 @@
     <div class="mt-5 grid gap-5 lg:grid-cols-[1fr_320px]">
         <div class="space-y-5">
 
-            {{-- Rider delivery: the OTP to give the rider, then the proof of delivery --}}
+            {{-- Rider delivery: on the way, then the proof of delivery --}}
             @if ($riderDelivery && $riderDelivery->status === 'out_for_delivery')
                 @php $rider = $riderDelivery->rider; $cod = (float) $riderDelivery->cod_amount; @endphp
-                <section class="pf-card overflow-hidden" data-delivery-otp>
+                <section class="pf-card overflow-hidden" data-out-for-delivery>
                     <div class="flex flex-wrap items-center gap-3 border-b px-5 py-4" style="border-color:#F0E4DC;background:linear-gradient(90deg,#FFF1EA 0,#FFFFFF 85%);">
                         <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-white" style="background:#fa4e1c;" aria-hidden="true">
                             <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 7h11v9H3zM14 10h4l3 3v3h-7M7.5 19a1.5 1.5 0 100-3 1.5 1.5 0 000 3zM17.5 19a1.5 1.5 0 100-3 1.5 1.5 0 000 3z"/></svg>
@@ -78,19 +78,9 @@
                         </span>
                     </div>
 
-                    <div class="grid gap-5 px-5 py-5 sm:grid-cols-[auto_1fr] sm:items-center sm:gap-8">
-                        <div>
-                            <p class="pf-label">Your delivery code</p>
-                            <div class="flex gap-1.5" aria-hidden="true">
-                                @foreach (str_split((string) $riderDelivery->otp_code) as $digit)
-                                    <span class="flex h-14 w-11 items-center justify-center rounded-xl border-2 font-display text-2xl font-extrabold tabular-nums"
-                                          style="border-color:#FBD5C5;background:#FFF7F3;color:#fa4e1c;">{{ $digit }}</span>
-                                @endforeach
-                            </div>
-                            <span class="sr-only">Your delivery code is {{ $riderDelivery->otp_code }}</span>
-                        </div>
+                    <div class="px-5 py-5">
                         <ul class="space-y-2 text-sm" style="color:#57534E;">
-                            @foreach (['Give it to the rider only when the parcel is in your hands.', 'The rider enters it to confirm the delivery.', 'ALVY and riders never ask for it by call, text or chat.'] as $tip)
+                            @foreach (['Please be ready to receive your parcel.', 'The rider takes a photo when handing it over as proof of delivery.', 'Check the parcel before the rider leaves.'] as $tip)
                                 <li class="flex gap-2">
                                     <svg class="mt-0.5 h-4 w-4 shrink-0" style="color:#059669;" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
                                     <span>{{ $tip }}</span>

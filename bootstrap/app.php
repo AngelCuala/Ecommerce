@@ -26,6 +26,10 @@ return Application::configure(basePath: dirname(__DIR__))
         // session cookie, and a login made in the wrong portal is handed to the right one (App\Support\Portal).
         $middleware->web(replace: [\Illuminate\Session\Middleware\StartSession::class => \App\Http\Middleware\StartPortalSession::class]);
         $middleware->web(append: [\App\Http\Middleware\PortalHandoff::class]);
+
+        // After signing out, Back must not show a page of that account: no page shown to a signed-in
+        // user is kept by the browser (the account areas already use "prevent.back" for every page).
+        $middleware->web(append: [\App\Http\Middleware\PreventBackHistory::class . ':signed-in']);
         $middleware->redirectGuestsTo(fn () => \App\Support\Portal::loginUrl());
 
         $middleware->alias([

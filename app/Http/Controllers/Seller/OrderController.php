@@ -204,7 +204,7 @@ class OrderController extends Controller
         // Same waybill number (and barcode) the sorting center prints for this parcel.
         $waybill  = $parcel?->waybill_number;
 
-        return view('seller.orders.waybill', compact('order', 'items', 'seller', 'tracking', 'weight', 'waybill'));
+        return view('seller.orders.waybill', compact('order', 'items', 'seller', 'tracking', 'weight', 'waybill', 'parcel'));
     }
 
     /** Approve or reject the buyer's return / refund request. */

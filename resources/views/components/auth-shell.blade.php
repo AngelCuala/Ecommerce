@@ -65,6 +65,7 @@
                          background:linear-gradient(90deg,#fa4e1c,#ff8a5b); transition:width .1s linear; }
     </style>
     {{ $head ?? '' }}
+    <link rel="stylesheet" href="{{ asset('css/password-field.css') }}">
 </head>
 <body class="auth-bg min-h-screen">
 
@@ -127,8 +128,8 @@
 
             <p class="mt-6 text-center text-xs" style="color:#a3948a;">
                 &copy; {{ date('Y') }} ALVY ·
-                <a href="{{ route('policies.show', 'terms') }}" class="hover:underline">Terms</a> ·
-                <a href="{{ route('policies.show', 'privacy') }}" class="hover:underline">Privacy</a>
+                <a href="{{ route('policies.show', 'terms_of_service') }}" class="hover:underline">Terms</a> ·
+                <a href="{{ route('policies.show', 'privacy_policy') }}" class="hover:underline">Privacy</a>
             </p>
         </div>
     </main>
@@ -150,5 +151,6 @@
 @endif
 {{ $scripts ?? '' }}
 <script src="{{ asset('js/prevent-back.js') }}"></script>
+<script src="{{ asset('js/logout-confirm.js') }}?v={{ filemtime(public_path('js/logout-confirm.js')) }}"></script>
 </body>
 </html>

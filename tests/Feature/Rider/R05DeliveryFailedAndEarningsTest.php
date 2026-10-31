@@ -30,7 +30,7 @@ class R05DeliveryFailedAndEarningsTest extends TestCase
     {
         return $this->actingAs(($rider ?? $this->rider1)->user)->from(route('courier.rider.deliveries.show', $d->id))
             ->post(route('courier.rider.deliveries.deliver', $d->id), array_merge([
-                'pod_photo' => UploadedFile::fake()->image('pod_photo.jpg')->size(1100), 'otp' => $d->fresh()->otp_code, 'cod_collected' => '500.00',
+                'pod_photo' => UploadedFile::fake()->image('pod_photo.jpg')->size(1100), 'cod_collected' => '500.00',
             ], $over));
     }
 
@@ -55,8 +55,8 @@ class R05DeliveryFailedAndEarningsTest extends TestCase
         $this->actingAs($this->rider1->user)->post(route('courier.rider.deliveries.start', $d->id))->assertSessionHas('success');
         $d->refresh();
         $this->assertSame('out_for_delivery', $d->status);
-        $this->assertMatchesRegularExpression('/^\d{6}$/', $d->otp_code);
-        $this->actingAs($this->buyer1)->get(route('profile.orders.show', $order->id))->assertSee('data-delivery-otp', false)->assertSee($d->otp_code);
+        $this->assertNull($d->otp_code);
+        $this->actingAs($this->buyer1)->get(route('profile.orders.show', $order->id))->assertSee('data-out-for-delivery', false);
 
         $this->deliver($d)->assertSessionHas('success');
         $d->refresh();
@@ -79,7 +79,7 @@ class R05DeliveryFailedAndEarningsTest extends TestCase
     {
         $d = $this->deliveryFor($this->rider1);
         $this->actingAs($this->rider1->user)->get(route('courier.rider.deliveries.show', $d->id))->assertSee('Mark Out for Delivery')->assertDontSee('>Delivered</button>', false);
-        $this->deliver($d, ['otp' => '123456'])->assertSessionHas('error', 'Mark the parcel Out for Delivery first.');
+        $this->deliver($d)->assertSessionHas('error', 'Mark the parcel Out for Delivery first.');
         $this->assertSame('assigned', $d->fresh()->status);
     }
 
@@ -92,23 +92,16 @@ class R05DeliveryFailedAndEarningsTest extends TestCase
         $this->assertSame('out_for_delivery', $d->fresh()->status);
     }
 
-    /** RID-DLV-004 (A32) */
-    public function test_rid_dlv_004_otp_checks(): void
+    /** RID-DLV-004: no OTP from the buyer; the proof-of-delivery photo completes the delivery. */
+    public function test_rid_dlv_004_no_buyer_otp_is_needed(): void
     {
         $d = $this->deliveryFor($this->rider1, 'out_for_delivery');
-        $wrong = $d->otp_code === '000000' ? '111111' : '000000';
+        $this->actingAs($this->rider1->user)->get(route('courier.rider.deliveries.show', $d->id))->assertOk()
+            ->assertSee('Proof-of-delivery photo')->assertDontSee('OTP');
 
-        $this->deliver($d, ['otp' => '12345'])->assertSessionHasErrors(['otp' => 'The OTP has exactly 6 digits.']);
-        for ($i = 1; $i <= 4; $i++) {
-            $this->deliver($d, ['otp' => $wrong])->assertSessionHasErrors(['otp' => 'Wrong OTP. ' . (5 - $i) . ' ' . Str::plural('try', 5 - $i) . ' left.']);
-        }
-        $this->deliver($d, ['otp' => $wrong])->assertSessionHasErrors(['otp' => 'Wrong OTP. OTP entry is now locked for 15 minutes.']);
-        $this->deliver($d)->assertSessionHasErrors('otp');   // even the right OTP is refused while locked
-        $this->assertSame('out_for_delivery', $d->fresh()->status);
-
-        $this->travel(16)->minutes();
-        $this->deliver($d)->assertSessionHas('success');
+        $this->deliver($d, ['cod_collected' => (string) $d->cod_amount])->assertSessionHasNoErrors()->assertSessionHas('success');
         $this->assertSame('delivered', $d->fresh()->status);
+        $this->assertNotNull($d->fresh()->pod_path);
     }
 
     /** RID-DLV-005 (A24) */

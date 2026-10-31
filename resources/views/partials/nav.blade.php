@@ -173,18 +173,6 @@
                             <svg class="h-4 w-4 opacity-50" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/></svg>
                             My Purchases
                         </a>
-                        <div style="height:1px;background:#dce8f0;margin:0 .75rem;"></div>
-                        <form action="{{ \App\Support\Portal::route('logout') }}" method="POST">
-                            @csrf
-                            <button type="submit"
-                                    class="flex w-full items-center gap-2 px-4 py-2.5 text-sm transition"
-                                    style="color:#d93d0e;"
-                                    onmouseover="this.style.background='#FEF2F2';"
-                                    onmouseout="this.style.background='';">
-                                <svg class="h-4 w-4 opacity-60" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
-                                Sign Out
-                            </button>
-                        </form>
                     </div>
                 </div>
             @else
@@ -249,13 +237,7 @@
                 <a href="{{ route('shop.index', ['sort' => 'price_low']) }}" class="rounded-full px-3 py-1" style="background:rgba(255,255,255,.25);font-weight:700;">Sale</a>
             </div>
             @auth
-                <div class="flex gap-2">
-                    <a href="{{ route('profile.show') }}" class="flex-1 rounded-xl py-2.5 text-center text-sm font-semibold" style="background:rgba(255,255,255,.15);color:#fff;">Profile</a>
-                    <form action="{{ \App\Support\Portal::route('logout') }}" method="POST" class="flex-1">
-                        @csrf
-                        <button type="submit" class="w-full rounded-xl py-2.5 text-center text-sm font-semibold" style="background:rgba(255,255,255,.15);color:#fff;">Sign Out</button>
-                    </form>
-                </div>
+                <a href="{{ route('profile.show') }}" class="block rounded-xl py-2.5 text-center text-sm font-semibold" style="background:rgba(255,255,255,.15);color:#fff;">Profile</a>
             @else
                 <a href="{{ route('login') }}" class="block rounded-xl py-2.5 text-center text-sm font-semibold" style="background:#fff;color:#fa4e1c;">Sign In</a>
                 <a href="{{ route('register') }}" class="block rounded-xl py-2.5 text-center text-sm font-semibold" style="border:1px solid rgba(255,255,255,.5);color:#fff;">Create Account</a>

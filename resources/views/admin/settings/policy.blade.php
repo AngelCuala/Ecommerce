@@ -17,6 +17,13 @@
     @endif
 </div>
 
+@php $builtIn = $policy ? null : \App\Models\PlatformPolicy::defaultContent($policyKey); @endphp
+@if ($builtIn)
+    <div class="mb-4 rounded-md border px-4 py-3 text-sm" style="background:#EFF6FF;border-color:#BFDBFE;color:#1E40AF;" data-builtin-note>
+        This is the built-in text the site shows now. Edit it and save to publish your own version.
+    </div>
+@endif
+
 <div class="pl-card">
     <form action="{{ route('admin.settings.policies.update', $policyKey) }}" method="POST" class="pl-body">
         @csrf @method('PUT')
@@ -36,7 +43,7 @@
             <textarea id="policy-editor" name="content" rows="24"
                       class="input font-mono text-sm leading-relaxed"
                       required
-                      placeholder="Write the policy content here…">{{ old('content', $policy?->content ?? '') }}</textarea>
+                      placeholder="Write the policy content here…">{{ old('content', $policy?->content ?? trim((string) $builtIn)) }}</textarea>
         </div>
 
         {{-- Preview --}}

@@ -35,6 +35,12 @@ class PlatformPolicy extends Model
         ];
     }
 
+    /** The text the site shows for a policy: the admin's published version, else the built-in default (null if neither). */
+    public static function body(string $key): ?string
+    {
+        return static::where('key', $key)->value('content') ?: static::defaultContent($key);
+    }
+
     /** Default body content shown when a policy hasn't been published in the DB yet. */
     public static function defaultContent(string $key): ?string
     {

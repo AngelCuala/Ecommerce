@@ -13,10 +13,17 @@ class PreventBackHistory
      * 
      * This middleware prevents users from accessing cached pages
      * when using browser back/forward buttons after logout.
+     *
+     * "prevent.back" on a route group: always. Site-wide (web group, "signed-in"): only pages shown to a
+     * signed-in user, e.g. the home page with their name in the header; guests keep normal caching.
      */
-    public function handle(Request $request, Closure $next): Response
+    public function handle(Request $request, Closure $next, ?string $when = null): Response
     {
         $response = $next($request);
+
+        if ($when === 'signed-in' && ! $request->user()) {
+            return $response;
+        }
 
         // Add cache control headers to prevent browser caching. Use the headers bag so
         // this also works for file downloads (StreamedResponse has no ->header()).

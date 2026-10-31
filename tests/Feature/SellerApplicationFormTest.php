@@ -180,6 +180,11 @@ class SellerApplicationFormTest extends TestCase
             ->assertSee('123-456-789-000')
             ->assertSee('1121')
             ->assertSee('DTI Certificate')
-            ->assertSee('BIR Form 2303');
+            ->assertSee('BIR Form 2303')
+            ->assertSee('data-application-head', false)
+            ->assertSee('data-review-checklist', false)
+            ->assertSee('data-decision', false)
+            ->assertSee('data-confirm-title="Approve this seller?"', false)   // styled confirmation, not the browser's
+            ->assertSee('data-reason=', false);                              // one-tap rejection reasons
     }
 }

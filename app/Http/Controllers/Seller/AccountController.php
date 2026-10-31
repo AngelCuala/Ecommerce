@@ -2,14 +2,16 @@
 
 namespace App\Http\Controllers\Seller;
 
+use App\Http\Controllers\Concerns\ConfirmsPasswordChange;
 use App\Http\Controllers\Controller;
 use App\Models\SellerApplication;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 
 class AccountController extends Controller
 {
+    use ConfirmsPasswordChange;   // change password, confirmed with an emailed code
+
     public function index()
     {
         $user        = auth()->user();
@@ -111,26 +113,5 @@ class AccountController extends Controller
         return view('seller.security', [
             'user' => auth()->user(),
         ]);
-    }
-
-    /**
-     * Update the seller's password. The current password must be verified and
-     * the actual password / hash is never exposed to the UI.
-     */
-    public function updatePassword(Request $request)
-    {
-        $request->validate([
-            'current_password' => ['required', 'current_password'],
-            'password'         => ['required', 'confirmed', \Illuminate\Validation\Rules\Password::min(8)],
-        ], [
-            'current_password.current_password' => 'The current password you entered is incorrect.',
-        ]);
-
-        auth()->user()->update([
-            'password' => Hash::make($request->password),
-        ]);
-
-        return redirect()->route('seller.account.security')
-            ->with('success', 'Your password has been changed successfully.');
     }
 }

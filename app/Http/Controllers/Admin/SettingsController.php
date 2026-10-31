@@ -17,7 +17,12 @@ class SettingsController extends Controller
         $announcements = Announcement::with('admin')->latest()->get();
         $policies      = PlatformPolicy::with('editor')->get()->keyBy('key');
 
-        return view('admin.settings.index', compact('announcements', 'policies'));
+        // How many people each audience reaches (same roles as notifyRecipients), for the compose form.
+        $byRole = User::whereIn('role', ['buyer', 'seller', 'sorting_center', 'courier'])->where('id', '!=', auth()->id())
+            ->selectRaw('role, COUNT(*) as n')->groupBy('role')->pluck('n', 'role');
+        $reach = ['all' => (int) $byRole->sum(), 'buyers' => (int) ($byRole['buyer'] ?? 0), 'sellers' => (int) ($byRole['seller'] ?? 0)];
+
+        return view('admin.settings.index', compact('announcements', 'policies', 'reach'));
     }
 
     // ── Announcements ────────────────────────────────────────

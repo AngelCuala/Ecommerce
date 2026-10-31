@@ -9,6 +9,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ asset('css/admin.css') }}">
     @stack('styles')
+    <link rel="stylesheet" href="{{ asset('css/password-field.css') }}">
 </head>
 <body>
 <div class="shell">
@@ -92,12 +93,6 @@
                 <svg class="nav-item__icon" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
                 Messages
             </a>
-
-            <a href="{{ route('admin.account.edit') }}"
-               class="nav-item {{ request()->routeIs('admin.account.*') ? 'active' : '' }}">
-                <svg class="nav-item__icon" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
-                Account Management
-            </a>
         </nav>
 
         <div class="sidebar__divider"></div>
@@ -148,5 +143,6 @@
     </div>
 </div>
 @stack('scripts')
+<script src="{{ asset('js/logout-confirm.js') }}?v={{ filemtime(public_path('js/logout-confirm.js')) }}"></script>
 </body>
 </html>

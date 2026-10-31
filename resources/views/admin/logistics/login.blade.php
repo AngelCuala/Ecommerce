@@ -14,6 +14,7 @@
         .fld { width:100%;border-radius:.5rem;border:1px solid #E6D9CF;background:#fff;padding:.7rem 1rem;font-size:.9rem;color:#222;outline:none;transition:border-color .15s,box-shadow .15s; }
         .fld:focus { border-color:#fa4e1c;box-shadow:0 0 0 3px rgba(250,78,28,.12); }
     </style>
+    <link rel="stylesheet" href="{{ asset('css/password-field.css') }}">
 </head>
 <body style="background:#fbeee8;">
 

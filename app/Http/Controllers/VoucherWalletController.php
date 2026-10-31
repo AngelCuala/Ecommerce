@@ -69,6 +69,25 @@ class VoucherWalletController extends Controller
         return view('vouchers.center', compact('tab', 'vouchers', 'counts', 'claimedIds', 'used'));
     }
 
+    /** Claim every voucher on the chosen Voucher Center tab that the buyer hasn't claimed yet. */
+    public function claimAll()
+    {
+        $scope = ['shipping' => Voucher::SCOPE_SHIPPING, 'discount' => Voucher::SCOPE_PLATFORM, 'store' => Voucher::SCOPE_SELLER][request('tab')] ?? null;
+        $have  = VoucherClaim::where('user_id', auth()->id())->pluck('voucher_id')->all();
+
+        $new = Voucher::running()->where('is_claimable', true)
+            ->when($scope, fn ($q) => $q->where('scope', $scope))
+            ->whereNotIn('id', $have)->get()
+            ->filter(fn ($v) => $v->stateLabel() === 'Ongoing');
+        foreach ($new as $v) {
+            VoucherClaim::firstOrCreate(['user_id' => auth()->id(), 'voucher_id' => $v->id]);
+        }
+
+        return back()->with($new->isEmpty() ? 'error' : 'success', $new->isEmpty()
+            ? 'There are no new vouchers to claim here.'
+            : $new->count() . ' ' . \Illuminate\Support\Str::plural('voucher', $new->count()) . ' added to My Vouchers.');
+    }
+
     public function claim(Voucher $voucher)
     {
         if (! $voucher->is_claimable || $voucher->stateLabel() !== 'Ongoing') {

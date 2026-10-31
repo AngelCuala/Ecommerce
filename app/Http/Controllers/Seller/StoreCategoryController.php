@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Seller;
 
 use App\Http\Controllers\Controller;
+use App\Models\Category;
 use App\Models\StoreCategory;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -19,14 +20,19 @@ class StoreCategoryController extends Controller
             ->with(['children' => fn ($q) => $q->withCount('products')])->withCount('products')
             ->orderBy('sort_order')->orderBy('name')->get();
 
-        return view('seller.store-categories.index', compact('categories'));
+        // ALVY platform categories offered under "Under", minus the ones the store already has by name.
+        $taken = $categories->map(fn ($c) => mb_strtolower(trim($c->name)))->all();
+        $platformCategories = Category::orderBy('name')->get(['id', 'name'])
+            ->reject(fn ($c) => in_array(mb_strtolower(trim($c->name)), $taken, true))->values();
+
+        return view('seller.store-categories.index', compact('categories', 'platformCategories'));
     }
 
     public function store(Request $request)
     {
         $data = $this->validated($request);
 
-        $parent = isset($data['parent_id']) ? $this->own((int) $data['parent_id']) : null;
+        $parent = $this->parentFor($data['parent_id'] ?? null, $data['name']);
         if ($parent && $parent->parent_id) {
             return back()->withInput()->withErrors(['parent_id' => 'Store categories have at most 2 levels: a subcategory can\'t have its own subcategory.']);
         }
@@ -114,10 +120,41 @@ class StoreCategoryController extends Controller
                     $fail('A category named "' . $value . '" already exists in your store.');
                 }
             }],
-            'parent_id' => 'nullable|integer',
+            // A store category id, or "alvy:<id>" for an ALVY platform category.
+            'parent_id' => ['nullable', 'regex:/^(alvy:)?\d+$/'],
         ], [
             'name.required' => 'Please enter a category name.',
             'name.max'      => 'Category names can be up to ' . StoreCategory::MAX_NAME . ' characters.',
+        ]);
+    }
+
+    /**
+     * The category a new one goes under. "alvy:<id>" picks an ALVY platform category: the store gets a
+     * top-level category of that name (or reuses the one it has). Choosing it for a category of the
+     * same name just adds that name at the top level.
+     */
+    private function parentFor(?string $value, string $name): ?StoreCategory
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+        if (! str_starts_with($value, 'alvy:')) {
+            return $this->own((int) $value);
+        }
+
+        $platform = Category::findOrFail((int) substr($value, 5));
+        if (mb_strtolower(trim($platform->name)) === mb_strtolower($name)) {
+            return null;
+        }
+
+        $existing = StoreCategory::where('seller_id', auth()->id())
+            ->whereRaw('LOWER(TRIM(name)) = ?', [mb_strtolower(trim($platform->name))])->first();
+
+        return $existing ?? StoreCategory::create([
+            'seller_id'  => auth()->id(),
+            'parent_id'  => null,
+            'name'       => mb_substr(trim($platform->name), 0, StoreCategory::MAX_NAME),
+            'sort_order' => (int) StoreCategory::where('seller_id', auth()->id())->whereNull('parent_id')->max('sort_order') + 1,
         ]);
     }
 

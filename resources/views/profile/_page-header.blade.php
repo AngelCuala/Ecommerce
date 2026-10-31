@@ -15,4 +15,8 @@
             <p class="mt-1 text-sm pf-muted">{{ $subtitle }}</p>
         @endif
     </div>
+    {{-- Sign Out lives on the account page (My Profile), not in the menus --}}
+    @if (($title ?? '') === 'My Profile')
+        @include('partials.panel.sign-out')
+    @endif
 </div>

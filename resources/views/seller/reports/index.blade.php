@@ -45,8 +45,10 @@
             <input type="date" id="to" name="to" value="{{ $to }}" class="input mt-1 !py-1.5 text-sm">
         </div>
         <button type="submit" class="rounded-md px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90" style="background:#222;">Apply</button>
-        <a href="{{ route('seller.reports', ['from' => $from, 'to' => $to, 'export' => 'csv']) }}" class="rp-preset">Export CSV</a>
-        <a href="{{ route('seller.reports', ['from' => $from, 'to' => $to, 'export' => 'xlsx']) }}" class="rp-preset">Export XLSX</a>
+        <a href="{{ route('seller.reports', ['from' => $from, 'to' => $to, 'export' => 'pdf']) }}" class="rp-preset inline-flex items-center gap-1.5" data-export-pdf>
+            <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path stroke-linecap="round" stroke-linejoin="round" d="M14 2v6h6M12 18v-6M9 15l3 3 3-3"/></svg>
+            Export PDF
+        </a>
         <div class="ml-auto flex flex-wrap gap-2">
             @foreach ($presets as $label => [$pFrom, $pTo])
                 <a href="{{ route('seller.reports', ['from' => $pFrom, 'to' => $pTo]) }}"

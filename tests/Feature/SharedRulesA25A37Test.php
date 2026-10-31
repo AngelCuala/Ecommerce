@@ -185,26 +185,30 @@ class SharedRulesA25A37Test extends TestCase
         $this->assertFalse($dispatch->isUnassigned($waiting->parcel->fresh()));
     }
 
-    /** A36: reports export as CSV and XLSX with the on-screen rows and totals. */
+    /** A36: reports export as PDF with the on-screen rows and totals. */
     public function test_a36_report_exports(): void
     {
         $this->moveTo($this->placeOrder($this->buyer1, [$this->cart($this->buyer1, $this->p02, 2)])->first(), Order::COMPLETED);
 
-        $csv = $this->actingAs($this->seller1)->get(route('seller.reports', ['export' => 'csv']))->assertOk();
-        $this->assertStringContainsString('text/csv', $csv->headers->get('Content-Type'));
-        $body = $csv->streamedContent();
-        $this->assertStringContainsString('"Rattan Fruit Basket",2,900', $body);
-        $this->assertStringContainsString('Total,2,900', $body);
+        // The PDF holds the rows and totals on screen (captured from the PDF template).
+        $data = null;
+        \Illuminate\Support\Facades\View::composer('seller.reports.pdf', function ($view) use (&$data) { $data = $view->getData(); });
+        $pdf = $this->actingAs($this->seller1)->get(route('seller.reports', ['export' => 'pdf']))->assertOk()->assertHeader('Content-Type', 'application/pdf');
+        $this->assertStringStartsWith('%PDF-', $pdf->getContent());
+        $this->assertStringContainsString('sales-report_', $pdf->headers->get('Content-Disposition'));
+        $this->assertStringContainsString('.pdf', $pdf->headers->get('Content-Disposition'));
+        $row = $data['byProduct']->first();
+        $this->assertSame(['Rattan Fruit Basket', 2], [$row['title'], $row['qty']]);
+        $this->assertEquals(900, $row['revenue']);
+        $this->assertSame(2, $data['totals']['units']);
+        $this->assertEquals(900, $data['totals']['revenue']);
 
-        $xlsx = $this->actingAs($this->seller1)->get(route('seller.reports', ['export' => 'xlsx']))->assertOk();
-        $this->assertStringContainsString('spreadsheetml', $xlsx->headers->get('Content-Type'));
-        $zip = new \ZipArchive();
-        $zip->open($xlsx->getFile()->getPathname());
-        $sheet = $zip->getFromName('xl/worksheets/sheet1.xml');
-        $this->assertStringContainsString('Rattan Fruit Basket', $sheet);
-        $this->assertStringContainsString('<v>900</v>', $sheet);
+        // Older CSV / XLSX links give the PDF too.
+        $this->actingAs($this->seller1)->get(route('seller.reports', ['export' => 'xlsx']))->assertOk()->assertHeader('Content-Type', 'application/pdf');
+        $this->actingAs($this->seller1)->get(route('seller.reports'))->assertOk()->assertSee('Export PDF')->assertDontSee('Export CSV')->assertDontSee('Export XLSX');
 
-        $this->actingAs($this->logistics1)->get(route('sc.reports', ['export' => 'xlsx']))->assertOk()->assertHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        // The sorting center's reports export as PDF (an old xlsx link gets the PDF).
+        $this->actingAs($this->logistics1)->get(route('sc.reports', ['export' => 'xlsx']))->assertOk()->assertHeader('Content-Type', 'application/pdf');
     }
 
     /** A37: pressing Publish twice (or Back and resubmit) creates one product. */

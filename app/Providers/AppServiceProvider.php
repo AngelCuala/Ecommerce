@@ -14,8 +14,11 @@ class AppServiceProvider extends ServiceProvider
         // One per request, so the logistics rates and zones it loads are read once and reset after a change.
         $this->app->scoped(\App\Services\ShippingService::class);
 
-        // ALVY Assistant's language model (tests bind a scripted fake instead).
-        $this->app->bind(\App\Services\Assistant\AssistantModel::class, \App\Services\Assistant\ClaudeAssistantModel::class);
+        // ALVY Assistant's language model: Gemini by default, Claude with ASSISTANT_PROVIDER=claude
+        // (tests bind a scripted fake instead).
+        $this->app->bind(\App\Services\Assistant\AssistantModel::class, fn () => config('services.assistant.provider') === 'claude'
+            ? new \App\Services\Assistant\ClaudeAssistantModel()
+            : new \App\Services\Assistant\GeminiAssistantModel());
     }
 
     /**

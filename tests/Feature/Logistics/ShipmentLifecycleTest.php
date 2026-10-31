@@ -126,7 +126,9 @@ class ShipmentLifecycleTest extends TestCase
         $next = app(ShipmentWorkflow::class)->nextDestination($parcel->fresh(), $this->logistics1);
         $this->assertSame(['transfer', $this->logistics2->id], [$next['type'], $next['center']->id]);
 
-        $this->as($this->logistics1)->post(route('sc.transfers.initiate'), ['parcel_id' => $parcel->id, 'to_sorting_center_id' => $this->logistics2->id])->assertSessionHas('success');
+        $this->as($this->logistics1)->post(route('sc.transfers.initiate'), ['parcel_id' => $parcel->id, 'to_sorting_center_id' => $this->logistics2->id])
+            ->assertSessionHas('success', fn ($m) => str_contains($m, ' to ' . \App\Support\SortingCenters::nameOf($this->logistics2) . '. Dispatch it')
+                && ! str_contains($m, '{') && ! str_contains($m, '@'));   // a short confirmation, not the account's data
         $t = ParcelTransfer::sole();
         $this->assertMatchesRegularExpression('/^TRF-\d{6}-\d{6}$/', $t->reference);
         $this->assertSame('picked_up', $parcel->fresh()->status);   // created, not dispatched: still at L1

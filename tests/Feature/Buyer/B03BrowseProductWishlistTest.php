@@ -233,11 +233,18 @@ class B03BrowseProductWishlistTest extends TestCase
     {
         $this->actingAs($this->buyer1)->post(route('stores.follow', $this->seller1->id));
         $this->assertSame(1, $this->seller1->followers()->count());
-        $this->actingAs($this->buyer1)->get(route('stores.following'))->assertSee('Maria Clara Handicrafts');
+        $page = $this->actingAs($this->buyer1)->get(route('stores.following'))->assertOk()->assertSee('Maria Clara Handicrafts')
+            ->assertSee('data-followed-store="' . $this->seller1->id . '"', false)
+            ->assertSeeText('You follow 1 store')->assertSee('Visit store')->assertSeeText('1 follower')
+            ->assertSee('data-confirm-title="Unfollow', false);                       // unfollow asks first
+        $newest = \App\Models\Product::published()->where('seller_id', $this->seller1->id)->latest()->first();
+        if ($newest) {
+            $page->assertSee(route('products.show', $newest->slug), false);             // newest products preview
+        }
         $this->actingAs($this->buyer1)->post(route('stores.follow', $this->seller1->id));
         $this->assertSame(0, StoreFollow::count());
         session()->forget('success');
-        $this->actingAs($this->buyer1)->get(route('stores.following'))->assertSee("You don't follow any store yet", false);
+        $this->actingAs($this->buyer1)->get(route('stores.following'))->assertSee("You don't follow any stores yet", false)->assertSee('Start shopping');
 
         auth()->logout();
         $this->post(route('wishlist.toggle', $this->p02->id))->assertRedirect(route('login'));

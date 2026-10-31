@@ -23,7 +23,7 @@ class ShipmentTracker
 {
     /**
      * Who is told about each event type, besides what older actions already send (those keep their
-     * own, more specific messages: the buyer's delivery OTP, pickup confirmations, lost/damaged…).
+     * own, more specific messages: out for delivery, pickup confirmations, lost/damaged…).
      */
     public const NOTIFY = [
         'seller_processing'             => ['buyer'],

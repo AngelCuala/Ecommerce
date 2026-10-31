@@ -124,10 +124,8 @@ class RegisteredUserController extends Controller
             'zip_code'     => 'nullable|string|max:20',
         ] + ($psgcAvailable ? \App\Services\PsgcDirectory::codeRules() : []);
 
-        // Role-specific validation rules
-        if ($role === 'buyer') {
-            $rules['valid_id'] = ['bail', 'required', 'file', 'mimes:jpg,jpeg,png,pdf', 'max:5120', new GovernmentId];
-        } elseif ($role === 'courier') {
+        // Role-specific validation rules (buyers don't upload an ID)
+        if ($role === 'courier') {
             $rules['vehicle_type'] = 'required|in:motorcycle,tricycle,car,truck';
             $rules['plate_number'] = 'required|string|max:50';
             // couriers.id_license_path / or_cr_path are NOT NULL, so both documents are required.
@@ -139,9 +137,6 @@ class RegisteredUserController extends Controller
 
         $validated = $request->validate($rules, [
             'terms.accepted'       => 'You must agree to the Terms and Conditions and Privacy Policy to create an account.',
-            'valid_id.required'    => 'Please upload a photo of a valid government-issued ID.',
-            'valid_id.mimes'       => 'Your ID must be a JPG, PNG or PDF file.',
-            'valid_id.max'         => 'Your ID file must be 5 MB or smaller.',
 
             'first_name.regex'     => 'First name may only contain letters and spaces — no numbers or symbols.',
             'first_name.min'       => 'First name must be at least 2 characters.',
@@ -207,11 +202,6 @@ class RegisteredUserController extends Controller
             'approval_status' => 'unverified', // → 'pending' once the email code is entered
         ];
 
-        // Buyer: save the uploaded ID to the private disk.
-        if ($role === 'buyer' && $request->hasFile('valid_id')) {
-            $userData['valid_id_path'] = $request->file('valid_id')->store('valid-ids', 'local');
-            $userData += GovernmentId::columnsFor('valid_id');
-        }
         if ($role === 'courier') {
             $userData += GovernmentId::columnsFor('or_cr_image');
         }

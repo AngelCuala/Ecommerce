@@ -225,6 +225,29 @@ class ProductApprovalAndSellerReportTest extends TestCase
             ->assertOk()->assertSee('₱20.00')->assertDontSee('₱520.00');   // 10% of ₱200 only
     }
 
+    public function test_commission_report_shows_gross_split_and_each_sellers_share(): void
+    {
+        $other = $this->user('seller', 'juan@alvy.test', 'Juan Seller');
+        $this->sale($this->seller, '2026-01-05', 3, 100);   // ₱300 gross → ₱30 commission
+        $this->sale($other, '2026-01-07', 1, 100);          // ₱100 gross → ₱10 commission
+
+        $this->actingAs($this->admin)
+            ->get(route('admin.reports.index', ['type' => 'commission', 'from' => '2026-01-01', 'to' => '2026-01-31']))
+            ->assertOk()
+            ->assertSee('data-card="gross">₱400.00', false)
+            ->assertSee('data-card="commission">₱40.00', false)
+            ->assertSee('data-card="payout">₱360.00', false)
+            ->assertSee('Collected this period: 10% of gross')
+            ->assertSee('Where the sales went')
+            ->assertSee('Maria Seller')->assertSee('Juan Seller')
+            ->assertSee('data-share>75%', false)->assertSee('data-share>25%', false)
+            ->assertSee('data-report-type', false);                       // picking a type opens it right away
+
+        $this->actingAs($this->admin)
+            ->get(route('admin.reports.index', ['type' => 'commission', 'from' => '2025-01-01', 'to' => '2025-01-31']))
+            ->assertOk()->assertSee('No sales, so no commission, in this period.')->assertDontSee('Where the sales went');
+    }
+
     public function test_every_report_downloads_as_a_pdf(): void
     {
         $this->sale($this->seller, '2026-01-05', 2, 100);

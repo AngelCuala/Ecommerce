@@ -38,10 +38,9 @@ class SystemLogicTest extends TestCase
         $d = $this->deliveryFor($this->rider1);   // ₱500.00 COD
         $this->scOverride($d, 'out_for_delivery')->assertSessionHas('success');
 
-        // The buyer gets an OTP the rider can use.
-        $otp = $d->fresh()->otp_code;
-        $this->assertMatchesRegularExpression('/^\d{6}$/', $otp);
-        $this->actingAs($this->buyer1)->get(route('profile.orders.show', $d->parcel->order_id))->assertSee($otp);
+        // The buyer sees the parcel is on the way (no OTP: the proof of delivery completes it).
+        $this->assertNull($d->fresh()->otp_code);
+        $this->actingAs($this->buyer1)->get(route('profile.orders.show', $d->parcel->order_id))->assertSee('data-out-for-delivery', false);
 
         $this->scOverride($d, 'delivered')->assertSessionHas('success');
         $order = $d->parcel->order->fresh();

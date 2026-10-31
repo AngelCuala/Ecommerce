@@ -27,7 +27,7 @@
             <input type="text" name="tracking_number" class="form-input" placeholder="Scan or type a waybill / tracking number" required autofocus autocomplete="off" style="font-family:'SF Mono',Consolas,monospace;">
             <button class="btn btn-blue">Find</button>
         </form>
-        @include('sc.partials.camera-scan', ['form' => 'scan-form'])
+        <div style="margin-top:10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">@include('partials.waybill-scanner', ['lookup' => route('sc.parcels.scan')])<span class="text-muted" style="font-size:12px;">Opens the parcel straight from its waybill QR code.</span></div>
         </div>
         <form method="GET" action="{{ route('sc.tracking') }}" style="display:flex;gap:8px;flex-wrap:wrap;">
             <input type="hidden" name="tab" value="{{ $tab }}">
@@ -55,10 +55,14 @@
 
     <div class="card">
         <div class="card-header"><h2>{{ $tabs[$tab] }}</h2><span class="card-meta">{{ $parcels->total() }} {{ \Illuminate\Support\Str::plural('parcel', $parcels->total()) }}</span></div>
-        <div style="overflow-x:auto;">
-        <table class="data-table">
+        {{-- Fits the card (no sideways scroll): related details share a column. --}}
+        <style>
+            .board-table th, .board-table td { padding-left: 12px; padding-right: 12px; }
+            .board-table .sub { color: var(--text-muted); font-size: 11px; line-height: 1.4; }
+        </style>
+        <table class="data-table board-table">
             <thead>
-                <tr><th>Tracking #</th><th>Order</th><th>Status</th><th>From</th><th>Next destination</th><th>Task</th><th>Times</th><th>Last event</th><th></th></tr>
+                <tr><th>Parcel</th><th>Status</th><th>Route</th><th>Latest</th><th></th></tr>
             </thead>
             <tbody>
             @forelse ($parcels as $p)
@@ -72,18 +76,23 @@
                     $dest = $t ? 'Transfer → ' . \App\Support\SortingCenters::nameOf($t->toSortingCenter) . ' (' . $t->statusLabel() . ')' : ($next[$p->id]['label'] ?? ($p->area?->name ? 'Delivery: ' . $p->area->name : $p->destination_municipality));
                 @endphp
                 <tr data-parcel="{{ $p->id }}">
-                    <td><a href="{{ route('sc.tracking.show', $p) }}" class="id-link">{{ $p->waybill_number ?: $p->tracking_number }}</a><div class="text-muted" style="font-size:11px;">{{ $p->tracking_number }}</div></td>
-                    <td style="font-size:12px;">{{ $p->order?->number() ?? '—' }}<div class="text-muted" style="font-size:11px;">{{ $p->seller?->storeName() ?? $p->seller?->name }}</div></td>
-                    <td><span class="badge {{ $badge($p->status) }}">{{ $t?->isDelayed() ? 'Delayed in transit' : $p->statusLabel() }}</span></td>
-                    <td style="font-size:12px;">{{ $from }}</td>
-                    <td style="font-size:12px;max-width:220px;">{{ $dest }}</td>
-                    <td style="font-size:12px;">{{ $task }}</td>
-                    <td style="font-size:11.5px;color:var(--text-muted);white-space:nowrap;">
-                        @if ($p->received_at)Received {{ $p->received_at->format('M j, g:i A') }}<br>@endif
-                        @if ($t?->dispatched_at)Dispatched {{ $t->dispatched_at->format('M j, g:i A') }}<br>@endif
-                        @if ($t?->expected_by && $t->isInTransit())Due {{ $t->expected_by->format('M j, g:i A') }}@endif
+                    @php $tz = config('app.business_timezone'); @endphp
+                    <td>
+                        <a href="{{ route('sc.tracking.show', $p) }}" class="id-link">{{ $p->waybill_number ?: $p->tracking_number }}</a>
+                        <div class="sub">{{ $p->tracking_number }}</div>
+                        <div class="sub">{{ $p->order?->number() ?? '—' }} · {{ $p->seller?->storeName() ?? $p->seller?->name }}</div>
                     </td>
-                    <td style="font-size:12px;max-width:200px;">{{ $last?->label() ?? '—' }}<div class="text-muted" style="font-size:11px;">{{ $last?->occurred_at?->diffForHumans() }}</div></td>
+                    <td><span class="badge {{ $badge($p->status) }}">{{ $t?->isDelayed() ? 'Delayed in transit' : $p->statusLabel() }}</span></td>
+                    <td style="font-size:12px;">
+                        <span style="color:var(--text-muted);">{{ $from }}</span> → {{ $dest }}
+                        @if ($task !== '—')<div class="sub">{{ $task }}</div>@endif
+                    </td>
+                    <td style="font-size:12px;">
+                        {{ $last?->label() ?? '—' }} <span class="sub">· {{ $last?->occurred_at?->diffForHumans() }}</span>
+                        @if ($p->received_at)<div class="sub">Received {{ $p->received_at->copy()->tz($tz)->format('M j, g:i A') }}</div>@endif
+                        @if ($t?->dispatched_at)<div class="sub">Dispatched {{ $t->dispatched_at->copy()->tz($tz)->format('M j, g:i A') }}</div>@endif
+                        @if ($t?->expected_by && $t->isInTransit())<div class="sub">Due {{ $t->expected_by->copy()->tz($tz)->format('M j, g:i A') }}</div>@endif
+                    </td>
                     <td style="white-space:nowrap;">
                         @if (in_array($p->status, ['pickup_approved', 'in_transit_to_hub'], true) || ($p->status === 'in_transfer' && $t?->isInTransit() && (int) $t->to_sorting_center_id === auth()->id()))
                             <a href="{{ route('sc.tracking.show', $p) }}" class="btn btn-blue btn-sm">Check &amp; receive</a>
@@ -101,11 +110,10 @@
                     </td>
                 </tr>
             @empty
-                <tr><td colspan="9" style="padding:28px;text-align:center;color:var(--text-muted);">Nothing in {{ strtolower($tabs[$tab]) }}{{ request('q') ? ' matching "' . request('q') . '"' : '' }}.</td></tr>
+                <tr><td colspan="5" style="padding:28px;text-align:center;color:var(--text-muted);">Nothing in {{ strtolower($tabs[$tab]) }}{{ request('q') ? ' matching "' . request('q') . '"' : '' }}.</td></tr>
             @endforelse
             </tbody>
         </table>
-        </div>
         @if ($parcels->hasPages())<div style="padding:12px 16px;">{{ $parcels->links() }}</div>@endif
     </div>
 </div>

@@ -182,6 +182,18 @@ class L07RatesAndCodTest extends TestCase
         $this->actingAs($this->logistics1)->post(route('sc.remittances.confirm', $remittance))->assertSessionHas('error', 'This remittance is already confirmed.');
     }
 
+    /** Download a report as PDF; $data receives what the PDF template was rendered with. */
+    private function pdfOf(string $url, ?array &$data)
+    {
+        $data = null;
+        \Illuminate\Support\Facades\View::composer('sc.reports-pdf', function ($view) use (&$data) { $data = $view->getData(); });
+        $res = $this->actingAs($this->logistics1)->get($url)->assertOk()->assertHeader('Content-Type', 'application/pdf');
+        $this->assertStringContainsString('.pdf', $res->headers->get('Content-Disposition'));
+        $this->assertStringStartsWith('%PDF-', $res->getContent());
+        $this->assertNotNull($data, 'the PDF template was rendered');
+        return $res;
+    }
+
     /** LOG-COD-004 */
     public function test_log_cod_004_export_matches_the_screen(): void
     {
@@ -193,26 +205,19 @@ class L07RatesAndCodTest extends TestCase
         $rows = $screen->viewData('codRows');
         $this->assertCount(2, $rows);
 
-        $csv = $this->actingAs($this->logistics1)->get(route('sc.reports', $range + ['tab' => 'cod', 'export' => 'csv']))->assertOk();
-        $this->assertStringContainsString('.csv', $csv->headers->get('Content-Disposition'));
-        $lines = array_map('str_getcsv', array_values(array_filter(explode("\n", $csv->streamedContent()))));
-        $this->assertSame(['Delivered at', 'Rider', 'Order', 'Tracking', 'COD collected'], $lines[0]);
-        $this->assertCount(1 + $rows->count(), $lines);
-        $this->assertEquals($rows->sum('amount'), array_sum(array_column(array_slice($lines, 1), 4)));
+        // The PDF holds the same rows and the same total as the screen.
+        $pdf = $this->pdfOf(route('sc.reports', $range + ['tab' => 'cod', 'export' => 'pdf']), $data);
+        $this->assertStringContainsString('sc-cod-report_', $pdf->headers->get('Content-Disposition'));
+        $this->assertSame(['Delivered at', 'Rider', 'Order', 'Tracking', 'COD collected'], $data['header']);
+        $this->assertCount($rows->count(), $data['rows']);
+        $this->assertSame('₱1,800.00', end($data['totals']));
+        $this->assertSame('₱900.00', $data['rows'][0][4]);
 
-        $xlsx = $this->actingAs($this->logistics1)->get(route('sc.reports', $range + ['tab' => 'cod', 'export' => 'xlsx']))->assertOk()
-            ->assertHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-        $zip = new \ZipArchive();
-        $this->assertTrue($zip->open($xlsx->getFile()->getPathname()));
-        $sheet = $zip->getFromName('xl/worksheets/sheet1.xml');
-        $zip->close();
-        $this->assertSame(1 + $rows->count(), substr_count($sheet, '<row '));
-        $this->assertStringContainsString('<v>900.00</v>', $sheet);
-
-        // The deliveries report too.
-        $daily = $this->actingAs($this->logistics1)->get(route('sc.reports', $range + ['tab' => 'daily', 'export' => 'csv']))->assertOk()->streamedContent();
-        $this->assertStringStartsWith('Date,Received,Sorted,Delivered,Failed,Returned', $daily);
-        $this->assertSame(2, array_sum(array_map(fn ($l) => (int) (str_getcsv($l)[3] ?? 0), array_slice(array_filter(explode("\n", $daily)), 1))));
+        // The deliveries report too, and old CSV / XLSX links now give the PDF.
+        $this->pdfOf(route('sc.reports', $range + ['tab' => 'daily', 'export' => 'csv']), $daily);
+        $this->assertSame(['Date', 'Received', 'Sorted', 'Delivered', 'Failed', 'Returned'], $daily['header']);
+        $this->assertSame(2, array_sum(array_column($daily['rows'], 3)));
+        $this->assertSame('Daily Summary', $daily['title']);
     }
 
     /** LOG-COD-005 */
@@ -221,13 +226,8 @@ class L07RatesAndCodTest extends TestCase
         $range = ['from' => '2026-01-01', 'to' => '2026-01-01', 'tab' => 'cod'];
         $this->actingAs($this->logistics1)->get(route('sc.reports', $range))->assertOk()->assertSee('No COD collected in this range.');
 
-        $csv = $this->actingAs($this->logistics1)->get(route('sc.reports', $range + ['export' => 'csv']))->assertOk()->streamedContent();
-        $this->assertSame("\"Delivered at\",Rider,Order,Tracking,\"COD collected\"\n", $csv);
-
-        $xlsx = $this->actingAs($this->logistics1)->get(route('sc.reports', $range + ['export' => 'xlsx']))->assertOk();
-        $zip = new \ZipArchive();
-        $zip->open($xlsx->getFile()->getPathname());
-        $this->assertSame(1, substr_count($zip->getFromName('xl/worksheets/sheet1.xml'), '<row '));
-        $zip->close();
+        $this->pdfOf(route('sc.reports', $range + ['export' => 'pdf']), $data);
+        $this->assertSame([], $data['rows']);
+        $this->assertNull($data['totals']);   // the PDF says "No data in this date range."
     }
 }

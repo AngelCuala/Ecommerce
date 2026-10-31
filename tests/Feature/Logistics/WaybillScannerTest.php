@@ -59,7 +59,7 @@ class WaybillScannerTest extends TestCase
 
         $this->actingAs($this->logistics1)->get(route('sc.incoming-parcels'))->assertOk()
             ->assertSee('data-scan-history', false)->assertSee($parcel->waybill_number)->assertSee('data-scan-row="found"', false)
-            ->assertSee('Scan with camera')->assertSee('js/vendor/zxing.min.js', false);
+            ->assertDontSee('data-waybill-scanner', false);   // the QR scanner is on the Shipment Board only; typing / a USB scanner works here
     }
 
     public function test_invalid_and_unknown_codes_are_refused_and_logged(): void

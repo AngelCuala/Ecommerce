@@ -30,9 +30,20 @@
             <label class="mb-1 block text-xs font-semibold" for="new-parent">Under</label>
             <select id="new-parent" name="parent_id" class="input">
                 <option value="">— Store Category —</option>
-                @foreach ($categories as $c)
-                    <option value="{{ $c->id }}" @selected((string) old('parent_id') === (string) $c->id)>{{ $c->name }}</option>
-                @endforeach
+                @if ($categories->isNotEmpty())
+                    <optgroup label="Your categories">
+                        @foreach ($categories as $c)
+                            <option value="{{ $c->id }}" @selected((string) old('parent_id') === (string) $c->id)>{{ $c->name }}</option>
+                        @endforeach
+                    </optgroup>
+                @endif
+                @if ($platformCategories->isNotEmpty())
+                    <optgroup label="ALVY categories">
+                        @foreach ($platformCategories as $p)
+                            <option value="alvy:{{ $p->id }}" @selected(old('parent_id') === 'alvy:' . $p->id)>{{ $p->name }}</option>
+                        @endforeach
+                    </optgroup>
+                @endif
             </select>
         </div>
         <div class="flex items-end"><button class="btn-primary w-full" style="padding:.62rem 1.2rem;">Add Category</button></div>
