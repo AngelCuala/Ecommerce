@@ -16,9 +16,7 @@ class ActivityLabels
         'otp.resend'                => 'Requested a new email code',
         'seller.register.store'     => 'Signed up as a seller',
         'sc.register.store'         => 'Signed up as a sorting center',
-        'sc.login.store'            => 'Signed in (sorting center)',
         'sc.logout'                 => 'Signed out (sorting center)',
-        'logistics.login.store'     => 'Signed in (logistics)',
         'courier.register.store'    => 'Applied as a courier',
         'seller.apply.store'        => 'Applied to become a seller',
 

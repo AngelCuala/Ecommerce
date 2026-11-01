@@ -32,5 +32,5 @@ return [
     | Each product can set its own level (products.low_stock_threshold); empty = this.
     |
     */
-    'low_stock_threshold' => (int) env('LOW_STOCK_THRESHOLD', 5),
+    'low_stock_threshold' => (int) env('LOW_STOCK_THRESHOLD', 10),
 ];

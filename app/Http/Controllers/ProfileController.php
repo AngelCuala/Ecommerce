@@ -192,7 +192,7 @@ class ProfileController extends Controller
                     }
                 }],
         ], [
-            'phone.regex'  => 'Enter a valid PH mobile number: 09XXXXXXXXX (11 digits) or +639XXXXXXXXX.',
+            'phone.regex'  => PhoneNumber::MESSAGE,
             'phone.not_in' => 'That is already your phone number.',
         ]);
 

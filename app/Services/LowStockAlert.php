@@ -18,8 +18,8 @@ use App\Models\UserNotification;
  */
 class LowStockAlert
 {
-    /** @deprecated Store-wide default; use Product::lowStockThreshold(). */
-    public const THRESHOLD = 5;
+    /** @deprecated Store-wide default (10, the owner's level); use Product::lowStockThreshold(). */
+    public const THRESHOLD = 10;
 
     public static function check(?Product $product, int $before, int $after, ?ProductVariation $variation = null): void
     {

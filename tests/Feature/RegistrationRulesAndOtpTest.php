@@ -35,8 +35,8 @@ class RegistrationRulesAndOtpTest extends TestCase
             'first_name'   => 'Juan',
             'last_name'    => 'Dela Cruz',
             'email'        => 'juan@gmail.com',
-            'password'     => 'secret123',
-            'password_confirmation' => 'secret123',
+            'password'     => 'Secret@123',
+            'password_confirmation' => 'Secret@123',
             'sex'          => 'male',
             'contact_no'   => '09171234567',
             'birthday'     => '2000-01-15',
@@ -64,7 +64,7 @@ class RegistrationRulesAndOtpTest extends TestCase
             'first_name'      => 'Maria',
             'last_name'       => 'Santos',
             'email'           => 'maria@gmail.com',
-            'password'        => Hash::make('secret123'),
+            'password'        => Hash::make('Secret@123'),
             'role'            => 'buyer',
             'contact_no'      => '09998887777',
             'approval_status' => 'approved',
@@ -77,7 +77,7 @@ class RegistrationRulesAndOtpTest extends TestCase
     {
         foreach (['Juan2', 'Ju@n', 'Juan!', 'Juan_Carlos', '123'] as $bad) {
             $this->register(['first_name' => $bad])->assertSessionHasErrors([
-                'first_name' => 'First name may only contain letters and spaces — no numbers or symbols.',
+                'first_name' => "First name may only contain letters, spaces, hyphens (-), apostrophes (') and periods (.) — no numbers or other symbols.",
             ]);
             $this->register(['last_name' => $bad])->assertSessionHasErrors('last_name');
         }
@@ -91,6 +91,14 @@ class RegistrationRulesAndOtpTest extends TestCase
         $this->register(['last_name' => str_repeat('a', 51)])
             ->assertSessionHasErrors(['last_name' => 'Last name must not be longer than 50 characters.']);
         $this->assertDatabaseCount('users', 0);
+    }
+
+    /** Names with ñ, hyphens, apostrophes and periods (TC-BUY-005). */
+    public function test_names_with_hyphen_apostrophe_and_period_are_accepted(): void
+    {
+        $this->register(['first_name' => 'Niño Angelo', 'last_name' => "Peñaflor-O'Hara"])->assertSessionHasNoErrors();
+        $this->assertSame("Peñaflor-O'Hara", User::where('email', 'juan@gmail.com')->value('last_name'));
+        $this->register(['first_name' => 'Ma. Cristina', 'email' => 'ma@gmail.com', 'contact_no' => '09171234500'])->assertSessionHasNoErrors();
     }
 
     public function test_name_length_2_and_50_accepted(): void
@@ -125,7 +133,7 @@ class RegistrationRulesAndOtpTest extends TestCase
 
     public function test_invalid_mobile_numbers_are_rejected(): void
     {
-        foreach (['0917123456', '091712345678', '08171234567', '9171234567', '+639171234567', '0917-123-4567', '0917abc4567'] as $bad) {
+        foreach (['0917123456', '091712345678', '08171234567', '9171234567', '0917abc4567'] as $bad) {
             $this->register(['contact_no' => $bad])->assertSessionHasErrors([
                 'contact_no' => 'Please enter a valid mobile number: 11 digits starting with 09 (e.g. 09171234567).',
             ]);
@@ -137,6 +145,11 @@ class RegistrationRulesAndOtpTest extends TestCase
     {
         $this->makeUser(['contact_no' => '09171234567']);
 
+        // +63 and spaces are the same number (TC-BUY-016).
+        foreach (['+639171234567', '0917 123 4567', '0917-123-4567'] as $same) {
+            $this->register(['contact_no' => $same])->assertSessionHasErrors(['contact_no' => 'This mobile number is already in use by another account.']);
+        }
+
         $this->register(['contact_no' => '09171234567'])->assertSessionHasErrors([
             'contact_no' => 'This mobile number is already in use by another account.',
         ]);
@@ -147,10 +160,29 @@ class RegistrationRulesAndOtpTest extends TestCase
 
     public function test_password_7_rejected_8_accepted(): void
     {
-        $this->register(['password' => '1234567'])
-            ->assertSessionHasErrors(['password' => 'Password must be at least 8 characters.']);
-        $this->register(['password' => '12345678', 'password_confirmation' => '12345678'])
-            ->assertSessionDoesntHaveErrors('password');
+        $this->register(['password' => 'Bili@26', 'password_confirmation' => 'Bili@26'])->assertSessionHasErrors('password');
+        $this->register(['password' => 'Bili@202', 'password_confirmation' => 'Bili@202'])->assertSessionDoesntHaveErrors('password');
+    }
+
+    /** Uppercase, lowercase, number and symbol, typed twice (TC-BUY-018, TC-BUY-019). */
+    public function test_password_needs_every_character_type_and_a_matching_confirmation(): void
+    {
+        foreach (['mamimili@2026', 'MAMIMILI@2026', 'Mamimili@abcd', 'Mamimili2026'] as $weak) {
+            $this->register(['password' => $weak, 'password_confirmation' => $weak])->assertSessionHasErrors('password');
+        }
+        $this->register(['password' => 'Mamimili@2026', 'password_confirmation' => 'Mamimili@2027'])
+            ->assertSessionHasErrors(['password' => 'The passwords do not match.']);
+        $this->assertDatabaseCount('users', 0);
+    }
+
+    /** At least 18 years old (TC-BUY-007, TC-BUY-008). */
+    public function test_age_must_be_at_least_18(): void
+    {
+        $this->register(['birthday' => now()->subYears(18)->addDay()->toDateString()])
+            ->assertSessionHasErrors(['birthday' => 'You must be at least 18 years old.']);
+        $this->register(['birthday' => now()->addDay()->toDateString()])
+            ->assertSessionHasErrors(['birthday' => 'Please enter a valid date of birth (it cannot be today or in the future).']);
+        $this->register(['birthday' => now()->subYears(18)->toDateString()])->assertSessionDoesntHaveErrors('birthday');
     }
 
     // ── Sign-up → email code → shopping (buyers need no admin approval) ─────────────
@@ -168,7 +200,8 @@ class RegistrationRulesAndOtpTest extends TestCase
         $this->get(route('otp.show'))->assertOk()->assertSee('ju••@gmail.com', false);
     }
 
-    public function test_entering_the_sign_up_code_lets_a_buyer_shop_right_away(): void
+    /** A buyer is active and signed in as soon as the email code is entered (TC-BUY-023). */
+    public function test_entering_the_sign_up_code_moves_the_account_to_pending_approval(): void
     {
 
         $this->register();
@@ -177,7 +210,7 @@ class RegistrationRulesAndOtpTest extends TestCase
 
         $this->post(route('otp.verify'), ['otp' => $code])
             ->assertRedirect(route('home'))
-            ->assertSessionHas('success', 'Email verified! Welcome to ALVY, Juan Dela Cruz!');
+            ->assertSessionHas('success', 'Email verified! Welcome to ALVY, Juan!');
 
         $user = User::where('email', 'juan@gmail.com')->first();
         $this->assertSame('approved', $user->approval_status);
@@ -186,7 +219,7 @@ class RegistrationRulesAndOtpTest extends TestCase
 
         // No admin step: signing out and back in works straight away.
         auth()->logout();
-        $this->post('/login', ['email' => 'juan@gmail.com', 'password' => 'secret123'])->assertRedirect(route('home'));
+        $this->post('/login', ['email' => 'juan@gmail.com', 'password' => 'Secret@123'])->assertRedirect(route('home'));
         $this->assertAuthenticatedAs($user->fresh());
     }
 
@@ -194,7 +227,7 @@ class RegistrationRulesAndOtpTest extends TestCase
     {
         $user = $this->makeUser(['approval_status' => 'pending', 'email_verified_at' => now()]);
 
-        $this->post('/login', ['email' => 'maria@gmail.com', 'password' => 'secret123'])->assertRedirect(route('home'));
+        $this->post('/login', ['email' => 'maria@gmail.com', 'password' => 'Secret@123'])->assertRedirect(route('home'));
         $this->assertAuthenticatedAs($user);
         $this->assertSame('approved', $user->fresh()->approval_status);
     }
@@ -205,7 +238,7 @@ class RegistrationRulesAndOtpTest extends TestCase
     {
         $user = $this->makeUser();   // approved; older account whose email was never verified
 
-        $this->post('/login', ['email' => 'maria@gmail.com', 'password' => 'secret123'])->assertRedirect(route('home'));
+        $this->post('/login', ['email' => 'maria@gmail.com', 'password' => 'Secret@123'])->assertRedirect(route('home'));
         $this->assertAuthenticatedAs($user);
         Mail::assertNothingSent();
     }
@@ -214,7 +247,7 @@ class RegistrationRulesAndOtpTest extends TestCase
     {
         $this->makeUser(['role' => 'admin', 'email' => 'admin@alvy.test', 'contact_no' => null]);
 
-        $this->post('/login', ['email' => 'admin@alvy.test', 'password' => 'secret123'])->assertRedirect();
+        $this->post('/login', ['email' => 'admin@alvy.test', 'password' => 'Secret@123'])->assertRedirect();
         $this->assertAuthenticated();
         Mail::assertNothingSent();
     }
@@ -224,7 +257,7 @@ class RegistrationRulesAndOtpTest extends TestCase
         // Accounts other than buyers still wait for approval.
         $this->makeUser(['role' => 'sorting_center_pending', 'approval_status' => 'pending', 'email_verified_at' => now()]);
 
-        $this->from('/login')->post('/login', ['email' => 'maria@gmail.com', 'password' => 'secret123'])
+        $this->from('/login')->post('/login', ['email' => 'maria@gmail.com', 'password' => 'Secret@123'])
             ->assertSessionHasErrors('email');
         $this->assertGuest();
         Mail::assertNothingSent();
@@ -234,7 +267,7 @@ class RegistrationRulesAndOtpTest extends TestCase
     {
         $this->makeUser(['approval_status' => 'unverified']);
 
-        $this->post('/login', ['email' => 'maria@gmail.com', 'password' => 'secret123'])->assertRedirect(route('otp.show'));
+        $this->post('/login', ['email' => 'maria@gmail.com', 'password' => 'Secret@123'])->assertRedirect(route('otp.show'));
         $this->assertGuest();
         Mail::assertSent(LoginOtpMail::class);
     }
@@ -245,7 +278,7 @@ class RegistrationRulesAndOtpTest extends TestCase
     private function startOtp(): array
     {
         $user = $this->makeUser(['approval_status' => 'unverified']);
-        $this->post('/login', ['email' => 'maria@gmail.com', 'password' => 'secret123']);
+        $this->post('/login', ['email' => 'maria@gmail.com', 'password' => 'Secret@123']);
         $code = null;
         Mail::assertSent(LoginOtpMail::class, function ($m) use (&$code) { $code = $m->code; return true; });
         return [$user, $code];

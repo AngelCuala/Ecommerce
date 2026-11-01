@@ -5,6 +5,7 @@ namespace App\Http\Controllers\SortingCenter;
 use App\Http\Controllers\Controller;
 use App\Models\SortingCenterApplication;
 use App\Models\User;
+use App\Services\LoginOtp;
 use App\Services\PsgcDirectory;
 use App\Support\GoogleSignup;
 use Carbon\Carbon;
@@ -89,7 +90,9 @@ class RegistrationController extends Controller
             $addr['barangay'], $addr['municipality'], $addr['province_display'],
         ]));
 
-        $user = DB::transaction(function () use ($data, $addr, $age, $idPath, $permitPath, $address) {
+        // Like every other sign-up, the email is confirmed with a 6-digit code first (Google has already confirmed it).
+        $google = GoogleSignup::pending($request);
+        $user = DB::transaction(function () use ($data, $addr, $age, $idPath, $permitPath, $address, $google) {
             $user = User::create([
                 'name'            => $data['business_name'],
                 'first_name'      => $data['first_name'],
@@ -98,7 +101,7 @@ class RegistrationController extends Controller
                 'email'           => $data['email'],
                 'password'        => Hash::make($data['password']),
                 'role'            => 'sorting_center_pending',
-                'approval_status' => 'pending',
+                'approval_status' => $google ? 'pending' : 'unverified',
                 'sex'             => $data['sex'],
                 'contact_no'      => $data['contact_no'],
                 'birthday'        => $data['birthday'],
@@ -135,6 +138,7 @@ class RegistrationController extends Controller
                 'address'              => $address,
                 'government_id_path'   => $idPath,
                 'business_permit_path' => $permitPath,
+                // Listed for the administrator once the email code is entered (the account is "unverified" until then).
                 'status'               => 'pending',
             ]);
 
@@ -142,12 +146,21 @@ class RegistrationController extends Controller
         });
 
         // Came from "Continue with Google": link it (the email is already verified).
-        if ($google = GoogleSignup::pending($request)) {
+        if ($google) {
             $user->forceFill(['google_id' => $google['id'], 'email_verified_at' => now()])->save();
             GoogleSignup::forget($request);
+
+            return redirect()->route('login')->with('success',
+                'Registration submitted. Please wait for the administrator\'s approval, which will be sent to your email at ' . $data['email'] . '.');
         }
 
-        return redirect()->route('sc.login')->with('success',
-            'Registration submitted. Please wait for the administrator\'s approval, which will be sent to your email at ' . $data['email'] . '.');
+        // The account exists either way; if the email fails the user can press "Resend code".
+        $sent = app(LoginOtp::class)->trySend($user);
+        $request->session()->put('otp.user_id', $user->id);
+        $request->session()->put('otp.remember', false);
+
+        return $sent
+            ? redirect()->route('otp.show')->with('success', 'Almost done! We sent a 6-digit verification code to ' . LoginOtp::maskEmail($user->email) . '.')
+            : redirect()->route('otp.show')->withErrors(['otp' => LoginOtp::SEND_FAILED]);
     }
 }

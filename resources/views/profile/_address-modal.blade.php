@@ -299,7 +299,7 @@
         if (a) {
             $('addr-label').value = a.label || 'Home';
             $('addr-name').value = a.full_name || '';
-            $('addr-phone').value = a.phone || '';
+            $('addr-phone').value = (a.phone || '').replace(/^\+?63(9\d{9})$/, '0$1');
             $('addr-zip').value = a.zip || '';
             $('addr-line').value = a.address_line || '';
             $('addr-default').checked = !!a.is_default;

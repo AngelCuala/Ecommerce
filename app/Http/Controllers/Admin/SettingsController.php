@@ -28,13 +28,13 @@ class SettingsController extends Controller
     // ── Announcements ────────────────────────────────────────
     public function storeAnnouncement(Request $request)
     {
-        $data = $request->validate([
+        $data = \App\Support\VoucherRules::inBusinessTime($request, ['expires_at'], fn () => $request->validate([
             'title'      => 'required|string|max:255',
             'body'       => 'required|string|max:5000',
             'audience'   => 'required|in:all,buyers,sellers',
             'type'       => 'required|in:info,warning,maintenance,promo',
             'expires_at' => 'nullable|date|after:now',
-        ]);
+        ]));
 
         $data['admin_id']     = auth()->id();
         $data['published_at'] = now();

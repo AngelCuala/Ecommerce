@@ -291,7 +291,8 @@ class OrderController extends Controller
      */
     public function handover(Request $request, int $id)
     {
-        $request->validate([
+        // The pickup time is Philippine time (stored as UTC).
+        \App\Support\VoucherRules::inBusinessTime($request, ['pickup_scheduled_at'], fn () => $request->validate([
             'sorting_center_id'   => ['required', 'integer', \Illuminate\Validation\Rule::exists('users', 'id')->where('role', 'sorting_center')->where('approval_status', 'approved')],
             'pickup_scheduled_at' => 'required|date',
             'notes'               => 'nullable|string|max:500',
@@ -299,7 +300,7 @@ class OrderController extends Controller
             'sorting_center_id.required' => 'Choose the logistics company whose rider will pick up the parcel.',
             'sorting_center_id.exists'   => 'Choose one of the listed logistics companies.',
             'pickup_scheduled_at.required' => 'Choose the pickup date and time.',
-        ]);
+        ]));
 
         $order = $this->ownOrder($id);
         // Steps can't be skipped: New → Accepted → Packed → Ready for Pickup.
@@ -331,7 +332,7 @@ class OrderController extends Controller
             $parcel->update(['status' => 'pickup_approved', 'current_sorting_center_id' => $sc->id, 'verified_at' => now(), 'failure_reason' => null]);
             $svc->syncOrder($parcel);
             $svc->notify($sc->id, 'New pickup', "{$parcel->tracking_number} from " . auth()->user()->storeName() . ' is ready for pickup'
-                . ' (' . \Carbon\Carbon::parse($request->pickup_scheduled_at)->format('M j, g:i A') . ').', 'info', route('sc.dispatch'));
+                . ' (' . \Carbon\Carbon::parse($request->pickup_scheduled_at)->tz(config('app.business_timezone'))->format('M j, g:i A') . ').', 'info', route('sc.dispatch'));
 
             return app(\App\Services\RiderDispatch::class)->offer($parcel->fresh());
         });

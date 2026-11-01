@@ -14,14 +14,14 @@ use Illuminate\Support\Facades\Storage;
  */
 class CourierApplicationController extends Controller
 {
-    private const STATUSES = ['pending', 'approved', 'rejected', 'suspended'];
+    private const STATUSES = ['pending', 'approved', 'rejected', 'suspended', 'pending_activation'];
 
     public function index(Request $request)
     {
         $status = in_array($request->query('status'), self::STATUSES, true) ? $request->query('status') : 'pending';
         $mine   = Courier::where('sorting_center_id', auth()->id());
 
-        $couriers = (clone $mine)->with('user')
+        $couriers = (clone $mine)->with(['user', 'homeHub'])
             ->where('status', $status)
             ->latest('submitted_at')->latest()
             ->paginate(15)
@@ -48,6 +48,7 @@ class CourierApplicationController extends Controller
         $path = match ($document) {
             'license' => $courier->id_license_path,
             'or-cr'   => $courier->or_cr_path,
+            'nbi'     => $courier->nbi_path,
             default   => null,
         };
         abort_unless($path && Storage::disk('public')->exists($path), 404);

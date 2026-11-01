@@ -78,36 +78,7 @@ class SellerSixFixesTest extends TestCase
             ->assertRedirect(route('seller.books.index', ['search' => 'basket', 'sort' => 'oldest']));
     }
 
-    // 3. Store Category label
-
-    public function test_store_category_form_says_store_category_not_top_level(): void
-    {
-        $this->actingAs($this->seller1)->get(route('seller.store-categories.index'))->assertOk()
-            ->assertSee('— Store Category —')->assertDontSee('Top level');
-        $this->actingAs($this->seller1)->post(route('seller.store-categories.store'), ['name' => 'Pasalubong', 'parent_id' => ''])->assertSessionHasNoErrors();
-        $this->assertDatabaseHas('store_categories', ['seller_id' => $this->seller1->id, 'name' => 'Pasalubong', 'parent_id' => null]);
-    }
-
-    public function test_under_offers_alvy_categories_and_creates_the_parent_once(): void
-    {
-        $bags = \App\Models\Category::firstOrCreate(['name' => 'Bags & Luggage']);
-        $this->actingAs($this->seller1)->get(route('seller.store-categories.index'))->assertOk()
-            ->assertSee('ALVY categories')->assertSee('value="alvy:' . $bags->id . '"', false);
-
-        foreach (['Backpacks', 'Totes'] as $name) {
-            $this->actingAs($this->seller1)->post(route('seller.store-categories.store'), ['name' => $name, 'parent_id' => 'alvy:' . $bags->id])
-                ->assertSessionHasNoErrors();
-        }
-
-        $parents = \App\Models\StoreCategory::where('seller_id', $this->seller1->id)->where('name', $bags->name)->get();
-        $this->assertCount(1, $parents);
-        $this->assertNull($parents[0]->parent_id);
-        $this->assertSame(['Backpacks', 'Totes'], $parents[0]->children()->orderBy('name')->pluck('name')->all());
-
-        // Once the store has it, it is listed under "Your categories" only.
-        $this->actingAs($this->seller1)->get(route('seller.store-categories.index'))
-            ->assertSee('value="' . $parents[0]->id . '"', false)->assertDontSee('value="alvy:' . $bags->id . '"', false);
-    }
+    // 3. Store categories are picked from the ALVY categories: see S01StoreProfileAndCategoriesTest.
 
     // 4. Notifications
 

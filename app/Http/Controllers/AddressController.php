@@ -37,7 +37,7 @@ class AddressController extends Controller
             'latitude'          => 'nullable|numeric|between:4,22|required_with:longitude',
             'longitude'         => 'nullable|numeric|between:116,127|required_with:latitude',
         ], [
-            'phone.regex'                => 'Enter a valid PH mobile number: 09XXXXXXXXX (11 digits) or +639XXXXXXXXX.',
+            'phone.regex'                => PhoneNumber::MESSAGE,
             'municipality_code.required' => 'Please choose the region, province, city and barangay from the lists.',
             'address_line.required'      => 'Please enter the house number and street.',
         ]);

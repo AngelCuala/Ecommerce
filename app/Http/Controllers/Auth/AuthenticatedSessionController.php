@@ -102,6 +102,12 @@ class AuthenticatedSessionController extends Controller
                 ->with('info', $this->courierWaitingMessage($user));
         }
 
+        // Logistics company sign-ups waiting for (or turned down by) the administrator: say which, with the reason.
+        if ($user->role === 'sorting_center_pending') {
+            Auth::guard('web')->logout();
+            throw ValidationException::withMessages(['email' => \App\Models\SortingCenterApplication::loginRefusal($user)]);
+        }
+
         // Buyers don't need admin approval: one still marked pending (signed up before that changed) is let in.
         if ($user->isPending() && $user->isBuyer()) {
             $user->forceFill(['approval_status' => 'approved'])->save();
@@ -186,8 +192,7 @@ class AuthenticatedSessionController extends Controller
         if ($user->isAdmin()) {
             \App\Models\ActivityLog::record('admin_login', 'Admin signed in', $user->name . ' signed in.');
 
-            // The main login always opens the admin panel. The logistics / sorting
-            // panel has its own entrance at /logistics/login.
+            // The login opens the admin panel; its Logistics menu opens the logistics panel.
             return redirect()->route('admin.dashboard')
                 ->with('success', 'Welcome back, ' . $user->name . '!');
         }
@@ -274,8 +279,8 @@ class AuthenticatedSessionController extends Controller
     }
 
     /**
-     * A new account's email is confirmed (by the emailed code, or by Google):
-     * it moves from "unverified" to the approval queue.
+     * A new account's email is confirmed (by the emailed code, or by Google). A buyer is active right away and
+     * signed in; sellers and couriers move to their approval queue.
      */
     public function finishSignup(Request $request, User $user, bool $remember = false, string $verified = 'Email verified!')
     {
@@ -286,7 +291,7 @@ class AuthenticatedSessionController extends Controller
             Auth::login($user, $remember);
             $request->session()->regenerate();
 
-            return $this->completeLogin($request, $user)->with('success', $verified . ' Welcome to ALVY, ' . $user->name . '!');
+            return $this->completeLogin($request, $user)->with('success', $verified . ' Welcome to ALVY, ' . ($user->first_name ?: $user->name) . '!');
         }
 
         // Sellers can watch their application on the status page.

@@ -288,7 +288,7 @@
                             </div>
                             <div>
                                 <label for="pickup_scheduled_at" class="pl-label">Pickup date and time</label>
-                                <input type="datetime-local" id="pickup_scheduled_at" name="pickup_scheduled_at" class="input text-sm" required min="{{ now()->format('Y-m-d\TH:i') }}">
+                                <input type="datetime-local" id="pickup_scheduled_at" name="pickup_scheduled_at" class="input text-sm" required min="{{ now()->tz(config('app.business_timezone'))->format('Y-m-d\TH:i') }}">
                             </div>
                             <div>
                                 <label for="notes" class="pl-label">Notes <span style="color:#a39890;font-weight:400;">— optional</span></label>
@@ -302,7 +302,7 @@
                     <section class="pl-card">
                         <div class="pl-head"><h2>Waiting for a courier</h2></div>
                         <dl class="pl-dl pl-body !py-3">
-                            <div><dt>Pickup</dt><dd>{{ $delivery->pickup_scheduled_at?->format('M j, Y · g:i A') }}</dd></div>
+                            <div><dt>Pickup</dt><dd>{{ $delivery->pickup_scheduled_at?->copy()->tz(config('app.business_timezone'))->format('M j, Y · g:i A') }}</dd></div>
                             @if ($delivery->notes)<div><dt>Notes</dt><dd>{{ $delivery->notes }}</dd></div>@endif
                         </dl>
                         <p class="px-5 pb-4 text-xs pl-muted">The job is open to couriers. You'll be notified when one accepts it.</p>
@@ -314,7 +314,7 @@
                         <dl class="pl-dl pl-body !py-3">
                             <div><dt>Courier</dt><dd class="font-medium">{{ $delivery->courier_name }}</dd></div>
                             @if ($delivery->tracking_number)<div><dt>Tracking no.</dt><dd>{{ $delivery->tracking_number }}</dd></div>@endif
-                            <div><dt>Pickup</dt><dd>{{ $delivery->pickup_scheduled_at?->format('M j, Y · g:i A') }}</dd></div>
+                            <div><dt>Pickup</dt><dd>{{ $delivery->pickup_scheduled_at?->copy()->tz(config('app.business_timezone'))->format('M j, Y · g:i A') }}</dd></div>
                             @if ($delivery->notes)<div><dt>Notes</dt><dd>{{ $delivery->notes }}</dd></div>@endif
                         </dl>
                         <form action="{{ route('seller.orders.handed-over', $order->id) }}" method="POST" class="px-5 pb-4">

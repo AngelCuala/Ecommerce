@@ -101,13 +101,9 @@ class BuyerAreaAccessTest extends TestCase
             ->assertRedirect(route('seller.dashboard'));
         $this->post('/logout');
 
-        // The main login opens the admin panel, not the logistics / sorting panel.
+        // The login opens the admin panel; its Logistics menu opens the logistics panel (no separate login).
         $this->post('/login', ['email' => 'admin.approved@alvy.test', 'password' => 'Secret@123'])
             ->assertRedirect(route('admin.dashboard'));
-        $this->post('/logout');
-
-        // The logistics panel is reached through its own login page.
-        $this->post(route('logistics.login.store'), ['email' => 'admin.approved@alvy.test', 'password' => 'Secret@123'])
-            ->assertRedirect(route('admin.logistics.dashboard'));
+        $this->get(route('admin.logistics.dashboard'))->assertOk();
     }
 }

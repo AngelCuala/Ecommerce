@@ -25,6 +25,16 @@ class Product extends Model
     /** Most photos a single listing can have. */
     public const MAX_IMAGES = 9;
 
+    /** Stock that drops to the low-stock line tells the seller. With options, each option alerts on its own. */
+    protected static function booted(): void
+    {
+        static::updated(function (Product $p) {
+            if ($p->wasChanged('stock') && ! $p->variations()->exists()) {
+                \App\Services\LowStockAlert::check($p, (int) $p->getOriginal('stock'), (int) $p->stock);
+            }
+        });
+    }
+
     protected $fillable = [
         'category_id', 'subcategory', 'seller_id',
         'product_code', 'brand',

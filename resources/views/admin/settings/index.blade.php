@@ -120,9 +120,9 @@
                                 </div>
                                 <p class="mt-1.5 whitespace-pre-line text-sm leading-relaxed" style="color:#44403C;">{{ $ann->body }}</p>
                                 <p class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs pl-muted">
-                                    <span title="{{ $posted->format('M j, Y g:i A') }}">Posted {{ $posted->diffForHumans() }} by {{ $ann->admin->name ?? 'Admin' }}</span>
+                                    <span title="{{ $posted->copy()->tz(config('app.business_timezone'))->format('M j, Y g:i A') }}">Posted {{ $posted->diffForHumans() }} by {{ $ann->admin->name ?? 'Admin' }}</span>
                                     @if ($ann->expires_at)
-                                        <span title="{{ $ann->expires_at->format('M j, Y g:i A') }}">{{ $ann->isExpired() ? 'Expired' : 'Expires' }} {{ $ann->expires_at->diffForHumans() }}</span>
+                                        <span title="{{ $ann->expires_at->copy()->tz(config('app.business_timezone'))->format('M j, Y g:i A') }}">{{ $ann->isExpired() ? 'Expired' : 'Expires' }} {{ $ann->expires_at->diffForHumans() }}</span>
                                     @else
                                         <span>No expiry</span>
                                     @endif

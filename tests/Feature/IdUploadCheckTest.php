@@ -92,7 +92,7 @@ class IdUploadCheckTest extends TestCase
     {
         $this->from('/register')->post('/register', [
             'role' => 'buyer', 'first_name' => 'Juan', 'last_name' => 'Cruz', 'email' => 'juan@gmail.com',
-            'password' => 'secret123', 'password_confirmation' => 'secret123',
+            'password' => 'Secret@123', 'password_confirmation' => 'Secret@123',
             'sex' => 'male', 'contact_no' => '09171234567', 'birthday' => '2000-01-15',
             'region' => 'CALABARZON', 'province' => 'Laguna', 'province_code' => '043400000',
             'municipality' => 'Magdalena', 'municipality_code' => '043415000', 'barangay' => 'Poblacion',

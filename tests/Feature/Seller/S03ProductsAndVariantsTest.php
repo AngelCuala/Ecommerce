@@ -62,20 +62,22 @@ class S03ProductsAndVariantsTest extends TestCase
     /** SEL-PROD-001 (A16, A17, A25) */
     public function test_sel_prod_001_add_and_publish_a_product_with_all_valid_data(): void
     {
-        $this->publish(['description' => 'Set of 6 placemats, handwoven buri palm.', 'store_category_ids' => [$this->cat5->id]])
+        $this->publish(['description' => 'Set of 6 placemats, handwoven buri palm.'])
             ->assertSessionHasNoErrors()->assertSessionHas('success', fn ($m) => str_contains($m, 'submitted for admin approval'));
         $p = Product::where('title', 'Buri Placemat Set')->sole();
         $this->assertSame(['active', 'New', 30], [$p->status, $p->condition, $p->stock]);
         $this->assertEquals(299, $p->price);
         $this->assertEquals(0.6, $p->weight_kg);
         $this->assertSame(2, $p->images()->count());
-        $this->assertSame([$this->cat5->id], $p->storeCategories()->pluck('store_categories.id')->all());
+        // Tagged with the store's category for its ALVY category (added to the store with it).
+        $this->assertSame([$p->category->name], $p->storeCategories()->pluck('store_categories.name')->all());
+        $this->assertSame($p->category_id, $p->storeCategories()->value('store_categories.category_id'));
 
         $this->actingAs($this->seller1)->get(route('seller.books.index'))->assertSee('Buri Placemat Set')->assertSee('Active');
         $this->approve($p);
         $this->actingAs($this->buyer1)->get(route('shop.index', ['search' => 'Buri Placemat']))->assertSee('Buri Placemat Set');
         $this->actingAs($this->buyer1)->get(route('shop.index', ['search' => 'Buri', 'category' => $this->homeLiving->name]))->assertSee('Buri Placemat Set');
-        $this->actingAs($this->buyer1)->get(route('stores.show', [$this->seller1->id, 'scat' => $this->cat5->id]))->assertSee('Buri Placemat Set');
+        $this->actingAs($this->buyer1)->get(route('stores.show', [$this->seller1->id, 'scat' => $p->storeCategories()->value('store_categories.id')]))->assertSee('Buri Placemat Set');
         $this->actingAs($this->buyer1)->get(route('products.show', $p->slug))->assertOk()->assertSee('₱299.00');
     }
 

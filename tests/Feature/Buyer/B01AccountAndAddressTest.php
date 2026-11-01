@@ -141,6 +141,7 @@ class B01AccountAndAddressTest extends TestCase
             $this->actingAs($this->buyer2)->post(route('addresses.store'), $this->addressForm(['phone' => $bad]))->assertSessionHasErrors('phone');
         }
         $this->actingAs($this->buyer2)->post(route('addresses.store'), $this->addressForm(['phone' => '+639171234567']))->assertSessionHasNoErrors();
+        $this->assertSame('09171234567', $this->buyer2->addresses()->latest('id')->value('phone'));
         foreach (['full_name', 'phone', 'region', 'province', 'city', 'barangay', 'address_line'] as $field) {
             $this->actingAs($this->buyer2)->post(route('addresses.store'), $this->addressForm([$field => '']))->assertSessionHasErrors($field);
         }

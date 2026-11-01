@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Courier;
 
 use App\Http\Controllers\Controller;
+use App\Support\PhoneNumber;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
@@ -41,10 +42,11 @@ class AccountController extends Controller
         $user    = auth()->user();
         $courier = $user->courier;
 
+        $request->merge(['contact_no' => PhoneNumber::normalize($request->input('contact_no'))]);
         $data = $request->validate([
-            'contact_no' => 'required|string|max:30',
+            'contact_no' => ['required', 'string', 'regex:' . PhoneNumber::PATTERN],
             'avatar'     => 'nullable|image|mimes:jpg,jpeg,png,webp|max:2048',
-        ]);
+        ], ['contact_no.regex' => PhoneNumber::MESSAGE]);
 
         if ($request->hasFile('avatar')) {
             if ($user->profile_photo_path) {
@@ -78,10 +80,8 @@ class AccountController extends Controller
             'current_password.current_password' => 'The current password you entered is incorrect.',
         ]);
 
-        auth()->user()->update(['password' => Hash::make($request->password)]);
-
-        return redirect()->route('courier.account.security')
-            ->with('success', 'Your password has been changed successfully.');
+        // The new password is used once the code emailed to the account is entered.
+        return \App\Http\Controllers\PasswordChangeController::start(auth()->user(), $request->password, redirect()->route('courier.account.security'));
     }
 
     /** Mask an email: j********@****.com */

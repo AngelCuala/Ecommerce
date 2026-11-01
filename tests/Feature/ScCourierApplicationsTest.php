@@ -44,7 +44,7 @@ class ScCourierApplicationsTest extends TestCase
             'role' => 'courier', 'first_name' => 'Mario', 'last_name' => 'Santos', 'email' => 'mario@example.com',
             'sex' => 'male', 'contact_no' => '09181234568', 'birthday' => '1995-05-20',
             'region' => 'CALABARZON', 'province' => 'Laguna', 'province_code' => '043400000', 'municipality' => 'Magdalena', 'municipality_code' => '043415000', 'barangay' => 'Poblacion',
-            'house_number' => '12', 'street' => 'Rizal St', 'password' => 'secret123', 'password_confirmation' => 'secret123',
+            'house_number' => '12', 'street' => 'Rizal St', 'password' => 'Secret@123', 'password_confirmation' => 'Secret@123',
             'vehicle_type' => 'motorcycle', 'plate_number' => 'ABC 1234', 'terms' => '1',
             'or_cr_image'       => UploadedFile::fake()->image('license.jpg'),
             'vehicle_reg_image' => UploadedFile::fake()->create('orcr.pdf', 100, 'application/pdf'),
@@ -161,7 +161,7 @@ class ScCourierApplicationsTest extends TestCase
             ->assertSessionHas('success', fn ($msg) => str_contains($msg, 'waiting for approval from Hub Alpha'));
 
         // Signing in while still waiting.
-        $this->post('/login', ['email' => 'mario@example.com', 'password' => 'secret123'])
+        $this->post('/login', ['email' => 'mario@example.com', 'password' => 'Secret@123'])
             ->assertRedirect(route('courier.status'))
             ->assertSessionHas('info', 'Your courier application is still waiting for approval from Hub Alpha.');
 
@@ -174,7 +174,7 @@ class ScCourierApplicationsTest extends TestCase
     {
         $hub   = $this->hub('Hub Alpha');
         $buyer = User::create([
-            'name' => 'Buyer', 'email' => 'buyer@example.com', 'password' => Hash::make('secret123'),
+            'name' => 'Buyer', 'email' => 'buyer@example.com', 'password' => Hash::make('Secret@123'),
             'role' => 'buyer', 'approval_status' => 'approved', 'email_verified_at' => now(),
         ]);
         $payload = [

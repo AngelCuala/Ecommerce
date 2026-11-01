@@ -42,7 +42,7 @@ class CourierVehicleTypeTest extends TestCase
             'role' => 'courier', 'last_name' => 'Santos', 'first_name' => 'Mario', 'email' => 'mario.courier@example.com',
             'sex' => 'male', 'contact_no' => '09181234568', 'birthday' => '1995-05-20',
             'region' => 'NCR', 'province' => 'Metro Manila', 'municipality' => 'Quezon City', 'municipality_code' => '137404000', 'barangay' => 'Commonwealth',
-            'house_number' => '12', 'street' => 'Rizal St', 'password' => 'secret123', 'password_confirmation' => 'secret123',
+            'house_number' => '12', 'street' => 'Rizal St', 'password' => 'Secret@123', 'password_confirmation' => 'Secret@123',
             'vehicle_type' => 'truck', 'plate_number' => 'abc 1234', 'terms' => '1',
             'logistics_id' => $this->hubId(),
             'or_cr_image'       => UploadedFile::fake()->create('license.jpg', 300, 'image/jpeg'),

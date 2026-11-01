@@ -11,7 +11,7 @@ use App\Models\UserAddress;
 
 class User extends Authenticatable
 {
-    use HasFactory, Notifiable;
+    use HasFactory, Notifiable, \Laravel\Sanctum\HasApiTokens;
 
     protected $fillable = [
         // Core
@@ -35,7 +35,7 @@ class User extends Authenticatable
         'pending_email', 'pending_phone',
     ];
 
-    protected $hidden = ['password', 'remember_token', 'otp_code', 'contact_otp'];
+    protected $hidden = ['password', 'remember_token', 'otp_code', 'contact_otp', 'pending_password', 'password_otp'];
 
     protected function casts(): array
     {
@@ -47,6 +47,7 @@ class User extends Authenticatable
             'otp_expires_at'    => 'datetime',
             'otp_sent_at'       => 'datetime',
             'contact_otp_expires_at' => 'datetime',
+            'password_otp_expires_at' => 'datetime',
         ];
     }
 
@@ -55,6 +56,8 @@ class User extends Authenticatable
     public function isUnverified(): bool { return $this->approval_status === 'unverified'; }
     public function isPending(): bool   { return $this->approval_status === 'pending'; }
     public function isRejected(): bool  { return $this->approval_status === 'rejected'; }
+    /** A rider or courier made by a logistics company who hasn't set a password from the emailed link yet. */
+    public function isPendingActivation(): bool { return $this->approval_status === 'pending_activation'; }
 
     /**
      * Virtual `status` attribute used by admin views.

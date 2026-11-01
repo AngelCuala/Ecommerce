@@ -3,14 +3,14 @@
 namespace App\Http\Controllers\Seller;
 
 use App\Http\Controllers\Controller;
-use App\Models\Category;
 use App\Models\StoreCategory;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 /**
- * The seller's own store categories: two levels at most (category → subcategory),
- * names unique within the store (ignoring case and outer spaces).
+ * The categories on the seller's store page, picked from the ALVY categories (a shop selling motor parts and
+ * makeup adds "Automotive & Motorcycle" and "Health & Beauty"). Each product is tagged with the one for its
+ * ALVY category when it is saved. Older free-named categories can still be renamed, hidden or deleted.
  */
 class StoreCategoryController extends Controller
 {
@@ -20,37 +20,38 @@ class StoreCategoryController extends Controller
             ->with(['children' => fn ($q) => $q->withCount('products')])->withCount('products')
             ->orderBy('sort_order')->orderBy('name')->get();
 
-        // ALVY platform categories offered under "Under", minus the ones the store already has by name.
-        $taken = $categories->map(fn ($c) => mb_strtolower(trim($c->name)))->all();
-        $platformCategories = Category::orderBy('name')->get(['id', 'name'])
-            ->reject(fn ($c) => in_array(mb_strtolower(trim($c->name)), $taken, true))->values();
+        // ALVY categories this store hasn't added yet.
+        $available = \App\Models\Category::whereNotIn('id', $categories->pluck('category_id')->filter())->orderBy('name')->get(['id', 'name']);
 
-        return view('seller.store-categories.index', compact('categories', 'platformCategories'));
+        return view('seller.store-categories.index', compact('categories', 'available'));
     }
 
+    /** category_id: the ALVY category to add to the store. */
     public function store(Request $request)
     {
-        $data = $this->validated($request);
-
-        $parent = $this->parentFor($data['parent_id'] ?? null, $data['name']);
-        if ($parent && $parent->parent_id) {
-            return back()->withInput()->withErrors(['parent_id' => 'Store categories have at most 2 levels: a subcategory can\'t have its own subcategory.']);
-        }
-
-        $category = StoreCategory::create([
-            'seller_id'  => auth()->id(),
-            'parent_id'  => $parent?->id,
-            'name'       => $data['name'],
-            'sort_order' => (int) StoreCategory::where('seller_id', auth()->id())->where('parent_id', $parent?->id)->max('sort_order') + 1,
+        $data = $request->validate([
+            'category_id' => ['required', 'integer', 'exists:categories,id', function ($attr, $value, $fail) {
+                if (StoreCategory::where('seller_id', auth()->id())->where('category_id', $value)->exists()) {
+                    $fail('That category is already in your store.');
+                }
+            }],
+        ], [
+            'category_id.required' => 'Please choose a category.',
+            'category_id.exists'   => 'Please choose one of the ALVY categories.',
         ]);
-        \App\Models\ActivityLog::note('Store category "' . $category->name . '"' . ($parent ? ' under "' . $parent->name . '"' : ''), $category);
 
-        return back()->with('success', 'Category "' . $category->name . '" added.');
+        $category = StoreCategory::forPlatformCategory(auth()->id(), (int) $data['category_id']);
+        \App\Models\ActivityLog::note('Store category "' . $category->name . '" added', $category);
+
+        return back()->with('success', 'Category "' . $category->name . '" added to your store. Pick it when you add a product.');
     }
 
     public function update(Request $request, StoreCategory $storeCategory)
     {
         $category = $this->own($storeCategory->id);
+        if ($category->category_id) {
+            return back()->with('error', "This category comes from ALVY, so its name can't be changed. Delete it and add another one instead.");
+        }
         $data = $this->validated($request, $category);
         $old  = $category->name;
         $category->update(['name' => $data['name']]);
@@ -125,36 +126,6 @@ class StoreCategoryController extends Controller
         ], [
             'name.required' => 'Please enter a category name.',
             'name.max'      => 'Category names can be up to ' . StoreCategory::MAX_NAME . ' characters.',
-        ]);
-    }
-
-    /**
-     * The category a new one goes under. "alvy:<id>" picks an ALVY platform category: the store gets a
-     * top-level category of that name (or reuses the one it has). Choosing it for a category of the
-     * same name just adds that name at the top level.
-     */
-    private function parentFor(?string $value, string $name): ?StoreCategory
-    {
-        if ($value === null || $value === '') {
-            return null;
-        }
-        if (! str_starts_with($value, 'alvy:')) {
-            return $this->own((int) $value);
-        }
-
-        $platform = Category::findOrFail((int) substr($value, 5));
-        if (mb_strtolower(trim($platform->name)) === mb_strtolower($name)) {
-            return null;
-        }
-
-        $existing = StoreCategory::where('seller_id', auth()->id())
-            ->whereRaw('LOWER(TRIM(name)) = ?', [mb_strtolower(trim($platform->name))])->first();
-
-        return $existing ?? StoreCategory::create([
-            'seller_id'  => auth()->id(),
-            'parent_id'  => null,
-            'name'       => mb_substr(trim($platform->name), 0, StoreCategory::MAX_NAME),
-            'sort_order' => (int) StoreCategory::where('seller_id', auth()->id())->whereNull('parent_id')->max('sort_order') + 1,
         ]);
     }
 

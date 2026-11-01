@@ -132,19 +132,51 @@ class S05InventoryAndDiscountsTest extends TestCase
         $this->actingAs($this->seller2)->get(route('seller.books.index', ['status' => 'out_of_stock']))->assertSee('Power Bank 10000mAh')->assertSee('Out of Stock');
     }
 
-    /** SEL-INV-008 (A29) */
+    /** SEL-INV-008 (A29): the seller is told once when stock drops to 10 or fewer. */
     public function test_sel_inv_008_low_stock_alert_at_the_threshold(): void
     {
-        $this->p02->update(['stock' => 7]);
+        $this->p02->update(['stock' => 12]);
         $alerts = fn () => UserNotification::where('user_id', $this->seller1->id)->where('title', 'Low stock')->count();
 
-        $this->placeOrder($this->buyer1, [$this->cart($this->buyer1, $this->p02)]);   // 7 → 6
+        $this->placeOrder($this->buyer1, [$this->cart($this->buyer1, $this->p02)]);   // 12 → 11
         $this->assertSame(0, $alerts());
-        $this->placeOrder($this->buyer1, [$this->cart($this->buyer1, $this->p02)]);   // 6 → 5: alert
+        $this->placeOrder($this->buyer1, [$this->cart($this->buyer1, $this->p02)]);   // 11 → 10: alert
         $this->assertSame(1, $alerts());
-        $this->assertStringContainsString('"Rattan Fruit Basket" has only 5 left', UserNotification::where('title', 'Low stock')->value('body'));
-        $this->placeOrder($this->buyer2, [$this->cart($this->buyer2, $this->p02)]);   // 5 → 4: no second alert
+        $this->assertStringContainsString('"Rattan Fruit Basket" has only 10 left', UserNotification::where('title', 'Low stock')->value('body'));
+        $this->placeOrder($this->buyer2, [$this->cart($this->buyer2, $this->p02)]);   // 10 → 9: no second alert
         $this->assertSame(1, $alerts());
+        $this->assertTrue($this->p02->fresh()->isLowStock());
+    }
+
+    /** SEL-INV-008b: lowering stock by hand, and an option running low, alert too; restocking re-arms it. */
+    public function test_sel_inv_008b_low_stock_alert_on_seller_edits_and_options(): void
+    {
+        $alerts = fn () => UserNotification::where('user_id', $this->seller1->id)->where('title', 'Low stock')->count();
+        $set = fn ($v) => $this->actingAs($this->seller1)->from(route('seller.books.index'))->patch(route('seller.books.stock', $this->p02), ['stock' => $v]);
+
+        $set('15')->assertSessionHasNoErrors();   // 20 → 15: still fine
+        $this->assertSame(0, $alerts());
+        $set('8')->assertSessionHasNoErrors();    // 15 → 8: alert
+        $this->assertSame(1, $alerts());
+        $this->assertStringContainsString('has only 8 left (alert at 10 or fewer)', UserNotification::where('title', 'Low stock')->latest('id')->value('body'));
+        $set('6')->assertSessionHasNoErrors();    // still low: no repeat
+        $this->assertSame(1, $alerts());
+        $set('30')->assertSessionHasNoErrors();   // restocked…
+        $set('10')->assertSessionHasNoErrors();   // …and low again: a new alert
+        $this->assertSame(2, $alerts());
+        $set('0')->assertSessionHasNoErrors();    // already low: no alert for going to 0 by hand
+        $this->assertSame(2, $alerts());
+
+        // A product with options: the option that runs low is named.
+        $red = \App\Models\ProductVariation::create(['product_id' => $this->p02->id, 'name' => 'Red', 'stock' => 11]);
+        \App\Models\ProductVariation::create(['product_id' => $this->p02->id, 'name' => 'Blue', 'stock' => 40]);
+        $this->p02->update(['stock' => 51]);
+        $this->assertSame(2, $alerts());
+        $red->decrement('stock');                 // 11 → 10
+        $this->assertSame(3, $alerts());
+        $this->assertStringContainsString('"Rattan Fruit Basket" (Red) has only 10 left', UserNotification::where('title', 'Low stock')->latest('id')->value('body'));
+        $this->p02->update(['stock' => 5]);       // the product total never alerts on its own when it has options
+        $this->assertSame(3, $alerts());
     }
 
     /** SEL-INV-009 (A17) */
@@ -186,8 +218,8 @@ class S05InventoryAndDiscountsTest extends TestCase
     public function test_sel_disc_001_create_a_scheduled_percentage_sale(): void
     {
         $this->travelTo(now()->setTime(11, 0));
-        $this->saveP02(['discount_percent' => 20, 'sale_starts_at' => now()->addMinutes(10)->format('Y-m-d\TH:i'),
-            'sale_ends_at' => now()->addHours(2)->format('Y-m-d\TH:i')])->assertSessionHasNoErrors();
+        $this->saveP02(['discount_percent' => 20, 'sale_starts_at' => now()->addMinutes(10)->copy()->tz(config('app.business_timezone'))->format('Y-m-d\TH:i'),
+            'sale_ends_at' => now()->addHours(2)->copy()->tz(config('app.business_timezone'))->format('Y-m-d\TH:i')])->assertSessionHasNoErrors();
 
         $p = $this->p02->fresh();
         $this->assertSame('Upcoming', $p->saleState());
@@ -205,7 +237,7 @@ class S05InventoryAndDiscountsTest extends TestCase
     {
         $this->travelTo(now()->setTime(11, 0));
         $start = now()->addMinutes(10);
-        $this->saveP02(['discount_percent' => 20, 'sale_starts_at' => $start->format('Y-m-d\TH:i'), 'sale_ends_at' => now()->addHours(2)->format('Y-m-d\TH:i')]);
+        $this->saveP02(['discount_percent' => 20, 'sale_starts_at' => $start->copy()->tz(config('app.business_timezone'))->format('Y-m-d\TH:i'), 'sale_ends_at' => now()->addHours(2)->copy()->tz(config('app.business_timezone'))->format('Y-m-d\TH:i')]);
 
         $this->travelTo($start->copy()->subMinute());
         $this->assertEquals(450, $this->p02->fresh()->effective_price);
@@ -226,7 +258,7 @@ class S05InventoryAndDiscountsTest extends TestCase
     {
         $this->travelTo(now()->setTime(11, 0));
         $end = now()->addHours(2);
-        $this->saveP02(['discount_percent' => 20, 'sale_ends_at' => $end->format('Y-m-d\TH:i')])->assertSessionHasNoErrors();
+        $this->saveP02(['discount_percent' => 20, 'sale_ends_at' => $end->copy()->tz(config('app.business_timezone'))->format('Y-m-d\TH:i')])->assertSessionHasNoErrors();
         $line = $this->cart($this->buyer1, $this->p02);
 
         $this->travelTo($end->copy()->subMinute());
@@ -244,11 +276,11 @@ class S05InventoryAndDiscountsTest extends TestCase
     public function test_sel_disc_004_invalid_sale_dates(): void
     {
         $t = now()->addDay()->setTime(12, 0);
-        $this->saveP02(['discount_percent' => 20, 'sale_starts_at' => $t->format('Y-m-d\TH:i'), 'sale_ends_at' => $t->copy()->subHour()->format('Y-m-d\TH:i')])
+        $this->saveP02(['discount_percent' => 20, 'sale_starts_at' => $t->copy()->tz(config('app.business_timezone'))->format('Y-m-d\TH:i'), 'sale_ends_at' => $t->copy()->subHour()->copy()->tz(config('app.business_timezone'))->format('Y-m-d\TH:i')])
             ->assertSessionHasErrors(['sale_ends_at' => 'The sale must end after it starts.']);
-        $this->saveP02(['discount_percent' => 20, 'sale_starts_at' => $t->format('Y-m-d\TH:i'), 'sale_ends_at' => $t->format('Y-m-d\TH:i')])
+        $this->saveP02(['discount_percent' => 20, 'sale_starts_at' => $t->copy()->tz(config('app.business_timezone'))->format('Y-m-d\TH:i'), 'sale_ends_at' => $t->copy()->tz(config('app.business_timezone'))->format('Y-m-d\TH:i')])
             ->assertSessionHasErrors(['sale_ends_at' => 'The sale must end after it starts.']);
-        $this->saveP02(['discount_percent' => 20, 'sale_starts_at' => now()->subDay()->format('Y-m-d\TH:i'), 'sale_ends_at' => $t->format('Y-m-d\TH:i')])
+        $this->saveP02(['discount_percent' => 20, 'sale_starts_at' => now()->subDay()->copy()->tz(config('app.business_timezone'))->format('Y-m-d\TH:i'), 'sale_ends_at' => $t->copy()->tz(config('app.business_timezone'))->format('Y-m-d\TH:i')])
             ->assertSessionHasErrors(['sale_starts_at' => 'The sale start cannot be in the past.']);
         $this->assertEquals(0, $this->p02->fresh()->discount_percent);
         $this->assertNull($this->p02->fresh()->saleState());
@@ -288,11 +320,11 @@ class S05InventoryAndDiscountsTest extends TestCase
     public function test_sel_disc_007_overlapping_sales_on_the_same_product(): void
     {
         $this->travelTo(now()->setTime(10, 0));
-        $this->saveP02(['discount_percent' => 20, 'sale_starts_at' => now()->setTime(13, 0)->format('Y-m-d\TH:i'),
-            'sale_ends_at' => now()->setTime(15, 0)->format('Y-m-d\TH:i')])->assertSessionHasNoErrors();
+        $this->saveP02(['discount_percent' => 20, 'sale_starts_at' => now()->setTime(13, 0)->copy()->tz(config('app.business_timezone'))->format('Y-m-d\TH:i'),
+            'sale_ends_at' => now()->setTime(15, 0)->copy()->tz(config('app.business_timezone'))->format('Y-m-d\TH:i')])->assertSessionHasNoErrors();
 
-        $this->saveP02(['discount_percent' => 10, 'sale_starts_at' => now()->setTime(14, 0)->format('Y-m-d\TH:i'),
-            'sale_ends_at' => now()->setTime(16, 0)->format('Y-m-d\TH:i')])
+        $this->saveP02(['discount_percent' => 10, 'sale_starts_at' => now()->setTime(14, 0)->copy()->tz(config('app.business_timezone'))->format('Y-m-d\TH:i'),
+            'sale_ends_at' => now()->setTime(16, 0)->copy()->tz(config('app.business_timezone'))->format('Y-m-d\TH:i')])
             ->assertSessionHasErrors('sale_starts_at');
         $errors = session('errors')->get('sale_starts_at');
         $this->assertStringContainsString('"Rattan Fruit Basket" already has a sale', $errors[0]);
@@ -319,11 +351,11 @@ class S05InventoryAndDiscountsTest extends TestCase
     /** SEL-DISC-009 (A28) */
     public function test_sel_disc_009_edit_a_running_sale(): void
     {
-        $this->saveP02(['discount_percent' => 20, 'sale_ends_at' => now()->addDay()->format('Y-m-d\TH:i')])->assertSessionHasNoErrors();
+        $this->saveP02(['discount_percent' => 20, 'sale_ends_at' => now()->addDay()->copy()->tz(config('app.business_timezone'))->format('Y-m-d\TH:i')])->assertSessionHasNoErrors();
         $order = $this->placeOrder($this->buyer1, [$this->cart($this->buyer1, $this->p02)])->first();
         $this->assertEquals(360, OrderItem::where('order_id', $order->id)->value('price'));
 
-        $this->saveP02(['discount_percent' => 30, 'sale_ends_at' => now()->addDay()->format('Y-m-d\TH:i')])->assertSessionHasNoErrors();
+        $this->saveP02(['discount_percent' => 30, 'sale_ends_at' => now()->addDay()->copy()->tz(config('app.business_timezone'))->format('Y-m-d\TH:i')])->assertSessionHasNoErrors();
         $this->assertEquals(315, $this->p02->fresh()->effective_price);
         $this->flushSession();
         $this->actingAs($this->buyer2)->get(route('products.show', $this->p02->slug))->assertSee('₱315.00');
@@ -335,7 +367,7 @@ class S05InventoryAndDiscountsTest extends TestCase
     /** SEL-DISC-010 (A28) */
     public function test_sel_disc_010_end_a_running_sale_now(): void
     {
-        $this->saveP02(['discount_percent' => 20, 'sale_ends_at' => now()->addDay()->format('Y-m-d\TH:i')])->assertSessionHasNoErrors();
+        $this->saveP02(['discount_percent' => 20, 'sale_ends_at' => now()->addDay()->copy()->tz(config('app.business_timezone'))->format('Y-m-d\TH:i')])->assertSessionHasNoErrors();
         $line = $this->cart($this->buyer1, $this->p02);
         $this->assertEquals(360, $line->fresh()->unit_price);
 
@@ -346,4 +378,46 @@ class S05InventoryAndDiscountsTest extends TestCase
         $this->assertEquals(450, CartItem::find($line->id)->unit_price);
         $this->actingAs($this->buyer1)->get(route('cart.index'))->assertSee('₱450.00');
     }
+
+    /** The sale is optional and is either a sale price or a discount %; there is no limit per buyer or condition to fill in. */
+    public function test_sel_disc_011_sale_is_optional_and_one_of_price_or_discount(): void
+    {
+        $save = fn (array $over) => $this->actingAs($this->seller1)->from(route('seller.books.edit', $this->p02))
+            ->put(route('seller.books.update', $this->p02), $this->editForm($this->p02, $over));
+
+        // The form: No sale / Sale price / Discount %; no Limit per buyer, no Condition.
+        $html = $this->actingAs($this->seller1)->get(route('seller.books.edit', $this->p02))->assertOk()->getContent();
+        foreach (['No sale', 'Sale price (₱)', 'Discount %', 'name="sale_type"'] as $see) {
+            $this->assertStringContainsString($see, $html);
+        }
+        $this->assertStringNotContainsString('name="purchase_limit"', $html);
+        $this->assertStringNotContainsString('name="condition"', $html);
+
+        // No sale at all: saved fine.
+        $save(['sale_type' => 'none', 'sale_price' => '', 'discount_percent' => ''])->assertSessionHasNoErrors();
+        $this->assertNull($this->p02->fresh()->sale_price);
+        $this->assertEquals(0, $this->p02->fresh()->discount_percent);
+
+        // A sale price: the discount is cleared.
+        $save(['sale_type' => 'price', 'sale_price' => '399', 'discount_percent' => '20'])->assertSessionHasNoErrors();
+        $this->assertEquals([399, 0], [$this->p02->fresh()->sale_price, $this->p02->fresh()->discount_percent]);
+
+        // A discount: the sale price is cleared.
+        $save(['sale_type' => 'percent', 'sale_price' => '399', 'discount_percent' => '20'])->assertSessionHasNoErrors();
+        $this->assertEquals([null, 20], [$this->p02->fresh()->sale_price, $this->p02->fresh()->discount_percent]);
+
+        // Back to no sale: both cleared, with the dates.
+        $save(['sale_type' => 'none', 'sale_ends_at' => now()->addDay()->copy()->tz(config('app.business_timezone'))->format('Y-m-d\TH:i')])->assertSessionHasNoErrors();
+        $p = $this->p02->fresh();
+        $this->assertEquals([null, 0, null], [$p->sale_price, $p->discount_percent, $p->sale_ends_at]);
+
+        // Both sent without choosing (an older app): not allowed.
+        $save(['sale_price' => '399', 'discount_percent' => '20'])->assertSessionHasErrors(['sale_price' => 'Choose either a sale price or a discount %, not both.']);
+
+        // A limit sent by an older app is not kept.
+        $this->p02->update(['purchase_limit' => 2]);
+        $save(['sale_type' => 'none', 'purchase_limit' => '5'])->assertSessionHasNoErrors();
+        $this->assertNull($this->p02->fresh()->purchase_limit);
+    }
 }
+

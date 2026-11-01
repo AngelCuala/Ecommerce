@@ -252,7 +252,8 @@ class SortingCenterController extends Controller
 
         $query = $base()->with(['user', 'area']);
 
-        if ($tab === 'pending')  $query->where('application_status', 'pending');
+        // Pending = an application to review, or an added rider who hasn't set a password yet.
+        if ($tab === 'pending')  $query->whereIn('application_status', ['pending', 'pending_activation']);
         if ($tab === 'active')   $query->where('application_status', 'approved')->where('is_active', true);
         if ($tab === 'inactive') $query->where('application_status', 'approved')->where('is_active', false);
         if ($tab === 'rejected') $query->where('application_status', 'rejected');
@@ -261,7 +262,7 @@ class SortingCenterController extends Controller
 
         $counts = [
             'all'      => $base()->count(),
-            'pending'  => $base()->where('application_status', 'pending')->count(),
+            'pending'  => $base()->whereIn('application_status', ['pending', 'pending_activation'])->count(),
             'active'   => $base()->where('application_status', 'approved')->where('is_active', true)->count(),
             'inactive' => $base()->where('application_status', 'approved')->where('is_active', false)->count(),
             'rejected' => $base()->where('application_status', 'rejected')->count(),
@@ -290,11 +291,15 @@ class SortingCenterController extends Controller
             return back()->with('error', 'Assign a municipality to your account before adding riders.');
         }
 
+        $request->merge(['phone' => \App\Support\PhoneNumber::normalize($request->input('phone'))]);
+        $request->merge(['full_name' => trim((string) $request->input('full_name'))]);
         $data = $request->validate([
-            'full_name'    => 'required|string|max:150',
-            'phone'        => 'nullable|string|max:30',
+            'full_name'    => \App\Support\PersonRules::name(),
+            // Not used by another account, rider or courier (also stops a double-tapped Save making two riders).
+            'phone'        => \App\Support\PersonRules::mobile(required: false),
             'vehicle_type' => 'nullable|string|max:60',
-        ] + $this->barangayRules(), $this->barangayMessages());
+        ] + $this->barangayRules(), $this->barangayMessages() + ['phone.regex' => \App\Support\PhoneNumber::MESSAGE]
+            + \App\Support\PersonRules::nameMessages('full_name', 'Full name'));
 
         $addr = $this->resolveScBarangay($sc, $data);
 
@@ -326,6 +331,90 @@ class SortingCenterController extends Controller
 
         return back()->with('success', "{$data['full_name']} added as a rider for {$addr['barangay']}."
             . ($addedToCoverage ? " {$addr['barangay']} was added to your coverage areas." : ''));
+    }
+
+    /** Vehicles a rider of a logistics company may use (pickups and deliveries). */
+    public const RIDER_VEHICLES = ['Motorcycle', 'Car', 'Van'];
+
+    /**
+     * The app's Add Rider: a rider with a login of their own. They start Pending Activation and get an email
+     * to set their password (StaffAccounts). Fields: first_name, last_name, birthday, email, phone,
+     * license_number, license_expiry, vehicle_type, plate_number, license_file, or_cr_file, barangay_psgc/code.
+     */
+    public function storeRiderAccount(Request $request)
+    {
+        $sc = $this->sc();
+        if (! $sc->hasAssignedMunicipality()) {
+            return back()->with('error', 'Assign a municipality to your account before adding riders.');
+        }
+
+        $this->tidyStaffInput($request);
+        $docs = ['license_file' => 'Driver\'s license', 'or_cr_file' => 'Vehicle OR/CR'];
+        $data = $request->validate([
+            'first_name'     => \App\Support\PersonRules::name(),
+            'last_name'      => \App\Support\PersonRules::name(),
+            'birthday'       => \App\Support\PersonRules::adultBirthday(),
+            'email'          => \App\Support\PersonRules::email(),
+            'phone'          => \App\Support\PersonRules::mobile(),
+            'license_number' => \App\Support\PersonRules::licenseNumber(),
+            'license_expiry' => 'required|date|after_or_equal:today',
+            'vehicle_type'   => ['required', \Illuminate\Validation\Rule::in(self::RIDER_VEHICLES)],
+            'plate_number'   => \App\Support\PersonRules::plate(),
+            'license_file'   => \App\Support\PersonRules::document(),
+            'or_cr_file'     => \App\Support\PersonRules::document(),
+        ] + $this->barangayRules(), $this->barangayMessages() + ['phone.regex' => \App\Support\PhoneNumber::MESSAGE,
+            'vehicle_type.in' => 'Choose Motorcycle, Car or Van.']
+            + \App\Support\PersonRules::nameMessages('first_name', 'First name') + \App\Support\PersonRules::nameMessages('last_name', 'Last name')
+            + \App\Support\PersonRules::birthdayMessages() + \App\Support\PersonRules::staffMessages($docs));
+
+        $addr = $this->resolveScBarangay($sc, $data);
+        $paths = [];
+        foreach (['license_file' => 'license_path', 'or_cr_file' => 'or_cr_path'] as $field => $column) {
+            $paths[$column] = $request->file($field)->store('rider-documents', 'local');
+        }
+
+        $rider = DB::transaction(function () use ($sc, $data, $addr, $paths) {
+            $area = $this->findCoverageArea($sc, $addr) ?? $this->createCoverageArea($sc, $addr);
+            $user = \App\Services\StaffAccounts::makeUser($data);
+
+            return Rider::create([
+                'user_id'            => $user->id,
+                'sorting_center_id'  => $sc->id,
+                'full_name'          => $user->name,
+                'phone'              => $data['phone'],
+                'vehicle_type'       => $data['vehicle_type'],
+                'plate_number'       => $data['plate_number'],
+                'license_number'     => $data['license_number'],
+                'license_expiry'     => $data['license_expiry'],
+                'area_id'            => $area->id,
+                'region_code'        => $addr['region_code'],
+                'province_code'      => $addr['province_code'],
+                'municipality_code'  => $addr['municipality_code'],
+                'barangay_code'      => $addr['barangay_code'],
+                'application_status' => 'pending_activation',
+                'is_active'          => true,
+                'approved_by'        => $sc->id,
+            ] + $paths);
+        });
+
+        $sent = \App\Services\StaffAccounts::sendActivation($rider->user, $rider->companyName());
+
+        return back()->with($sent ? 'success' : 'warning', $sent
+            ? "{$rider->full_name} was added as Pending Activation. An activation email was sent to {$data['email']}."
+            : "{$rider->full_name} was added as Pending Activation, but the activation email could not be sent. Use Resend activation.");
+    }
+
+    /** Trimmed names, lower-case email, 09… mobile, upper-case license and plate (spaces removed). */
+    private function tidyStaffInput(Request $request): void
+    {
+        $request->merge([
+            'first_name'     => trim((string) $request->input('first_name')),
+            'last_name'      => trim((string) $request->input('last_name')),
+            'email'          => mb_strtolower(trim((string) $request->input('email'))),
+            'phone'          => \App\Support\PhoneNumber::normalize($request->input('phone')),
+            'license_number' => strtoupper(trim((string) $request->input('license_number'))),
+            'plate_number'   => strtoupper(preg_replace('/\s+/', '', (string) $request->input('plate_number'))),
+        ]);
     }
 
     /** Ensure the rider belongs to the current sorting center. */
@@ -1058,7 +1147,16 @@ class SortingCenterController extends Controller
 
         $user->update($request->only('name', 'email'));
 
-        // Passwords change only on the Security page (same rules as everyone, confirmed by an emailed code).
+        // On the website passwords change only on the Security page. The app still sends it here; same rules,
+        // and the new password is used once the code sent to the account is entered.
+        if ($request->is('api/*') && $request->filled('current_password')) {
+            $request->validate([
+                'current_password' => 'required|current_password',
+                'password'         => ['required', 'confirmed', 'different:current_password', self::newPasswordRule()],
+            ]);
+            return \App\Http\Controllers\PasswordChangeController::start($user, $request->password);
+        }
+
         return back()->with('success', 'Account updated successfully.');
     }
 
@@ -1074,7 +1172,7 @@ class SortingCenterController extends Controller
         \Auth::logout();
         $request->session()->invalidate();
         $request->session()->regenerateToken();
-        return redirect()->route('sc.login');
+        return redirect()->route('login');
     }
 
     // ══════════════════════════════════════════════════════════════

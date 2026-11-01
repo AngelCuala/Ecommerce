@@ -36,7 +36,7 @@ class RegistrationRolesTest extends TestCase
             'region' => 'CALABARZON', 'province' => 'Laguna', 'province_code' => '0403400000',
             'municipality' => 'Magdalena', 'municipality_code' => '0403415000', 'barangay' => 'Poblacion',
             'house_number' => '12', 'street' => 'Rizal St', 'zip_code' => '4007',
-            'password' => 'secret123', 'password_confirmation' => 'secret123', 'terms' => '1',
+            'password' => 'Secret@123', 'password_confirmation' => 'Secret@123', 'terms' => '1',
         ], $overrides);
     }
 
@@ -74,7 +74,7 @@ class RegistrationRolesTest extends TestCase
 
         // Email confirmed → waiting for the Logistics team: the status page, not a dead end.
         $user->forceFill(['approval_status' => 'pending', 'email_verified_at' => now()])->save();
-        $this->post('/login', ['email' => 'mario@example.com', 'password' => 'secret123'])
+        $this->post('/login', ['email' => 'mario@example.com', 'password' => 'Secret@123'])
             ->assertRedirect(route('courier.status'));
         auth()->logout();
 
@@ -84,14 +84,14 @@ class RegistrationRolesTest extends TestCase
         $this->assertSame('approved', $user->approval_status);
         auth()->logout();
 
-        $this->post('/login', ['email' => 'mario@example.com', 'password' => 'secret123'])
+        $this->post('/login', ['email' => 'mario@example.com', 'password' => 'Secret@123'])
             ->assertRedirect(route('courier.dashboard'));
     }
 
     public function test_rejected_courier_sign_up_still_sees_its_status_page(): void
     {
         $user = User::create([
-            'name' => 'Mario Santos', 'email' => 'mario@example.com', 'password' => Hash::make('secret123'),
+            'name' => 'Mario Santos', 'email' => 'mario@example.com', 'password' => Hash::make('Secret@123'),
             'role' => 'courier_pending', 'approval_status' => 'pending', 'email_verified_at' => now(),
         ]);
         $courier = Courier::create([
@@ -105,7 +105,7 @@ class RegistrationRolesTest extends TestCase
         $this->assertSame('courier_pending', $user->fresh()->role);
         auth()->logout();
 
-        $this->post('/login', ['email' => 'mario@example.com', 'password' => 'secret123'])
+        $this->post('/login', ['email' => 'mario@example.com', 'password' => 'Secret@123'])
             ->assertRedirect(route('courier.status'));
     }
 
@@ -115,7 +115,7 @@ class RegistrationRolesTest extends TestCase
             'role' => 'logistics', 'business_name' => 'ALVY Hub Magdalena',
             'government_id'   => UploadedFile::fake()->create('gov.jpg', 100, 'image/jpeg'),
             'business_permit' => UploadedFile::fake()->create('permit.pdf', 100, 'application/pdf'),
-        ]))->assertSessionHasNoErrors()->assertRedirect(route('sc.login'));
+        ]))->assertSessionHasNoErrors()->assertRedirect(route('otp.show'));   // the email code first, like every sign-up
 
         $user = User::where('email', 'mario@example.com')->firstOrFail();
         $this->assertSame('sorting_center_pending', $user->role);

@@ -32,6 +32,10 @@ class StoreSettingsController extends Controller
             $request->merge(['phone' => str_starts_with($phone, '+63') ? '0' . substr($phone, 3) : $phone]);
         }
         $request->merge(['shop_name' => trim((string) $request->input('shop_name'))]);
+        // NCR has no province level (the picker sends none): its cities are in Metro Manila.
+        if (! $request->filled('province') && preg_match('/\bNCR\b|National Capital/i', (string) $request->input('region'))) {
+            $request->merge(['province' => 'Metro Manila']);
+        }
 
         $data = $request->validate([
             'shop_name'         => ['required', 'string', 'min:3', 'max:30', function ($attr, $value, $fail) use ($application) {

@@ -35,7 +35,7 @@ body{margin:0;padding:0;background:#F5F5F5;font-family:'Helvetica Neue',Helvetic
       <p><strong>Approved on:</strong> {{ now()->format('F d, Y') }}</p>
     </div>
     <p>Sign in to set up your coverage barangays and riders, then start handling parcels.</p>
-    <div class="btn-wrap"><a href="{{ route('sc.login') }}" class="btn">Sign in to LogiSort →</a></div>
+    <div class="btn-wrap"><a href="{{ route('login') }}" class="btn">Sign in to LogiSort →</a></div>
   </div>
   <div class="ftr">&copy; {{ date('Y') }} ALVY. All rights reserved.</div>
 </div>

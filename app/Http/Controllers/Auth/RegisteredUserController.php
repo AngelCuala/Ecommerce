@@ -98,8 +98,11 @@ class RegisteredUserController extends Controller
         $psgcAvailable = class_exists(\App\Services\PsgcDirectory::class);
         if ($psgcAvailable) \App\Services\PsgcDirectory::normalizeCodes($request);
 
-        // Letters (any language, e.g. ñ) and single spaces between words only — no numbers or symbols.
-        $nameRule = ['required', 'string', 'min:2', 'max:50', 'regex:/^\pL+( \pL+)*$/u'];
+        // Letters (any language, e.g. ñ), spaces, hyphens, apostrophes and periods — no numbers or other symbols.
+        $nameRule = \App\Support\PersonRules::name();
+
+        // "+639171234567" and "0917 123 4567" are the same number as 09171234567.
+        $request->merge(['contact_no' => \App\Support\PhoneNumber::normalize($request->input('contact_no'))]);
 
         // Base validation rules
         $rules = [
@@ -109,13 +112,12 @@ class RegisteredUserController extends Controller
             'last_name'      => $nameRule,
             'middle_initial' => ['nullable', 'string', 'max:3', 'regex:/^\pL{1,2}\.?$/u'],
             'email'          => ['required', 'string', 'max:255', 'email:rfc', 'regex:/^[^@\s]+@[^@\s]+\.[A-Za-z]{2,}$/', 'unique:users,email'],
-            'password'       => 'required|string|min:8|confirmed',
-            'password_confirmation' => 'required|string',
+            'password'       => \App\Support\PersonRules::password(),
             'sex'            => 'required|in:male,female', // users.sex is enum('Male','Female')
             'terms'          => 'accepted',
             // Fields now required for all roles
-            'contact_no'   => ['required', 'string', 'regex:/^09\d{9}$/', 'unique:users,contact_no'],
-            'birthday'     => 'required|date|before:today',
+            'contact_no'   => \App\Support\PersonRules::mobile(),
+            'birthday'     => \App\Support\PersonRules::adultBirthday(),
             'province'     => 'nullable|string|max:120',
             'municipality' => 'required|string|max:120',
             'barangay'     => 'required|string|max:120',
@@ -127,7 +129,11 @@ class RegisteredUserController extends Controller
         // Role-specific validation rules (buyers don't upload an ID)
         if ($role === 'courier') {
             $rules['vehicle_type'] = 'required|in:motorcycle,tricycle,car,truck';
-            $rules['plate_number'] = 'required|string|max:50';
+            $rules['plate_number'] = ['required', 'string', 'max:50', function ($attr, $value, $fail) {
+                if (\App\Support\PersonRules::plateTaken((string) $value)) {
+                    $fail('Plate number ' . strtoupper((string) $value) . ' is already registered to another courier or rider.');
+                }
+            }];
             // couriers.id_license_path / or_cr_path are NOT NULL, so both documents are required.
             $rules['or_cr_image'] = ['bail', 'required', 'file', 'mimes:jpg,jpeg,png,pdf', 'max:5120', new GovernmentId]; // driver's license
             $rules['vehicle_reg_image'] = 'required|file|mimes:jpg,jpeg,png,pdf|max:5120';
@@ -138,12 +144,8 @@ class RegisteredUserController extends Controller
         $validated = $request->validate($rules, [
             'terms.accepted'       => 'You must agree to the Terms and Conditions and Privacy Policy to create an account.',
 
-            'first_name.regex'     => 'First name may only contain letters and spaces — no numbers or symbols.',
-            'first_name.min'       => 'First name must be at least 2 characters.',
-            'first_name.max'       => 'First name must not be longer than 50 characters.',
-            'last_name.regex'      => 'Last name may only contain letters and spaces — no numbers or symbols.',
-            'last_name.min'        => 'Last name must be at least 2 characters.',
-            'last_name.max'        => 'Last name must not be longer than 50 characters.',
+        ] + \App\Support\PersonRules::nameMessages('first_name') + \App\Support\PersonRules::nameMessages('last_name')
+          + \App\Support\PersonRules::birthdayMessages() + \App\Support\PersonRules::passwordMessages() + [
             'middle_initial.regex' => 'Middle initial may only contain letters (e.g. "M" or "M.").',
             'middle_initial.max'   => 'Middle initial may only contain letters (e.g. "M" or "M.").',
 
@@ -152,7 +154,6 @@ class RegisteredUserController extends Controller
             'email.unique'         => 'This email address is already registered. Please log in or use a different email.',
 
             'contact_no.regex'     => 'Please enter a valid mobile number: 11 digits starting with 09 (e.g. 09171234567).',
-            'contact_no.unique'    => 'This mobile number is already in use by another account.',
 
             'logistics_id.required' => 'Please choose the sorting center you want to apply to.',
             'logistics_id.exists'   => 'That sorting center is not available. Please choose another one.',

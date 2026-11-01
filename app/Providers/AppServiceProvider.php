@@ -26,6 +26,10 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        // A22 for the mobile app: like a web session, an app login ends after 30 minutes without use.
+        // (Checked before Sanctum stamps last_used_at for this request.)
+        \Laravel\Sanctum\Sanctum::authenticateAccessTokensUsing(fn ($token, bool $isValid) => $isValid
+            && ($token->last_used_at ?? $token->created_at)?->gt(now()->subMinutes(\App\Http\Controllers\Api\V1\AuthController::IDLE_MINUTES)));
         // The web guard keeps a "remember me" cookie per portal (App\Support\Portal).
         \Illuminate\Support\Facades\Auth::extend('session', function ($app, string $name, array $config) {
             $guard = new \App\Auth\PortalSessionGuard(

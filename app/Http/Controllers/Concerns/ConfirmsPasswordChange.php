@@ -38,6 +38,11 @@ trait ConfirmsPasswordChange
             return back()->withErrors(['current_password' => 'Current password is incorrect.']);
         }
 
+        // The app (no browser session) uses the code flow every account type shares: email or SMS, /api/v1/account/password-code.
+        if ($request->is('api/*')) {
+            return \App\Http\Controllers\PasswordChangeController::start($user, $request->password);
+        }
+
         // Nothing changes yet. The new password waits (hashed) until the emailed code is entered.
         $codes = app(PasswordChangeCode::class);
         if ($wait = $codes->cooldown()) {   // one email a minute, however often the form is sent

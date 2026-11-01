@@ -4,6 +4,13 @@
     $me       = auth()->user();
     $shopName = $me->sellerApplication?->shop_name ?? $me->name;
 
+    $active   = $books->where('is_archived', false);
+    $outCount = $active->where('stock', 0)->count();
+    $lowCount = $active->filter(fn ($b) => $b->isLowStock())->count();
+    $stockNote = collect([
+        $outCount ? $outCount . ' sold out' : null,
+        $lowCount ? $lowCount . ' low on stock' : null,
+    ])->filter()->implode(', ') ?: 'All in stock';
     $peso     = fn ($v) => '₱' . number_format((float) $v, 2);
     $maxBar   = max(1, (float) $earningsChart->max('value'));
     $tagClass = fn ($s) => match (strtolower((string) $s)) {

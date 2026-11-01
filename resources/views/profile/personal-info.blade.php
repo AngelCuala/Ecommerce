@@ -40,7 +40,7 @@
 
                     <div>
                         <label class="block text-xs font-semibold mb-1" style="color:#6b90aa;">Phone Number</label>
-                        <input type="text" name="phone" value="{{ old('phone', auth()->user()->phone) }}"
+                        <input maxlength="11" inputmode="numeric" autocomplete="tel" oninput="this.value=this.value.replace(/\D/g,'').slice(0,11)" type="text" name="phone" value="{{ old('phone', auth()->user()->phone) }}"
                                class="w-full rounded-xl border px-4 py-2.5 text-sm outline-none"
                                style="border-color:#cfdce8;color:#002b4d;"
                                onfocus="this.style.borderColor='#fa4e1c';" onblur="this.style.borderColor='#cfdce8';"

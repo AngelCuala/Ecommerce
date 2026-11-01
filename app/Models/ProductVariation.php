@@ -21,6 +21,16 @@ class ProductVariation extends Model
         'sort_order' => 'integer',
     ];
 
+    /** Stock that drops to the low-stock line tells the seller (orders and seller edits alike). */
+    protected static function booted(): void
+    {
+        static::updated(function (ProductVariation $v) {
+            if ($v->wasChanged('stock')) {
+                \App\Services\LowStockAlert::check($v->product, (int) $v->getOriginal('stock'), (int) $v->stock, $v);
+            }
+        });
+    }
+
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class, 'product_id');

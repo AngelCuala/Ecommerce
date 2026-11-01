@@ -27,7 +27,7 @@
 
     <div class="body">
         <h2>Hi {{ $user->first_name ?: $user->name }},</h2>
-        <p>Someone asked to change the password of your ALVY account{{ $ip ? ' (from IP ' . $ip . ')' : '' }}. To confirm it was you, enter this code on the security page:</p>
+        <p>Someone asked to change the password of your ALVY account{{ ! empty($ip) ? ' (from IP ' . $ip . ')' : '' }}. To confirm it was you, enter this code on the security page:</p>
 
         <div class="code">{{ $code }}</div>
 

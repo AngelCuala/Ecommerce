@@ -48,7 +48,7 @@ class GoogleSignupTest extends TestCase
         return array_merge([
             'role' => 'buyer', 'first_name' => 'Juan', 'last_name' => 'Dela Cruz',
             'email' => 'typed.something.else@example.com',
-            'password' => 'secret123', 'password_confirmation' => 'secret123',
+            'password' => 'Secret@123', 'password_confirmation' => 'Secret@123',
             'sex' => 'male', 'contact_no' => '09171234567', 'birthday' => '2000-01-15',
             'region' => 'CALABARZON', 'province' => 'Laguna', 'province_code' => '043400000', 'municipality' => 'Magdalena', 'municipality_code' => '043415000', 'barangay' => 'Poblacion',
             'house_number' => '12B', 'street' => 'Rizal Street', 'terms' => '1',
@@ -129,7 +129,7 @@ class GoogleSignupTest extends TestCase
     public function test_unfinished_sign_up_is_verified_by_google(): void
     {
         $user = User::create([
-            'name' => 'Juan', 'email' => 'half.done@gmail.com', 'password' => Hash::make('secret123'),
+            'name' => 'Juan', 'email' => 'half.done@gmail.com', 'password' => Hash::make('Secret@123'),
             'role' => 'buyer', 'approval_status' => 'unverified',
         ]);
         $this->fakeGoogle('half.done@gmail.com');
