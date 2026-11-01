@@ -7,7 +7,7 @@
             <form method="GET"><input type="search" name="search" placeholder="Search users…" value="{{ request('search') }}" style="width:100%;"></form>
         </div>
         @foreach($contacts as $c)
-            <a href="{{ route('logistics.chat.index', ['contact_id'=>$c->id]) }}"
+            <a href="{{ route('admin.logistics.chat.index', ['contact_id'=>$c->id]) }}"
                class="{{ $activeContact?->id == $c->id ? 'active' : '' }}">
                 <div style="font-weight:500;">{{ $c->name }}</div>
                 <div class="text-muted" style="font-size:12px;">{{ ucfirst($c->role ?? 'user') }}</div>
@@ -27,7 +27,7 @@
                     </div>
                 @endforeach
             </div>
-            <form method="POST" action="{{ route('logistics.chat.send') }}" class="chat-input">
+            <form method="POST" action="{{ route('admin.logistics.chat.send') }}" class="chat-input">
                 @csrf
                 <input type="hidden" name="receiver_id" value="{{ $activeContact->id }}">
                 <input type="text" name="body" placeholder="Type a message…" required autocomplete="off" id="chat-body">
@@ -48,7 +48,7 @@ if (msgs) msgs.scrollTop = msgs.scrollHeight;
 @if($activeContact)
 let lastId = {{ $messages->last()?->id ?? 0 }};
 setInterval(async () => {
-    const r = await fetch('{{ route('logistics.chat.poll') }}?contact_id={{ $activeContact->id }}&after_id='+lastId);
+    const r = await fetch('{{ route('admin.logistics.chat.poll') }}?contact_id={{ $activeContact->id }}&after_id='+lastId);
     const data = await r.json();
     data.forEach(msg => {
         lastId = msg.id;

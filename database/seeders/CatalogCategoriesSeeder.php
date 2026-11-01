@@ -22,6 +22,12 @@ class CatalogCategoriesSeeder extends Seeder
             'Food & Gourmet',
             'Furniture & Office',
             'Jewelry & Watches',
+            'Bags & Luggage',
+            'Shoes & Footwear',
+            'Home Appliances',
+            'Gaming & Consoles',
+            'Automotive & Motorcycle',
+            'Stationery & School Supplies',
         ];
 
         foreach ($categories as $name) {

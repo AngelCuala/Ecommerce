@@ -36,7 +36,7 @@
     <div class="body">
         <h2>Congratulations, {{ $courier->fullName() }}!</h2>
         <p>
-            Your courier application has been <strong style="color:#059669;">approved</strong> by the ALVY Logistics team.
+            Your courier application has been <strong style="color:#059669;">approved</strong> by {{ $courier->hubName() }}.
             You can now log in and start accepting pickup and delivery jobs.
         </p>
 

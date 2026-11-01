@@ -2,14 +2,16 @@
 
 namespace App\Http\Controllers\Seller;
 
+use App\Http\Controllers\Concerns\ConfirmsPasswordChange;
 use App\Http\Controllers\Controller;
 use App\Models\SellerApplication;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 
 class AccountController extends Controller
 {
+    use ConfirmsPasswordChange;   // change password, confirmed with an emailed code
+
     public function index()
     {
         $user        = auth()->user();
@@ -23,20 +25,42 @@ class AccountController extends Controller
         $user        = auth()->user();
         $application = SellerApplication::where('user_id', $user->id)->latest()->first();
 
+        // Same mobile format as seller sign-up: "+63 917 123 4567" → "09171234567".
+        if (is_string($phone = $request->input('phone'))) {
+            $phone = preg_replace('/[\s\-().]/', '', $phone);
+            $request->merge(['phone' => str_starts_with($phone, '+63') ? '0' . substr($phone, 3) : $phone]);
+        }
+
         $request->validate([
             'name'      => 'required|string|max:255',
             'email'     => 'required|email|unique:users,email,' . $user->id,
-            'phone'     => 'nullable|string|max:30',
+            'phone'     => ['nullable', 'regex:/^09\d{9}$/', function ($attr, $value, $fail) use ($user) {
+                $taken = \App\Models\User::where('id', '!=', $user->id)
+                    ->where(fn ($q) => $q->where('contact_no', $value)->orWhere('phone', $value))
+                    ->exists();
+                if ($taken) $fail('This mobile number is already in use.');
+            }],
             'address'   => 'nullable|string|max:255',
             'city'      => 'nullable|string|max:120',
             'zip'       => 'nullable|string|max:20',
             'country'   => 'nullable|string|max:120',
             'avatar'    => 'nullable|image|mimes:jpg,jpeg,png,webp|max:2048',
-            'shop_name' => 'nullable|string|max:255',
+            'shop_name' => ['nullable', 'string', 'min:3', 'max:30', function ($attr, $value, $fail) use ($application) {
+                $taken = SellerApplication::whereRaw('LOWER(shop_name) = ?', [mb_strtolower(trim($value))])
+                    ->when($application, fn ($q) => $q->where('id', '!=', $application->id))
+                    ->exists();
+                if ($taken) $fail('This shop name is already taken. Please choose another.');
+            }],
+        ], [
+            'phone.regex'   => 'Please enter a valid mobile number: 11 digits starting with 09 (e.g. 09171234567).',
+            'shop_name.min' => 'Shop name must be at least 3 characters.',
+            'shop_name.max' => 'Shop name must not be longer than 30 characters.',
+            'avatar.max'    => 'The profile photo must be 2 MB or smaller.',
         ]);
 
         // ── Profile photo ──────────────────────────────────────
         $userData = $request->only(['name', 'email', 'phone', 'address', 'city', 'zip', 'country']);
+        $userData['contact_no'] = $userData['phone'] ?? $user->contact_no;
 
         if ($request->hasFile('avatar')) {
             // Delete old photo if it exists
@@ -66,7 +90,7 @@ class AccountController extends Controller
                 // Reset counter if we're in a new calendar month
                 $changesThisMonth = $application->shop_name_changes_this_month ?? 0;
                 if ($application->shop_name_last_changed_at &&
-                    $application->shop_name_last_changed_at->month !== now()->month) {
+                    ! $application->shop_name_last_changed_at->isSameMonth(now())) {
                     $changesThisMonth = 0;
                 }
 
@@ -89,26 +113,5 @@ class AccountController extends Controller
         return view('seller.security', [
             'user' => auth()->user(),
         ]);
-    }
-
-    /**
-     * Update the seller's password. The current password must be verified and
-     * the actual password / hash is never exposed to the UI.
-     */
-    public function updatePassword(Request $request)
-    {
-        $request->validate([
-            'current_password' => ['required', 'current_password'],
-            'password'         => ['required', 'confirmed', \Illuminate\Validation\Rules\Password::min(8)],
-        ], [
-            'current_password.current_password' => 'The current password you entered is incorrect.',
-        ]);
-
-        auth()->user()->update([
-            'password' => Hash::make($request->password),
-        ]);
-
-        return redirect()->route('seller.account.security')
-            ->with('success', 'Your password has been changed successfully.');
     }
 }

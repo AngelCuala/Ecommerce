@@ -10,10 +10,11 @@
     <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     {{-- Tailwind CDN powers the shared floating chat widget's utility classes;
          courier.css (loaded after) owns the portal's own sidebar/page styling. --}}
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="{{ asset('css/courier.css') }}">
+    <script src="{{ asset('js/vendor/tailwindcss.js') }}"></script>
+    <link rel="stylesheet" href="{{ asset('css/courier.css') }}?v={{ filemtime(public_path('css/courier.css')) }}">
     <link rel="stylesheet" href="{{ asset('css/hover-effects.css') }}">
     @stack('styles')
+    <link rel="stylesheet" href="{{ asset('css/password-field.css') }}">
 </head>
 <body>
 
@@ -25,11 +26,20 @@
 
     $links = [
         'dashboard'     => ['route' => 'courier.dashboard',     'label' => 'Dashboard',     'icon' => 'dashboard'],
-        'history'       => ['route' => 'courier.history',       'label' => 'History',       'icon' => 'history'],
+        'history'       => ['route' => 'courier.history',       'label' => 'Delivery History', 'icon' => 'history'],
         'profit'        => ['route' => 'courier.profit',        'label' => 'Earnings',      'icon' => 'earnings'],
         'notifications' => ['route' => 'courier.notifications', 'label' => 'Notifications', 'icon' => 'bell'],
         'account'       => ['route' => 'courier.account',       'label' => 'Account',       'icon' => 'user'],
     ];
+    // Riders of a logistics company also get the hub jobs (pickups and deliveries) from the app.
+    if (auth()->check() && \App\Models\Rider::where('user_id', auth()->id())->where('application_status', 'approved')->exists()) {
+        $links = array_slice($links, 0, 1, true) + [
+            'rider'          => ['route' => 'courier.rider',          'label' => 'Hub Jobs',       'icon' => 'parcel'],
+            'rider-history'  => ['route' => 'courier.rider.history',  'label' => 'Job History',    'icon' => 'history'],
+            'rider-earnings' => ['route' => 'courier.rider.earnings', 'label' => 'Rider Pay',      'icon' => 'earnings'],
+            'rider-cod'      => ['route' => 'courier.rider.cod',      'label' => 'COD Remittance', 'icon' => 'truck'],
+        ] + array_slice($links, 1, null, true);
+    }
 @endphp
 
 <div class="top-bar"></div>
@@ -39,7 +49,7 @@
     {{-- ══════════ DESKTOP SIDEBAR ══════════ --}}
     <aside class="cx-sidebar">
         <a href="{{ route('courier.dashboard') }}" class="cx-brand">
-            <span class="cx-brand-logo"><img src="{{ asset('images/logo.png') }}" alt="ALVY"></span>
+            <span class="cx-brand-logo"><img src="{{ asset('images/logo-mark.png') }}" alt="ALVY"></span>
             <span class="cx-brand-name">ALVY</span>
         </a>
         <div class="cx-divider"></div>
@@ -65,13 +75,6 @@
                     <div class="cx-user-mail">{{ $u->email ?? '' }}</div>
                 </div>
             </div>
-            <form action="{{ route('logout') }}" method="POST">
-                @csrf
-                <button type="submit" class="cx-logout">
-                    @include('courier.partials.icon', ['name' => 'logout', 'size' => 14, 'sw' => 2])
-                    Sign Out
-                </button>
-            </form>
         </div>
     </aside>
 
@@ -79,7 +82,7 @@
     <div id="cx-backdrop" class="cx-backdrop"></div>
     <aside id="cx-drawer" class="cx-drawer">
         <div class="cx-drawer-head">
-            <span class="cx-brand-logo"><img src="{{ asset('images/logo.png') }}" alt="ALVY"></span>
+            <span class="cx-brand-logo"><img src="{{ asset('images/logo-mark.png') }}" alt="ALVY"></span>
             <span class="cx-brand-name">ALVY</span>
             <button id="cx-close-sidebar" class="cx-drawer-close" aria-label="Close menu">
                 @include('courier.partials.icon', ['name' => 'cross', 'size' => 20, 'sw' => 2])
@@ -96,15 +99,6 @@
                 </a>
             @endforeach
         </nav>
-        <div class="cx-foot">
-            <form action="{{ route('logout') }}" method="POST">
-                @csrf
-                <button type="submit" class="cx-logout">
-                    @include('courier.partials.icon', ['name' => 'logout', 'size' => 14, 'sw' => 2])
-                    Sign Out
-                </button>
-            </form>
-        </div>
     </aside>
 
     {{-- ══════════ MAIN ══════════ --}}
@@ -148,6 +142,15 @@
 @endif
 
 <script src="{{ asset('js/courier-drawer.js') }}"></script>
+<script>
+// Phones show each table row as a card: label every cell with its column heading (see .cx-table in courier.css).
+document.querySelectorAll('.cx-table').forEach(function (table) {
+    var heads = Array.from(table.querySelectorAll('thead th')).map(function (th) { return th.textContent.trim(); });
+    table.querySelectorAll('tbody tr').forEach(function (tr) {
+        Array.from(tr.children).forEach(function (td, i) { if (!td.hasAttribute('colspan') && heads[i]) td.setAttribute('data-label', heads[i]); });
+    });
+});
+</script>
 <script src="{{ asset('js/Courier.js') }}"></script>
 
 {{-- Floating chat popup (same widget the other portals use) --}}
@@ -155,5 +158,6 @@
 
 @stack('scripts')
 <script src="{{ asset('js/prevent-back.js') }}"></script>
+<script src="{{ asset('js/logout-confirm.js') }}?v={{ filemtime(public_path('js/logout-confirm.js')) }}"></script>
 </body>
 </html>

@@ -11,7 +11,7 @@ use App\Models\UserAddress;
 
 class User extends Authenticatable
 {
-    use HasFactory, Notifiable;
+    use HasFactory, Notifiable, \Laravel\Sanctum\HasApiTokens;
 
     protected $fillable = [
         // Core
@@ -21,7 +21,7 @@ class User extends Authenticatable
         'first_name', 'last_name', 'middle_initial', 'username',
         'sex', 'contact_no', 'birthday', 'age',
         'province', 'municipality', 'barangay', 'street', 'house_number',
-        'valid_id_path', 'approval_status', 'rejection_reason',
+        'valid_id_path', 'approval_status', 'rejection_reason', 'id_check_status', 'id_check_note',
 
         // Sorting-center municipality assignment
         'assigned_municipality', 'assigned_municipality_code',
@@ -30,9 +30,12 @@ class User extends Authenticatable
         // Profile extras
         'phone', 'address', 'city', 'zip', 'country',
         'profile_photo_path', 'bio', 'last_login_at',
+
+        // Email / phone change waiting for its verification code
+        'pending_email', 'pending_phone',
     ];
 
-    protected $hidden = ['password', 'remember_token'];
+    protected $hidden = ['password', 'remember_token', 'otp_code', 'contact_otp', 'pending_password', 'password_otp'];
 
     protected function casts(): array
     {
@@ -41,13 +44,20 @@ class User extends Authenticatable
             'birthday'          => 'date',
             'password'          => 'hashed',
             'last_login_at'     => 'datetime',
+            'otp_expires_at'    => 'datetime',
+            'otp_sent_at'       => 'datetime',
+            'contact_otp_expires_at' => 'datetime',
+            'password_otp_expires_at' => 'datetime',
         ];
     }
 
     // ── Approval status helpers ───────────────────────────────
     public function isApproved(): bool  { return $this->approval_status === 'approved'; }
+    public function isUnverified(): bool { return $this->approval_status === 'unverified'; }
     public function isPending(): bool   { return $this->approval_status === 'pending'; }
     public function isRejected(): bool  { return $this->approval_status === 'rejected'; }
+    /** A rider or courier made by a logistics company who hasn't set a password from the emailed link yet. */
+    public function isPendingActivation(): bool { return $this->approval_status === 'pending_activation'; }
 
     /**
      * Virtual `status` attribute used by admin views.
@@ -97,6 +107,34 @@ class User extends Authenticatable
     public function orders(): HasMany
     {
         return $this->hasMany(Order::class);
+    }
+
+    public function wishlistItems(): HasMany
+    {
+        return $this->hasMany(WishlistItem::class);
+    }
+
+    /** Stores this buyer follows. */
+    public function follows(): HasMany
+    {
+        return $this->hasMany(StoreFollow::class);
+    }
+
+    /** Buyers following this seller's store. */
+    public function followers(): HasMany
+    {
+        return $this->hasMany(StoreFollow::class, 'seller_id');
+    }
+
+    public function voucherClaims(): HasMany
+    {
+        return $this->hasMany(VoucherClaim::class);
+    }
+
+    /** Shop name for a seller, else the account name. */
+    public function storeName(): string
+    {
+        return $this->sellerApplication->shop_name ?? $this->name ?? 'Store';
     }
 
     public function cartItems(): HasMany

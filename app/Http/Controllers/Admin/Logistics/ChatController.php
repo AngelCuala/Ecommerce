@@ -52,6 +52,7 @@ class ChatController extends Controller
         ]);
 
         Message::create([
+            'thread_key'  => Message::threadKey(auth()->id(), (int) $request->receiver_id),
             'sender_id'   => auth()->id(),
             'receiver_id' => $request->receiver_id,
             'body'        => $request->body,

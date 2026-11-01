@@ -35,9 +35,20 @@ class PlatformPolicy extends Model
         ];
     }
 
+    /** The text the site shows for a policy: the admin's published version, else the built-in default (null if neither). */
+    public static function body(string $key): ?string
+    {
+        return static::where('key', $key)->value('content') ?: static::defaultContent($key);
+    }
+
     /** Default body content shown when a policy hasn't been published in the DB yet. */
     public static function defaultContent(string $key): ?string
     {
+        // A longer default can live in resources/views/policies/defaults/<key>.blade.php.
+        if (preg_match('/^[a-z_]+$/', $key) && view()->exists('policies.defaults.' . $key)) {
+            return view('policies.defaults.' . $key)->render();
+        }
+
         return match ($key) {
             'about_us' => '<h2 style="font-size:1.15rem;font-weight:800;color:#002b4d;margin-bottom:.5rem;">Developers Profile</h2>'
                 . '<p>The ALVY development team consists of dedicated and aspiring Information Technology students who are responsible for designing, developing, and maintaining the platform. The developers apply their knowledge of programming, database management, web development, and user interface design to create a functional and user-friendly e-commerce system. ALVY also recognizes the important role of couriers and sorting centers in ensuring that orders are properly processed, sorted, and delivered to customers. Through teamwork, creativity, and continuous learning, the development team aims to create a reliable platform that connects consumers, sellers, sorting centers, and couriers while providing a smooth and convenient shopping experience.</p>'

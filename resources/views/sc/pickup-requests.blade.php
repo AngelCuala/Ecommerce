@@ -65,7 +65,7 @@
                         <div style="font-weight:600;">{{ $parcel->receiver_name }}</div>
                         <div class="text-muted text-sm">{{ $parcel->destination_municipality ?? $parcel->dropoff_address }}</div>
                     </td>
-                    <td style="font-size:12px;">{{ $parcel->pickup_scheduled_at?->format('M d, Y h:i A') ?? '—' }}</td>
+                    <td style="font-size:12px;">{{ $parcel->pickup_scheduled_at?->copy()->tz(config('app.business_timezone'))->format('M d, Y h:i A') ?? '—' }}</td>
                     <td>
                         <span class="badge {{ $badgeClass }}">{{ $parcel->statusLabel() }}</span>
                         @if($parcel->status === 'pickup_rejected' && $parcel->failure_reason)

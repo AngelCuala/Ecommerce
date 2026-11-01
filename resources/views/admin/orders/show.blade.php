@@ -40,13 +40,13 @@
                                     @endif
                                 </p>
                                 <p class="text-xs mt-1" style="color:#555555;">
-                                    Qty: {{ $item->quantity }} × ${{ number_format($item->price, 2) }}
+                                    Qty: {{ $item->quantity }} × ₱{{ number_format($item->price, 2) }}
                                 </p>
                             </div>
                             <div class="text-right">
-                                <p class="font-bold text-sm" style="color:#222222;">${{ number_format($item->price * $item->quantity, 2) }}</p>
-                                <p class="text-xs mt-0.5" style="color:#C97D6E;">Commission: ${{ number_format($item->commission_amount, 2) }}</p>
-                                <p class="text-xs" style="color:#059669;">Seller earns: ${{ number_format($item->seller_earning, 2) }}</p>
+                                <p class="font-bold text-sm" style="color:#222222;">₱{{ number_format($item->price * $item->quantity, 2) }}</p>
+                                <p class="text-xs mt-0.5" style="color:#C97D6E;">Commission: ₱{{ number_format($item->commission_amount, 2) }}</p>
+                                <p class="text-xs" style="color:#059669;">Seller earns: ₱{{ number_format($item->seller_earning, 2) }}</p>
                             </div>
                         </div>
                     </div>
@@ -54,23 +54,37 @@
             </div>
             <div class="px-6 py-4 space-y-2 text-sm" style="background:#e8f0f6;border-top:1px solid #dce8f0;">
                 <div class="flex justify-between" style="color:#555555;">
-                    <span>Subtotal</span><span>${{ number_format($order->subtotal, 2) }}</span>
+                    <span>Subtotal</span><span>₱{{ number_format($order->subtotal, 2) }}</span>
                 </div>
+                @if ($order->promo_discount > 0)
+                    <div class="flex justify-between"><span>Bundle deals &amp; promos (paid by sellers)</span><span>−₱{{ number_format($order->promo_discount, 2) }}</span></div>
+                @endif
+                @if ($order->seller_discount > 0)
+                    <div class="flex justify-between" style="color:#059669;">
+                        <span>Store vouchers (paid by sellers)</span><span>−₱{{ number_format($order->seller_discount, 2) }}</span>
+                    </div>
+                @endif
+                @if ($order->platform_discount > 0)
+                    <div class="flex justify-between" style="color:#059669;">
+                        <span>ALVY voucher{{ $order->platformVoucher ? ' ' . $order->platformVoucher->code : '' }} (paid by ALVY)</span>
+                        <span>−₱{{ number_format($order->platform_discount, 2) }}</span>
+                    </div>
+                @endif
                 <div class="flex justify-between" style="color:#555555;">
                     <span>Shipping</span>
                     <span style="color:{{ $order->shipping_fee == 0 ? '#059669' : '#222222' }};">
-                        {{ $order->shipping_fee == 0 ? 'Free' : '$'.number_format($order->shipping_fee,2) }}
+                        {{ $order->shipping_fee == 0 ? 'Free' : '₱'.number_format($order->shipping_fee,2) }}
                     </span>
                 </div>
                 <div class="flex justify-between border-t pt-2 font-display text-base font-bold"
                      style="border-color:#dce8f0;color:#222222;">
-                    <span>Total</span><span>${{ number_format($order->total_price, 2) }}</span>
+                    <span>Total</span><span>₱{{ number_format($order->total_price, 2) }}</span>
                 </div>
                 <div class="flex justify-between text-xs pt-1" style="color:#6b90aa;">
-                    <span>Total Commission</span><span style="color:#C97D6E;">${{ number_format($totalCommission, 2) }}</span>
+                    <span>Total Commission</span><span style="color:#C97D6E;">₱{{ number_format($totalCommission, 2) }}</span>
                 </div>
                 <div class="flex justify-between text-xs" style="color:#6b90aa;">
-                    <span>Total Seller Earnings</span><span style="color:#059669;">${{ number_format($totalEarnings, 2) }}</span>
+                    <span>Total Seller Earnings</span><span style="color:#059669;">₱{{ number_format($totalEarnings, 2) }}</span>
                 </div>
             </div>
         </div>
@@ -128,13 +142,34 @@
                 </div>
                 <div class="flex items-center justify-between">
                     <span class="text-xs" style="color:#6b90aa;">Method</span>
-                    <span class="text-xs font-semibold" style="color:#222222;">{{ $order->payment_method }}</span>
+                    <span class="text-xs font-semibold" style="color:#222222;">{{ $order->paymentMethodLabel() }}</span>
+                    @if ($order->isGcashReceipt() && $order->payment_proof_path)
+                        <a href="{{ \App\Support\Portal::route('orders.payment-proof', $order) }}" target="_blank" rel="noopener" class="ml-2 text-xs font-semibold hover:underline" style="color:#007DFE;">View GCash receipt{{ $order->payment_reference ? ' (Ref ' . $order->payment_reference . ')' : '' }}</a>
+                    @endif
                 </div>
                 <div class="flex items-center justify-between">
                     <span class="text-xs" style="color:#6b90aa;">Placed</span>
                     <span class="text-xs" style="color:#222222;">{{ $order->created_at->format('M d, Y H:i') }}</span>
                 </div>
             </div>
+
+            @if ($order->status === \App\Models\Order::IN_DISPUTE)
+                @php $dispute = $order->returnRequests()->where('status', 'disputed')->latest()->first(); @endphp
+                <div class="mt-5 rounded-lg border p-3 text-sm" style="border-color:#FECACA;background:#FEF2F2;">
+                    <p class="font-semibold" style="color:#B91C1C;">Return in dispute</p>
+                    @if ($dispute)
+                        <p class="mt-1 text-xs">Reason: {{ $dispute->reason }} · Seller: {{ $dispute->seller_note }}@if ($dispute->dispute_note) · Buyer: {{ $dispute->dispute_note }}@endif</p>
+                    @endif
+                    <form method="POST" action="{{ route('admin.orders.dispute', $order->id) }}" class="mt-2 space-y-2">
+                        @csrf
+                        <input name="note" maxlength="500" class="input text-sm" placeholder="Decision note (optional)">
+                        <div class="flex gap-2">
+                            <button name="decision" value="refund" class="btn-gold flex-1 !py-1.5 text-xs" style="background:#fa4e1c;border-color:#fa4e1c;color:#fff;">Refund buyer</button>
+                            <button name="decision" value="close" class="flex-1 rounded-md border px-2 py-1.5 text-xs font-semibold">Close (no refund)</button>
+                        </div>
+                    </form>
+                </div>
+            @endif
 
             {{-- Update status form --}}
             <form action="{{ route('admin.orders.update', $order->id) }}" method="POST" class="mt-5 space-y-3">
@@ -145,6 +180,8 @@
                         <option value="{{ $s }}" {{ $order->status === $s ? 'selected' : '' }}>{{ $s }}</option>
                     @endforeach
                 </select>
+                <input name="reason" class="input text-sm" placeholder="Reason for the override (10–300 characters)" minlength="10" maxlength="300" required>
+                @error('reason')<p class="text-xs" style="color:#DC2626;">{{ $message }}</p>@enderror
                 <button type="submit" class="btn-gold w-full !py-2 text-sm" style="background:#fa4e1c;border-color:#fa4e1c;color:#FFFFFF;">Save Status</button>
             </form>
         </div>

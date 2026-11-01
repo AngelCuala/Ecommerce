@@ -8,14 +8,28 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class ProductVariation extends Model
 {
     protected $fillable = [
-        'product_id', 'name', 'price', 'stock', 'sku', 'sort_order',
+        'product_id', 'name', 'price', 'stock', 'sku', 'image_path', 'sort_order',
     ];
+
+    /** Most option types per product and options per type (assumption A7). */
+    public const MAX_TYPES   = 2;
+    public const MAX_OPTIONS = 20;
 
     protected $casts = [
         'price'      => 'float',
         'stock'      => 'integer',
         'sort_order' => 'integer',
     ];
+
+    /** Stock that drops to the low-stock line tells the seller (orders and seller edits alike). */
+    protected static function booted(): void
+    {
+        static::updated(function (ProductVariation $v) {
+            if ($v->wasChanged('stock')) {
+                \App\Services\LowStockAlert::check($v->product, (int) $v->getOriginal('stock'), (int) $v->stock, $v);
+            }
+        });
+    }
 
     public function product(): BelongsTo
     {

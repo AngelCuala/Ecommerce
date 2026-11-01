@@ -13,11 +13,6 @@
                 <h2 class="font-display text-xl font-bold mb-1" style="color:#002b4d;">Personal Information</h2>
                 <p class="text-sm mb-6" style="color:#6b90aa;">Update your name, email, and contact details.</p>
 
-                @if (session('success'))
-                    <div class="mb-5 rounded-xl border p-3 text-sm" style="background:rgba(250,78,28,.08);border-color:rgba(250,78,28,.3);color:#fa4e1c;">
-                        ✓ {{ session('success') }}
-                    </div>
-                @endif
                 @if ($errors->any())
                     <div class="mb-5 rounded-xl border p-3 text-sm" style="background:#FEF2F2;border-color:rgba(220,38,38,.2);color:#DC2626;">
                         {{ $errors->first() }}
@@ -45,11 +40,11 @@
 
                     <div>
                         <label class="block text-xs font-semibold mb-1" style="color:#6b90aa;">Phone Number</label>
-                        <input type="text" name="phone" value="{{ old('phone', auth()->user()->phone) }}"
+                        <input maxlength="11" inputmode="numeric" autocomplete="tel" oninput="this.value=this.value.replace(/\D/g,'').slice(0,11)" type="text" name="phone" value="{{ old('phone', auth()->user()->phone) }}"
                                class="w-full rounded-xl border px-4 py-2.5 text-sm outline-none"
                                style="border-color:#cfdce8;color:#002b4d;"
                                onfocus="this.style.borderColor='#fa4e1c';" onblur="this.style.borderColor='#cfdce8';"
-                               placeholder="+63 912 345 6789">
+                               placeholder="+63 912 345 6789" maxlength="13" inputmode="tel" autocomplete="tel" data-mobile oninput="this.value=this.value.startsWith('+')?('+'+this.value.slice(1).replace(/\D/g,'')).slice(0,13):this.value.replace(/\D/g,'').slice(0,11)">
                     </div>
 
                     <div>

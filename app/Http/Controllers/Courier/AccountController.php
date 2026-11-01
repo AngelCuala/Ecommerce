@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Courier;
 
 use App\Http\Controllers\Controller;
+use App\Support\PhoneNumber;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
@@ -10,15 +11,27 @@ use Illuminate\Validation\Rules\Password;
 
 class AccountController extends Controller
 {
-    /** Profile page — personal / vehicle info (no password). */
+    /** Account page: personal info, and for a rider of a logistics company their rider profile (vehicle, license, documents). */
     public function index()
     {
         $user    = auth()->user();
-        $courier = DeliveryController::currentCourier();
+        $courier = $user->courier;
+        $rider   = \App\Models\Rider::with('sortingCenter')->where('user_id', $user->id)->where('application_status', 'approved')->first();
+        abort_unless($rider || ($courier && $courier->isApproved()), 403, 'An approved courier profile is required to use the courier portal.');
+
+        // Header numbers for a rider: what they earned and how many paid jobs (same source as My Earnings).
+        $stats = null;
+        if ($rider) {
+            $jobs = app(\App\Services\RiderWallet::class)->history($rider)->where('pay', '>', 0);
+            $stats = ['earned' => round((float) $jobs->sum('pay'), 2), 'jobs' => $jobs->count(), 'online' => $rider->isOnlineNow()];
+        }
 
         return view('courier.account', [
             'user'        => $user,
             'courier'     => $courier,
+            'rider'       => $rider,
+            'stats'       => $stats,
+            'vehicles'    => RiderController::VEHICLES,
             'maskedEmail' => $this->maskEmail($user->email),
         ]);
     }
@@ -29,10 +42,11 @@ class AccountController extends Controller
         $user    = auth()->user();
         $courier = $user->courier;
 
+        $request->merge(['contact_no' => PhoneNumber::normalize($request->input('contact_no'))]);
         $data = $request->validate([
-            'contact_no' => 'required|string|max:30',
+            'contact_no' => ['required', 'string', 'regex:' . PhoneNumber::PATTERN],
             'avatar'     => 'nullable|image|mimes:jpg,jpeg,png,webp|max:2048',
-        ]);
+        ], ['contact_no.regex' => PhoneNumber::MESSAGE]);
 
         if ($request->hasFile('avatar')) {
             if ($user->profile_photo_path) {
@@ -66,10 +80,8 @@ class AccountController extends Controller
             'current_password.current_password' => 'The current password you entered is incorrect.',
         ]);
 
-        auth()->user()->update(['password' => Hash::make($request->password)]);
-
-        return redirect()->route('courier.account.security')
-            ->with('success', 'Your password has been changed successfully.');
+        // The new password is used once the code emailed to the account is entered.
+        return \App\Http\Controllers\PasswordChangeController::start(auth()->user(), $request->password, redirect()->route('courier.account.security'));
     }
 
     /** Mask an email: j********@****.com */

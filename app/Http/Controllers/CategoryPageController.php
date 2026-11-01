@@ -9,6 +9,23 @@ use Illuminate\Support\Str;
 class CategoryPageController extends Controller
 {
     // ── Full catalog ──────────────────────────────────────────────────────────
+    /** Older category names still used by some products, shown under the shop's category. */
+    private const LEGACY_NAMES = [
+        'Electronics & Gadgets'        => ['Electronics'],
+        'Books & Media'                => ['Books'],
+        'Sports & Outdoors'            => ['Sports'],
+        'Kids & Baby'                  => ['Toys & Games'],
+        'Automotive & Motorcycle'      => ['Automotive'],
+        'Food & Gourmet'               => ['Food & Beverages'],
+        'Stationery & School Supplies' => ['Office Supplies'],
+    ];
+
+    /** Category names (in the categories table) that belong to a shop category. */
+    public static function categoryNames(string $shopCategory): array
+    {
+        return array_merge([$shopCategory], self::LEGACY_NAMES[$shopCategory] ?? []);
+    }
+
     public static function catalog(): array
     {
         return [
@@ -96,6 +113,48 @@ class CategoryPageController extends Controller
                 'color' => '#D97706',
                 'subs'  => ['Necklaces & Pendants', 'Rings & Earrings', 'Bracelets & Bangles', 'Watches for Men & Women', 'Fashion Jewelry', 'Jewelry Storage & Care'],
             ],
+            [
+                'name'  => 'Bags & Luggage',
+                'slug'  => 'bags-and-luggage',
+                'icon'  => '',
+                'color' => '#92400E',
+                'subs'  => ['Handbags & Shoulder Bags', 'Backpacks', 'Wallets & Card Holders', 'Travel Luggage', 'Duffel & Gym Bags', 'Laptop Bags'],
+            ],
+            [
+                'name'  => 'Shoes & Footwear',
+                'slug'  => 'shoes-and-footwear',
+                'icon'  => '',
+                'color' => '#DC2626',
+                'subs'  => ['Sneakers', 'Sandals & Slippers', 'Formal Shoes', 'Boots', "Kids' Shoes", 'Shoe Care & Accessories'],
+            ],
+            [
+                'name'  => 'Home Appliances',
+                'slug'  => 'home-appliances',
+                'icon'  => '',
+                'color' => '#0EA5E9',
+                'subs'  => ['Small Kitchen Appliances', 'Rice Cookers & Air Fryers', 'Electric Fans & Air Coolers', 'Washing Machines', 'Vacuums & Cleaning', 'Irons & Garment Care'],
+            ],
+            [
+                'name'  => 'Gaming & Consoles',
+                'slug'  => 'gaming-and-consoles',
+                'icon'  => '',
+                'color' => '#7C3AED',
+                'subs'  => ['Consoles', 'Video Games', 'Controllers & Accessories', 'PC Gaming Peripherals', 'Gaming Chairs', 'Board & Card Games'],
+            ],
+            [
+                'name'  => 'Automotive & Motorcycle',
+                'slug'  => 'automotive-and-motorcycle',
+                'icon'  => '',
+                'color' => '#374151',
+                'subs'  => ['Motorcycle Helmets & Gear', 'Car Accessories', 'Motorcycle Parts', 'Car Care & Cleaning', 'Tools & Equipment', 'Oils & Fluids'],
+            ],
+            [
+                'name'  => 'Stationery & School Supplies',
+                'slug'  => 'stationery-and-school-supplies',
+                'icon'  => '',
+                'color' => '#059669',
+                'subs'  => ['Notebooks & Paper', 'Pens & Writing', 'Art Supplies', 'School Bags & Cases', 'Office Stationery', 'Calculators'],
+            ],
         ];
     }
 
@@ -119,13 +178,12 @@ class CategoryPageController extends Controller
 
         // Fetch matching products from the books table
         $query = Product::with(['category', 'images'])
-            ->active()
+            ->published()
             ->where('stock', '>', 0);
 
-        // Match by category name (approximate) or slug
-        $query->whereHas('category', function ($q) use ($active) {
-            $q->where('name', 'like', '%' . $active['name'] . '%');
-        });
+        // Match the category by its exact name (a "LIKE %Men's Apparel%" also matched
+        // "Women's Apparel"), plus the older category names products may still use.
+        $query->whereHas('category', fn ($q) => $q->whereIn('name', self::categoryNames($active['name'])));
 
         // Sort
         $sort = $request->query('sort', 'newest');

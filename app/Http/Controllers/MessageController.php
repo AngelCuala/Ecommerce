@@ -46,7 +46,7 @@ class MessageController extends Controller
         // ── Direct threads ───────────────────────────────────────
         $directThreadKeys = Message::whereNull('order_id')
             ->where(fn ($q) => $q->where('sender_id', $userId)->orWhere('receiver_id', $userId))
-            ->pluck('thread_key')->unique();
+            ->pluck('thread_key')->filter()->unique();
 
         $directThreads = collect();
         foreach ($directThreadKeys as $key) {
@@ -67,7 +67,7 @@ class MessageController extends Controller
                 'last_name' => $last->sender->name ?? '',
                 'last_at'   => $last->created_at,
                 'unread'    => $unread,
-                'route'     => route('messages.direct', $key),
+                'route'     => \App\Support\Portal::route('messages.direct', $key),
             ]);
         }
 
@@ -90,6 +90,7 @@ class MessageController extends Controller
     public function directShow(string $threadKey)
     {
         $userId = auth()->id();
+        abort_unless(preg_match('/^\d+_\d+$/', $threadKey) === 1, 404);
         [$a, $b] = explode('_', $threadKey);
 
         // Ensure current user is part of this thread
@@ -104,21 +105,27 @@ class MessageController extends Controller
         $this->authorizeDirectMessage($otherUser);
 
         $messages = Message::where('thread_key', $threadKey)
-            ->with('sender')
+            ->with('sender', 'product')
             ->oldest()
             ->get();
+
+        // Chat started from a product page: show that product until a message carries it.
+        $aboutProduct = session('chat_product.' . $threadKey)
+            ? \App\Models\Product::find(session('chat_product.' . $threadKey))
+            : null;
 
         Message::where('thread_key', $threadKey)
             ->where('receiver_id', $userId)
             ->where('is_read', false)
             ->update(['is_read' => true]);
 
-        return view('messages.direct', compact('threadKey', 'otherUser', 'messages'));
+        return view('messages.direct', compact('threadKey', 'otherUser', 'messages', 'aboutProduct'));
     }
 
     public function directStore(Request $request, string $threadKey)
     {
         $userId = auth()->id();
+        abort_unless(preg_match('/^\d+_\d+$/', $threadKey) === 1, 404);
         [$a, $b] = explode('_', $threadKey);
 
         if ((int)$a !== $userId && (int)$b !== $userId) {
@@ -129,14 +136,27 @@ class MessageController extends Controller
         $otherUser = User::findOrFail($otherId);
         $this->authorizeDirectMessage($otherUser);
 
-        $request->validate(['body' => 'required|string|max:1000']);
+        $request->validate([
+            'body'       => 'required_without:attachment|nullable|string|max:1000',
+            'attachment' => 'nullable|file|mimes:jpg,jpeg,png|mimetypes:image/jpeg,image/png|max:5120',
+        ], [
+            'body.required_without' => 'Write a message or attach a photo.',
+            'attachment.mimes'      => 'Only JPG or PNG photos can be sent.',
+            'attachment.mimetypes'  => 'Only real JPG or PNG photos can be sent.',
+            'attachment.max'        => 'A photo can be at most 5 MB.',
+        ]);
+
+        // The first message after "Chat" on a product page carries that product as a card.
+        $productId = session()->pull('chat_product.' . $threadKey);
 
         Message::create([
-            'order_id'    => null,
-            'thread_key'  => $threadKey,
-            'sender_id'   => $userId,
-            'receiver_id' => $otherId,
-            'body'        => $request->body,
+            'order_id'        => null,
+            'thread_key'      => $threadKey,
+            'sender_id'       => $userId,
+            'receiver_id'     => $otherId,
+            'body'            => (string) $request->body,
+            'attachment_path' => $request->file('attachment')?->store('chat', 'public'),
+            'product_id'      => $productId,
         ]);
 
         return back()->with('success', 'Message sent.');
@@ -152,7 +172,11 @@ class MessageController extends Controller
 
         $threadKey = Message::threadKey(auth()->id(), $otherUser->id);
 
-        return redirect()->route('messages.direct', $threadKey);
+        if ($request->filled('product_id') && \App\Models\Product::whereKey($request->integer('product_id'))->exists()) {
+            session()->put('chat_product.' . $threadKey, $request->integer('product_id'));
+        }
+
+        return redirect()->to(\App\Support\Portal::route('messages.direct', $threadKey));
     }
 
     // ══════════════════════════════════════════════════════════════
@@ -191,7 +215,7 @@ class MessageController extends Controller
         $seenUserIds = [];
         $keys = Message::whereNull('order_id')
             ->where(fn ($q) => $q->where('sender_id', $userId)->orWhere('receiver_id', $userId))
-            ->pluck('thread_key')->unique();
+            ->pluck('thread_key')->filter()->unique();
 
         foreach ($keys as $key) {
             $last = Message::where('thread_key', $key)->latest()->first();
@@ -280,6 +304,8 @@ class MessageController extends Controller
 
             $title = 'Order #' . str_pad($order->id, 6, '0', STR_PAD_LEFT);
         } else {
+            // Direct threads are "userId_userId"; anything else is not a thread.
+            abort_unless(preg_match('/^\d+_\d+$/', $id) === 1, 404);
             [$a, $b] = explode('_', $id);
             if ((int) $a !== $userId && (int) $b !== $userId) abort(403);
             $otherId   = (int) $a === $userId ? (int) $b : (int) $a;
@@ -297,9 +323,13 @@ class MessageController extends Controller
             'title'    => $title,
             'messages' => $messages->map(fn ($m) => [
                 'body'  => $m->body,
-                'mine'  => $m->sender_id === $userId,
+                'mine'  => (int) $m->sender_id === (int) $userId,
                 'name'  => $m->sender->name ?? '',
                 'at'    => $m->created_at->format('M d, H:i'),
+                // Used by the full-page inbox to group messages by day.
+                'day'   => $m->created_at->isToday() ? 'Today'
+                         : ($m->created_at->isYesterday() ? 'Yesterday' : $m->created_at->format('M j, Y')),
+                'time'  => $m->created_at->format('g:i A'),
             ]),
         ]);
     }
@@ -318,7 +348,7 @@ class MessageController extends Controller
             $lastFromOther = Message::where('order_id', $order->id)
                 ->where('sender_id', '!=', $userId)->latest()->first();
             $receiverId = $lastFromOther?->sender_id
-                ?? ($order->user_id === $userId ? optional($order->items()->with('book')->first())->book->seller_id : $order->user_id);
+                ?? ((int) $order->user_id === (int) $userId ? optional($order->items()->with('product')->first())->product->seller_id : $order->user_id);
 
             Message::create([
                 'order_id'    => $order->id,
@@ -327,6 +357,7 @@ class MessageController extends Controller
                 'body'        => $request->body,
             ]);
         } else {
+            abort_unless(preg_match('/^\d+_\d+$/', $id) === 1, 404);
             [$a, $b] = explode('_', $id);
             if ((int) $a !== $userId && (int) $b !== $userId) abort(403);
             $otherId   = (int) $a === $userId ? (int) $b : (int) $a;
@@ -352,7 +383,7 @@ class MessageController extends Controller
     {
         $userId  = auth()->id();
         $isBuyer  = $order->user_id === $userId;
-        $isSeller = $order->items()->whereHas('book', fn ($q) => $q->where('seller_id', $userId))->exists();
+        $isSeller = $order->items()->whereHas('product', fn ($q) => $q->where('seller_id', $userId))->exists();
         $isAdmin  = auth()->user()->isAdmin();
 
         if (! ($isBuyer || $isSeller || $isAdmin)) {
@@ -412,8 +443,8 @@ class MessageController extends Controller
 
         // Sellers of the books in those orders
         $sellerIds = \App\Models\OrderItem::whereIn('order_id', $orderIds)
-            ->with('book')->get()
-            ->pluck('book.seller_id')->filter()->all();
+            ->with('product')->get()
+            ->pluck('product.seller_id')->filter()->all();
         $ids = array_merge($ids, $sellerIds);
 
         return array_values(array_unique(array_filter($ids)));
@@ -426,8 +457,8 @@ class MessageController extends Controller
             $participants[$order->user->id] = $order->user->name . ' (Buyer)';
         }
         foreach ($order->items as $item) {
-            if ($item->book?->seller && !isset($participants[$item->book->seller->id])) {
-                $participants[$item->book->seller->id] = $item->book->seller->name . ' (Seller)';
+            if ($item->product?->seller && !isset($participants[$item->product->seller->id])) {
+                $participants[$item->product->seller->id] = $item->product->seller->name . ' (Seller)';
             }
         }
         // Admin
@@ -465,7 +496,7 @@ class MessageController extends Controller
             if ($admin) $targets[$admin->id] = $admin->name . ' (Admin)';
 
             // Buyers who ordered from this seller
-            $buyerIds = \App\Models\OrderItem::whereHas('book', fn ($q) => $q->where('seller_id', $me->id))
+            $buyerIds = \App\Models\OrderItem::whereHas('product', fn ($q) => $q->where('seller_id', $me->id))
                 ->with('order.user')
                 ->get()
                 ->pluck('order.user')
@@ -477,9 +508,9 @@ class MessageController extends Controller
         } elseif ($me->isBuyer()) {
             // Buyer can message sellers of their orders
             $sellerIds = \App\Models\OrderItem::whereHas('order', fn ($q) => $q->where('user_id', $me->id))
-                ->with('book.seller')
+                ->with('product.seller')
                 ->get()
-                ->pluck('book.seller')
+                ->pluck('product.seller')
                 ->filter()
                 ->unique('id');
             foreach ($sellerIds as $seller) {

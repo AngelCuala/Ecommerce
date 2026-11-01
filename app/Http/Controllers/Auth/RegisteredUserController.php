@@ -4,7 +4,11 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Rules\GovernmentId;
+use App\Services\LoginOtp;
+use App\Support\GoogleSignup;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -12,7 +16,7 @@ use Illuminate\Support\Facades\Storage;
 
 class RegisteredUserController extends Controller
 {
-    public function create()
+    public function create(Request $request)
     {
         // If user is already authenticated, redirect to appropriate dashboard
         if (auth()->check()) {
@@ -20,9 +24,21 @@ class RegisteredUserController extends Controller
             return $this->redirectToUserDashboard($user);
         }
 
+        // "Use a different email" on a Google sign-up → back to a normal sign-up.
+        if ($request->query('google') === 'forget') {
+            GoogleSignup::forget($request);
+            return redirect()->route('register', $request->only('role'));
+        }
+
         // Add cache control headers to prevent browser back button issues
         return response()
-            ->view('auth.register')
+            ->view('auth.register', [
+                // Seller fields live on this same form (shown when "Seller" is picked).
+                'categories'  => \App\Support\SellerApplicationRules::categories(),
+                'sellerTypes' => \App\Models\SellerApplication::SELLER_TYPES,
+                // Sorting centers a courier can apply to.
+                'hubs'        => \App\Support\SortingCenters::forCouriers(),
+            ])
             ->header('Cache-Control', 'no-cache, no-store, max-age=0, must-revalidate')
             ->header('Pragma', 'no-cache')
             ->header('Expires', 'Fri, 01 Jan 1990 00:00:00 GMT');
@@ -52,38 +68,117 @@ class RegisteredUserController extends Controller
         // Get the role from the request
         $role = $request->input('role', 'buyer');
 
-        // Base validation rules
-        $rules = [
-            'role'           => 'required|in:buyer,seller,courier,logistics',
-            'first_name'     => 'required|string|max:255',
-            'last_name'      => 'required|string|max:255',
-            'middle_initial' => 'nullable|string|max:5',
-            'email'          => 'required|string|email|max:255|unique:users,email',
-            'password'       => 'required|string|min:8',
-            'sex'            => 'required|in:male,female,other',
-        ];
+        // Came from "Continue with Google": the email is the Google one, whatever was typed.
+        GoogleSignup::lockEmail($request);
 
-        // Role-specific validation rules
-        if ($role === 'seller') {
-            $rules['id_image'] = 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120';
-            $rules['business_permit'] = 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120';
-        } elseif ($role === 'courier') {
-            $rules['vehicle_type'] = 'required|in:motorcycle,tricycle,car';
-            $rules['plate_number'] = 'required|string|max:50';
-            $rules['or_cr_image'] = 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120';
-            $rules['vehicle_reg_image'] = 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120';
-            $rules['logistics_id'] = 'nullable|exists:users,id';
-        } elseif ($role === 'logistics') {
-            $rules['business_name'] = 'required|string|max:255';
-            $rules['province'] = 'required|string|max:255';
-            $rules['municipality'] = 'required|string|max:255';
-            $rules['barangay'] = 'required|string|max:255';
-            $rules['street'] = 'nullable|string|max:255';
-            $rules['house_number'] = 'nullable|string|max:50';
-            $rules['dti_permit'] = 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120';
+        // Emails are compared case-insensitively for duplicates (for every account type).
+        if (is_string($request->input('email'))) {
+            $request->merge(['email' => mb_strtolower(trim($request->input('email')))]);
         }
 
-        $validated = $request->validate($rules);
+        // Sellers use the same form but go through the seller sign-up (shop details,
+        // TIN, business documents, email OTP). Map this form's field names to it.
+        if ($role === 'seller') {
+            $request->merge([
+                'phone'  => $request->input('contact_no'),
+                'street' => trim($request->input('house_number', '') . ' ' . $request->input('street', '')),
+            ]);
+
+            return app(\App\Http\Controllers\Seller\RegistrationController::class)->store($request);
+        }
+
+        // "Logistics" is a sorting center (hub): it goes through the sorting center sign-up,
+        // which an admin approves under Sorting Center Applications.
+        if ($role === 'logistics') {
+            $request->merge(['sex' => ucfirst((string) $request->input('sex'))]);
+
+            return app(\App\Http\Controllers\SortingCenter\RegistrationController::class)->store($request);
+        }
+
+        $psgcAvailable = class_exists(\App\Services\PsgcDirectory::class);
+        if ($psgcAvailable) \App\Services\PsgcDirectory::normalizeCodes($request);
+
+        // Letters (any language, e.g. ñ), spaces, hyphens, apostrophes and periods — no numbers or other symbols.
+        $nameRule = \App\Support\PersonRules::name();
+
+        // "+639171234567" and "0917 123 4567" are the same number as 09171234567.
+        $request->merge(['contact_no' => \App\Support\PhoneNumber::normalize($request->input('contact_no'))]);
+
+        // Base validation rules
+        $rules = [
+            // Sellers and logistics (sorting centers) are handed off above.
+            'role'           => 'required|in:buyer,courier',
+            'first_name'     => $nameRule,
+            'last_name'      => $nameRule,
+            'middle_initial' => ['nullable', 'string', 'max:3', 'regex:/^\pL{1,2}\.?$/u'],
+            'email'          => ['required', 'string', 'max:255', 'email:rfc', 'regex:/^[^@\s]+@[^@\s]+\.[A-Za-z]{2,}$/', 'unique:users,email'],
+            'password'       => \App\Support\PersonRules::password(),
+            'sex'            => 'required|in:male,female', // users.sex is enum('Male','Female')
+            'terms'          => 'accepted',
+            // Fields now required for all roles
+            'contact_no'   => \App\Support\PersonRules::mobile(),
+            'birthday'     => \App\Support\PersonRules::adultBirthday(),
+            'province'     => 'nullable|string|max:120',
+            'municipality' => 'required|string|max:120',
+            'barangay'     => 'required|string|max:120',
+            'house_number' => 'required|string|max:50',
+            'street'       => 'required|string|max:255',
+            'zip_code'     => 'nullable|string|max:20',
+        ] + ($psgcAvailable ? \App\Services\PsgcDirectory::codeRules() : []);
+
+        // Role-specific validation rules (buyers don't upload an ID)
+        if ($role === 'courier') {
+            $rules['vehicle_type'] = 'required|in:motorcycle,tricycle,car,truck';
+            $rules['plate_number'] = ['required', 'string', 'max:50', function ($attr, $value, $fail) {
+                if (\App\Support\PersonRules::plateTaken((string) $value)) {
+                    $fail('Plate number ' . strtoupper((string) $value) . ' is already registered to another courier or rider.');
+                }
+            }];
+            // couriers.id_license_path / or_cr_path are NOT NULL, so both documents are required.
+            $rules['or_cr_image'] = ['bail', 'required', 'file', 'mimes:jpg,jpeg,png,pdf', 'max:5120', new GovernmentId]; // driver's license
+            $rules['vehicle_reg_image'] = 'required|file|mimes:jpg,jpeg,png,pdf|max:5120';
+            // The sorting center that will review the application (and that the courier delivers for).
+            $rules['logistics_id'] = ['required', \App\Support\SortingCenters::existsRule()];
+        }
+
+        $validated = $request->validate($rules, [
+            'terms.accepted'       => 'You must agree to the Terms and Conditions and Privacy Policy to create an account.',
+
+        ] + \App\Support\PersonRules::nameMessages('first_name') + \App\Support\PersonRules::nameMessages('last_name')
+          + \App\Support\PersonRules::birthdayMessages() + \App\Support\PersonRules::passwordMessages() + [
+            'middle_initial.regex' => 'Middle initial may only contain letters (e.g. "M" or "M.").',
+            'middle_initial.max'   => 'Middle initial may only contain letters (e.g. "M" or "M.").',
+
+            'email.email'          => 'Please enter a valid email address (e.g. juan@gmail.com).',
+            'email.regex'          => 'Please enter a valid email address (e.g. juan@gmail.com).',
+            'email.unique'         => 'This email address is already registered. Please log in or use a different email.',
+
+            'contact_no.regex'     => 'Please enter a valid mobile number: 11 digits starting with 09 (e.g. 09171234567).',
+
+            'logistics_id.required' => 'Please choose the sorting center you want to apply to.',
+            'logistics_id.exists'   => 'That sorting center is not available. Please choose another one.',
+
+            'password.min'         => 'Password must be at least 8 characters.',
+            'password.confirmed'   => 'The passwords do not match. Please type the same password in both fields.',
+            'password_confirmation.required' => 'Please type your password again to confirm it.',
+        ]);
+
+        // Resolve the address against the PSA PSGC dataset (official names + codes)
+        // when that service is installed; otherwise use the submitted names as-is.
+        if ($psgcAvailable) {
+            $addr = app(\App\Services\PsgcDirectory::class)->resolve($request->all(), true, $validated['barangay']);
+            \App\Support\ServiceArea::assert($addr['municipality_code'] ?? $addr['municipality_psgc'], null, null, 'municipality');
+        } else {
+            \App\Support\ServiceArea::assert($validated['municipality_code'] ?? null, $validated['province'] ?? null, $validated['municipality'], 'municipality');
+            $addr = [
+                'province_display' => $validated['province'] ?? null,
+                'municipality'     => $validated['municipality'],
+                'barangay'         => $validated['barangay'],
+            ];
+        }
+
+        // Server-side age calculation — never trust the client value.
+        $age = \Carbon\Carbon::parse($validated['birthday'])->age;
 
         // Create the user with basic info
         $userData = [
@@ -93,95 +188,72 @@ class RegisteredUserController extends Controller
             'middle_initial'  => $validated['middle_initial'] ?? null,
             'email'           => $validated['email'],
             'password'        => Hash::make($validated['password']),
-            'role'            => $role,
-            'sex'             => ucfirst($validated['sex']), // Capitalize first letter
-            'approval_status' => 'pending',
-            'birthday'        => '2000-01-01', // Default birthday
-            'contact_no'      => '', // Default empty
-            'province'        => '',
-            'municipality'    => '',
-            'barangay'        => '',
+            // Couriers stay "courier_pending" until the Logistics team approves them.
+            'role'            => $role === 'courier' ? 'courier_pending' : $role,
+            'sex'             => ucfirst($validated['sex']),
+            'contact_no'      => $validated['contact_no'],
+            'birthday'        => $validated['birthday'],
+            'age'             => $age,
+            'province'        => $addr['province_display'],
+            'municipality'    => $addr['municipality'],
+            'barangay'        => $addr['barangay'],
+            'street'          => $validated['street'],
+            'house_number'    => $validated['house_number'],
+            'zip'             => $validated['zip_code'] ?? null,
+            'approval_status' => 'unverified', // → 'pending' once the email code is entered
         ];
 
-        // Handle file uploads for sellers
-        if ($role === 'seller' && $request->hasFile('id_image')) {
-            $userData['valid_id_path'] = $request->file('id_image')->store('seller-ids', 'public');
-        }
-
-        // Handle logistics-specific data
-        if ($role === 'logistics') {
-            $userData['province'] = $validated['province'];
-            $userData['municipality'] = $validated['municipality'];
-            $userData['barangay'] = $validated['barangay'];
-            $userData['street'] = $validated['street'] ?? '';
-            $userData['house_number'] = $validated['house_number'] ?? '';
+        if ($role === 'courier') {
+            $userData += GovernmentId::columnsFor('or_cr_image');
         }
 
         $user = User::create($userData);
 
         // Create role-specific records
-        if ($role === 'seller') {
-            $sellerData = [
-                'user_id'         => $user->id,
-                'last_name'       => $validated['last_name'],
-                'first_name'      => $validated['first_name'],
-                'middle_initial'  => $validated['middle_initial'] ?? null,
-                'full_name'       => $user->name,
-                'shop_name'       => $validated['first_name'] . "'s Store",
-                'business_name'   => $validated['first_name'] . "'s Store",
-                'line_of_business'=> 'General',
-                'sex'             => ucfirst($validated['sex']),
-                'birthday'        => '2000-01-01',
-                'age'             => 24,
-                'status'          => 'pending',
-                'province'        => '',
-                'municipality'    => '',
-                'barangay'        => '',
-            ];
-
-            if ($request->hasFile('id_image')) {
-                $sellerData['government_id_path'] = $request->file('id_image')->store('seller-ids', 'public');
-            }
-            if ($request->hasFile('business_permit')) {
-                $sellerData['business_permit_path'] = $request->file('business_permit')->store('seller-permits', 'public');
-            }
-
-            \App\Models\SellerApplication::create($sellerData);
-        } elseif ($role === 'courier') {
+        if ($role === 'courier') {
             $courierData = [
                 'user_id'        => $user->id,
+                'sorting_center_id' => $validated['logistics_id'],
                 'last_name'      => $validated['last_name'],
                 'first_name'     => $validated['first_name'],
                 'middle_initial' => $validated['middle_initial'] ?? null,
                 'sex'            => ucfirst($validated['sex']),
-                'birthday'       => '2000-01-01',
-                'age'            => 24,
+                'birthday'       => $validated['birthday'],
+                'age'            => $age,
                 'vehicle_type'   => $validated['vehicle_type'],
                 'plate_number'   => strtoupper($validated['plate_number']),
                 'status'         => 'pending',
-                'province'       => '',
-                'municipality'   => '',
-                'barangay'       => '',
-                'contact_no'     => '',
+                'submitted_at'   => now(),
+                'province'       => $addr['province_display'] ?? '',
+                'municipality'   => $addr['municipality'],
+                'barangay'       => $addr['barangay'],
+                'street'         => trim($validated['house_number'] . ' ' . $validated['street']),
+                'contact_no'     => $validated['contact_no'],
+                // "or_cr_image" is the driver's license upload; "vehicle_reg_image" is the OR/CR.
+                'id_license_path' => $request->file('or_cr_image')->store('courier-licenses', 'public'),
+                'or_cr_path'      => $request->file('vehicle_reg_image')->store('courier-vehicle-regs', 'public'),
             ];
-
-            if ($request->hasFile('or_cr_image')) {
-                $courierData['or_cr_path'] = $request->file('or_cr_image')->store('courier-licenses', 'public');
-            }
-            if ($request->hasFile('vehicle_reg_image')) {
-                $courierData['id_license_path'] = $request->file('vehicle_reg_image')->store('courier-vehicle-regs', 'public');
-            }
 
             \App\Models\Courier::create($courierData);
         }
 
         event(new Registered($user));
 
-        // Success message based on role
-        $message = $role === 'courier'
-            ? 'Thank you for registering. Please wait for the Logistics/Sorting Center\'s approval — you will be notified via email once your account is approved.'
-            : 'Thank you for registering. Please wait for admin approval — you will be notified via email once your account is approved.';
+        // Google sign-up: the email is already verified, so no code is needed.
+        if ($done = GoogleSignup::finish($request, $user)) {
+            return $done;
+        }
 
-        return redirect()->route('login')->with('success', $message);
+        // Verify the email with a one-time code before the account goes for approval.
+        // The account exists either way; if the email fails the user can press "Resend code".
+        $sent = app(LoginOtp::class)->trySend($user);
+
+        $request->session()->put('otp.user_id', $user->id);
+        $request->session()->put('otp.remember', false);
+
+        return $sent
+            ? redirect()->route('otp.show')->with('success',
+                'Almost done! We sent a 6-digit verification code to ' . LoginOtp::maskEmail($user->email) . '.')
+            : redirect()->route('otp.show')->withErrors(['otp' => LoginOtp::SEND_FAILED]);
     }
 }

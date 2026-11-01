@@ -43,20 +43,34 @@ class ParcelController extends Controller
         return view($view, compact('parcels', 'areas'));
     }
 
-    public function markPickedUp(Parcel $parcel)
+    /** Admin override: record that the hub has the parcel. Needs a reason; it is kept on the tracking event. */
+    public function markPickedUp(Request $request, Parcel $parcel)
     {
-        $parcel->update(['status' => 'picked_up']);
-        return back()->with('success', "{$parcel->tracking_number} marked as picked up.");
+        $data = $request->validate(['reason' => 'required|string|min:10|max:300'], [
+            'reason.required' => 'This is an override: give the reason (10 to 300 characters).',
+            'reason.min'      => 'The reason must be 10 to 300 characters.',
+        ]);
+        if (! in_array($parcel->status, ['pickup_approved', 'in_transit_to_hub'], true)) {
+            return back()->with('error', "{$parcel->tracking_number} is {$parcel->statusLabel()}; only a parcel on its way to the hub can be marked received.");
+        }
+        $parcel->withTracking(['note' => 'Administrator override: ' . $data['reason']])
+            ->update(['status' => 'picked_up', 'received_at' => now(), 'received_by' => auth()->id()]);
+        \App\Models\ActivityLog::note('Admin override: ' . $parcel->tracking_number . ' marked received. ' . $data['reason'], $parcel);
+
+        return back()->with('success', "{$parcel->tracking_number} marked as received at the hub.");
     }
 
     public function sort(Request $request, Parcel $parcel)
     {
-        $request->validate(['area_id' => 'required|exists:delivery_areas,id']);
-
-        $parcel->update([
-            'area_id' => $request->area_id,
-            'status'  => 'sorted',
-        ]);
+        $data = $request->validate([
+            'area_id' => 'required|exists:delivery_areas,id',
+            'reason'  => 'required|string|min:10|max:300',
+        ], ['reason.required' => 'This is an override: give the reason (10 to 300 characters).']);
+        if (! in_array($parcel->status, ['picked_up', 'sorting'], true)) {
+            return back()->with('error', "{$parcel->tracking_number} is {$parcel->statusLabel()}; only a received parcel can be sorted.");
+        }
+        $parcel->withTracking(['note' => 'Administrator override: ' . $data['reason']])
+            ->update(['area_id' => $data['area_id'], 'status' => 'sorted', 'sorted_at' => now(), 'sorted_by' => auth()->id()]);
 
         return back()->with('success', "{$parcel->tracking_number} has been sorted.");
     }

@@ -23,18 +23,22 @@ class BookController extends Controller
      * Category-specific specification schemas.
      * Keyed by a lowercase keyword matched against the category name.
      */
+    /**
+     * Fixed details per platform category. Choices the buyer picks (Color, Size, Volume, …) are not
+     * specs: they are the product's own variants, set in the Variations section.
+     */
     public static function specSchemas(): array
     {
         return [
-            'apparel'     => ['Material', 'Color', 'Size', 'Fit', 'Gender', 'Care Instructions'],
-            'women'       => ['Material', 'Color', 'Size', 'Fit', 'Gender', 'Care Instructions'],
-            'men'         => ['Material', 'Color', 'Size', 'Fit', 'Gender', 'Care Instructions'],
-            'clothing'    => ['Material', 'Color', 'Size', 'Fit', 'Gender', 'Care Instructions'],
+            'apparel'     => ['Material', 'Fit', 'Gender', 'Care Instructions'],
+            'women'       => ['Material', 'Fit', 'Gender', 'Care Instructions'],
+            'men'         => ['Material', 'Fit', 'Gender', 'Care Instructions'],
+            'clothing'    => ['Material', 'Fit', 'Gender', 'Care Instructions'],
             'electronics' => ['Brand', 'Model', 'Warranty', 'Battery Life', 'Dimensions'],
             'gadget'      => ['Brand', 'Model', 'Warranty', 'Battery Life', 'Dimensions'],
-            'beauty'      => ['Brand', 'Volume / Size', 'Ingredients', 'Expiration Date', 'Skin Type'],
-            'health'      => ['Brand', 'Volume / Size', 'Ingredients', 'Expiration Date', 'Skin Type'],
-            'cosmetic'    => ['Brand', 'Volume / Size', 'Ingredients', 'Expiration Date', 'Skin Type'],
+            'beauty'      => ['Brand', 'Ingredients', 'Expiration Date', 'Skin Type'],
+            'health'      => ['Brand', 'Ingredients', 'Expiration Date', 'Skin Type'],
+            'cosmetic'    => ['Brand', 'Ingredients', 'Expiration Date', 'Skin Type'],
         ];
     }
 
@@ -51,6 +55,20 @@ class BookController extends Controller
         return [];
     }
 
+    /** The category matching the seller's registered line of business, if there is one. */
+    private function businessCategoryId(): ?int
+    {
+        $line = auth()->user()->sellerApplication?->line_of_business;
+        return $line ? Category::where('name', $line)->value('id') : null;
+    }
+
+    /** Categories this seller may list under; null = no registered category to go by (all allowed). */
+    private function allowedCategoryIds(?Product $book = null): ?array
+    {
+        $business = $this->businessCategoryId();
+        return $business ? array_values(array_unique(array_filter([$business, $book?->category_id]))) : null;
+    }
+
     /** Subcategory list keyed by category name, from the shared catalog. */
     private function subcategoryMap(): array
     {
@@ -61,10 +79,30 @@ class BookController extends Controller
         return $map;
     }
 
+    /** Inventory sorts. */
+    public const SORTS = [
+        'newest' => 'Newest', 'oldest' => 'Oldest', 'price_low' => 'Price: low to high', 'price_high' => 'Price: high to low',
+        'best_selling' => 'Best selling', 'stock_low' => 'Stock: lowest first',
+    ];
+
     public function index(Request $request)
     {
+        $request->validate([
+            'category_id' => 'nullable|integer',
+            'min_price'   => 'nullable|numeric|min:0',
+            'max_price'   => 'nullable|numeric|min:0' . ($request->filled('min_price') && is_numeric($request->min_price) ? '|gte:min_price' : ''),
+            'sort'        => 'nullable|in:' . implode(',', array_keys(self::SORTS)),
+        ], [
+            'max_price.gte' => 'The maximum price must be at least the minimum price.',
+        ]);
+
+        // Remembered so saving an edit (or "← Inventory") comes back to the same search and filters.
+        session()->put('seller_inventory_query', array_filter($request->only(['status', 'search', 'category_id', 'min_price', 'max_price', 'sort', 'page']), fn ($v) => $v !== null && $v !== ''));
+
+        // Only this seller's products, ever.
         $query = Product::where('seller_id', auth()->id())
-            ->with(['category', 'images']);
+            ->with(['category', 'images'])
+            ->withSum(['orderItems as sold' => fn ($q) => $q->whereHas('order', fn ($o) => $o->whereNotIn('status', \App\Models\Order::VOID_STATUSES))], 'quantity');
 
         $status = $request->input('status', 'active');
         if ($status === 'archived') {
@@ -75,19 +113,44 @@ class BookController extends Controller
             $query->active()->lowStock();
         } elseif ($status === 'out_of_stock') {
             $query->active()->where('stock', 0);
+        } elseif ($status === 'review') {
+            $query->active()->whereIn('approval_status', ['pending', 'rejected'])->where('status', '!=', 'draft');
         } else {
             $query->active();
         }
 
         if ($request->filled('search')) {
+            $like = '%' . \App\Support\ProductSearch::likeEscape(trim((string) $request->search)) . '%';
             $query->where(fn($q) =>
-                $q->where('title', 'like', '%'.$request->search.'%')
-                  ->orWhere('sku', 'like', '%'.$request->search.'%')
-                  ->orWhere('product_code', 'like', '%'.$request->search.'%')
+                $q->where('title', 'like', $like)
+                  ->orWhere('sku', 'like', $like)
+                  ->orWhere('product_code', 'like', $like)
             );
         }
+        if ($request->filled('category_id')) {
+            $query->where('category_id', (int) $request->category_id);
+        }
+        if ($request->filled('min_price')) {
+            $query->where('price', '>=', (float) $request->min_price);
+        }
+        if ($request->filled('max_price')) {
+            $query->where('price', '<=', (float) $request->max_price);
+        }
 
-        $books    = $query->latest()->get();
+        $sort = $request->input('sort', 'newest');
+        match ($sort) {
+            'oldest'       => $query->oldest(),
+            'price_low'    => $query->orderBy('price'),
+            'price_high'   => $query->orderByDesc('price'),
+            'best_selling' => $query->orderByDesc('sold'),
+            'stock_low'    => $query->orderBy('stock'),
+            default        => $query->latest(),
+        };
+        $query->orderByDesc('id');   // stable across pages
+
+        $books    = $query->paginate(25)->withQueryString();
+        $categories = \App\Models\Category::whereIn('id', Product::where('seller_id', auth()->id())->whereNotNull('category_id')->select('category_id'))
+            ->orderBy('name')->pluck('name', 'id');
         $allBooks = Product::where('seller_id', auth()->id());
         $counts   = [
             'active'       => (clone $allBooks)->active()->count(),
@@ -95,9 +158,11 @@ class BookController extends Controller
             'low_stock'    => (clone $allBooks)->active()->lowStock()->count(),
             'out_of_stock' => (clone $allBooks)->active()->where('stock', 0)->count(),
             'archived'     => (clone $allBooks)->archived()->count(),
+            'review'       => (clone $allBooks)->active()->whereIn('approval_status', ['pending', 'rejected'])
+                ->where('status', '!=', 'draft')->count(),
         ];
 
-        return view('seller.books.index', compact('books', 'status', 'counts'));
+        return view('seller.books.index', compact('books', 'status', 'counts', 'categories', 'sort'));
     }
 
     public function create()
@@ -107,11 +172,22 @@ class BookController extends Controller
 
     public function store(Request $request)
     {
+        if ($blocked = $this->blockUnverifiedPublish($request)) {
+            return $blocked;
+        }
+        // The same form sent twice (double click, Enter twice, Back and resubmit) creates one product.
+        if ($token = $request->input('form_token')) {
+            if (! \Illuminate\Support\Facades\Cache::add('product-form:' . auth()->id() . ':' . $token, true, now()->addHour())) {
+                return redirect()->route('seller.books.index')->with('success', 'This product was already saved.');
+            }
+        }
         $data = $this->validateProduct($request);
 
         $book = DB::transaction(function () use ($request, $data) {
             $payload = $this->buildPayload($request, $data);
             $payload['seller_id'] = auth()->id();
+            // New products wait for an admin before they appear in the shop.
+            $payload['approval_status'] = 'pending';
 
             if ($request->hasFile('cover_image')) {
                 $payload['image'] = $request->file('cover_image')->store('products', 'public');
@@ -128,9 +204,13 @@ class BookController extends Controller
 
             $this->syncImages($request, $book);
             $this->syncVariations($request, $book);
+            $this->syncStoreCategories($request, $book);
 
             return $book;
         });
+
+        \App\Models\ActivityLog::note('"' . $book->title . '" (' . $book->product_code . ') · ₱' . number_format((float) $book->price, 2)
+            . ' · stock ' . $book->stock . ($book->status === 'draft' ? ' · draft' : ' · sent for approval'), $book);
 
         return redirect()->route('seller.books.index')
             ->with('success', $this->successMessage($book, $request));
@@ -140,13 +220,16 @@ class BookController extends Controller
     {
         $this->authorizeBook($book);
         $book->load(['images', 'variations']);
-        return view('seller.books.form', array_merge($this->formData(), ['book' => $book]));
+        return view('seller.books.form', array_merge($this->formData($book), ['book' => $book]));
     }
 
     public function update(Request $request, Product $book)
     {
         $this->authorizeBook($book);
-        $data = $this->validateProduct($request, $book->id);
+        if ($blocked = $this->blockUnverifiedPublish($request)) {
+            return $blocked;
+        }
+        $data = $this->validateProduct($request, $book->id, $book);
 
         DB::transaction(function () use ($request, $data, $book) {
             $payload = $this->buildPayload($request, $data);
@@ -158,6 +241,13 @@ class BookController extends Controller
                 $payload['video_path'] = $request->file('video')->store('products/videos', 'public');
             }
 
+            // Editing an approved product needs no new approval; fixing a rejected one
+            // sends it back to the admin.
+            if ($book->isRejected()) {
+                $payload += ['approval_status' => 'pending', 'approval_note' => null,
+                             'approval_reviewed_at' => null, 'approval_reviewed_by' => null];
+            }
+
             $book->update($payload);
 
             if (empty($book->product_code)) {
@@ -167,56 +257,190 @@ class BookController extends Controller
 
             $this->syncImages($request, $book);
             $this->syncVariations($request, $book);
+            $this->syncStoreCategories($request, $book);
         });
 
-        return redirect()->route('seller.books.index')
-            ->with('success', $this->successMessage($book->fresh(), $request));
+        $saved = $book->fresh();
+        \App\Models\ActivityLog::note('"' . $saved->title . '" (' . $saved->product_code . ') · ₱' . number_format((float) $saved->price, 2)
+            . ' · stock ' . $saved->stock, $saved);
+
+        return redirect()->route('seller.books.index', session('seller_inventory_query', []))
+            ->with('success', $this->successMessage($saved, $request));
     }
 
     public function destroy(Product $book)
     {
         $this->authorizeBook($book);
-        $book->delete();
+        if ($this->hasActiveOrders($book)) {
+            return back()->with('error', '"' . $book->title . '" has orders that are not finished yet, so it cannot be deleted. Deactivate it instead.');
+        }
+        $book->delete();   // soft delete: order history still shows the product
         return back()->with('success', 'Product deleted.');
+    }
+
+    /** Orders that still need work (not Completed, Cancelled or Refunded). */
+    private function hasActiveOrders(Product $book): bool
+    {
+        return \App\Models\OrderItem::where('product_id', $book->id)
+            ->whereHas('order', fn ($q) => $q->whereIn('status', [
+                \App\Models\Order::AWAITING_PAYMENT, \App\Models\Order::PENDING, \App\Models\Order::PROCESSING,
+                \App\Models\Order::SHIPPED, \App\Models\Order::DELIVERED, \App\Models\Order::RETURN_REQUESTED, \App\Models\Order::IN_DISPUTE,
+            ]))->exists();
+    }
+
+    /** Copy a listing: same details, new product ID, saved as a draft named "Copy of …". */
+    public function duplicate(Product $book)
+    {
+        $this->authorizeBook($book);
+        $book->load(['images', 'variations', 'storeCategories']);
+
+        $copy = DB::transaction(function () use ($book) {
+            $copy = $book->replicate(['product_code', 'sku', 'isbn', 'approval_note', 'approval_reviewed_at', 'approval_reviewed_by', 'is_archived', 'archived_at']);
+            $copy->fill([
+                'title'           => \Illuminate\Support\Str::limit('Copy of ' . $book->title, 255, ''),
+                'status'          => 'draft',
+                'approval_status' => 'pending',
+                'is_archived'     => false,
+            ]);
+            $copy->image = $book->image ? $this->copyFile($book->image) : null;
+            $copy->save();
+            $copy->update(['product_code' => 'ALVY-' . str_pad((string) $copy->id, 6, '0', STR_PAD_LEFT)]);
+
+            foreach ($book->images as $img) {
+                ProductImage::create(['product_id' => $copy->id, 'path' => $this->copyFile($img->path), 'label' => $img->label, 'sort_order' => $img->sort_order]);
+            }
+            $copy->load('images');
+            if ($main = $copy->images->first()) {
+                $copy->update(['image' => $main->path]);
+            }
+            foreach ($book->variations as $v) {
+                // SKUs must stay unique in the store, so the copy's options start without one.
+                ProductVariation::create(['product_id' => $copy->id, 'name' => $v->name, 'price' => $v->price, 'stock' => $v->stock,
+                    'image_path' => $v->image_path ? $this->copyFile($v->image_path) : null, 'sort_order' => $v->sort_order]);
+            }
+            $copy->storeCategories()->sync($book->storeCategories->pluck('id'));
+
+            return $copy;
+        });
+
+        \App\Models\ActivityLog::note('"' . $book->title . '" copied as ' . $copy->product_code, $copy);
+
+        return redirect()->route('seller.books.edit', $copy)->with('success', 'Copy saved as a draft (Product ID ' . $copy->product_code . '). Review it, then publish.');
+    }
+
+    private function copyFile(string $path): string
+    {
+        $disk = Storage::disk('public');
+        if (! $disk->exists($path)) {
+            return $path;
+        }
+        $new = dirname($path) . '/' . \Illuminate\Support\Str::random(24) . '.' . pathinfo($path, PATHINFO_EXTENSION);
+        $disk->copy($path, $new);
+
+        return $new;
+    }
+
+    /** Bulk Deactivate / Bulk Delete on selected products. Products with unfinished orders are never deleted. */
+    public function bulk(Request $request)
+    {
+        $data = $request->validate([
+            'action' => 'required|in:deactivate,activate,delete',
+            'ids'    => 'required|array|min:1',
+            'ids.*'  => 'integer',
+        ], ['ids.required' => 'Select at least one product.']);
+
+        $books = Product::where('seller_id', auth()->id())->whereIn('id', $data['ids'])->get();
+        if ($books->isEmpty()) {
+            return back()->with('error', 'Select at least one of your products.');
+        }
+
+        if ($data['action'] !== 'delete') {
+            $archive = $data['action'] === 'deactivate';
+            $books->each->update(['is_archived' => $archive, 'archived_at' => $archive ? now() : null]);
+            \App\Models\ActivityLog::note(($archive ? 'Deactivated ' : 'Reactivated ') . $books->count() . ' products');
+
+            return back()->with('success', $books->count() . ' ' . \Illuminate\Support\Str::plural('product', $books->count()) . ($archive ? ' deactivated.' : ' reactivated.'));
+        }
+
+        [$skipped, $deletable] = $books->partition(fn ($b) => $this->hasActiveOrders($b));
+        $deletable->each->delete();
+        \App\Models\ActivityLog::note('Deleted ' . $deletable->count() . ' products' . ($skipped->isNotEmpty() ? ', skipped ' . $skipped->count() : ''));
+
+        $msg = $deletable->count() . ' ' . \Illuminate\Support\Str::plural('product', $deletable->count()) . ' deleted.';
+        if ($skipped->isNotEmpty()) {
+            $msg .= ' Skipped ' . $skipped->map(fn ($b) => '"' . $b->title . '"')->join(', ') . ': it has orders that are not finished yet.';
+        }
+
+        return back()->with($skipped->isNotEmpty() ? 'warning' : 'success', $msg);
+    }
+
+    /** End a running (or scheduled) sale right away. Orders already placed keep the price paid. */
+    public function endSale(Product $book)
+    {
+        $this->authorizeBook($book);
+        if (! $book->saleState() || $book->saleState() === 'Ended') {
+            return back()->with('error', 'This product has no running or scheduled sale.');
+        }
+        $book->update(['sale_ends_at' => now(), 'sale_starts_at' => $book->sale_starts_at && $book->sale_starts_at->isFuture() ? now() : $book->sale_starts_at]);
+        \App\Models\ActivityLog::note('Ended the sale on "' . $book->title . '"', $book);
+
+        return back()->with('success', 'The sale on "' . $book->title . '" has ended. Buyers now see ₱' . number_format($book->price, 2) . '.');
     }
 
     public function archive(Product $book)
     {
         $this->authorizeBook($book);
         $book->update(['is_archived' => true, 'archived_at' => now()]);
-        return back()->with('success', '"' . $book->title . '" archived.');
+        return back()->with('success', '"' . $book->title . '" deactivated. Buyers can no longer see it.');
     }
 
     public function unarchive(Product $book)
     {
         $this->authorizeBook($book);
         $book->update(['is_archived' => false, 'archived_at' => null]);
-        return back()->with('success', '"' . $book->title . '" restored to active listings.');
+        return back()->with('success', '"' . $book->title . '" reactivated.');
     }
 
     public function updateStock(Request $request, Product $book)
     {
         $this->authorizeBook($book);
-        $request->validate(['stock' => 'required|integer|min:0']);
-        $book->update([
-            'stock'        => $request->stock,
-            'availability' => $request->stock > 0 ? 'in_stock' : 'out_of_stock',
+        $request->validate(['stock' => 'required|integer|min:0|max:99999'], [
+            'stock.integer' => 'Stock must be a whole number from 0 to 99,999.',
+            'stock.min'     => 'Stock must be a whole number from 0 to 99,999.',
+            'stock.max'     => 'Stock must be a whole number from 0 to 99,999.',
         ]);
-        return back()->with('success', 'Stock updated to ' . $request->stock . '.');
+        \App\Models\ActivityLog::note('"' . $book->title . '" stock ' . $book->stock . ' → ' . $request->stock, $book);
+        $book->update([
+            'stock'        => (int) $request->stock,
+            'availability' => $request->stock > 0 ? 'in_stock' : 'out_of_stock',
+            // Sold-out listings stay visible (shown as "Sold out"); restocking makes them buyable again.
+            'status'       => $book->status === 'out_of_stock' ? 'active' : $book->status,
+        ]);
+        return back()->with('success', 'Stock updated to ' . number_format((int) $request->stock) . '.');
     }
 
     // ── Helpers ───────────────────────────────────────────────
 
     /** Shared data for the create/edit form. */
-    private function formData(): array
+    private function formData(?Product $book = null): array
     {
+        $allowed = $this->allowedCategoryIds($book);
+
         return [
-            'categories'      => Category::orderBy('name')->get(),
+            // Only the seller's registered business category (and, when editing, the product's current one).
+            'categories'      => Category::when($allowed, fn ($q) => $q->whereIn('id', $allowed))->orderBy('name')->get(),
+            'businessCategoryId' => $this->businessCategoryId(),
             'subcategoryMap'  => $this->subcategoryMap(),
             'specSchemas'     => self::specSchemas(),
             'addresses'       => UserAddress::where('user_id', auth()->id())
                                     ->orderByDesc('is_default')->get(),
             'statuses'        => self::STATUSES,
+            'conditions'      => self::CONDITIONS,
+            // The seller's own categories (picked from ALVY) are listed first in the product's Category.
+            'storeCategories' => \App\Models\StoreCategory::where('seller_id', auth()->id())->whereNull('parent_id')
+                                    ->with('children')->orderBy('sort_order')->orderBy('name')->get(),
+            'myCategoryIds'   => \App\Models\StoreCategory::where('seller_id', auth()->id())->whereNotNull('category_id')
+                                    ->orderBy('sort_order')->orderBy('name')->pluck('category_id')->all(),
         ];
     }
 
@@ -226,23 +450,76 @@ class BookController extends Controller
         return $request->input('action') === 'draft' || $request->input('status') === 'draft';
     }
 
-    private function validateProduct(Request $request, ?int $bookId = null): array
+    /** Product conditions a seller can choose. */
+    public const CONDITIONS = ['New', 'Used - Like New', 'Used - Good', 'Refurbished'];
+
+    /** A seller that isn't Approved yet can save drafts only (assumption A18). */
+    private function blockUnverifiedPublish(Request $request)
+    {
+        if (auth()->user()->isApproved() || auth()->user()->isAdmin() || $this->isDraftSubmit($request)) {
+            return null;
+        }
+
+        return back()->withInput()->withErrors(['publish' => 'Your store must be verified before you can publish products. You can save this product as a draft for now.']);
+    }
+
+    private function validateProduct(Request $request, ?int $bookId = null, ?Product $book = null): array
     {
         // Drafts validate loosely so sellers can save partial work.
         $draft = $this->isDraftSubmit($request);
+        $req   = $draft ? 'nullable' : 'required';
 
+        // The sale is optional and is ONE of: a sale price, or a discount % (sale_type = none / price / percent).
+        // The other one is cleared; "none" clears the sale and its dates.
+        $saleType = $request->input('sale_type');
+        if ($saleType === 'none') {
+            $request->merge(['sale_price' => null, 'discount_percent' => null, 'sale_starts_at' => null, 'sale_ends_at' => null]);
+        } elseif ($saleType === 'price') {
+            $request->merge(['discount_percent' => null]);
+        } elseif ($saleType === 'percent') {
+            $request->merge(['sale_price' => null]);
+        }
+
+        // Empty optional numbers mean "none" (a discount of 0 is not a discount).
+        foreach (['discount_percent', 'sale_price', 'length_cm', 'width_cm', 'height_cm', 'sale_starts_at', 'sale_ends_at'] as $f) {
+            if ($request->input($f) === '' || ($f === 'discount_percent' && $request->has($f) && $request->input($f) === null)) {
+                $request->merge([$f => null]);
+            }
+        }
+        // The sale dates are Philippine time (stored as UTC, like vouchers); a failed form gets back what was typed.
+        $typedSale = $request->only('sale_starts_at', 'sale_ends_at');
+        $request->merge(array_map(fn ($v) => \App\Support\VoucherRules::toUtc($v), $typedSale));
+
+        // "20.00" from a saved sale is the whole percentage 20.
+        if (is_string($pct = $request->input('discount_percent')) && preg_match('/^\d+\.0+$/', $pct)) {
+            $request->merge(['discount_percent' => (string) (int) $pct]);
+        }
+
+        $money = ['numeric', 'min:1', 'max:1000000', 'decimal:0,2'];
         $rules = [
-            'title'            => ($draft ? 'nullable' : 'required') . '|string|max:255',
-            'category_id'      => ($draft ? 'nullable' : 'required') . '|exists:categories,id',
-            'subcategory'      => 'nullable|string|max:255',
+            'title'            => $req . '|string|min:5|max:120',
+            'category_id'      => array_filter([$req, 'exists:categories,id',
+                                    ($allowed = $this->allowedCategoryIds($book)) ? Rule::in($allowed) : null]),
+            // A subcategory must belong to the chosen category.
+            'subcategory'      => ['nullable', 'string', 'max:255',
+                                    Rule::in($this->subcategoryMap()[Category::whereKey((int) $request->input('category_id'))->value('name')] ?? [])],
             'brand'            => 'nullable|string|max:255',
-            'description'      => 'nullable|string|max:5000',
+            'condition'        => ['nullable', Rule::in(self::CONDITIONS)],   // no longer on the form: kept as it is ("New")
+            'sale_type'        => ['nullable', Rule::in(['none', 'price', 'percent'])],
+            'description'      => $req . '|string|min:20|max:3000',
+            'store_category_ids'   => 'nullable|array|max:3',
+            'store_category_ids.*' => ['integer', Rule::exists('store_categories', 'id')->where('seller_id', auth()->id())],
 
-            'price'            => ($draft ? 'nullable' : 'required') . '|numeric|min:0',
-            'sale_price'       => 'nullable|numeric|min:0|lte:price',
-            'discount_percent' => 'nullable|numeric|min:0|max:99',
+            'price'            => array_merge([$req], $money),
+            'sale_price'       => ['nullable', 'numeric', 'min:1', 'decimal:0,2', 'lt:price'],
+            'discount_percent' => ['nullable', 'integer', 'min:1', 'max:99'],
             'voucher_code'     => 'nullable|string|max:50',
-            'stock'            => ($draft ? 'nullable' : 'required') . '|integer|min:0',
+            'stock'            => [$req, 'integer', 'min:0', 'max:99999'],
+            'low_stock_threshold' => 'nullable|integer|min:0|max:99999',
+            'purchase_limit'   => 'nullable|integer|min:1|max:99999',
+            'sale_starts_at'   => ['nullable', 'date'],
+            'sale_ends_at'     => array_merge(['nullable', 'date'], $request->filled('sale_starts_at') ? ['after:sale_starts_at'] : []),
+            'variation_labels' => 'nullable|string|max:60',
             'sku'              => ['nullable', 'string', 'max:100', Rule::unique('products', 'sku')->ignore($bookId)],
             'status'           => ['nullable', Rule::in(self::STATUSES)],
 
@@ -256,28 +533,42 @@ class BookController extends Controller
             'pages'            => 'nullable|integer|min:1',
             'format'           => 'nullable|string|max:50',
 
-            // Media
-            'cover_image'      => 'nullable|image|mimes:jpg,jpeg,png,webp|max:5120',
-            'images'           => 'nullable|array|max:9',
-            'images.*'         => 'nullable|image|mimes:jpg,jpeg,png,webp|max:5120',
+            // Media: JPG or PNG up to 5 MB, 1 to 9 photos (assumption A16).
+            'cover_image'      => 'nullable|image|mimes:jpg,jpeg,png|max:5120',
+            'images'           => ['nullable', 'array', 'max:' . Product::MAX_IMAGES,
+                // Photos already saved (minus any being removed) + new uploads: 1 to the limit.
+                function (string $attr, $value, \Closure $fail) use ($request, $bookId) {
+                    $total = $this->photoCount($request, $bookId);
+                    if ($total > Product::MAX_IMAGES) {
+                        $fail('A product can have up to ' . Product::MAX_IMAGES . " photos — this would make {$total}. Remove some first.");
+                    }
+                }],
+            'images.*'         => 'nullable|image|mimes:jpg,jpeg,png|max:5120',
             'video'            => 'nullable|mimetypes:video/mp4,video/quicktime,video/webm|max:20480',
 
             // Specs (free-form key/value from category schema)
             'specs'            => 'nullable|array',
             'specs.*'          => 'nullable|string|max:255',
 
-            // Variations
+            // Variation types (at most 2) and their options (at most 20 each, assumption A7)
+            'variation_types'             => 'nullable|array|max:' . ProductVariation::MAX_TYPES,
+            'variation_types.*.name'      => 'required|string|max:30|distinct:ignore_case',
+            'variation_types.*.options'   => 'required|array|min:1|max:' . ProductVariation::MAX_OPTIONS,
+            'variation_types.*.options.*' => 'required|string|max:40|distinct:ignore_case',
+
+            // Variant rows ("Red / S"), each with its own price, stock and SKU
             'variations'                => 'nullable|array',
-            'variations.*.name'         => 'nullable|string|max:255',
-            'variations.*.price'        => 'nullable|numeric|min:0',
-            'variations.*.stock'        => 'nullable|integer|min:0',
-            'variations.*.sku'          => 'nullable|string|max:100',
+            'variations.*.name'         => 'required|string|max:120|distinct:ignore_case',
+            'variations.*.price'        => array_merge([$req], $money),
+            'variations.*.stock'        => [$req, 'integer', 'min:0', 'max:99999'],
+            'variations.*.sku'          => ['nullable', 'string', 'max:100', 'distinct:ignore_case'],
+            'variations.*.image'        => 'nullable|image|mimes:jpg,jpeg,png|max:5120',
 
             // Shipping
-            'weight_kg'        => 'nullable|numeric|min:0',
-            'length_cm'        => 'nullable|numeric|min:0',
-            'width_cm'         => 'nullable|numeric|min:0',
-            'height_cm'        => 'nullable|numeric|min:0',
+            'weight_kg'        => [$req, 'numeric', 'min:0.01', 'max:1000'],
+            'length_cm'        => 'nullable|numeric|gt:0|max:1000',
+            'width_cm'         => 'nullable|numeric|gt:0|max:1000',
+            'height_cm'        => 'nullable|numeric|gt:0|max:1000',
             'address_id'       => ['nullable', Rule::exists('user_addresses', 'id')->where('user_id', auth()->id())],
 
             // Image ordering / removal
@@ -287,14 +578,181 @@ class BookController extends Controller
             'removed_images.*' => 'nullable|integer',
         ];
 
+        $priceMsg = 'Enter a price from ₱1.00 to ₱1,000,000.00 with up to 2 decimal places.';
+        $stockMsg = 'Stock must be a whole number from 0 to 99,999.';
         $messages = [
-            'sale_price.lte'   => 'The sale price must be less than or equal to the original price.',
-            'title.required'   => 'Please enter a product name.',
-            'price.required'   => 'Please enter a price.',
-            'stock.required'   => 'Please enter the available stock.',
+            'title.required'        => 'Please enter a product name.',
+            'title.min'             => 'The product name must be 5 to 120 characters.',
+            'title.max'             => 'The product name must be 5 to 120 characters.',
+            'description.required'  => 'Please describe the product (20 to 3,000 characters).',
+            'description.min'       => 'The description must be 20 to 3,000 characters.',
+            'description.max'       => 'The description must be 20 to 3,000 characters.',
+            'store_category_ids.max' => 'A product can be in up to 3 store categories.',
+            'category_id.required'  => 'Please choose a platform category.',
+            'category_id.in'        => 'Choose your store\'s registered business category.',
+            'subcategory.in'        => 'Choose a subcategory of the selected category.',
+            'price.required'        => 'Please enter a price.',
+            'price.numeric'         => $priceMsg, 'price.min' => $priceMsg, 'price.max' => $priceMsg, 'price.decimal' => $priceMsg,
+            'sale_price.lt'         => 'The sale price must be lower than the original price.',
+            'sale_price.min'        => 'The sale price must be at least ₱1.00.',
+            'sale_price.decimal'    => 'The sale price can have up to 2 decimal places.',
+            'discount_percent.min'  => 'The discount must be from 1% to 99%.',
+            'discount_percent.max'  => 'The discount must be from 1% to 99%.',
+            'discount_percent.integer' => 'The discount must be a whole number from 1% to 99%.',
+            'sale_ends_at.after'    => 'The sale must end after it starts.',
+            'stock.required'        => 'Please enter the available stock.',
+            'stock.integer'         => $stockMsg, 'stock.min' => $stockMsg, 'stock.max' => $stockMsg,
+            'weight_kg.required'    => 'Please enter the weight.',
+            'weight_kg.numeric'     => 'The weight must be a number of at least 0.01 kg.',
+            'weight_kg.min'         => 'The weight must be at least 0.01 kg.',
+            'length_cm.gt'          => 'Length must be more than 0 cm.',
+            'width_cm.gt'           => 'Width must be more than 0 cm.',
+            'height_cm.gt'          => 'Height must be more than 0 cm.',
+            'length_cm.numeric'     => 'Length must be a number.',
+            'width_cm.numeric'      => 'Width must be a number.',
+            'height_cm.numeric'     => 'Height must be a number.',
+            'images.max'            => 'A product can have up to ' . Product::MAX_IMAGES . ' photos.',
+            'images.*.image'        => 'Each photo must be a JPG or PNG image.',
+            'images.*.mimes'        => 'Each photo must be a JPG or PNG image.',
+            'images.*.max'          => 'Each photo must be 5 MB or smaller.',
+            'variation_types.max'   => 'A product can have at most ' . ProductVariation::MAX_TYPES . ' variation types (for example Color and Size).',
+            'variation_types.*.name.required'   => 'Please name each variation type.',
+            'variation_types.*.name.distinct'   => 'Each variation type needs a different name.',
+            'variation_types.*.options.required' => 'Add at least one option to each variation type.',
+            'variation_types.*.options.max'     => 'A variation type can have at most ' . ProductVariation::MAX_OPTIONS . ' options.',
+            'variation_types.*.options.*.required' => 'Option names cannot be empty.',
+            'variation_types.*.options.*.distinct' => 'Each option must be different (Red and red count as the same).',
+            'variations.*.name.required' => 'Option names cannot be empty.',
+            'variations.*.name.distinct' => 'Each variant must be different (Red and red count as the same).',
+            'variations.*.price.required' => 'Enter a price for every variant.',
+            'variations.*.price.numeric' => $priceMsg, 'variations.*.price.min' => $priceMsg,
+            'variations.*.price.max' => $priceMsg, 'variations.*.price.decimal' => $priceMsg,
+            'variations.*.stock.required' => 'Enter the stock for every variant.',
+            'variations.*.stock.integer' => $stockMsg, 'variations.*.stock.min' => $stockMsg, 'variations.*.stock.max' => $stockMsg,
+            'variations.*.sku.distinct' => 'Each variant needs a different SKU.',
+            'variations.*.image.image' => 'Variant photos must be JPG or PNG images.',
+            'variations.*.image.mimes' => 'Variant photos must be JPG or PNG images.',
+            'variations.*.image.max'   => 'Variant photos must be 5 MB or smaller.',
         ];
 
-        return $request->validate($rules, $messages);
+        $validator = \Illuminate\Support\Facades\Validator::make($request->all(), $rules, $messages);
+
+        $validator->after(function ($v) use ($request, $draft, $bookId, $book) {
+            if ($request->filled('sale_price') && (float) $request->input('discount_percent') > 0) {
+                $v->errors()->add('sale_price', 'Choose either a sale price or a discount %, not both.');
+            }
+            // Publishing needs at least one photo.
+            if (! $draft && $this->photoCount($request, $bookId) < 1) {
+                $v->errors()->add('images', 'Please add at least one photo.');
+            }
+
+            // A new start time can't be in the past (an unchanged running sale keeps its start).
+            if ($request->filled('sale_starts_at') && strtotime((string) $request->sale_starts_at)) {
+                $start   = \Carbon\Carbon::parse($request->sale_starts_at);
+                $changed = ! $book || ! $book->sale_starts_at || ! $book->sale_starts_at->equalTo($start);
+                if ($changed && $start->lt(now()->subMinute())) {
+                    $v->errors()->add('sale_starts_at', 'The sale start cannot be in the past.');
+                }
+            }
+            if ($request->filled('sale_ends_at') && ! $request->filled('sale_starts_at') && strtotime((string) $request->sale_ends_at)) {
+                $end     = \Carbon\Carbon::parse($request->sale_ends_at);
+                $changed = ! $book || ! $book->sale_ends_at || ! $book->sale_ends_at->equalTo($end);
+                if ($changed && $end->lte(now())) {
+                    $v->errors()->add('sale_ends_at', 'The sale end must be in the future.');
+                }
+            }
+
+            // A28: one store sale at a time. A new sale window that overlaps an upcoming or running sale is
+            // rejected (editing that sale itself, which keeps its start, is fine).
+            if ($book && in_array($book->saleState(), ['Upcoming', 'Ongoing'], true) && $request->filled('sale_starts_at')
+                && strtotime((string) $request->sale_starts_at)) {
+                $newStart = \Carbon\Carbon::parse($request->sale_starts_at);
+                $newEnd   = $request->filled('sale_ends_at') && strtotime((string) $request->sale_ends_at) ? \Carbon\Carbon::parse($request->sale_ends_at) : null;
+                $oldStart = $book->sale_starts_at ?? $book->updated_at;
+                $oldEnd   = $book->sale_ends_at;
+                $overlaps = ($oldEnd === null || $newStart->lt($oldEnd)) && ($newEnd === null || $newEnd->gt($oldStart));
+                if (! $newStart->equalTo($oldStart) && $overlaps) {
+                    $v->errors()->add('sale_starts_at', '"' . $book->title . '" already has a sale ' . ($oldEnd
+                        ? 'from ' . $oldStart->format('M j, g:i A') . ' to ' . $oldEnd->format('M j, g:i A') : 'running now')
+                        . '. A product can be in only one sale at a time: end that sale first or edit it.');
+                }
+            }
+
+            // Variant rows: at most 2 types ("Red / S") and 20 options per type.
+            $rows = collect((array) $request->input('variations', []))->pluck('name')->filter(fn ($n) => is_string($n) && trim($n) !== '');
+            $groups = [];
+            foreach ($rows as $name) {
+                $parts = array_map('trim', explode('/', $name));
+                if (count($parts) > ProductVariation::MAX_TYPES) {
+                    $v->errors()->add('variations', 'A product can have at most ' . ProductVariation::MAX_TYPES . ' variation types (for example Color and Size).');
+                    break;
+                }
+                foreach ($parts as $i => $part) {
+                    if ($part === '') {
+                        $v->errors()->add('variations', 'Option names cannot be empty.');
+                        break 2;
+                    }
+                    $groups[$i][mb_strtolower($part)] = true;
+                }
+            }
+            foreach ($groups as $opts) {
+                if (count($opts) > ProductVariation::MAX_OPTIONS) {
+                    $v->errors()->add('variations', 'A variation type can have at most ' . ProductVariation::MAX_OPTIONS . ' options.');
+                    break;
+                }
+            }
+
+            // A variant with unfinished orders can't be removed (A19).
+            if ($book) {
+                $rows = collect((array) $request->input('variations', []));
+                $kept = $rows->pluck('name')->filter()->map(fn ($n) => mb_strtolower(trim($n)))->all();
+                $keptIds = $rows->pluck('id')->filter()->map(fn ($id) => (int) $id)->all();
+                foreach ($book->variations as $variant) {
+                    if (in_array($variant->id, $keptIds, true) || in_array(mb_strtolower($variant->name), $kept, true)) {
+                        continue;
+                    }
+                    $busy = \App\Models\OrderItem::where('variation_id', $variant->id)->whereHas('order', fn ($q) => $q->whereIn('status', [
+                        \App\Models\Order::AWAITING_PAYMENT, \App\Models\Order::PENDING, \App\Models\Order::PROCESSING, \App\Models\Order::SHIPPED,
+                        \App\Models\Order::DELIVERED, \App\Models\Order::RETURN_REQUESTED, \App\Models\Order::IN_DISPUTE]))->exists();
+                    if ($busy) {
+                        $v->errors()->add('variations', 'Variant "' . $variant->name . '" has orders that are not finished yet, so it can\'t be removed. Set its stock to 0 instead.');
+                    }
+                }
+            }
+
+            // SKUs are unique within the store (products and variants).
+            $skus = collect((array) $request->input('variations', []))->pluck('sku')->filter()->map(fn ($s) => trim($s))->push($request->input('sku'))->filter();
+            if ($skus->isNotEmpty()) {
+                $lower = $skus->map(fn ($s) => mb_strtolower($s))->all();
+                $taken = ProductVariation::whereIn(DB::raw('LOWER(sku)'), $lower)
+                    ->whereHas('product', fn ($q) => $q->where('seller_id', auth()->id())->when($bookId, fn ($q) => $q->where('id', '!=', $bookId)))
+                    ->pluck('sku')
+                    ->merge(Product::where('seller_id', auth()->id())->when($bookId, fn ($q) => $q->where('id', '!=', $bookId))
+                        ->whereIn(DB::raw('LOWER(sku)'), $lower)->pluck('sku'));
+                if ($taken->isNotEmpty()) {
+                    $v->errors()->add('variations', 'SKU ' . $taken->first() . ' is already used by another product in your store.');
+                }
+            }
+        });
+
+        try {
+            return $validator->validate();
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            $request->merge($typedSale);
+            throw $e;
+        }
+    }
+
+    /** Photos the product will have after this save (kept + new uploads). */
+    private function photoCount(Request $request, ?int $bookId): int
+    {
+        $kept = $bookId
+            ? ProductImage::where('product_id', $bookId)
+                ->whereNotIn('id', array_filter((array) $request->input('removed_images', [])))
+                ->count()
+            : 0;
+
+        return $kept + count(array_filter((array) $request->file('images', [])));
     }
 
     /** Build the products-table payload from validated data. */
@@ -316,14 +774,22 @@ class BookController extends Controller
             'category_id'      => $data['category_id'] ?? null,
             'subcategory'      => $data['subcategory'] ?? null,
             'brand'            => $data['brand'] ?? null,
+            'condition'        => $data['condition'] ?? 'New',   // removed from the form; see below
             'title'            => $data['title'] ?? 'Untitled draft',
             'description'      => $data['description'] ?? null,
 
             'price'            => $data['price'] ?? 0,
             'sale_price'       => $data['sale_price'] ?? null,
             'discount_percent' => $data['discount_percent'] ?? 0,
+            'sale_starts_at'   => $data['sale_starts_at'] ?? null,
+            'sale_ends_at'     => $data['sale_ends_at'] ?? null,
+            'purchase_limit'   => null,   // "Limit per buyer" was removed: no product has a limit
+            'variation_labels' => ! empty($data['variation_types'])
+                ? collect($data['variation_types'])->pluck('name')->map(fn ($n) => trim($n))->join(', ')
+                : ($data['variation_labels'] ?? null),
             'voucher_code'     => $data['voucher_code'] ?? null,
             'stock'            => $stock,
+            'low_stock_threshold' => isset($data['low_stock_threshold']) && $data['low_stock_threshold'] !== '' ? (int) $data['low_stock_threshold'] : null,
             'sku'              => $data['sku'] ?? null,
 
             'author'           => $data['author'] ?? null,
@@ -347,9 +813,9 @@ class BookController extends Controller
             'availability'     => $stock > 0 ? 'in_stock' : 'out_of_stock',
         ];
 
-        // Auto out-of-stock status override when nothing is left (unless draft).
-        if ($status !== 'draft' && $stock <= 0) {
-            $payload['status'] = 'out_of_stock';
+        // Nothing left: the listing stays visible as "Sold out" (availability), it isn't hidden.
+        if ($status === 'out_of_stock') {
+            $payload['status'] = 'active';
         }
 
         return $payload;
@@ -409,21 +875,38 @@ class BookController extends Controller
     private function syncVariations(Request $request, Product $book): void
     {
         $variations = (array) $request->input('variations', []);
-        $book->variations()->delete();
 
+        // Options are matched by id (a rename keeps the same option), else by name, and updated
+        // in place, so buyers' carts and order history keep pointing at them.
+        $all      = $book->variations()->get();
+        $byId     = $all->keyBy('id');
+        $existing = $all->keyBy(fn ($v) => mb_strtolower($v->name));
+        $kept = [];
+        $keptIds = [];
         $sort = 0;
-        foreach ($variations as $v) {
+        foreach ($variations as $index => $v) {
             $name = trim($v['name'] ?? '');
-            if ($name === '') continue;
-            ProductVariation::create([
-                'product_id'    => $book->id,
+            if ($name === '' || in_array(mb_strtolower($name), $kept, true)) continue;
+            $kept[] = mb_strtolower($name);
+            $values = [
+                'product_id' => $book->id,
                 'name'       => $name,
                 'price'      => ($v['price'] ?? '') !== '' ? $v['price'] : null,
                 'stock'      => (int) ($v['stock'] ?? 0),
-                'sku'        => $v['sku'] ?? null,
+                'sku'        => ($v['sku'] ?? '') !== '' ? trim($v['sku']) : null,
                 'sort_order' => $sort++,
-            ]);
+            ];
+            if (($file = $request->file("variations.$index.image")) && $file->isValid()) {
+                $values['image_path'] = $file->store('products/variants', 'public');
+            }
+            $match = $byId[(int) ($v['id'] ?? 0)] ?? $existing[mb_strtolower($name)] ?? null;
+            if ($match && in_array($match->id, $keptIds, true)) {
+                $match = null;
+            }
+            $saved = ProductVariation::updateOrCreate(['id' => $match?->id], $values);
+            $keptIds[] = $saved->id;
         }
+        $book->variations()->whereNotIn('id', $keptIds ?: [0])->delete();
 
         // When variations exist, base stock mirrors their total.
         if ($sort > 0) {
@@ -435,6 +918,18 @@ class BookController extends Controller
         }
     }
 
+    /** The product's store categories (separate from the platform category). */
+    /**
+     * The product goes under its ALVY category on the store page: the seller's store category for that category
+     * (added to the store if it isn't there yet). Older free-named categories the product was in stay.
+     */
+    private function syncStoreCategories(Request $request, Product $book): void
+    {
+        $keep = $book->storeCategories()->whereNull('store_categories.category_id')->pluck('store_categories.id')->all();
+        $store = $book->category_id ? \App\Models\StoreCategory::forPlatformCategory((int) $book->seller_id, (int) $book->category_id) : null;
+        $book->storeCategories()->sync(array_values(array_unique(array_filter([...$keep, $store?->id]))));
+    }
+
     private function successMessage(Product $book, Request $request): string
     {
         $code = $book->product_code ?: ('ALVY-' . str_pad((string) $book->id, 6, '0', STR_PAD_LEFT));
@@ -442,12 +937,15 @@ class BookController extends Controller
         if ($book->status === 'draft') {
             return 'Draft saved. Product ID: ' . $code;
         }
-        return 'Product published successfully. Product ID: ' . $code;
+        if ($book->isPendingApproval()) {
+            return 'Product submitted for admin approval. It will appear in the shop once approved. Product ID: ' . $code;
+        }
+        return 'Product saved successfully. Product ID: ' . $code;
     }
 
     private function authorizeBook(Product $book): void
     {
-        if ($book->seller_id !== auth()->id()) {
+        if ((int) $book->seller_id !== (int) auth()->id()) {
             abort(403, 'You can only manage your own products.');
         }
     }

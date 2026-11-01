@@ -19,6 +19,7 @@
     <h2 class="cx-section-title" style="margin-bottom:4px;">Change Password</h2>
     <p style="font-size:12px;color:var(--text-muted);margin-bottom:20px;">Choose a strong password you don't use elsewhere. Minimum 8 characters.</p>
 
+    @include('partials.password-code')
     <form action="{{ route('courier.account.password') }}" method="POST" style="display:flex;flex-direction:column;gap:16px;">
         @csrf @method('PUT')
 
@@ -48,6 +49,7 @@
         </div>
 
         <div>
+            @include('partials.password-code-via')
             <button type="submit" class="cx-btn cx-btn-navy">Update Password</button>
         </div>
     </form>

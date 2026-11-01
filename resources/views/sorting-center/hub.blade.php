@@ -12,10 +12,6 @@
             {{ now()->format('l, F j, Y') }} · Sorting Center Management Portal
         </p>
     </div>
-    <form method="POST" action="{{ route('logout') }}">
-        @csrf
-        <button class="btn btn--ghost btn--sm">Sign out</button>
-    </form>
 </div>
 
 {{-- Live stat strip --}}
@@ -116,15 +112,6 @@ $features = [
         ],
         'badge' => null,
     ],
-    [
-        'icon'  => '👤',
-        'title' => 'Account Management',
-        'desc'  => 'Update your profile details and change your password.',
-        'links' => [
-            ['label'=>'My Account', 'route'=>'admin.account.edit'],
-        ],
-        'badge' => null,
-    ],
 ];
 @endphp
 
@@ -168,7 +155,7 @@ $features = [
 <div class="panel" style="margin-top:28px;">
     <div class="panel__header">
         <h2>Recent delivery activity</h2>
-        <a href="{{ route('admin.deliveries.monitor') }}" class="btn btn--ghost btn--sm">View all</a>
+        <a href="{{ route('admin.logistics.deliveries.monitor') }}" class="btn btn--ghost btn--sm">View all</a>
     </div>
     @if($recentActivity->isEmpty())
         <div class="empty-state">No delivery activity yet.</div>

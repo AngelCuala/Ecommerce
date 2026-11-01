@@ -5,7 +5,9 @@
     <div class="field"><label>To</label><input type="date" name="to" value="{{ request('to', $to->format('Y-m-d')) }}"></div>
     <div class="field" style="padding-top:18px"><button class="btn btn--primary btn--sm">Apply</button></div>
     <div class="field" style="padding-top:18px">
-        <a href="{{ route('logistics.reports.export', request()->only('from','to')) }}" class="btn btn--sm">Export CSV</a>
+        <a href="{{ route('admin.logistics.reports.export', request()->only('from','to')) }}" class="btn btn--sm">Export CSV</a>
+        <a href="{{ route('admin.logistics.reports.export', request()->only('from','to') + ['format' => 'xlsx']) }}" class="btn btn--sm">Export XLSX</a>
+        <a href="{{ route('admin.logistics.reports.export', request()->only('from','to') + ['format' => 'pdf']) }}" class="btn btn--sm">Download PDF</a>
     </div>
 </form>
 

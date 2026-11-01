@@ -27,7 +27,7 @@
                 $colors  = ['#1f4e79','#1a7f37','#7d5a08','#8e1a16'];
                 $color   = $colors[$contact->id % count($colors)];
             @endphp
-            <a href="{{ route('admin.chat.index',['contact_id'=>$contact->id]) }}"
+            <a href="{{ route('admin.logistics.chat.index',['contact_id'=>$contact->id]) }}"
                class="chat-contact {{ $activeContact?->id===$contact->id ? 'active' : '' }}">
                 <div class="chat-contact__avatar" style="background:{{ $color }};">{{ $initial }}</div>
                 <div class="chat-contact__body">
@@ -74,7 +74,7 @@
                 @endforeach
             </div>
 
-            <form class="chat-input-area" method="POST" action="{{ route('admin.chat.send') }}" id="chat-form">
+            <form class="chat-input-area" method="POST" action="{{ route('admin.logistics.chat.send') }}" id="chat-form">
                 @csrf
                 <input type="hidden" name="receiver_id" value="{{ $activeContact->id }}">
                 <input type="text" name="body" placeholder="Type a message…" required autocomplete="off" id="chat-body">
@@ -121,7 +121,7 @@ if (el) {
         const contactId = el.dataset.contact;
         const lastId    = el.dataset.lastId;
         try {
-            const res  = await fetch(`{{ route('admin.chat.poll') }}?contact_id=${contactId}&after_id=${lastId}`);
+            const res  = await fetch(`{{ route('admin.logistics.chat.poll') }}?contact_id=${contactId}&after_id=${lastId}`);
             const msgs = await res.json();
             msgs.forEach(m => {
                 if (m.sender_id == {{ auth()->id() }}) return; // already appended above

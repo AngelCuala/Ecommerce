@@ -24,8 +24,8 @@
     {{-- ── Profile card ── --}}
     <div class="space-y-5">
         <div class="card p-6 text-center">
-            <div class="mx-auto flex h-20 w-20 items-center justify-center rounded-full font-display text-3xl font-bold text-white"
-                 style="background:#002b4d;">
+            <div class="mx-auto flex h-20 w-20 items-center justify-center rounded-full font-display text-3xl font-bold"
+                 style="color:#fff;background:#002b4d;">
                 {{ strtoupper(substr($user->name ?? 'U', 0, 1)) }}
             </div>
             <p class="mt-4 font-bold text-lg" style="color:#222222;">{{ $user->name }}</p>

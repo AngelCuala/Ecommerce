@@ -1,299 +1,174 @@
-<x-admin-layout title="Buyer Application" active="customers">
+<x-admin-layout title="Buyer details" active="customers">
+@include('partials.panel.plain')
+@php
+    $status   = $customer->status;
+    $fullName = trim($customer->first_name . ' ' . ($customer->middle_initial ? $customer->middle_initial . '. ' : '') . $customer->last_name) ?: $customer->name;
+    $statusTag = ['approved' => 'delivered', 'pending' => 'pending', 'unverified' => 'neutral', 'rejected' => 'cancelled', 'suspended' => 'cancelled'][$status] ?? 'neutral';
+    $address  = collect([$customer->house_number, $customer->street, $customer->barangay, $customer->municipality, $customer->province])
+        ->filter()->implode(', ');
+    $orders   = $customer->orders->sortByDesc('created_at');
+    $spent    = $orders->where('status', '!=', 'Cancelled')->sum('total_price');
+    $orderTag = fn ($s) => ['pending' => 'pending', 'processing' => 'processing', 'shipped' => 'shipped', 'delivered' => 'delivered', 'cancelled' => 'cancelled'][strtolower((string) $s)] ?? 'neutral';
+    $idExt    = $customer->valid_id_path ? strtolower(pathinfo($customer->valid_id_path, PATHINFO_EXTENSION)) : null;
+    $first    = addslashes($customer->first_name ?: $customer->name);
+@endphp
 
-<div class="mb-6 flex items-center justify-between">
-    <a href="{{ route('admin.customers.index') }}"
-       class="text-sm transition" style="color:#fa4e1c;"
-       onmouseover="this.style.color='#d93d0e';" onmouseout="this.style.color='#fa4e1c';">
-        ← Back to buyers
-    </a>
+<div class="mx-auto max-w-5xl">
 
-    @php
-        $sc = match($customer->status) {
-            'approved'  => ['bg'=>'#F0FDF4','text'=>'#059669'],
-            'rejected'  => ['bg'=>'#FEF2F2','text'=>'#DC2626'],
-            'suspended' => ['bg'=>'#FEF2F2','text'=>'#DC2626'],
-            default     => ['bg'=>'#e8f0f6','text'=>'#fa4e1c'],
-        };
-    @endphp
-    <span class="rounded-full px-3 py-1 text-xs font-semibold"
-          style="background:{{ $sc['bg'] }};color:{{ $sc['text'] }};">
-        {{ ucfirst($customer->status) }}
-    </span>
-</div>
-
-<div class="grid gap-6 lg:grid-cols-[280px_1fr]">
-
-    {{-- Left: avatar + quick facts --}}
-    <div class="card h-fit p-6 text-center">
-        <div class="mx-auto flex h-16 w-16 items-center justify-center rounded-full font-display text-2xl font-bold"
-             style="background:#fa4e1c;color:#FFFFFF;">
-            {{ strtoupper(substr($customer->first_name, 0, 1)) }}
-        </div>
-        <p class="mt-3 font-display text-lg font-bold" style="color:#222222;">
-            {{ $customer->first_name }} {{ $customer->middle_initial ? $customer->middle_initial.'.' : '' }} {{ $customer->last_name }}
-        </p>
-        <p class="text-sm" style="color:#6b90aa;">{{ '@'.$customer->username }}</p>
-
-        <div class="mt-5 space-y-2 text-sm text-left">
-            <div class="flex justify-between border-b pb-2" style="border-color:#dce8f0;">
-                <span style="color:#6b90aa;">Applied</span>
-                <span style="color:#222222;">{{ $customer->created_at->format('M d, Y') }}</span>
+    {{-- Header --}}
+    <a href="{{ route('admin.customers.index') }}" class="text-sm hover:underline pl-muted">&larr; Buyers</a>
+    <div class="mt-1 mb-5 flex flex-wrap items-start justify-between gap-3">
+        <div>
+            <div class="flex flex-wrap items-center gap-3">
+                <h1 class="font-display text-2xl font-bold" style="color:#222;">{{ $fullName }}</h1>
+                <span class="pl-tag {{ $statusTag }}">{{ ucfirst($status) }}</span>
             </div>
-            <div class="flex justify-between">
-                <span style="color:#6b90aa;">Total Orders</span>
-                <span class="font-semibold" style="color:#222222;">{{ $customer->orders->count() }}</span>
-            </div>
+            <p class="mt-0.5 text-sm pl-muted">
+                {{ $customer->username ? '@' . $customer->username . ' · ' : '' }}Joined {{ $customer->created_at->format('M j, Y') }}
+                · {{ $orders->count() }} {{ \Illuminate\Support\Str::plural('order', $orders->count()) }}
+            </p>
         </div>
 
-        {{-- Approve / Reject --}}
-        @if ($customer->status === 'pending')
-            <div class="mt-5 flex flex-col gap-2 border-t pt-4" style="border-color:#dce8f0;">
+        {{-- Actions --}}
+        <div class="flex flex-wrap gap-2">
+            @if ($status === 'pending')
+                <button type="button" onclick="document.getElementById('reject-panel').classList.toggle('hidden')" class="pl-btn-line !text-[#B91C1C]">Reject</button>
                 <form action="{{ route('admin.customers.approve', $customer->id) }}" method="POST"
-                    onsubmit="return confirm('Approve {{ addslashes($customer->first_name) }} {{ addslashes($customer->last_name) }}?')">
+                      onsubmit="return confirm('Approve {{ $first }}\'s account?')">
                     @csrf @method('PATCH')
-                    <button type="submit" class="btn-gold w-full !py-2 text-sm" style="background:#fa4e1c;border-color:#fa4e1c;color:#FFFFFF;">Approve</button>
+                    <button type="submit" class="pl-btn">Approve</button>
                 </form>
-
-                <button type="button" onclick="document.getElementById('reject-panel').classList.toggle('hidden')"
-                        class="w-full rounded-full border-2 py-2 text-sm font-semibold transition"
-                        style="border-color:#DC2626;color:#DC2626;"
-                        onmouseover="this.style.background='#FEF2F2';"
-                        onmouseout="this.style.background='';">
-                    Reject
-                </button>
-
-                {{-- Rejection reason panel --}}
-                <div id="reject-panel" class="hidden mt-3 rounded-lg border p-4 text-left" style="border-color:#dce8f0;background:#e8f0f6;">
-                    <form action="{{ route('admin.customers.reject', $customer->id) }}" method="POST"
-                        onsubmit="return confirm('Reject {{ addslashes($customer->first_name) }} {{ addslashes($customer->last_name) }}?')">
-                        @csrf @method('PATCH')
-
-                        <p class="mb-2 text-xs font-semibold" style="color:#222222;">Reason for rejection:</p>
-
-                        <div class="space-y-2 text-sm" style="color:#222222;">
-                            <label class="flex items-center gap-2">
-                                <input type="radio" name="rejection_reason" value="invalid_id" required>
-                                Invalid ID
-                            </label>
-                            <label class="flex items-center gap-2">
-                                <input type="radio" name="rejection_reason" value="incorrect_information">
-                                Incorrect information
-                            </label>
-                            <label class="flex items-center gap-2">
-                                <input type="radio" name="rejection_reason" value="duplicate_account">
-                                Duplicate account
-                            </label>
-                            <label class="flex items-center gap-2">
-                                <input type="radio" name="rejection_reason" value="incomplete_information">
-                                Incomplete information
-                            </label>
-                            <label class="flex items-center gap-2">
-                                <input type="radio" name="rejection_reason" value="invalid_address">
-                                Invalid address
-                            </label>
-                            <label class="flex items-center gap-2">
-                                <input type="radio" name="rejection_reason" value="other" id="reason-other-radio">
-                                Other
-                            </label>
-                            <input type="text" name="rejection_reason_other" id="reason-other-input"
-                                placeholder="Please specify…" class="input mt-1 hidden text-sm">
-                        </div>
-
-                        <button type="submit"
-                                class="mt-3 w-full rounded-full py-2 text-sm font-semibold text-white transition"
-                                style="background:#DC2626;">
-                            Confirm Rejection
-                        </button>
-                    </form>
-                </div>
-            </div>
-        @elseif ($customer->status === 'approved')
-            <div class="mt-5 border-t pt-4" style="border-color:#dce8f0;">
+            @elseif ($status === 'approved')
                 <form action="{{ route('admin.customers.suspend', $customer->id) }}" method="POST"
-                    onsubmit="return confirm('Suspend {{ addslashes($customer->first_name) }} {{ addslashes($customer->last_name) }}?')">
+                      onsubmit="return confirm('Suspend {{ $first }}\'s account? They won\'t be able to log in.')">
                     @csrf @method('PATCH')
-                    <button type="submit" class="w-full rounded-full border-2 py-2 text-sm font-semibold transition"
-                            style="border-color:#DC2626;color:#DC2626;"
-                            onmouseover="this.style.background='#FEF2F2';"
-                            onmouseout="this.style.background='';">
-                        Suspend Account
-                    </button>
+                    <button type="submit" class="pl-btn-line !text-[#B91C1C]">Suspend account</button>
                 </form>
-            </div>
-        @elseif ($customer->status === 'suspended')
-            <div class="mt-5 border-t pt-4" style="border-color:#dce8f0;">
+            @elseif ($status === 'suspended')
                 <form action="{{ route('admin.customers.restore', $customer->id) }}" method="POST">
                     @csrf @method('PATCH')
-                    <button type="submit" class="btn-gold w-full !py-2 text-sm" style="background:#fa4e1c;border-color:#fa4e1c;color:#FFFFFF;">Restore Account</button>
+                    <button type="submit" class="pl-btn">Restore account</button>
                 </form>
-            </div>
-        @elseif ($customer->status === 'rejected' && $customer->rejection_reason)
-            <div class="mt-5 rounded-lg border-t pt-4 text-left text-sm" style="border-color:#dce8f0;">
-                <p class="text-xs font-semibold uppercase tracking-wide" style="color:#6b90aa;">Rejection reason</p>
-                <p class="mt-1" style="color:#222222;">{{ $customer->rejection_reason }}</p>
-            </div>
-        @endif
-    </div>{{-- /Left card --}}
-
-    {{-- Right: full details --}}
-    <div class="space-y-6">
-
-        {{-- Personal Information --}}
-        <div class="card p-6">
-            <h2 class="font-display text-base font-bold mb-4" style="color:#222222;">Personal Information</h2>
-            <dl class="grid grid-cols-1 gap-4 sm:grid-cols-2 text-sm">
-                <div>
-                    <dt style="color:#6b90aa;">Last name</dt>
-                    <dd style="color:#222222;">{{ $customer->last_name }}</dd>
-                </div>
-                <div>
-                    <dt style="color:#6b90aa;">First name</dt>
-                    <dd style="color:#222222;">{{ $customer->first_name }}</dd>
-                </div>
-                <div>
-                    <dt style="color:#6b90aa;">Middle initial</dt>
-                    <dd style="color:#222222;">{{ $customer->middle_initial ?? '—' }}</dd>
-                </div>
-                <div>
-                    <dt style="color:#6b90aa;">Sex</dt>
-                    <dd style="color:#222222;">{{ ucfirst($customer->sex) }}</dd>
-                </div>
-                <div>
-                    <dt style="color:#6b90aa;">Birthday</dt>
-                    <dd style="color:#222222;">{{ $customer->birthday->format('M d, Y') }}</dd>
-                </div>
-                <div>
-                    <dt style="color:#6b90aa;">Age</dt>
-                    <dd style="color:#222222;">{{ $customer->age }}</dd>
-                </div>
-            </dl>
-        </div>
-
-        {{-- Account Information --}}
-        <div class="card p-6">
-            <h2 class="font-display text-base font-bold mb-4" style="color:#222222;">Account Information</h2>
-            <dl class="grid grid-cols-1 gap-4 sm:grid-cols-2 text-sm">
-                <div>
-                    <dt style="color:#6b90aa;">Username</dt>
-                    <dd style="color:#222222;">{{ $customer->username }}</dd>
-                </div>
-                <div>
-                    <dt style="color:#6b90aa;">Email</dt>
-                    <dd style="color:#222222;">{{ $customer->email }}</dd>
-                </div>
-                <div>
-                    <dt style="color:#6b90aa;">Contact number</dt>
-                    <dd style="color:#222222;">{{ $customer->contact_no }}</dd>
-                </div>
-                <div>
-                    <dt style="color:#6b90aa;">Registered on</dt>
-                    <dd style="color:#222222;">{{ $customer->created_at->format('M d, Y') }}</dd>
-                </div>
-            </dl>
-        </div>
-
-        {{-- Address --}}
-        <div class="card p-6">
-            <h2 class="font-display text-base font-bold mb-4" style="color:#222222;">Address</h2>
-            <dl class="grid grid-cols-1 gap-4 sm:grid-cols-2 text-sm">
-                <div>
-                    <dt style="color:#6b90aa;">Province</dt>
-                    <dd style="color:#222222;">{{ $customer->province }}</dd>
-                </div>
-                <div>
-                    <dt style="color:#6b90aa;">Municipality</dt>
-                    <dd style="color:#222222;">{{ $customer->municipality }}</dd>
-                </div>
-                <div>
-                    <dt style="color:#6b90aa;">Barangay</dt>
-                    <dd style="color:#222222;">{{ $customer->barangay }}</dd>
-                </div>
-                <div>
-                    <dt style="color:#6b90aa;">Street</dt>
-                    <dd style="color:#222222;">{{ $customer->street ?? '—' }}</dd>
-                </div>
-                <div>
-                    <dt style="color:#6b90aa;">House number</dt>
-                    <dd style="color:#222222;">{{ $customer->house_number ?? '—' }}</dd>
-                </div>
-            </dl>
-        </div>
-
-        {{-- Uploaded ID --}}
-        <div class="card p-6">
-            <h2 class="font-display text-base font-bold mb-4" style="color:#222222;">Uploaded ID</h2>
-            @if ($customer->valid_id_path)
-                @php $ext = strtolower(pathinfo($customer->valid_id_path, PATHINFO_EXTENSION)); @endphp
-                @if (in_array($ext, ['jpg', 'jpeg', 'png']))
-                    {{-- Thumbnail — click to open lightbox --}}
-                    <img src="{{ route('admin.customers.validId', $customer->id) }}"
-                         alt="Uploaded ID"
-                         class="max-h-48 w-full rounded-lg border object-contain cursor-pointer transition hover:opacity-90"
-                         style="border-color:#dce8f0;"
-                         onclick="document.getElementById('customer-id-lightbox').classList.remove('hidden')">
-                    <p class="mt-2 text-xs text-center" style="color:#6b90aa;">Click image to view full size</p>
-
-                    {{-- Lightbox modal --}}
-                    <div id="customer-id-lightbox"
-                         class="hidden fixed inset-0 z-50 flex items-center justify-center p-4"
-                         style="background:rgba(0,0,0,.80);"
-                         onclick="this.classList.add('hidden')">
-                        <div class="relative max-w-3xl w-full" onclick="event.stopPropagation()">
-                            <button onclick="document.getElementById('customer-id-lightbox').classList.add('hidden')"
-                                    class="absolute -top-10 right-0 text-white text-2xl font-bold leading-none"
-                                    style="opacity:.8;">&times;</button>
-                            <img src="{{ route('admin.customers.validId', $customer->id) }}"
-                                 alt="Uploaded ID"
-                                 class="w-full rounded-xl object-contain"
-                                 style="max-height:80vh;">
-                            <a href="{{ route('admin.customers.validId', $customer->id) }}"
-                               target="_blank"
-                               class="mt-3 flex items-center justify-center gap-2 rounded-lg py-2 text-sm font-semibold text-white"
-                               style="background:rgba(255,255,255,.15);">
-                                ↗ Open in new tab
-                            </a>
-                        </div>
-                    </div>
-                @else
-                    <a href="{{ route('admin.customers.validId', $customer->id) }}" target="_blank"
-                       class="inline-flex items-center gap-2 text-sm font-semibold" style="color:#fa4e1c;">
-                        📄 View uploaded ID (PDF)
-                    </a>
-                @endif
-            @else
-                <p class="text-sm" style="color:#6b90aa;">No ID uploaded.</p>
             @endif
         </div>
-
-        {{-- Order History --}}
-        <div class="card p-6">
-            <h2 class="font-display text-base font-bold mb-4" style="color:#222222;">Order History</h2>
-            @forelse ($customer->orders->sortByDesc('created_at') as $order)
-                @php $oc = $order->statusColor(); @endphp
-                <div class="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-lg px-4 py-3" style="background:#e8f0f6;">
-                    <div>
-                        <a href="{{ route('admin.orders.show', $order->id) }}"
-                           class="font-semibold text-sm" style="color:#fa4e1c;">
-                            Order #{{ str_pad($order->id, 6, '0', STR_PAD_LEFT) }}
-                        </a>
-                        <p class="text-xs" style="color:#6b90aa;">{{ $order->created_at->format('M d, Y') }}</p>
-                    </div>
-                    <div class="flex items-center gap-2">
-                        <span class="rounded-full px-2.5 py-1 text-xs font-semibold"
-                              style="background:{{ $oc['bg'] }};color:{{ $oc['text'] }};">
-                            {{ $order->status }}
-                        </span>
-                        <span class="font-bold text-sm" style="color:#222222;">${{ number_format($order->total_price, 2) }}</span>
-                    </div>
-                </div>
-            @empty
-                <p class="text-sm" style="color:#6b90aa;">This buyer has no orders yet.</p>
-            @endforelse
-        </div>
-
     </div>
-</div>
 
+    {{-- Rejection form (pending only) --}}
+    @if ($status === 'pending')
+        <form id="reject-panel" action="{{ route('admin.customers.reject', $customer->id) }}" method="POST"
+              class="pl-card pl-body mb-5 hidden" onsubmit="return confirm('Reject {{ $first }}\'s account?')">
+            @csrf @method('PATCH')
+            <p class="pl-label">Reason for rejection</p>
+            <div class="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2" style="color:#44403C;">
+                @foreach ([
+                    'invalid_id'             => 'Invalid ID',
+                    'incorrect_information'  => 'Incorrect information',
+                    'duplicate_account'      => 'Duplicate account',
+                    'incomplete_information' => 'Incomplete information',
+                    'invalid_address'        => 'Invalid address',
+                ] as $value => $label)
+                    <label class="flex items-center gap-2">
+                        <input type="radio" name="rejection_reason" value="{{ $value }}" required style="accent-color:#fa4e1c;"> {{ $label }}
+                    </label>
+                @endforeach
+                <label class="flex items-center gap-2">
+                    <input type="radio" name="rejection_reason" value="other" id="reason-other-radio" style="accent-color:#fa4e1c;"> Other
+                </label>
+            </div>
+            <input type="text" name="rejection_reason_other" id="reason-other-input" placeholder="Describe the reason" class="input mt-3 hidden text-sm">
+            <div class="mt-4 flex justify-end gap-2">
+                <button type="button" onclick="document.getElementById('reject-panel').classList.add('hidden')" class="pl-btn-line">Cancel</button>
+                <button type="submit" class="pl-btn !bg-[#DC2626]">Reject account</button>
+            </div>
+        </form>
+    @endif
+
+    @if ($status === 'rejected' && $customer->rejection_reason)
+        <div class="mb-5 rounded-md border px-4 py-3 text-sm" style="background:#FEF2F2;border-color:#FECACA;color:#991B1B;">
+            Rejected: {{ \Illuminate\Support\Str::of($customer->rejection_reason)->replace('_', ' ')->ucfirst() }}
+        </div>
+    @endif
+
+    <div class="grid gap-5 lg:grid-cols-[1fr_18rem]">
+
+        {{-- Details --}}
+        <section class="pl-card">
+            <div class="pl-head"><h2>Details</h2></div>
+            <dl class="pl-dl pl-body !py-2">
+                <div><dt>Full name</dt><dd>{{ $fullName }}</dd></div>
+                <div><dt>Sex</dt><dd>{{ $customer->sex ? ucfirst($customer->sex) : '—' }}</dd></div>
+                <div><dt>Birthday</dt><dd>{{ $customer->birthday ? $customer->birthday->format('M j, Y') . ' (age ' . $customer->birthday->age . ')' : '—' }}</dd></div>
+                <div><dt>Email</dt><dd class="break-all">{{ $customer->email }}</dd></div>
+                <div><dt>Mobile number</dt><dd>{{ $customer->contact_no ?: ($customer->phone ?: '—') }}</dd></div>
+                <div><dt>Username</dt><dd>{{ $customer->username ?: '—' }}</dd></div>
+                <div><dt>Address</dt><dd class="max-w-[22rem]">{{ $address ?: '—' }}</dd></div>
+            </dl>
+        </section>
+
+        {{-- Valid ID --}}
+        <section class="pl-card self-start">
+            <div class="pl-head"><h2>Valid ID</h2></div>
+            <div class="pl-body">
+                @if ($customer->valid_id_path)
+                    @if (in_array($idExt, ['jpg', 'jpeg', 'png', 'webp']))
+                        <button type="button" class="block w-full" onclick="document.getElementById('customer-id-lightbox').classList.remove('hidden')">
+                            <img src="{{ route('admin.customers.validId', $customer->id) }}" alt="Uploaded ID"
+                                 class="max-h-44 w-full rounded-md border object-contain transition hover:opacity-90" style="border-color:#ECE7E3;background:#FAFAF9;">
+                        </button>
+                        <a href="{{ route('admin.customers.validId', $customer->id) }}" target="_blank" rel="noopener" class="pl-link mt-2 inline-block">Open full size</a>
+
+                        <div id="customer-id-lightbox" class="fixed inset-0 z-50 hidden items-center justify-center p-4 [&:not(.hidden)]:flex"
+                             style="background:rgba(0,0,0,.8);" onclick="this.classList.add('hidden')">
+                            <img src="{{ route('admin.customers.validId', $customer->id) }}" alt="Uploaded ID"
+                                 class="max-h-[85vh] max-w-full rounded-lg object-contain" onclick="event.stopPropagation()">
+                        </div>
+                    @else
+                        <a href="{{ route('admin.customers.validId', $customer->id) }}" target="_blank" rel="noopener"
+                           class="flex items-center justify-between rounded-md border px-3 py-2 text-sm hover:bg-stone-50" style="border-color:#ECE7E3;color:#222;">
+                            Uploaded ID ({{ strtoupper($idExt) }})
+                            <span class="pl-link">View</span>
+                        </a>
+                    @endif
+                    @include('partials.id-check-note', ['record' => $customer])
+                @else
+                    <p class="text-sm pl-muted">No ID uploaded.</p>
+                @endif
+            </div>
+        </section>
+    </div>
+
+    {{-- Orders --}}
+    <section class="pl-card mt-5 overflow-hidden">
+        <div class="pl-head">
+            <h2>Orders</h2>
+            @if ($orders->isNotEmpty())
+                <span class="text-sm pl-muted">₱{{ number_format($spent, 2) }} spent</span>
+            @endif
+        </div>
+        @if ($orders->isEmpty())
+            <p class="px-5 py-8 text-center text-sm pl-muted">No orders yet.</p>
+        @else
+            <div class="overflow-x-auto">
+                <table class="pl-table">
+                    <thead>
+                        <tr><th>Order</th><th>Date</th><th>Items</th><th>Status</th><th class="!text-right">Total</th></tr>
+                    </thead>
+                    <tbody>
+                        @foreach ($orders as $order)
+                            <tr>
+                                <td><a href="{{ route('admin.orders.show', $order->id) }}" class="font-medium hover:underline" style="color:#222;">#{{ str_pad($order->id, 6, '0', STR_PAD_LEFT) }}</a></td>
+                                <td class="whitespace-nowrap pl-muted">{{ $order->created_at->format('M j, Y') }}</td>
+                                <td class="max-w-[16rem] truncate">{{ $order->items->map(fn ($i) => $i->product->title ?? 'Removed product')->implode(', ') }}</td>
+                                <td><span class="pl-tag {{ $orderTag($order->status) }}">{{ $order->status }}</span></td>
+                                <td class="text-right font-medium" style="color:#222;">₱{{ number_format($order->total_price, 2) }}</td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+        @endif
+    </section>
+</div>
 
 <script src="{{ asset('js/customer-reject.js') }}"></script>
 </x-admin-layout>

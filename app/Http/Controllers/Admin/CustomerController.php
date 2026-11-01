@@ -11,27 +11,30 @@ class CustomerController extends Controller
 {
     public function index(Request $request)
     {
-        $query = User::where('role', 'buyer')
-            ->orWhereNull('role')
+        // Buyers, including suspended ones (suspending a buyer sets role = 'suspended'). The OR is grouped,
+        // so the search and status filters below apply to every buyer.
+        $query = User::where(fn ($q) => $q->whereIn('role', ['buyer', 'suspended'])->orWhereNull('role'))
             ->withCount('orders')
             ->latest();
 
         if ($request->filled('search')) {
-            $query->where(function ($q) use ($request) {
-                $q->where('name',     'like', '%'.$request->search.'%')
-                  ->orWhere('email',    'like', '%'.$request->search.'%')
-                  ->orWhere('username', 'like', '%'.$request->search.'%');
+            $term = '%' . addcslashes(trim($request->search), '%_\\') . '%';
+            $query->where(function ($q) use ($term) {
+                $q->where('name', 'like', $term)
+                  ->orWhere('email', 'like', $term)
+                  ->orWhere('username', 'like', $term);
             });
         }
 
-        if ($request->filled('status')) {
-            $status = $request->status;
-            if ($status === 'suspended') {
-                // suspended is stored as role, not approval_status
-                $query->where('role', 'suspended');
-            } else {
-                $query->where('approval_status', $status);
-            }
+        $status = $request->status;
+        if ($status === 'suspended') {
+            $query->where('role', 'suspended');
+        } elseif (in_array($status, ['pending', 'approved', 'rejected'], true)) {
+            // Same rule as User::status: a suspended account shows as Suspended, whatever its approval.
+            $query->where(fn ($q) => $q->where('role', '!=', 'suspended')->orWhereNull('role'))
+                ->when($status === 'pending',
+                    fn ($q) => $q->where(fn ($p) => $p->where('approval_status', 'pending')->orWhereNull('approval_status')),
+                    fn ($q) => $q->where('approval_status', $status));
         }
 
         $customers = $query->paginate(20)->withQueryString();
@@ -41,7 +44,7 @@ class CustomerController extends Controller
 
     public function show(int $id)
     {
-        $customer = User::with(['orders.items.book'])->findOrFail($id);
+        $customer = User::with(['orders.items.product'])->findOrFail($id);
         return view('admin.customers.show', compact('customer'));
     }
 

@@ -7,9 +7,10 @@
     <title>@yield('title', 'Dashboard') — LogiSort</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="{{ asset('css/sc.css') }}">
+    <link rel="stylesheet" href="{{ asset('css/sc.css') }}?v={{ filemtime(public_path('css/sc.css')) }}">
     <link rel="stylesheet" href="{{ asset('css/hover-effects.css') }}">
     @stack('styles')
+    <link rel="stylesheet" href="{{ asset('css/password-field.css') }}">
 </head>
 <body>
 <div class="shell">
@@ -17,27 +18,54 @@
     {{-- ── Sidebar ── --}}
     <aside class="sidebar">
 
-        <div class="sidebar-brand">
-            <div class="sidebar-brand-name">LogiSort</div>
-            <div class="sidebar-brand-sub">{{ auth()->user()->assigned_municipality ? auth()->user()->assigned_municipality.' Center' : 'Sorting Center' }}</div>
-        </div>
+        @php
+            $me = auth()->user();
+            $meInitials = collect(preg_split('/\s+/', trim($me->name ?? 'A')))->filter()->reject(fn ($w) => strtoupper($w) === 'ALVY')->take(2)
+                ->map(fn ($w) => mb_strtoupper(mb_substr($w, 0, 1)))->implode('') ?: mb_strtoupper(mb_substr($me->name ?? 'A', 0, 1));
+        @endphp
+        <a href="{{ route('sc.dashboard') }}" class="sb-brand" aria-label="LogiSort dashboard">
+            <img src="{{ asset('images/logo-mark.png') }}" alt="" class="sb-brand-logo">
+            <span class="sb-brand-text">
+                <span class="sb-brand-name">LogiSort <small>by ALVY</small></span>
+                <span class="sb-brand-sub">{{ $me->assigned_municipality ?: 'Sorting center' }}</span>
+            </span>
+        </a>
 
-        <div class="sidebar-user">
-            <div class="sidebar-avatar">{{ strtoupper(substr(auth()->user()->name ?? 'A', 0, 1)) }}</div>
-            <div>
-                <div class="sidebar-user-name">{{ auth()->user()->name ?? 'Admin' }}</div>
-                <div class="sidebar-user-role">{{ ucfirst(auth()->user()->role ?? 'admin') }}</div>
-            </div>
-        </div>
+        <a href="{{ route('sc.account') }}" class="sb-user {{ request()->routeIs('sc.account*') ? 'is-active' : '' }}" title="{{ $me->name }} · Account">
+            <span class="sb-user-avatar">{{ $meInitials }}<i aria-hidden="true"></i></span>
+            <span class="sb-user-text">
+                <span class="sb-user-name">{{ $me->name ?? 'Sorting center' }}</span>
+                <span class="sb-user-role">
+                    <span class="sb-pill">{{ ucfirst(str_replace('_', ' ', $me->role ?? 'sorting_center')) }}</span>
+                </span>
+            </span>
+            <svg class="sb-user-go" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m9 6 6 6-6 6"/></svg>
+        </a>
 
         <nav class="sidebar-nav">
             <a href="{{ route('sc.dashboard') }}" class="nav-link {{ request()->routeIs('sc.dashboard') ? 'active' : '' }}">
                 <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
                 Dashboard
             </a>
+            <a href="{{ route('sc.tracking') }}" class="nav-link {{ request()->routeIs('sc.tracking*') ? 'active' : '' }}">
+                @php $scExceptions = \App\Models\ShipmentException::where('status', 'open')->where(fn ($q) => $q->where('sorting_center_id', auth()->id())->orWhereHas('parcel', fn ($p) => $p->where('current_sorting_center_id', auth()->id())))->count(); @endphp
+                <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M3 7h18M3 12h18M3 17h12"/><circle cx="19" cy="17" r="2"/></svg>
+                Shipment Board
+                @if($scExceptions > 0)
+                    <span style="margin-left:auto;background:#DC2626;color:#fff;border-radius:999px;padding:1px 7px;font-size:10px;font-weight:700;" title="Open exceptions">{{ $scExceptions }}</span>
+                @endif
+            </a>
             <a href="{{ route('sc.riders') }}" class="nav-link {{ request()->routeIs('sc.riders') ? 'active' : '' }}">
                 <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
                 Rider Management
+            </a>
+            <a href="{{ route('sc.courier-applications.index') }}" class="nav-link {{ request()->routeIs('sc.courier-applications.*') ? 'active' : '' }}">
+                @php $pendingCouriers = \App\Models\Courier::where('sorting_center_id', auth()->id())->where('status', 'pending')->count(); @endphp
+                <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><rect x="1" y="3" width="15" height="13" rx="1"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+                Courier Applications
+                @if($pendingCouriers > 0)
+                    <span style="margin-left:auto;background:var(--accent-orange);color:#fff;border-radius:999px;padding:1px 7px;font-size:10px;font-weight:700;">{{ $pendingCouriers }}</span>
+                @endif
             </a>
             <a href="{{ route('sc.areas') }}" class="nav-link {{ request()->routeIs('sc.areas') ? 'active' : '' }}">
                 <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
@@ -55,9 +83,37 @@
                 <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M3 6h18M7 12h10M11 18h2"/></svg>
                 Parcel Sorting
             </a>
+            <a href="{{ route('sc.shipments') }}" class="nav-link {{ request()->routeIs('sc.shipments') ? 'active' : '' }}">
+                <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M21 16V8l-9-5-9 5v8l9 5 9-5z"/><path d="M3.3 7L12 12l8.7-5M12 22V12"/></svg>
+                Shipments
+            </a>
+            <a href="{{ route('sc.rts') }}" class="nav-link {{ request()->routeIs('sc.rts*') ? 'active' : '' }}">
+                <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M9 14L4 9l5-5"/><path d="M4 9h11a5 5 0 010 10h-3"/></svg>
+                Return to Sender
+            </a>
+            <a href="{{ route('sc.rates') }}" class="nav-link {{ request()->routeIs('sc.rates*') ? 'active' : '' }}">
+                <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+                Zones &amp; Rates
+            </a>
+            <a href="{{ route('sc.activity') }}" class="nav-link {{ request()->routeIs('sc.activity') ? 'active' : '' }}">
+                <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M9 5h11M9 12h11M9 19h11M4 5h.01M4 12h.01M4 19h.01"/></svg>
+                Activity Log
+            </a>
             <a href="{{ route('sc.delivery-assignment') }}" class="nav-link {{ request()->routeIs('sc.delivery-assignment') ? 'active' : '' }}">
                 <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
                 Delivery Assignment
+            </a>
+            <a href="{{ route('sc.dispatch') }}" class="nav-link {{ request()->routeIs('sc.dispatch*') ? 'active' : '' }}">
+                <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+                Rider Dispatch
+            </a>
+            <a href="{{ route('sc.remittances') }}" class="nav-link {{ request()->routeIs('sc.remittances*') ? 'active' : '' }}">
+                <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/></svg>
+                COD Remittances
+            </a>
+            <a href="{{ route('sc.commissions') }}" class="nav-link {{ request()->routeIs('sc.commissions') ? 'active' : '' }}">
+                <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+                Commission &amp; Earnings
             </a>
             <a href="{{ route('sc.delivery-monitoring') }}" class="nav-link {{ request()->routeIs('sc.delivery-monitoring') ? 'active' : '' }}">
                 <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
@@ -68,7 +124,7 @@
                 Reports
             </a>
             <a href="{{ route('sc.transfers') }}" class="nav-link {{ request()->routeIs('sc.transfers*') ? 'active' : '' }}">
-                @php $pendingIncoming = \App\Models\ParcelTransfer::where('to_sorting_center_id', auth()->id())->where('status','pending')->count(); @endphp
+                @php $pendingIncoming = \App\Models\ParcelTransfer::where('to_sorting_center_id', auth()->id())->where('status','in_transit')->count(); @endphp
                 <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>
                 SC Transfers
                 @if($pendingIncoming > 0)
@@ -90,13 +146,6 @@
         <div class="sidebar-footer">
             <div class="sidebar-footer-name">{{ auth()->user()->name ?? 'System Admin' }}</div>
             <div class="sidebar-footer-email">{{ auth()->user()->email ?? '' }}</div>
-            <form method="POST" action="{{ route('sc.logout') }}">
-                @csrf
-                <button class="btn btn-ghost btn-sm" style="width:100%;justify-content:flex-start;gap:6px;">
-                    <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/></svg>
-                    Logout
-                </button>
-            </form>
         </div>
 
     </aside>
@@ -112,21 +161,15 @@
         </div>
 
         <div class="content">
-            @if(session('success'))
-                <div style="padding:10px 22px 0;"><div class="flash flash-success">{{ session('success') }}</div></div>
-            @endif
-            @if(session('error'))
-                <div style="padding:10px 22px 0;"><div class="flash flash-error">{{ session('error') }}</div></div>
-            @endif
-            @if($errors->any())
-                <div style="padding:10px 22px 0;"><div class="flash flash-error">{{ $errors->first() }}</div></div>
-            @endif
             @yield('content')
         </div>
     </div>
 
 </div>
+{{-- Messages after an action pop up (top right) instead of sitting above the page. --}}
+@include('sc.partials.toasts')
 @stack('scripts')
 <script src="{{ asset('js/prevent-back.js') }}"></script>
+<script src="{{ asset('js/logout-confirm.js') }}?v={{ filemtime(public_path('js/logout-confirm.js')) }}"></script>
 </body>
 </html>

@@ -17,19 +17,24 @@ class SettingsController extends Controller
         $announcements = Announcement::with('admin')->latest()->get();
         $policies      = PlatformPolicy::with('editor')->get()->keyBy('key');
 
-        return view('admin.settings.index', compact('announcements', 'policies'));
+        // How many people each audience reaches (same roles as notifyRecipients), for the compose form.
+        $byRole = User::whereIn('role', ['buyer', 'seller', 'sorting_center', 'courier'])->where('id', '!=', auth()->id())
+            ->selectRaw('role, COUNT(*) as n')->groupBy('role')->pluck('n', 'role');
+        $reach = ['all' => (int) $byRole->sum(), 'buyers' => (int) ($byRole['buyer'] ?? 0), 'sellers' => (int) ($byRole['seller'] ?? 0)];
+
+        return view('admin.settings.index', compact('announcements', 'policies', 'reach'));
     }
 
     // ── Announcements ────────────────────────────────────────
     public function storeAnnouncement(Request $request)
     {
-        $data = $request->validate([
+        $data = \App\Support\VoucherRules::inBusinessTime($request, ['expires_at'], fn () => $request->validate([
             'title'      => 'required|string|max:255',
             'body'       => 'required|string|max:5000',
             'audience'   => 'required|in:all,buyers,sellers',
             'type'       => 'required|in:info,warning,maintenance,promo',
             'expires_at' => 'nullable|date|after:now',
-        ]);
+        ]));
 
         $data['admin_id']     = auth()->id();
         $data['published_at'] = now();

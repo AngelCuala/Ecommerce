@@ -4,56 +4,84 @@ namespace App\Http\Controllers\Courier;
 
 use App\Http\Controllers\Controller;
 use App\Models\Delivery;
+use App\Models\ParcelDelivery;
+use App\Models\ParcelPickup;
+use App\Models\Rider;
+use App\Services\RiderDispatch;
+use App\Services\RiderWallet;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 
+/**
+ * My Earnings: what the courier earned, from their logistics company's jobs (RiderWallet: pickups and
+ * deliveries at the rider rates) plus any jobs from the older courier marketplace (deliveries.delivery_fee).
+ */
 class ProfitController extends Controller
 {
-    public function index()
+    public function index(RiderWallet $wallet)
     {
-        $courier = DeliveryController::currentCourier();
+        $rider   = Rider::where('user_id', auth()->id())->where('application_status', 'approved')->first();
+        $courier = auth()->user()->courier;
+        abort_unless($rider || ($courier && $courier->isApproved()), 403, 'An approved courier profile is required to use the courier portal.');
 
-        $base = fn () => Delivery::where('courier_id', $courier->id)->where('status', 'delivered');
+        $rows = $this->rows($wallet, $rider, $courier?->isApproved() ? $courier : null);
+        $paid = $rows->where('pay', '>', 0);
+        $sum  = fn (Collection $c) => round((float) $c->sum('pay'), 2);
+        $since = fn (Carbon $from) => $paid->filter(fn ($r) => $r['at']->gte($from));
 
-        // Sum the delivered records (also counts deliveries the buyer confirmed).
-        $totalEarnings   = (float) $base()->sum('delivery_fee');
-        $totalDeliveries = $base()->count();
+        // Work in progress: what open jobs will pay once completed.
+        $pending = 0.0;
+        if ($rider) {
+            $pending += ParcelPickup::where('rider_id', $rider->id)->where('status', 'assigned')->count() * RiderDispatch::PAY_PICKUP
+                + ParcelDelivery::where('rider_id', $rider->id)->whereIn('status', ParcelDelivery::OPEN)->count() * RiderDispatch::PAY_DELIVERY;
+        }
+        if ($courier?->isApproved()) {
+            $pending += (float) Delivery::where('courier_id', $courier->id)->whereIn('status', ['accepted', 'picked_up', 'in_transit'])->sum('delivery_fee');
+        }
 
-        // Time-window earnings (based on delivered_at)
-        $todayEarnings = (float) $base()->whereDate('delivered_at', today())->sum('delivery_fee');
-        $weekEarnings  = (float) $base()->whereBetween('delivered_at', [now()->startOfWeek(), now()->endOfWeek()])->sum('delivery_fee');
-        $monthEarnings = (float) $base()->whereMonth('delivered_at', now()->month)
-            ->whereYear('delivered_at', now()->year)->sum('delivery_fee');
+        $stats = [
+            'total'      => $sum($paid),
+            'today'      => $sum($since(now()->startOfDay())),
+            'week'       => $sum($since(now()->startOfWeek())),
+            'month'      => $sum($since(now()->startOfMonth())),
+            'pickups'    => $paid->where('type', 'Pickup')->count(),
+            'deliveries' => $paid->where('type', 'Delivery')->count(),
+            'average'    => $paid->count() ? round($sum($paid) / $paid->count(), 2) : 0.0,
+            'pending'    => round($pending, 2),
+        ];
 
-        // Pending earnings = fees on deliveries in progress (not yet completed/failed)
-        $pendingEarnings = (float) Delivery::where('courier_id', $courier->id)
-            ->whereIn('status', ['accepted', 'picked_up', 'in_transit'])
-            ->sum('delivery_fee');
+        // The last six months, oldest first, for the bar chart.
+        $months = collect(range(5, 0))->map(function ($ago) use ($paid, $sum) {
+            $start = now()->startOfMonth()->subMonths($ago);
+            $in = $paid->filter(fn ($r) => $r['at']->isSameMonth($start));
+            return (object) ['label' => $start->format('M'), 'year' => $start->format('Y'), 'total' => $sum($in), 'jobs' => $in->count()];
+        });
 
-        $avgPerDelivery = $totalDeliveries > 0 ? $totalEarnings / $totalDeliveries : 0.0;
+        return view('courier.profit', [
+            'stats'  => $stats,
+            'months' => $months,
+            'peak'   => max(1, $months->max('total')),
+            'recent' => $rows->take(15),
+            'rider'  => $rider,
+        ]);
+    }
 
-        // Earnings per month for the chart + table
-        $earningsByMonth = $base()
-            ->selectRaw("DATE_FORMAT(delivered_at, '%Y-%m') as ym, COUNT(*) as count, SUM(delivery_fee) as total")
-            ->groupByRaw("DATE_FORMAT(delivered_at, '%Y-%m')")
-            ->orderByRaw("DATE_FORMAT(delivered_at, '%Y-%m')")
-            ->get()
-            ->map(function ($row) {
-                [$year, $mon] = explode('-', $row->ym);
-                $row->month = Carbon::createFromDate($year, (int) $mon, 1)->format('M Y');
-                return $row;
-            });
+    /** Everything earned so far (the "Total earned" figure); the dashboard shows the same number. */
+    public function totalEarned(RiderWallet $wallet, ?Rider $rider, $courier): float
+    {
+        return round((float) $this->rows($wallet, $rider, $courier)->where('pay', '>', 0)->sum('pay'), 2);
+    }
 
-        $recentDeliveries = Delivery::where('courier_id', $courier->id)
-            ->where('status', 'delivered')
-            ->with('order.user')
-            ->latest('delivered_at')
-            ->take(10)
-            ->get();
+    /** Every job with its pay, newest first: ['at', 'type', 'tracking', 'order', 'result', 'pay']. */
+    private function rows(RiderWallet $wallet, ?Rider $rider, $courier): Collection
+    {
+        $rows = $rider ? $wallet->history($rider) : collect();
+        if ($courier) {
+            $rows = $rows->concat(Delivery::where('courier_id', $courier->id)->where('status', 'delivered')->whereNotNull('delivered_at')->with('order')->get()
+                ->map(fn (Delivery $d) => ['at' => $d->delivered_at, 'type' => 'Delivery', 'tracking' => $d->order?->tracking_number,
+                    'order' => '#' . str_pad((string) $d->order_id, 6, '0', STR_PAD_LEFT), 'result' => 'Delivered', 'pay' => (float) $d->delivery_fee, 'cod' => 0.0]));
+        }
 
-        return view('courier.profit', compact(
-            'courier', 'totalEarnings', 'totalDeliveries', 'avgPerDelivery',
-            'todayEarnings', 'weekEarnings', 'monthEarnings', 'pendingEarnings',
-            'earningsByMonth', 'recentDeliveries'
-        ));
+        return $rows->sortByDesc(fn ($r) => $r['at']->timestamp)->values();
     }
 }

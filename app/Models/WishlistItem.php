@@ -9,8 +9,9 @@ class WishlistItem extends Model
 {
     protected $fillable = ['user_id', 'product_id'];
 
+    /** Includes deleted listings, so the wishlist can show them as unavailable. */
     public function product(): BelongsTo
     {
-        return $this->belongsTo(Product::class);
+        return $this->belongsTo(Product::class)->withTrashed();
     }
 }

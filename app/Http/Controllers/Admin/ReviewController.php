@@ -3,24 +3,31 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\ActivityLog;
+use App\Models\Review;
+use Illuminate\Support\Facades\Storage;
 
+/** Buyers' product reviews. Admins can remove one that breaks the rules (sellers can't). */
 class ReviewController extends Controller
 {
     public function index()
     {
-        $reviews = collect([
-            (object)['id'=>1,'rating'=>5,'title'=>'Fantastic read',   'comment'=>'Could not put it down.', 'user'=>(object)['name'=>'Ava Reader'],'product'=>(object)['title'=>'The Silent Meridian'],'created_at'=>now()->subDays(3)],
-            (object)['id'=>2,'rating'=>4,'title'=>'Very good',        'comment'=>'Well written and engaging.','user'=>(object)['name'=>'James T.'],  'product'=>(object)['title'=>'Midnight Sessions'],   'created_at'=>now()->subDays(5)],
-            (object)['id'=>3,'rating'=>5,'title'=>'Perfect gift',     'comment'=>'The recipient loved it.',   'user'=>(object)['name'=>'Sofia M.'],  'product'=>(object)['title'=>'Salt & Stone'],         'created_at'=>now()->subDays(7)],
-            (object)['id'=>4,'rating'=>3,'title'=>'Decent',           'comment'=>'Not bad, not amazing.',     'user'=>(object)['name'=>'Liam K.'],   'product'=>(object)['title'=>'Nightfall Protocol'],   'created_at'=>now()->subDays(10)],
-            (object)['id'=>5,'rating'=>5,'title'=>'Must have',        'comment'=>'Exceptional quality.',      'user'=>(object)['name'=>'Nina C.'],   'product'=>(object)['title'=>'Elements of Astronomy'],'created_at'=>now()->subDays(12)],
-        ]);
+        $reviews = Review::with(['user', 'product'])->latest()->paginate(30);
 
         return view('admin.reviews.index', compact('reviews'));
     }
 
     public function destroy(int $id)
     {
+        $review = Review::with('product')->findOrFail($id);
+        if ($review->photo_path) {
+            Storage::disk('public')->delete($review->photo_path);
+        }
+        $review->delete();
+
+        ActivityLog::record('review_removed', 'Review removed',
+            'Removed a ' . $review->rating . '-star review on "' . ($review->product->title ?? 'a product') . '".');
+
         return back()->with('success', 'Review removed.');
     }
 }

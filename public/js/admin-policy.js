@@ -4,9 +4,9 @@ function togglePreview() {
     const editor = document.getElementById('policy-editor');
     const btn    = document.getElementById('toggle-preview');
     if (box.classList.toggle('hidden')) {
-        btn.textContent = '👁 Preview Rendered Output';
+        btn.textContent = 'Preview';
     } else {
         box.innerHTML = editor.value;
-        btn.textContent = '✕ Hide Preview';
+        btn.textContent = 'Hide preview';
     }
 }

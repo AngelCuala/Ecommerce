@@ -50,7 +50,7 @@
         <p style="font-weight:600;font-size:14px;color:var(--text);">{{ $delivery->pickupName() }}</p>
         @if($seller && $seller->phone)<p style="font-size:14px;margin-top:2px;color:#6b7280;">{{ $seller->phone }}</p>@endif
         @if($seller && ($seller->address || $seller->city))<p style="font-size:14px;margin-top:2px;color:#6b7280;">{{ trim(($seller->address ?? '').' '.($seller->city ?? '')) }}</p>@endif
-        @if($delivery->pickup_scheduled_at)<p style="font-size:14px;margin-top:2px;color:#6b7280;">Pickup: {{ $delivery->pickup_scheduled_at->format('M d, Y h:i A') }}</p>@endif
+        @if($delivery->pickup_scheduled_at)<p style="font-size:14px;margin-top:2px;color:#6b7280;">Pickup: {{ $delivery->pickup_scheduled_at->copy()->tz(config('app.business_timezone'))->format('M d, Y h:i A') }}</p>@endif
         @if($delivery->notes)<p style="font-size:14px;margin-top:2px;color:#6b7280;">Notes: {{ $delivery->notes }}</p>@endif
     </div>
 

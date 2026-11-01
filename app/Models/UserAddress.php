@@ -18,11 +18,19 @@ class UserAddress extends Model
         'province',
         'zip',
         'country',
+        'region',
+        'province_code',      // PSGC codes from the address dropdowns (shipping zone, delivery routing)
+        'municipality_code',
+        'barangay_code',
         'is_default',
+        'latitude',           // map pin (optional)
+        'longitude',
     ];
 
     protected $casts = [
         'is_default' => 'boolean',
+        'latitude'   => 'float',
+        'longitude'  => 'float',
     ];
 
     public function user(): BelongsTo
@@ -38,8 +46,8 @@ class UserAddress extends Model
             $this->barangay,
             $this->city,
             $this->province,
+            $this->region,
             $this->zip,
-            $this->country,
-        ])->filter()->implode(', ');
+        ])->filter()->unique()->implode(', ');
     }
 }

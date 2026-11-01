@@ -8,8 +8,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class OrderItem extends Model
 {
     protected $fillable = [
-        'order_id', 'product_id', 'quantity', 'price',
+        'order_id', 'product_id', 'variation_id', 'variation_name', 'flash_sale_id', 'quantity', 'price', 'promo_discount',
         'commission_rate', 'commission_amount', 'seller_earning',
+        'seller_discount', 'platform_discount',   // this line's share of the order's vouchers
     ];
 
     protected $casts = [
@@ -24,9 +25,15 @@ class OrderItem extends Model
         return $this->belongsTo(Order::class);
     }
 
+    /** Includes deleted listings, so order history still shows what was bought. */
     public function product(): BelongsTo
     {
-        return $this->belongsTo(Product::class, 'product_id');
+        return $this->belongsTo(Product::class, 'product_id')->withTrashed();
+    }
+
+    public function review(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(Review::class);
     }
 
     /** Line total the buyer paid */

@@ -1,0 +1,334 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Models\CartItem;
+use App\Models\Category;
+use App\Models\Order;
+use App\Models\OrderItem;
+use App\Models\Product;
+use App\Models\User;
+use App\Models\Voucher;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Hash;
+use Tests\TestCase;
+
+/**
+ * ALVY (platform) vouchers work on any seller's products and are paid by ALVY;
+ * store vouchers work only on their seller's products and are paid by that seller.
+ */
+class VoucherTest extends TestCase
+{
+    use RefreshDatabase, \Tests\Concerns\ChecksOut;
+
+    private User $admin;
+    private User $furniture;   // seller A
+    private User $books;       // seller B
+    private User $buyer;
+    private Product $table;    // ₱2,000, seller A
+    private Product $novel;    // ₱500, seller B
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->admin     = $this->user('admin', 'admin@alvy.test');
+        $this->furniture = $this->user('seller', 'furniture@alvy.test');
+        $this->books     = $this->user('seller', 'books@alvy.test');
+        $this->buyer     = $this->user('buyer', 'buyer@alvy.test');
+
+        $cat = Category::create(['name' => 'Home & Garden']);
+        $this->table = Product::create(['category_id' => $cat->id, 'seller_id' => $this->furniture->id, 'title' => 'Dining Table', 'price' => 2000, 'stock' => 10, 'status' => 'active']);
+        $this->novel = Product::create(['category_id' => $cat->id, 'seller_id' => $this->books->id, 'title' => 'Novel', 'price' => 500, 'stock' => 10, 'status' => 'active']);
+    }
+
+    private function user(string $role, string $email): User
+    {
+        return User::create([
+            'name' => ucfirst(strtok($email, '@')), 'email' => $email, 'password' => Hash::make('Secret@123'),
+            'role' => $role, 'approval_status' => 'approved', 'email_verified_at' => now(),
+        ]);
+    }
+
+    private function voucher(array $data): Voucher
+    {
+        return Voucher::create($data + [
+            'name' => 'Promo', 'discount_type' => 'fixed', 'min_spend' => 0, 'per_user_limit' => 1, 'is_active' => true,
+        ]);
+    }
+
+    /** ₱150 off a ₱2,000 spend in the furniture store. */
+    private function storeVoucher(array $data = []): Voucher
+    {
+        return $this->voucher($data + ['code' => 'TABLE150', 'scope' => 'seller', 'seller_id' => $this->furniture->id,
+            'discount_value' => 150, 'min_spend' => 2000]);
+    }
+
+    /** 11.11: 10% off anything, up to ₱200. */
+    private function saleVoucher(array $data = []): Voucher
+    {
+        return $this->voucher($data + ['code' => 'SALE1111', 'scope' => 'platform',
+            'discount_type' => 'percent', 'discount_value' => 10, 'max_discount' => 200]);
+    }
+
+    private function fillCart(): void
+    {
+        CartItem::create(['user_id' => $this->buyer->id, 'product_id' => $this->table->id, 'quantity' => 1]);
+        CartItem::create(['user_id' => $this->buyer->id, 'product_id' => $this->novel->id, 'quantity' => 1]);
+    }
+
+    private function placeOrder(array $vouchers = [])
+    {
+        $address = $this->buyer->addresses()->first() ?? $this->addressFor($this->buyer);
+
+        return $this->actingAs($this->buyer)->from(route('checkout.index'))
+            ->post(route('checkout.store'), $this->checkoutForm($address, $vouchers));
+    }
+
+    // ── Making vouchers ────────────────────────────────────────
+
+    public function test_admin_makes_alvy_vouchers_and_seller_makes_store_vouchers(): void
+    {
+        $form = ['name' => '11.11 Sale', 'discount_type' => 'percent', 'discount_value' => 10, 'max_discount' => 200,
+                 'per_user_limit' => 1, 'is_active' => '1'];
+
+        $this->actingAs($this->admin)->post(route('admin.vouchers.store'), $form + ['code' => 'sale1111'])
+            ->assertRedirect(route('admin.vouchers.index'));
+        $this->actingAs($this->furniture)->post(route('seller.vouchers.store'),
+            ['code' => 'TABLE150', 'name' => 'Table deal', 'discount_type' => 'fixed', 'discount_value' => 150,
+             'min_spend' => 2000, 'per_user_limit' => 1, 'is_active' => '1'])
+            ->assertRedirect(route('seller.vouchers.index'));
+
+        $this->assertDatabaseHas('vouchers', ['code' => 'SALE1111', 'scope' => 'platform', 'seller_id' => null]);
+        $this->assertDatabaseHas('vouchers', ['code' => 'TABLE150', 'scope' => 'seller', 'seller_id' => $this->furniture->id]);
+
+        // Bad input: duplicate code, more than 100%.
+        $this->actingAs($this->admin)->post(route('admin.vouchers.store'), $form + ['code' => 'TABLE150'])->assertSessionHasErrors('code');
+        $this->actingAs($this->admin)->post(route('admin.vouchers.store'), ['discount_value' => 150, 'code' => 'BIG'] + $form)
+            ->assertSessionHasErrors('discount_value');
+
+        $this->actingAs($this->admin)->get(route('admin.vouchers.index'))->assertOk()->assertSee('SALE1111');
+        $this->actingAs($this->admin)->get(route('admin.vouchers.index', ['scope' => 'seller']))->assertOk()->assertSee('TABLE150');
+        $this->actingAs($this->furniture)->get(route('seller.vouchers.index'))->assertOk()->assertSee('TABLE150')->assertDontSee('SALE1111');
+    }
+
+    public function test_sellers_only_manage_their_own_store_vouchers(): void
+    {
+        $mine  = $this->storeVoucher();
+        $alvy  = $this->saleVoucher();
+
+        $this->actingAs($this->books)->get(route('seller.vouchers.edit', $mine))->assertNotFound();
+        $this->actingAs($this->books)->patch(route('seller.vouchers.toggle', $mine))->assertNotFound();
+        $this->actingAs($this->furniture)->get(route('seller.vouchers.edit', $alvy))->assertNotFound();
+        $this->actingAs($this->furniture)->get(route('admin.vouchers.index'))->assertForbidden();
+
+        // Admins can turn a store voucher off, but not edit it.
+        $this->actingAs($this->admin)->patch(route('admin.vouchers.toggle', $mine))->assertSessionHas('success');
+        $this->assertFalse($mine->fresh()->is_active);
+        $this->actingAs($this->admin)->get(route('admin.vouchers.edit', $mine))->assertNotFound();
+    }
+
+    // ── Using vouchers at checkout ─────────────────────────────
+
+    public function test_checkout_offers_the_right_vouchers(): void
+    {
+        $this->storeVoucher();
+        $this->saleVoucher();
+        $this->voucher(['code' => 'BOOKS50', 'scope' => 'seller', 'seller_id' => $this->books->id, 'discount_value' => 50, 'min_spend' => 1000]);
+        $this->voucher(['code' => 'LATER', 'scope' => 'platform', 'discount_value' => 99, 'starts_at' => now()->addDay()]);
+        $this->fillCart();
+
+        $this->actingAs($this->buyer)->get(route('checkout.index'))->assertOk()
+            ->assertSee('TABLE150')->assertSee('SALE1111')
+            ->assertSee('BOOKS50')->assertSee('minimum spend ₱1,000.00', false)   // shown, but can't be picked
+            ->assertDontSee('LATER');                                                     // not started yet
+    }
+
+    public function test_checkout_picks_the_cheapest_vouchers_automatically(): void
+    {
+        $this->storeVoucher();                                    // TABLE150: ₱150 off the ₱2,000 table
+        $this->saleVoucher();                                     // SALE1111: 10% up to ₱200
+        $this->voucher(['code' => 'SMALL20', 'scope' => 'platform', 'discount_value' => 20]);
+        $this->fillCart();                                        // ₱2,000 table + ₱500 novel
+
+        $res  = $this->actingAs($this->buyer)->get(route('checkout.index'))->assertOk()
+            ->assertSee('Best vouchers applied automatically')
+            ->assertSee('you save ₱350.00');
+        $best = $res->viewData('vouchers')['best'];
+        $this->assertSame('SALE1111', $best['platform']);         // 10% of 2,350 = 235 → ₱200 cap, beats ₱20
+        $this->assertSame([$this->furniture->id => 'TABLE150'], $best['sellers']);
+        $this->assertMatchesRegularExpression('/value="TABLE150"[^>]*selected/', $res->getContent());
+        $this->assertMatchesRegularExpression('/value="SALE1111"[^>]*selected/', $res->getContent());
+    }
+
+    public function test_auto_pick_skips_a_store_voucher_when_that_is_cheaper(): void
+    {
+        // ₱50 off the table, but using it drops the order under BIG300's ₱2,500 minimum.
+        $this->voucher(['code' => 'TABLE50', 'scope' => 'seller', 'seller_id' => $this->furniture->id, 'discount_value' => 50]);
+        $this->voucher(['code' => 'BIG300', 'scope' => 'platform', 'discount_value' => 300, 'min_spend' => 2500]);
+        $this->fillCart();
+
+        $best = $this->actingAs($this->buyer)->get(route('checkout.index'))->viewData('vouchers')['best'];
+        $this->assertSame('BIG300', $best['platform']);
+        $this->assertSame([], $best['sellers']);                  // ₱300 beats ₱50
+        $this->assertEquals(300, $best['discount']);
+    }
+
+    public function test_auto_pick_ignores_vouchers_the_buyer_cannot_use(): void
+    {
+        $this->storeVoucher(['min_spend' => 5000]);               // too high for this cart
+        $used = $this->saleVoucher();
+        \App\Models\VoucherRedemption::create(['voucher_id' => $used->id, 'user_id' => $this->buyer->id,
+            'order_id' => Order::create(['user_id' => $this->buyer->id, 'total_price' => 1, 'status' => 'Delivered', 'payment_method' => 'COD',
+                'payment_status' => 'Paid', 'full_name' => 'B', 'phone' => '0917', 'email' => 'b@x.test', 'address_line' => 'X',
+                'city' => 'QC', 'zip_code' => '1121', 'shipping_address' => 'X'])->id, 'discount_amount' => 10]);
+        $this->fillCart();
+
+        $res = $this->actingAs($this->buyer)->get(route('checkout.index'))->assertOk()
+            ->assertDontSee('Best vouchers applied automatically');
+        $this->assertSame(['platform' => null, 'sellers' => [], 'discount' => 0.0, 'shipping' => null], $res->viewData('vouchers')['best']);
+    }
+
+    public function test_store_and_alvy_vouchers_on_one_order(): void
+    {
+        $this->storeVoucher();
+        $this->saleVoucher();
+        $this->fillCart();   // table ₱2,000 (furniture) + novel ₱500 (books)
+
+        $this->placeOrder(['seller_vouchers' => [$this->furniture->id => 'TABLE150'], 'platform_voucher' => 'sale1111'])
+            ->assertSessionHasNoErrors()->assertRedirect(route('checkout.confirmation'));
+
+        // One order per store, from one checkout.
+        $this->assertSame(2, Order::count());
+        $this->assertSame(1, Order::distinct()->count('checkout_group'));
+        $tableOrder = Order::where('seller_id', $this->furniture->id)->firstOrFail();
+        $novelOrder = Order::where('seller_id', $this->books->id)->firstOrFail();
+        // Store voucher: ₱150 off the table. ALVY voucher: 10% of (2,500 - 150) = 235 → capped at ₱200, shared by both orders.
+        $this->assertEquals(150, $tableOrder->seller_discount);
+        $this->assertEquals(0, $novelOrder->seller_discount);
+        $this->assertEquals(200, round($tableOrder->platform_discount + $novelOrder->platform_discount, 2));
+        // Each store ships separately: ₱50 within NCR for up to 1 kg.
+        $this->assertEquals(50, $tableOrder->shipping_fee);
+        $this->assertEquals(50, $novelOrder->shipping_fee);
+        $this->assertEquals(2500 - 150 - 200 + 100, round($tableOrder->total_price + $novelOrder->total_price, 2));
+
+        $table = OrderItem::where('product_id', $this->table->id)->firstOrFail();
+        $novel = OrderItem::where('product_id', $this->novel->id)->firstOrFail();
+
+        // The furniture seller pays for the store voucher: commission and earnings are on ₱1,850.
+        $this->assertEquals(150, $table->seller_discount);
+        $this->assertEquals(185, $table->commission_amount);
+        $this->assertEquals(1665, $table->seller_earning);
+        // The books seller is untouched; ALVY pays the platform discount.
+        $this->assertEquals(0, $novel->seller_discount);
+        $this->assertEquals(450, $novel->seller_earning);
+        $this->assertEquals(200, round($table->platform_discount + $novel->platform_discount, 2));
+
+        $this->assertSame(1, Voucher::where('code', 'TABLE150')->value('used_count'));
+        $this->assertSame(1, Voucher::where('code', 'SALE1111')->value('used_count'));
+        $this->actingAs($this->buyer)->get(route('checkout.confirmation'))->assertOk();
+    }
+
+    public function test_store_voucher_only_works_for_its_own_store(): void
+    {
+        $this->storeVoucher();
+        $this->fillCart();
+
+        // Used under the other seller, or typed in as an ALVY voucher.
+        $this->placeOrder(['seller_vouchers' => [$this->books->id => 'TABLE150']])->assertSessionHasErrors('seller_vouchers.' . $this->books->id);
+        $this->placeOrder(['platform_voucher' => 'TABLE150'])->assertSessionHasErrors('platform_voucher');
+        $this->assertSame(0, Order::count());
+    }
+
+    public function test_minimum_spend_counts_only_that_stores_items(): void
+    {
+        $this->storeVoucher(['min_spend' => 2100]);   // the cart has ₱2,500, but only ₱2,000 from this store
+        $this->fillCart();
+
+        $this->placeOrder(['seller_vouchers' => [$this->furniture->id => 'TABLE150']])
+            ->assertSessionHasErrors(['seller_vouchers.' . $this->furniture->id => 'TABLE150 was removed: spend ₱100.00 more to use it (minimum spend ₱2,100.00).']);
+        $this->assertSame(0, Order::count());
+        $this->assertSame(2, CartItem::count());   // nothing was lost
+    }
+
+    public function test_limits_dates_and_cancelling(): void
+    {
+        $this->saleVoucher(['usage_limit' => 5]);
+        $this->voucher(['code' => 'OLD', 'scope' => 'platform', 'discount_value' => 50, 'ends_at' => now()->subDay()]);
+        $this->voucher(['code' => 'OFF', 'scope' => 'platform', 'discount_value' => 50, 'is_active' => false]);
+
+        $this->fillCart();
+        $this->placeOrder(['platform_voucher' => 'OLD'])->assertSessionHasErrors(['platform_voucher' => 'OLD was removed: this voucher has expired.']);
+        $this->placeOrder(['platform_voucher' => 'OFF'])->assertSessionHasErrors('platform_voucher');
+
+        $this->placeOrder(['platform_voucher' => 'SALE1111'])->assertSessionHasNoErrors();
+        $orders = Order::all();
+        $this->assertCount(2, $orders);   // one per store
+
+        // Once per buyer.
+        $this->fillCart();
+        $this->placeOrder(['platform_voucher' => 'SALE1111'])
+            ->assertSessionHasErrors(['platform_voucher' => 'SALE1111 was removed: you have already used this voucher.']);
+
+        // The ALVY voucher is shared by both orders: cancelling one keeps it in use for the other…
+        $this->actingAs($this->buyer)->post(route('orders.cancel', $orders[0]->id), ['cancellation_reason' => 'Changed my mind']);
+        $this->assertSame('Cancelled', $orders[0]->fresh()->status);
+        $this->assertSame(1, Voucher::where('code', 'SALE1111')->value('used_count'));
+        // …and cancelling the last one gives it back.
+        $this->actingAs($this->buyer)->post(route('orders.cancel', $orders[1]->id), ['cancellation_reason' => 'Changed my mind']);
+        $this->assertSame(0, Voucher::where('code', 'SALE1111')->value('used_count'));
+        $this->placeOrder(['platform_voucher' => 'SALE1111'])->assertSessionHasNoErrors();
+    }
+
+    public function test_used_up_vouchers_and_used_vouchers_cannot_be_deleted(): void
+    {
+        $v = $this->saleVoucher(['usage_limit' => 1]);
+        $this->fillCart();
+        $this->placeOrder(['platform_voucher' => 'SALE1111'])->assertSessionHasNoErrors();
+
+        $this->assertSame('Used up', $v->fresh()->stateLabel());
+        $this->actingAs($this->admin)->delete(route('admin.vouchers.destroy', $v))->assertSessionHas('error');
+        $this->assertDatabaseHas('vouchers', ['id' => $v->id]);
+
+        // A27: once used, only the end date can be extended and the usage limit raised.
+        $v->refresh();
+        $form = ['code' => $v->code, 'name' => $v->name, 'discount_type' => $v->discount_type, 'discount_value' => $v->discount_value,
+            'max_discount' => $v->max_discount, 'min_spend' => $v->min_spend, 'starts_at' => $v->starts_at?->format('Y-m-d\TH:i'),
+            'ends_at' => $v->ends_at?->format('Y-m-d\TH:i'), 'per_user_limit' => $v->per_user_limit, 'is_active' => '1'];
+        $this->actingAs($this->admin)->put(route('admin.vouchers.update', $v), ['usage_limit' => 50] + $form)->assertSessionHasNoErrors();
+        $this->assertSame(50, $v->fresh()->usage_limit);
+        $this->actingAs($this->admin)->put(route('admin.vouchers.update', $v), ['usage_limit' => 50, 'name' => 'Renamed'] + $form)->assertSessionHasErrors('name');
+        $this->actingAs($this->admin)->put(route('admin.vouchers.update', $v), ['usage_limit' => 50, 'discount_value' => 50] + $form)->assertSessionHasErrors('discount_value');
+        $this->actingAs($this->admin)->put(route('admin.vouchers.update', $v), ['usage_limit' => 10] + $form)->assertSessionHasErrors('usage_limit');
+    }
+
+    public function test_voucher_times_are_philippine_time(): void
+    {
+        config(['app.business_timezone' => 'Asia/Manila']);
+        \Illuminate\Support\Carbon::setTestNow(\Illuminate\Support\Carbon::parse('2026-10-26 14:38', 'Asia/Manila'));
+        try {
+            // Made at 2:38 PM for 2:34 PM - 5:30 PM today (Philippine time): it must work right away.
+            $this->actingAs($this->admin)->post(route('admin.vouchers.store'), [
+                'code' => '1234', 'name' => 'SALEEEE', 'discount_type' => 'percent', 'discount_value' => 50, 'max_discount' => 300,
+                'min_spend' => 150, 'starts_at' => '2026-10-26T14:34', 'ends_at' => '2026-10-26T17:30', 'per_user_limit' => 1,
+                'is_active' => 1, 'is_claimable' => 1, 'scope' => 'platform',
+            ])->assertSessionHasNoErrors()->assertRedirect(route('admin.vouchers.index'));
+
+            $v = Voucher::where('code', '1234')->firstOrFail();
+            $this->assertSame('2026-10-26 06:34:00', $v->starts_at->utc()->toDateTimeString());
+            $this->assertSame('2026-10-26 09:30:00', $v->ends_at->utc()->toDateTimeString());
+            $this->assertTrue(Voucher::running()->whereKey($v->id)->exists());
+            $this->assertSame('Ongoing', $v->stateLabel());
+            $this->actingAs($this->admin)->get(route('admin.vouchers.index'))->assertSee('Oct 26, 2026 2:34 PM');
+            $this->actingAs($this->admin)->get(route('admin.vouchers.edit', $v))->assertSee('value="2026-10-26T17:30"', false);
+
+            // An end time already past in the Philippines is refused, and the form keeps what was typed.
+            $this->actingAs($this->admin)->post(route('admin.vouchers.store'), [
+                'code' => 'LATE1', 'name' => 'Late', 'discount_type' => 'fixed', 'discount_value' => 50,
+                'ends_at' => '2026-10-26T14:00', 'per_user_limit' => 1, 'scope' => 'platform',
+            ])->assertSessionHasErrors('ends_at')->assertSessionHasInput('ends_at', '2026-10-26T14:00');
+        } finally {
+            \Illuminate\Support\Carbon::setTestNow();
+        }
+    }
+}

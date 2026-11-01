@@ -10,6 +10,16 @@ class Category extends Model
 {
     protected $fillable = ['name', 'description'];
 
+    /** A renamed ALVY category is renamed in every store that uses it. */
+    protected static function booted(): void
+    {
+        static::updated(function (Category $c) {
+            if ($c->wasChanged('name')) {
+                StoreCategory::where('category_id', $c->id)->update(['name' => $c->name]);
+            }
+        });
+    }
+
     public function products(): HasMany
     {
         return $this->hasMany(Product::class);

@@ -10,45 +10,78 @@
 <div class="page-header"><h1>Rider Management</h1></div>
 <div class="page-body">
 
-    {{-- Add rider (scoped to this SC's barangays) --}}
-    @if($areas->isEmpty())
+    {{-- Add rider: barangays come from the PSA PSGC dataset for this SC's municipality --}}
+    @if(! $sc->hasAssignedMunicipality())
         <div class="card" style="padding:14px 18px;margin-bottom:16px;border-left:3px solid var(--accent-orange);">
-            <div style="font-weight:700;color:var(--accent-orange);">Add coverage first</div>
+            <div style="font-weight:700;color:var(--accent-orange);">No municipality assigned</div>
             <div style="font-size:12.5px;color:var(--text-muted);margin-top:2px;">
-                Define your barangays under
-                <a href="{{ route('sc.areas') }}" style="color:var(--accent-blue);font-weight:600;">Coverage Areas</a>
-                before adding riders.
+                An administrator must assign your sorting center to a municipality before you can add riders.
+            </div>
+        </div>
+    @elseif(empty($barangays))
+        <div class="card" style="padding:14px 18px;margin-bottom:16px;border-left:3px solid var(--accent-orange);">
+            <div style="font-weight:700;color:var(--accent-orange);">Barangays unavailable</div>
+            <div style="font-size:12.5px;color:var(--text-muted);margin-top:2px;">
+                {{ $sc->assigned_municipality }} (code {{ $sc->assigned_municipality_code }}) was not found in the PSA PSGC dataset.
+                Ask an administrator to re-assign your municipality.
             </div>
         </div>
     @else
+        @php
+            $inCoverage = array_values(array_filter($barangays, fn ($b) => in_array($b['code'], $coveredCodes, true)));
+            $others     = array_values(array_filter($barangays, fn ($b) => ! in_array($b['code'], $coveredCodes, true)));
+        @endphp
         <div class="card" style="padding:16px 18px;margin-bottom:16px;">
-            <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:12px;">Add Rider</div>
+            <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px;margin-bottom:12px;">
+                <div style="font-size:14px;font-weight:700;color:var(--text);">Add Rider</div>
+                <div style="font-size:12.5px;color:var(--text-muted);">
+                    Sorting Center: <strong style="color:var(--text);">{{ $sc->name }}</strong>
+                    &nbsp;·&nbsp; Municipality:
+                    <strong style="color:var(--text);">{{ $sc->assigned_municipality }}</strong>{{ $sc->assigned_province ? ', ' . $sc->assigned_province : '' }}
+                </div>
+            </div>
             <form method="POST" action="{{ route('sc.riders.store') }}"
-                  style="display:grid;grid-template-columns:1.4fr 1fr 1fr 1.2fr auto;gap:10px;align-items:end;">
+                  style="display:grid;grid-template-columns:1.4fr 1fr 1fr 1.4fr auto;gap:10px;align-items:end;">
                 @csrf
                 <div>
-                    <label class="form-label">Full Name</label>
-                    <input type="text" name="full_name" class="form-input" required placeholder="Rider name">
+                    <label class="form-label" for="rider_full_name">Full Name</label>
+                    <input type="text" id="rider_full_name" name="full_name" class="form-input" required
+                           placeholder="Rider name" value="{{ old('full_name') }}">
                 </div>
                 <div>
-                    <label class="form-label">Phone</label>
-                    <input type="text" name="phone" class="form-input" placeholder="09xx…">
+                    <label class="form-label" for="rider_phone">Phone</label>
+                    <input type="text" id="rider_phone" name="phone" class="form-input" placeholder="09xx…" value="{{ old('phone') }}" maxlength="13" inputmode="tel" autocomplete="tel" data-mobile oninput="this.value=this.value.startsWith('+')?('+'+this.value.slice(1).replace(/\D/g,'')).slice(0,13):this.value.replace(/\D/g,'').slice(0,11)">
                 </div>
                 <div>
-                    <label class="form-label">Vehicle</label>
-                    <input type="text" name="vehicle_type" class="form-input" placeholder="Motorcycle">
+                    <label class="form-label" for="rider_vehicle">Vehicle</label>
+                    <input type="text" id="rider_vehicle" name="vehicle_type" class="form-input" placeholder="Motorcycle" value="{{ old('vehicle_type') }}">
                 </div>
                 <div>
-                    <label class="form-label">Barangay</label>
-                    <select name="area_id" class="form-select" required>
+                    <label class="form-label" for="rider_barangay">Barangay ({{ count($barangays) }} in {{ $sc->assigned_municipality }})</label>
+                    <select id="rider_barangay" name="barangay_psgc" class="form-select" required>
                         <option value="">Select barangay…</option>
-                        @foreach($areas as $area)
-                            <option value="{{ $area->id }}">{{ $area->name }}</option>
-                        @endforeach
+                        @if($inCoverage)
+                            <optgroup label="In your coverage">
+                                @foreach($inCoverage as $b)
+                                    <option value="{{ $b['psgc'] }}" @selected(old('barangay_psgc') === $b['psgc'])>{{ $b['name'] }}</option>
+                                @endforeach
+                            </optgroup>
+                        @endif
+                        @if($others)
+                            <optgroup label="Other barangays of {{ $sc->assigned_municipality }} (added to coverage)">
+                                @foreach($others as $b)
+                                    <option value="{{ $b['psgc'] }}" @selected(old('barangay_psgc') === $b['psgc'])>{{ $b['name'] }}</option>
+                                @endforeach
+                            </optgroup>
+                        @endif
                     </select>
                 </div>
                 <button type="submit" class="btn btn-blue" style="justify-content:center;">Add</button>
             </form>
+            <p style="font-size:11.5px;color:var(--text-muted);margin:10px 0 0;">
+                Barangays are from the official PSA PSGC list for {{ $sc->assigned_municipality }}.
+                Choosing a barangay outside your coverage adds it to your Coverage Areas automatically.
+            </p>
         </div>
     @endif
 
@@ -80,12 +113,17 @@
         </div>
     </div>
 
-    <div class="card">
-        <table class="data-table">
+    {{-- Ten columns: let the headers wrap and keep cells a little tighter so Actions stays in view. --}}
+    <style>
+        .riders-table th { white-space: normal; vertical-align: bottom; }
+        .riders-table th, .riders-table td { padding-left: 12px; padding-right: 12px; }
+    </style>
+    <div class="card" style="overflow-x:auto;">
+        <table class="data-table riders-table">
             <thead>
                 <tr>
-                    <th>Rider ID</th><th>Name</th><th>Contact</th><th>Area</th>
-                    <th>Applied</th><th>Deliveries</th><th>Status</th><th>Actions</th>
+                    <th>Rider ID</th><th>Name</th><th>Vehicle</th><th>Area</th>
+                    <th>Availability</th><th>Active jobs</th><th>Delivered today</th><th>Deliveries</th><th>Status</th><th>Actions</th>
                 </tr>
             </thead>
             <tbody id="riders-tbody">
@@ -96,18 +134,24 @@
                     $isRejected = $rider->application_status === 'rejected';
                     $isInactive = $rider->application_status === 'approved' && !$rider->is_active;
                     $badgeClass = $isActive ? 'badge-green' : ($isPending ? 'badge-yellow' : ($isRejected ? 'badge-red' : 'badge-gray'));
-                    $badgeLabel = $isActive ? 'Active' : ($isPending ? 'Pending' : ($isRejected ? 'Rejected' : 'Inactive'));
+                    $badgeLabel = $isActive ? 'Active' : ($isPending ? 'Pending' : ($isRejected ? 'Rejected' : 'Suspended'));
                     $deliveries = $rider->parcelDeliveries()->where('status','delivered')->count();
+                    $todayDelivered = $rider->parcelDeliveries()->where('status','delivered')->where('updated_at', '>=', today())->count();
+                    $activeJobs = $rider->activeJobsCount();
                 @endphp
                 <tr>
                     <td><span class="id-link">RDR-{{ str_pad($rider->id,3,'0',STR_PAD_LEFT) }}</span></td>
                     <td>
-                        <div style="font-weight:600;">{{ $rider->full_name }}</div>
-                        <div class="text-muted text-sm">{{ $rider->user->email ?? '' }}</div>
+                        <a href="{{ route('sc.riders.show', $rider) }}" style="font-weight:600;color:var(--accent-blue);">{{ $rider->full_name }}</a>
+                        <div class="text-muted text-sm">{{ $rider->user->email ?? '' }}{{ $rider->phone ? ' · ' . $rider->phone : '' }}</div>
                     </td>
-                    <td>{{ $rider->phone ?? '—' }}</td>
+                    <td>{{ $rider->vehicle_type ?? '—' }}{{ $rider->plate_number ? ' · ' . $rider->plate_number : '' }}
+                        @if($rider->needs_reverification)<div><span class="badge badge-yellow" style="font-size:10px;">Re-verify vehicle</span></div>@endif
+                    </td>
                     <td><span class="text-orange">{{ $rider->area->name ?? '—' }}</span></td>
-                    <td>{{ $rider->created_at->format('Y-m-d') }}</td>
+                    <td>@if($rider->isOnlineNow())<span class="badge badge-green" data-online>Online</span>@else<span class="badge badge-gray">Offline</span>@endif</td>
+                    <td data-active-jobs="{{ $activeJobs }}"><span class="badge {{ $activeJobs >= \App\Services\RiderDispatch::MAX_ACTIVE ? 'badge-red' : 'badge-gray' }}">{{ $activeJobs }} / {{ \App\Services\RiderDispatch::MAX_ACTIVE }}</span></td>
+                    <td data-today="{{ $todayDelivered }}">{{ $todayDelivered }}</td>
                     <td>{{ $deliveries }}</td>
                     <td><span class="badge {{ $badgeClass }}">{{ $badgeLabel }}</span></td>
                     <td>
@@ -120,12 +164,17 @@
                                     <button class="btn btn-red btn-sm">Reject</button>
                                 </form>
                             @elseif($isActive)
-                                <form method="POST" action="{{ route('sc.riders.toggle',$rider) }}">@csrf
-                                    <button class="btn btn-red btn-sm">Deactivate</button>
-                                </form>
+                                {{-- Suspend asks for a reason: the field opens under the button, so the column stays narrow. --}}
+                                <details data-suspend="{{ $rider->id }}">
+                                    <summary class="btn btn-red btn-sm" style="list-style:none;cursor:pointer;">Suspend</summary>
+                                    <form method="POST" action="{{ route('sc.riders.toggle',$rider) }}" style="display:flex;flex-direction:column;gap:4px;margin-top:6px;width:170px;">@csrf
+                                        <input name="reason" class="form-input" style="padding:4px 6px;font-size:11px;width:100%;" placeholder="Reason (10–300)" minlength="10" maxlength="300" required aria-label="Reason for suspending {{ $rider->full_name }}">
+                                        <button class="btn btn-red btn-sm">Confirm suspend</button>
+                                    </form>
+                                </details>
                             @elseif($isInactive)
                                 <form method="POST" action="{{ route('sc.riders.toggle',$rider) }}">@csrf
-                                    <button class="btn btn-green btn-sm">Activate</button>
+                                    <button class="btn btn-green btn-sm">Reactivate</button>
                                 </form>
                             @elseif($isRejected)
                                 <form method="POST" action="{{ route('sc.riders.approve',$rider) }}">@csrf
@@ -136,7 +185,7 @@
                     </td>
                 </tr>
             @empty
-                <tr><td colspan="8" style="text-align:center;padding:30px;color:var(--text-muted);">No riders found.</td></tr>
+                <tr><td colspan="10" style="text-align:center;padding:30px;color:var(--text-muted);">No riders found.</td></tr>
             @endforelse
             </tbody>
         </table>

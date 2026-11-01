@@ -1,6 +1,6 @@
 <x-logistics-layout title="Parcel: {{ $parcel->tracking_number }}">
 
-<a href="{{ route('logistics.parcels.index') }}" class="btn btn--sm btn--ghost" style="margin-bottom:18px;display:inline-block;">← Back</a>
+<a href="{{ route('admin.logistics.parcels.index') }}" class="btn btn--sm btn--ghost" style="margin-bottom:18px;display:inline-block;">← Back</a>
 
 <div class="panel" style="max-width:640px">
     <div class="panel__header">

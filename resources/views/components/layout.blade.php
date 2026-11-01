@@ -8,7 +8,7 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="{{ asset('js/vendor/tailwindcss.js') }}"></script>
     <script>
       tailwind.config = {
         theme: {
@@ -201,6 +201,7 @@
       }
     </style>
     <link rel="stylesheet" href="{{ asset('css/hover-effects.css') }}">
+    <link rel="stylesheet" href="{{ asset('css/password-field.css') }}">
 </head>
 <body class="min-h-screen flex flex-col" style="background:#F5F5F5;color:#002b4d;">
 
@@ -209,21 +210,26 @@
 @include('partials.nav')
 
 {{-- Toast notifications (pop-up, auto-dismiss) --}}
-@if (session('success') || $errors->any())
+@if (session('success') || session('error') || $errors->any())
     <div id="toast-stack" class="fixed right-4 top-20 z-[100] flex w-full max-w-sm flex-col gap-2 px-2 sm:px-0">
         @if (session('success'))
             <div class="toast flex items-start gap-3 rounded-xl border p-4 shadow-lg"
                  style="background:#fff;border-color:rgba(5,150,105,.25);">
                 <svg class="mt-0.5 h-5 w-5 shrink-0" fill="none" stroke="#059669" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M20 6 9 17l-5-5"/></svg>
-                <p class="flex-1 text-sm font-semibold" style="color:#065F46;">{{ session('success') }}</p>
+                <div class="flex-1" role="status">
+                    <p class="text-sm font-semibold" style="color:#065F46;">{{ session('success') }}</p>
+                    @if (session('cart_added'))
+                        <a href="{{ route('cart.index') }}" class="mt-1 inline-block text-xs font-semibold hover:underline" style="color:#fa4e1c;" data-cart-added="{{ session('cart_added') }}">View cart</a>
+                    @endif
+                </div>
                 <button type="button" data-toast-close class="shrink-0 text-lg leading-none btn-hover-danger" style="color:#9CA3AF;" aria-label="Dismiss">&times;</button>
             </div>
         @endif
-        @if ($errors->any())
+        @if ($errors->any() || session('error'))
             <div class="toast flex items-start gap-3 rounded-xl border p-4 shadow-lg"
                  style="background:#fff;border-color:rgba(208,2,27,.25);">
                 <svg class="mt-0.5 h-5 w-5 shrink-0" fill="none" stroke="#D0021B" stroke-width="2.2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path stroke-linecap="round" d="M12 8v5M12 16h.01"/></svg>
-                <p class="flex-1 text-sm font-semibold" style="color:#B91C1C;">{{ $errors->first() }}</p>
+                <p class="flex-1 text-sm font-semibold" style="color:#B91C1C;">{{ $errors->first() ?: session('error') }}</p>
                 <button type="button" data-toast-close class="shrink-0 text-lg leading-none btn-hover-danger" style="color:#9CA3AF;" aria-label="Dismiss">&times;</button>
             </div>
         @endif
@@ -236,7 +242,9 @@
 <main class="flex-1">{{ $slot }}</main>
 
 @include('partials.footer')
+@include('partials.assistant-widget')
 @include('partials.chat-widget')
 <script src="{{ asset('js/prevent-back.js') }}"></script>
+<script src="{{ asset('js/logout-confirm.js') }}?v={{ filemtime(public_path('js/logout-confirm.js')) }}"></script>
 </body>
 </html>

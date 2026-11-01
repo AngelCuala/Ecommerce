@@ -32,11 +32,11 @@ class ReportController extends Controller
             ->paginate(20)
             ->withQueryString();
 
-        $view = request()->routeIs('admin.*') ? 'admin.reports.index' : 'logistics.reports.index';
+        $view = 'logistics.reports.index'; // admin.reports.index is the main admin sales report
         return view($view, compact('summary', 'deliveries', 'from', 'to'));
     }
 
-    public function export(Request $request): StreamedResponse
+    public function export(Request $request)
     {
         $from = $request->from ? Carbon::parse($request->from)           : now()->subDays(30);
         $to   = $request->to   ? Carbon::parse($request->to)->endOfDay() : now()->endOfDay();
@@ -45,24 +45,18 @@ class ReportController extends Controller
             ->whereBetween('created_at', [$from, $to])
             ->get();
 
-        $filename = 'delivery-report-' . now()->format('Y-m-d') . '.csv';
+        $rows = $deliveries->map(fn ($d) => [
+            $d->parcel->tracking_number ?? '-',
+            $d->rider->full_name        ?? '-',
+            $d->area->name              ?? '-',
+            $d->status,
+            (string) $d->created_at,
+            (string) $d->delivered_at,
+        ])->all();
+        $format = in_array($request->query('format'), \App\Support\TableExport::FORMATS, true) ? $request->query('format') : 'csv';
 
-        return response()->streamDownload(function () use ($deliveries) {
-            $handle = fopen('php://output', 'w');
-            fputcsv($handle, ['Tracking #', 'Rider', 'Area', 'Status', 'Assigned At', 'Delivered At']);
-
-            foreach ($deliveries as $d) {
-                fputcsv($handle, [
-                    $d->parcel->tracking_number ?? '-',
-                    $d->rider->full_name        ?? '-',
-                    $d->area->name              ?? '-',
-                    $d->status,
-                    $d->created_at,
-                    $d->delivered_at,
-                ]);
-            }
-
-            fclose($handle);
-        }, $filename);
+        return \App\Support\TableExport::download('delivery-report-' . now()->format('Y-m-d'),
+            ['Tracking #', 'Rider', 'Area', 'Status', 'Assigned At', 'Delivered At'], $rows, $format,
+            'Delivery Report', $from->format('M d, Y') . ' – ' . $to->format('M d, Y'));
     }
 }

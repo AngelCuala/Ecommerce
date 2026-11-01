@@ -3,8 +3,10 @@
 namespace App\Http\Controllers\Courier;
 
 use App\Http\Controllers\Controller;
+use App\Support\PhoneNumber;
 use App\Models\Courier;
 use App\Models\UserNotification;
+use App\Support\SortingCenters;
 use Illuminate\Http\Request;
 
 class RegistrationController extends Controller
@@ -18,7 +20,9 @@ class RegistrationController extends Controller
             return redirect()->route('courier.dashboard');
         }
 
-        return view('courier.register', compact('existing'));
+        $hubs = SortingCenters::forCouriers();
+
+        return view('courier.register', compact('existing', 'hubs'));
     }
 
     public function store(Request $request)
@@ -29,34 +33,43 @@ class RegistrationController extends Controller
             return back()->with('error', 'You already have a courier application on file.');
         }
 
+        $request->merge(['contact_no' => PhoneNumber::normalize($request->input('contact_no'))]);
         $data = $request->validate([
             'last_name'       => 'required|string|max:100',
             'first_name'      => 'required|string|max:100',
             'middle_initial'  => 'nullable|string|max:5',
             'sex'             => 'required|in:Male,Female',
-            'contact_no'      => 'required|string|max:20',
+            'contact_no'      => ['required', 'string', 'regex:' . PhoneNumber::PATTERN],
             'birthday'        => 'required|date|before:today',
             'province'        => 'required|string|max:120',
-            'municipality'    => 'required|string|max:120',
+            'municipality'    => ['required', 'string', 'max:120', new \App\Rules\InServiceArea('home address')],
             'barangay'        => 'required|string|max:120',
             'street'          => 'nullable|string|max:255',
             'house_number'    => 'nullable|string|max:100',
             'address_details' => 'nullable|string|max:255',
-            'vehicle_type'    => 'required|in:Motorcycle,Bicycle,Tricycle,Car,Van,Other',
+            'vehicle_type'    => 'required|in:Motorcycle,Bicycle,Tricycle,Car,Van,Truck,Other',
             'plate_number'    => 'required|string|max:30',
+            'sorting_center_id' => ['required', SortingCenters::existsRule()],
             'or_cr'           => 'required|file|mimes:jpg,jpeg,png,pdf|max:5120',
             'id_upload'       => 'required|file|mimes:jpg,jpeg,png,pdf|max:5120',
         ], [
+            'contact_no.regex'   => PhoneNumber::MESSAGE,
             'or_cr.required'     => 'The OR/CR document is required.',
             'id_upload.required' => "A valid ID or driver's license is required.",
+            'sorting_center_id.required' => 'Please choose the sorting center you want to apply to.',
+            'sorting_center_id.exists'   => 'That sorting center is not available. Please choose another one.',
         ]);
 
-        // Fold the extra "building/other" detail into the stored street value.
-        $street = trim(implode(' ', array_filter([$data['street'] ?? null, $data['address_details'] ?? null])));
+        // couriers has no house_number column: fold the house no. and the extra
+        // "building/other" detail into the stored street value.
+        $street = trim(implode(' ', array_filter([
+            $data['house_number'] ?? null, $data['street'] ?? null, $data['address_details'] ?? null,
+        ])));
 
         $courier = Courier::updateOrCreate(
             ['user_id' => auth()->id()],
             [
+                'sorting_center_id' => $data['sorting_center_id'],
                 'last_name'       => $data['last_name'],
                 'first_name'      => $data['first_name'],
                 'middle_initial'  => $data['middle_initial'] ?? null,
@@ -68,7 +81,6 @@ class RegistrationController extends Controller
                 'municipality'    => $data['municipality'],
                 'barangay'        => $data['barangay'],
                 'street'          => $street ?: null,
-                'house_number'    => $data['house_number'] ?? null,
                 'vehicle_type'    => $data['vehicle_type'],
                 'plate_number'    => $data['plate_number'],
                 'or_cr_path'      => $request->file('or_cr')->store('couriers/or-cr', 'public'),
@@ -88,14 +100,14 @@ class RegistrationController extends Controller
         UserNotification::create([
             'user_id' => auth()->id(),
             'title'   => 'Courier application submitted',
-            'body'    => 'Your registration has been submitted successfully. Please wait for approval from the Logistics team. You will receive an email once your application has been reviewed.',
+            'body'    => 'Your registration has been submitted successfully. Please wait for approval from ' . $courier->hubName() . ', the sorting center you applied to. You will receive an email once your application has been reviewed.',
             'type'    => 'info',
             'link'    => route('courier.status'),
         ]);
 
         return redirect()->route('courier.status')->with(
             'success',
-            'Your registration has been submitted successfully. Please wait for approval from the Logistics/Sorting Center. You will receive an email once your application has been reviewed.'
+            'Your registration has been submitted successfully. Please wait for approval from ' . $courier->hubName() . ', the sorting center you applied to. You will receive an email once your application has been reviewed.'
         );
     }
 

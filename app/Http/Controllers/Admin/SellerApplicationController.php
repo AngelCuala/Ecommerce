@@ -13,8 +13,10 @@ class SellerApplicationController extends Controller
 {
     public function index()
     {
+        // Sign-ups that haven't verified their email yet aren't ready for review.
         $applications = SellerApplication::with('user')
-            ->latest()
+            ->where('status', '!=', 'unverified')
+            ->latest('updated_at')
             ->get();
 
         return view('admin.seller-applications.index', compact('applications'));
@@ -29,10 +31,18 @@ class SellerApplicationController extends Controller
 
     public function approve(SellerApplication $sellerApplication)
     {
-        $sellerApplication->update(['status' => 'approved']);
+        if (! $sellerApplication->isPending()) {
+            return back()->with('error', 'Only applications pending approval can be approved.');
+        }
+        if (! \App\Support\ServiceArea::covers($sellerApplication->municipality_code, $sellerApplication->province, $sellerApplication->municipality)) {
+            return back()->with('error', "This store's business address ({$sellerApplication->municipality}, {$sellerApplication->province}) is outside the service area. "
+                . 'ALVY currently operates in ' . \App\Support\ServiceArea::label() . ' only.');
+        }
 
-        // Upgrade the user's role to seller
-        $sellerApplication->user->update(['role' => 'seller']);
+        $sellerApplication->update(['status' => 'approved', 'rejection_reason' => null]);
+
+        // Upgrade the user's role to seller and open the seller panel
+        $sellerApplication->user->forceFill(['role' => 'seller', 'approval_status' => 'approved'])->save();
 
         \App\Models\ActivityLog::record(
             'seller_application_approved',
@@ -56,14 +66,26 @@ class SellerApplicationController extends Controller
 
     public function reject(Request $request, SellerApplication $sellerApplication)
     {
+        if (! $sellerApplication->isPending()) {
+            return back()->with('error', 'Only applications pending approval can be rejected.');
+        }
+
         $request->validate([
-            'rejection_reason' => 'nullable|string|max:500',
+            'rejection_reason' => 'required|string|max:500',
+        ], [
+            'rejection_reason.required' => 'Please give a reason — it is emailed to the applicant.',
         ]);
 
         $sellerApplication->update([
             'status'           => 'rejected',
             'rejection_reason' => $request->rejection_reason,
         ]);
+
+        // A seller sign-up account is rejected with its application. (A buyer who
+        // applied keeps their buyer account.)
+        if ($sellerApplication->user->isSeller()) {
+            $sellerApplication->user->forceFill(['approval_status' => 'rejected'])->save();
+        }
 
         \App\Models\ActivityLog::record(
             'seller_application_rejected',

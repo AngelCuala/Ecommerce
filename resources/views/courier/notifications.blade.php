@@ -1,8 +1,15 @@
 <x-courier-layout title="Notifications" active="notifications">
 
-<div class="cx-page-head">
-    <h1 class="font-display">Notifications</h1>
-    <p>Delivery updates and account activity.</p>
+<div class="cx-page-head" style="display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px;">
+    <div>
+        <h1 class="font-display">Notifications</h1>
+        <p>Job assignments, changes and account activity.{{ $unread ? ' ' . $unread . ' unread.' : '' }}</p>
+    </div>
+    @if ($unread)
+        <form method="POST" action="{{ route('courier.notifications.read-all') }}">@csrf
+            <button class="cx-btn cx-btn-orange" style="padding:6px 12px;font-size:12px;">Mark all as read</button>
+        </form>
+    @endif
 </div>
 
 <div class="card" style="padding:8px;">
@@ -13,7 +20,7 @@
                 default   => ['var(--accent-soft)','var(--accent)'],
             };
         @endphp
-        <a href="{{ $n->link ?: '#' }}" class="cx-notif">
+        <a href="{{ route('courier.notifications.open', $n->id) }}" class="cx-notif" data-notification="{{ $n->id }}" @if (is_null($n->read_at)) data-unread @endif>
             <span class="cx-notif-icon" style="background:{{ $tone[0] }};color:{{ $tone[1] }};">
                 @include('courier.partials.icon', ['name' => 'bell', 'size' => 20])
             </span>
@@ -37,5 +44,8 @@
         </div>
     @endforelse
 </div>
+@if ($notifications->hasPages())
+    <div style="margin-top:12px;">{{ $notifications->links() }}</div>
+@endif
 
 </x-courier-layout>

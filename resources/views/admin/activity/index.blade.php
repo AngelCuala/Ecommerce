@@ -1,88 +1,123 @@
 <x-admin-layout title="Activity Logs" active="activity">
+@include('partials.panel.plain')
 
-<div class="card mb-4 p-3">
-    <p class="text-xs" style="color:#6b90aa;">
-        Activity logs record administrative actions (approvals, suspensions, settings changes, sign-ins).
-        Sensitive values such as passwords, one-time codes, and tokens are never stored.
-    </p>
+@php
+    $roleStyle = [
+        'buyer' => 'background:#EFF6FF;color:#1D4ED8;', 'seller' => 'background:#FFF7ED;color:#C2410C;',
+        'courier' => 'background:#F5F3FF;color:#6D28D9;', 'courier_pending' => 'background:#F5F3FF;color:#6D28D9;',
+        'sorting_center' => 'background:#ECFEFF;color:#0E7490;', 'admin' => 'background:#ECFDF5;color:#047857;',
+    ];
+@endphp
+
+<p class="mb-4 text-sm pl-muted">
+    Every important action on ALVY — orders, cart, stock and product changes, vouchers, approvals, sign-ins and more —
+    by buyers, sellers, couriers, sorting centers and admins.
+    Passwords, one-time codes and form contents are never stored.
+</p>
+
+<div class="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
+    <div class="pl-card pl-body"><p class="text-xs pl-muted">Actions today</p><p class="text-xl font-bold" style="color:#002b4d;">{{ number_format($today) }}</p></div>
+    <div class="pl-card pl-body"><p class="text-xs pl-muted">Failed today</p><p class="text-xl font-bold" style="color:#DC2626;">{{ number_format($failedToday) }}</p></div>
+    <div class="pl-card pl-body"><p class="text-xs pl-muted">Showing</p><p class="text-xl font-bold" style="color:#002b4d;">{{ number_format($logs->total()) }}</p></div>
 </div>
 
-<form method="GET" class="mb-6 flex flex-wrap items-end gap-3">
+<form method="GET" class="pl-card pl-body mb-5 flex flex-wrap items-end gap-3">
     <div>
-        <label class="mb-1 block text-[11px] font-bold uppercase tracking-widest" style="color:#6b90aa;">Admin</label>
-        <select name="admin_id" class="input w-44 py-2 text-sm" style="border-color:#FFDCC2;">
-            <option value="">All admins</option>
-            @foreach ($admins as $a)
-                <option value="{{ $a->id }}" {{ request('admin_id') == $a->id ? 'selected' : '' }}>{{ $a->name }}</option>
+        <label class="pl-label">Search</label>
+        <input type="text" name="search" value="{{ request('search') }}" placeholder="Name or details…" class="input w-52 !py-1.5 text-sm">
+    </div>
+    <div>
+        <label class="pl-label">Who</label>
+        <select name="role" class="input w-44 !py-1.5 text-sm">
+            <option value="">Everyone</option>
+            @foreach ($roles as $key => $label)
+                <option value="{{ $key }}" @selected(request('role') === $key)>{{ $label }}</option>
             @endforeach
         </select>
     </div>
     <div>
-        <label class="mb-1 block text-[11px] font-bold uppercase tracking-widest" style="color:#6b90aa;">Action</label>
-        <select name="action" class="input w-48 py-2 text-sm" style="border-color:#FFDCC2;">
+        <label class="pl-label">Action</label>
+        <select name="action" class="input w-48 !py-1.5 text-sm">
             <option value="">All actions</option>
             @foreach ($actionOptions as $key => $label)
-                <option value="{{ $key }}" {{ request('action') == $key ? 'selected' : '' }}>{{ $label }}</option>
+                <option value="{{ $key }}" @selected(request('action') == $key)>{{ $label }}</option>
             @endforeach
         </select>
     </div>
     <div>
-        <label class="mb-1 block text-[11px] font-bold uppercase tracking-widest" style="color:#6b90aa;">From</label>
-        <input type="date" name="from" value="{{ request('from') }}" class="input w-40 py-2 text-sm" style="border-color:#FFDCC2;">
+        <label class="pl-label">Result</label>
+        <select name="status" class="input w-32 !py-1.5 text-sm">
+            <option value="">Any</option>
+            <option value="success" @selected(request('status') === 'success')>Success</option>
+            <option value="failed" @selected(request('status') === 'failed')>Failed</option>
+        </select>
     </div>
     <div>
-        <label class="mb-1 block text-[11px] font-bold uppercase tracking-widest" style="color:#6b90aa;">To</label>
-        <input type="date" name="to" value="{{ request('to') }}" class="input w-40 py-2 text-sm" style="border-color:#FFDCC2;">
+        <label class="pl-label">From</label>
+        <input type="date" name="from" value="{{ request('from') }}" class="input w-40 !py-1.5 text-sm">
     </div>
-    <button class="btn-gold !py-2 text-sm" style="background:#fa4e1c;border-color:#fa4e1c;color:#FFFFFF;">Filter</button>
-    @if (request()->hasAny(['admin_id','action','from','to','status']))
-        <a href="{{ route('admin.activity.index') }}" class="text-sm" style="color:#fa4e1c;">Clear</a>
-    @endif
+    <div>
+        <label class="pl-label">To</label>
+        <input type="date" name="to" value="{{ request('to') }}" class="input w-40 !py-1.5 text-sm">
+    </div>
+    <div class="flex items-center gap-3">
+        <button type="submit" class="pl-btn !py-1.5">Filter</button>
+        @if (request()->hasAny(['search', 'role', 'action', 'from', 'to', 'status', 'user']))
+            <a href="{{ route('admin.activity.index') }}" class="text-sm font-medium hover:underline pl-muted">Clear</a>
+        @endif
+    </div>
 </form>
 
-<div class="card overflow-x-auto">
-    <table class="w-full min-w-[760px] text-sm">
-        <thead style="background:#e8f0f6;">
-            <tr>
-                <th class="px-5 py-3 text-left text-[11px] font-bold uppercase tracking-widest" style="color:#6b90aa;">When</th>
-                <th class="px-3 py-3 text-left text-[11px] font-bold uppercase tracking-widest" style="color:#6b90aa;">Admin</th>
-                <th class="px-3 py-3 text-left text-[11px] font-bold uppercase tracking-widest" style="color:#6b90aa;">Action</th>
-                <th class="px-3 py-3 text-left text-[11px] font-bold uppercase tracking-widest" style="color:#6b90aa;">Details</th>
-                <th class="px-3 py-3 text-left text-[11px] font-bold uppercase tracking-widest" style="color:#6b90aa;">Status</th>
-                <th class="px-5 py-3 text-left text-[11px] font-bold uppercase tracking-widest" style="color:#6b90aa;">IP</th>
-            </tr>
-        </thead>
-        <tbody>
-            @forelse ($logs as $log)
-                @php
-                    $st = match($log->status) {
-                        'failed', 'error' => ['bg'=>'#FEF2F2','text'=>'#DC2626'],
-                        'warning'          => ['bg'=>'#FFF7ED','text'=>'#d97706'],
-                        default            => ['bg'=>'#F0FDF4','text'=>'#059669'],
-                    };
-                @endphp
-                <tr style="border-top:1px solid #dce8f0;">
-                    <td class="px-5 py-3 whitespace-nowrap" style="color:#555;">
-                        {{ $log->created_at->format('M d, Y') }}
-                        <span class="block text-xs" style="color:#6b90aa;">{{ $log->created_at->format('g:i A') }}</span>
-                    </td>
-                    <td class="px-3 py-3" style="color:#002b4d;">{{ $log->admin_name ?? ($log->admin->name ?? 'System') }}</td>
-                    <td class="px-3 py-3 font-medium" style="color:#002b4d;">{{ $log->action_label ?: $log->action }}</td>
-                    <td class="px-3 py-3" style="color:#555;">{{ $log->description ?? '—' }}</td>
-                    <td class="px-3 py-3">
-                        <span class="rounded-full px-2.5 py-1 text-xs font-semibold" style="background:{{ $st['bg'] }};color:{{ $st['text'] }};">
-                            {{ ucfirst($log->status) }}
-                        </span>
-                    </td>
-                    <td class="px-5 py-3 text-xs" style="color:#6b90aa;">{{ $log->ip_address ?? '—' }}</td>
-                </tr>
-            @empty
+<div class="pl-card overflow-hidden">
+    <div class="overflow-x-auto">
+        <table class="pl-table min-w-[900px]">
+            <thead>
                 <tr>
-                    <td colspan="6" class="px-5 py-10 text-center text-sm" style="color:#6b90aa;">No activity recorded yet.</td>
+                    <th>When</th>
+                    <th>Who</th>
+                    <th>Action</th>
+                    <th>Details</th>
+                    <th>Result</th>
                 </tr>
-            @endforelse
-        </tbody>
-    </table>
+            </thead>
+            <tbody>
+                @forelse ($logs as $log)
+                    @php
+                        $tag  = in_array($log->status, ['failed', 'error'], true) ? 'cancelled' : ($log->status === 'warning' ? 'pending' : 'delivered');
+                        $role = $log->user_role ?? ($log->admin_id ? null : 'guest');
+                    @endphp
+                    <tr>
+                        <td class="whitespace-nowrap">
+                            {{ $log->created_at->format('M d, Y') }}
+                            <span class="block text-xs pl-muted">{{ $log->created_at->format('g:i:s A') }}</span>
+                        </td>
+                        <td>
+                            @if ($log->admin_id)
+                                <a href="{{ route('admin.activity.index', ['user' => $log->admin_id]) }}" class="font-medium hover:underline" style="color:#222;"
+                                   title="Show only this person's activity">{{ $log->admin_name ?? 'User #' . $log->admin_id }}</a>
+                            @else
+                                <span style="color:#222;">{{ $log->admin_name ?? 'Guest' }}</span>
+                            @endif
+                            @if ($role)
+                                <span class="mt-0.5 block w-max rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
+                                      style="{{ $roleStyle[$role] ?? 'background:#F3F4F6;color:#4B5563;' }}">{{ str_replace('_', ' ', $role) }}</span>
+                            @endif
+                        </td>
+                        <td class="font-medium" style="color:#222;">{{ $log->action_label ?: $log->action }}</td>
+                        <td class="text-sm">{{ $log->description ?? '—' }}
+                            @if ($log->old_value || $log->new_value)<span class="mt-0.5 block text-xs pl-muted">{{ $log->old_value ?? '—' }} → {{ $log->new_value ?? '—' }}</span>@endif
+                            @if ($log->reason)<span class="mt-0.5 block text-xs pl-muted">Reason: {{ $log->reason }}</span>@endif
+                        </td>
+                        <td><span class="pl-tag {{ $tag }}">{{ ucfirst($log->status) }}</span></td>
+                    </tr>
+                @empty
+                    <tr>
+                        <td colspan="5" class="!py-10 text-center text-sm pl-muted">No activity recorded yet.</td>
+                    </tr>
+                @endforelse
+            </tbody>
+        </table>
+    </div>
 </div>
 
 <div class="mt-4">{{ $logs->links() }}</div>

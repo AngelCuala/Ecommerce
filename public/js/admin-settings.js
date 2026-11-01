@@ -7,7 +7,7 @@ document.addEventListener('DOMContentLoaded', function () {
         tabs.forEach(t => {
             const active = t.dataset.tab === name;
             t.style.borderColor = active ? '#fa4e1c' : 'transparent';
-            t.style.color       = active ? '#fa4e1c' : '#6b90aa';
+            t.style.color       = active ? '#222' : '#8a7f78';
         });
         contents.forEach(c => c.classList.toggle('hidden', c.id !== 'tab-' + name));
     }

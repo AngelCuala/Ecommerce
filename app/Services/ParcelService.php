@@ -27,7 +27,7 @@ class ParcelService
      * Create (or refresh) the pickup request for a seller's part of an order.
      * One parcel per order + seller. A rejected request is re-opened.
      */
-    public function createForSeller(Order $order, User $seller, $pickupAt = null, ?string $notes = null): Parcel
+    public function createForSeller(Order $order, User $seller, $pickupAt = null, ?string $notes = null, ?User $chosen = null): Parcel
     {
         $parcel = Parcel::firstOrNew(['order_id' => $order->id, 'seller_id' => $seller->id]);
 
@@ -37,10 +37,11 @@ class ParcelService
             return $parcel;
         }
 
-        $sc = $this->routeSortingCenter($seller, $order);
+        // The seller's chosen logistics company, else the one covering the route.
+        $sc = $chosen ?? $this->routeSortingCenter($seller, $order);
 
         $parcel->fill([
-            'tracking_number'           => $parcel->tracking_number ?: Parcel::generateTracking(),
+            'tracking_number'           => $parcel->tracking_number ?: ($order->tracking_number && ! Parcel::where('tracking_number', $order->tracking_number)->exists() ? $order->tracking_number : Parcel::generateTracking()),
             'pickup_address'            => $this->sellerAddress($seller),
             'dropoff_address'           => $order->fullAddress() ?: ($order->shipping_address ?? '—'),
             'destination_municipality'  => $order->city,
@@ -117,10 +118,10 @@ class ParcelService
 
     private function sellerWeight(Order $order, User $seller): ?float
     {
-        $order->loadMissing('items.book');
+        $order->loadMissing('items.product');
         $kg = $order->items
-            ->filter(fn ($i) => (int) optional($i->book)->seller_id === (int) $seller->id)
-            ->sum(fn ($i) => (float) (optional($i->book)->weight_kg ?? 0) * $i->quantity);
+            ->filter(fn ($i) => (int) optional($i->product)->seller_id === (int) $seller->id)
+            ->sum(fn ($i) => (float) (optional($i->product)->weight_kg ?? 0) * $i->quantity);
 
         return $kg > 0 ? round($kg, 2) : null;
     }
@@ -162,21 +163,28 @@ class ParcelService
 
     /**
      * Mirror the parcel's progress onto the marketplace order the buyer and
-     * seller see. "Delivered" is left to the buyer's "Order Received" button.
+     * seller see. "Completed" is left to the buyer's "Order Received" button.
      */
     public function syncOrder(Parcel $parcel): void
     {
         $order = $parcel->order;
-        if (! $order || in_array($order->status, ['Cancelled', 'Delivered'], true)) {
+        if (! $order || in_array($order->status, \App\Models\Order::LOGISTICS_DONE, true)) {
             return;
         }
 
         $target = match ($parcel->status) {
             'pickup_approved'                                   => 'Processing',
-            'picked_up', 'sorted', 'assigned', 'in_transit',
-            'delivered', 'failed'                               => 'Shipped',
+            'in_transit_to_hub', 'picked_up', 'sorted', 'assigned', 'in_transit', 'linehaul',
+            'delivered', 'failed', 'return_to_sender'          => 'Shipped',
             default                                             => null,
         };
+
+        // Every parcel of the order delivered -> the order is Delivered (and a COD order is paid),
+        // whoever recorded it: the rider's app, a logistics override or an admin override.
+        if ($parcel->status === 'delivered' && $order->parcels()->where('status', '!=', 'delivered')->doesntExist()) {
+            $order->update(['status' => Order::DELIVERED] + (! $order->isOnlinePayment() ? ['payment_status' => 'Paid'] : []));
+            return;
+        }
 
         if ($target && (self::ORDER_RANK[$target] ?? 0) > (self::ORDER_RANK[$order->status] ?? 0)) {
             $order->update(['status' => $target]);
@@ -190,6 +198,58 @@ class ParcelService
                 'cancellation_reason' => 'Parcel returned to seller: ' . ($parcel->failure_reason ?: 'delivery failed'),
             ]);
         }
+    }
+
+    /** Delivery statuses a logistics or admin override may move to (A10: forward only). */
+    public const DELIVERY_FLOW = [
+        'assigned'         => ['out_for_delivery', 'failed'],
+        'out_for_delivery' => ['delivered', 'failed'],
+    ];
+
+    /**
+     * A logistics / admin override of a delivery (the rider's app was offline, etc.). It has the same
+     * effects as the rider doing it: the buyer is told when it goes out, the COD cash counted as with
+     * the rider when it is delivered, Return to Sender after the last failed attempt, and the order synced.
+     */
+    public function overrideDelivery(\App\Models\ParcelDelivery $delivery, string $status, string $reason): Parcel
+    {
+        $parcel = $delivery->parcel;
+        $ref = $this->orderRef($parcel);
+
+        switch ($status) {
+            case 'out_for_delivery':
+                $delivery->update(['status' => 'out_for_delivery', 'picked_up_at' => now(), 'remarks' => $reason]);
+                $parcel->update(['status' => 'in_transit']);
+                $this->notifyBuyer($parcel, 'Out for delivery', "{$ref} is out for delivery with " . ($delivery->rider->full_name ?? 'the rider')
+                    . '. Please be ready to receive it.');
+                break;
+
+            case 'delivered':
+                $delivery->update(['status' => 'delivered', 'delivered_at' => now(), 'remarks' => $reason,
+                    'cod_collected' => round((float) $delivery->cod_amount, 2)]);   // the rider handed it over, so the cash is with the rider
+                $parcel->update(['status' => 'delivered']);
+                // The buyer and seller are told by the tracking event (ShipmentTracker).
+                break;
+
+            case 'failed':
+                $back = $delivery->attempt >= \App\Models\ParcelDelivery::MAX_ATTEMPTS;
+                $delivery->update(['status' => 'failed', 'failure_reason' => $reason, 'remarks' => $reason]);
+                $parcel->update(['status' => $back ? 'return_to_sender' : 'failed', 'failure_reason' => $reason]);
+                $this->notifyBuyer($parcel, $back ? 'Returning to seller' : 'Delivery attempt failed', $back
+                    ? "{$ref} could not be delivered ({$reason}) after " . \App\Models\ParcelDelivery::MAX_ATTEMPTS . ' attempts. It is being returned to the seller.'
+                    : "{$ref} could not be delivered: {$reason}. The sorting center will reschedule it.", 'warning');
+                if ($back) {
+                    $this->notifySeller($parcel, 'Parcel returning to you', "{$ref} ({$parcel->tracking_number}) is Return to Sender: {$reason}.", 'warning');
+                }
+                break;
+
+            default:
+                throw new \InvalidArgumentException("Unsupported delivery status {$status}.");
+        }
+
+        $this->syncOrder($parcel->fresh());
+
+        return $parcel->fresh();
     }
 
     public function notifyBuyer(Parcel $parcel, string $title, string $body, string $type = 'info'): void

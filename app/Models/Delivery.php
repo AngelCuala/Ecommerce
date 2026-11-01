@@ -32,7 +32,7 @@ class Delivery extends Model
     /** The seller for this delivery (first item's book seller). */
     public function seller(): ?\App\Models\User
     {
-        return optional($this->order?->items->first()?->book)->seller;
+        return optional($this->order?->items->first()?->product)->seller;
     }
 
     /** Best-effort pickup label (seller shop / name). */
