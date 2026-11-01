@@ -201,6 +201,7 @@
       }
     </style>
     <link rel="stylesheet" href="{{ asset('css/hover-effects.css') }}">
+    <link rel="stylesheet" href="{{ asset('css/password-field.css') }}">
 </head>
 <body class="min-h-screen flex flex-col" style="background:#F5F5F5;color:#002b4d;">
 
@@ -244,5 +245,6 @@
 @include('partials.assistant-widget')
 @include('partials.chat-widget')
 <script src="{{ asset('js/prevent-back.js') }}"></script>
+<script src="{{ asset('js/logout-confirm.js') }}?v={{ filemtime(public_path('js/logout-confirm.js')) }}"></script>
 </body>
 </html>

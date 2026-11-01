@@ -148,9 +148,14 @@ class HubController extends Controller
         }
 
         // Scanning only finds the parcel (the website then opens its tracking page to confirm receipt).
+        // A JSON request gets the website's "Scan QR" pop-up answer ({ok, url, message}); a miss is a 422 for the app.
         $json = $this->actionJson($this->web(WebSc::class, 'scanParcel'));
-        if ($json->getStatusCode() === 200 && preg_match('#/sc/tracking/(\d+)#', (string) ($json->getData(true)['redirect'] ?? ''), $m)) {
-            $json->setData($json->getData(true) + ['parcel_id' => (int) $m[1]]);
+        $data = $json->getData(true);
+        if (($data['ok'] ?? null) === false) {
+            return response()->json(['message' => $data['message'], 'errors' => ['tracking_number' => [$data['message']]]], 422);
+        }
+        if ($json->getStatusCode() === 200 && preg_match('#/sc/tracking/(\d+)#', (string) ($data['url'] ?? $data['redirect'] ?? ''), $m)) {
+            $json->setData($data + ['parcel_id' => (int) $m[1]]);
         }
         return $json;
     }

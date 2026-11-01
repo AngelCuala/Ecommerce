@@ -180,7 +180,7 @@ class AccountController extends Controller
     public function following(): JsonResponse
     {
         $d = $this->pageData($this->web(StoreController::class, 'following'));
-        return response()->json(['stores' => $d['follows']->map(fn ($f) => ApiJson::store($f->seller))->values()]);
+        return response()->json(['stores' => collect($d['stores'] ?? [])->map(fn ($s) => ApiJson::store($s->seller))->values()]);
     }
 
     public function toggleFollow(int $sellerId): JsonResponse

@@ -11,6 +11,7 @@
     <link rel="stylesheet" href="{{ asset('css/admin.css') }}">
     <link rel="stylesheet" href="{{ asset('css/hover-effects.css') }}">
     {{ $styles ?? '' }}
+    <link rel="stylesheet" href="{{ asset('css/password-field.css') }}">
 </head>
 <body>
 <div class="shell">
@@ -25,10 +26,9 @@
             <a href="{{ route('admin.logistics.deliveries.monitor') }}"   class="nav-item {{ request()->routeIs('admin.logistics.deliveries.monitor') ? 'active' : '' }}">🔍 Monitoring</a>
             <a href="{{ route('admin.logistics.reports.index') }}"        class="nav-item {{ request()->routeIs('admin.logistics.reports.*')         ? 'active' : '' }}">📈 Reports</a>
             <a href="{{ route('admin.logistics.chat.index') }}"           class="nav-item {{ request()->routeIs('admin.logistics.chat.*')            ? 'active' : '' }}">💬 Chat</a>
-            <a href="{{ route('admin.account.edit') }}"         class="nav-item {{ request()->routeIs('admin.account.*')         ? 'active' : '' }}">👤 Account</a>
         </nav>
         <div class="sidebar__footer">
-            <form method="POST" action="{{ route('admin.logistics.logout') }}">
+            <form method="POST" action="{{ \App\Support\Portal::route('logout') }}">
                 @csrf
                 <button type="submit">Log out</button>
             </form>
@@ -55,5 +55,6 @@
 {{ $scripts ?? '' }}
 <script src="{{ asset('js/Logistics.js') }}"></script>
 <script src="{{ asset('js/prevent-back.js') }}"></script>
+<script src="{{ asset('js/logout-confirm.js') }}?v={{ filemtime(public_path('js/logout-confirm.js')) }}"></script>
 </body>
 </html>

@@ -50,10 +50,11 @@ class StoreController extends Controller
             ->where('is_claimable', true)->orderBy('min_spend')->get();
         $claimed = auth()->check() ? auth()->user()->voucherClaims()->pluck('voucher_id')->all() : [];
 
+        $productCount = (clone $base)->count();
         $followers = $seller->followers()->count();
         $following = auth()->check() && StoreFollow::where('user_id', auth()->id())->where('seller_id', $seller->id)->exists();
 
-        return view('stores.show', compact('seller', 'categories', 'storeCategories', 'uncategorized', 'chosen', 'products', 'vouchers', 'claimed', 'followers', 'following'));
+        return view('stores.show', compact('seller', 'categories', 'storeCategories', 'uncategorized', 'chosen', 'products', 'productCount', 'vouchers', 'claimed', 'followers', 'following'));
     }
 
     public function toggleFollow(int $sellerId)
@@ -78,8 +79,32 @@ class StoreController extends Controller
     {
         $follows = StoreFollow::where('user_id', auth()->id())
             ->with('seller.sellerApplication')->latest()->get()
-            ->filter(fn ($f) => $f->seller);
+            ->filter(fn ($f) => $f->seller)->values();
+        $ids = $follows->pluck('seller_id')->all();
 
-        return view('stores.following', compact('follows'));
+        // Each store's numbers, a few queries for the whole page (not per store).
+        $products  = Product::published()->whereIn('seller_id', $ids)->selectRaw('seller_id, COUNT(*) as n')->groupBy('seller_id')->pluck('n', 'seller_id');
+        $followers = StoreFollow::whereIn('seller_id', $ids)->selectRaw('seller_id, COUNT(*) as n')->groupBy('seller_id')->pluck('n', 'seller_id');
+        $ratings   = \App\Models\Review::join('products', 'products.id', '=', 'reviews.product_id')->whereIn('products.seller_id', $ids)
+            ->selectRaw('products.seller_id, AVG(reviews.rating) as avg, COUNT(*) as n')->groupBy('products.seller_id')->get()->keyBy('seller_id');
+        $vouchers  = Voucher::running()->where('scope', Voucher::SCOPE_SELLER)->where('is_claimable', true)->whereIn('seller_id', $ids)
+            ->selectRaw('seller_id, COUNT(*) as n')->groupBy('seller_id')->pluck('n', 'seller_id');
+        // The newest few products of each store, for a preview row.
+        $latest = Product::published()->whereIn('seller_id', $ids)->latest()->limit(count($ids) * 40)->get()
+            ->groupBy('seller_id')->map(fn ($ps) => $ps->take(4));
+
+        $stores = $follows->map(fn ($f) => (object) [
+            'follow'    => $f,
+            'seller'    => $f->seller,
+            'app'       => $f->seller->sellerApplication,
+            'products'  => (int) ($products[$f->seller_id] ?? 0),
+            'followers' => (int) ($followers[$f->seller_id] ?? 0),
+            'rating'    => isset($ratings[$f->seller_id]) ? round((float) $ratings[$f->seller_id]->avg, 1) : null,
+            'reviews'   => (int) ($ratings[$f->seller_id]->n ?? 0),
+            'vouchers'  => (int) ($vouchers[$f->seller_id] ?? 0),
+            'latest'    => $latest[$f->seller_id] ?? collect(),
+        ]);
+
+        return view('stores.following', compact('stores'));
     }
 }

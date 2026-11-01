@@ -62,7 +62,6 @@ class EnforceLoginTimeLimit
 
         $login = match (true) {
             $user?->role === 'sorting_center'          => 'sc.login',
-            $request->is('admin/logistics*')           => 'logistics.login',
             default                                    => 'login',
         };
 

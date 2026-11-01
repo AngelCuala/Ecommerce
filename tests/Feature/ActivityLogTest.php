@@ -109,10 +109,11 @@ class ActivityLogTest extends TestCase
             ->patch(route('seller.books.stock', $this->lamp), ['stock' => 9]);
 
         $this->actingAs($this->admin)->get(route('admin.activity.index'))->assertOk()
-            ->assertSee('Buyer Ben')->assertSee('Seller Sam')->assertSee('203.0.113.7')->assertSee('Updated stock');
+            ->assertSee('Buyer Ben')->assertSee('Seller Sam')->assertSee('Updated stock')
+            ->assertDontSee('203.0.113.7')->assertDontSee('IP address');   // IP addresses are not shown on the page
         $this->actingAs($this->admin)->get(route('admin.activity.index', ['role' => 'seller']))->assertOk()
             ->assertSee('Seller Sam')->assertDontSee('Buyer Ben');
-        $this->actingAs($this->admin)->get(route('admin.activity.index', ['search' => '203.0.113.7']))->assertOk()
+        $this->actingAs($this->admin)->get(route('admin.activity.index', ['search' => 'Buyer Ben']))->assertOk()
             ->assertSee('Buyer Ben')->assertDontSee('Seller Sam');
 
         $this->actingAs($this->seller)->get(route('admin.activity.index'))->assertForbidden();

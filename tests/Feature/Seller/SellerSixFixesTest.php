@@ -78,15 +78,7 @@ class SellerSixFixesTest extends TestCase
             ->assertRedirect(route('seller.books.index', ['search' => 'basket', 'sort' => 'oldest']));
     }
 
-    // 3. Store Category label
-
-    public function test_store_category_form_says_store_category_not_top_level(): void
-    {
-        $this->actingAs($this->seller1)->get(route('seller.store-categories.index'))->assertOk()
-            ->assertSee('— Store Category —')->assertDontSee('Top level');
-        $this->actingAs($this->seller1)->post(route('seller.store-categories.store'), ['name' => 'Pasalubong', 'parent_id' => ''])->assertSessionHasNoErrors();
-        $this->assertDatabaseHas('store_categories', ['seller_id' => $this->seller1->id, 'name' => 'Pasalubong', 'parent_id' => null]);
-    }
+    // 3. Store categories are picked from the ALVY categories: see S01StoreProfileAndCategoriesTest.
 
     // 4. Notifications
 

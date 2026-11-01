@@ -10,12 +10,11 @@
         <span style="color:var(--text-muted);font-size:12px;">to</span>
         <input type="date" name="to" value="{{ $to->toDateString() }}" class="form-input" style="width:135px;"
                onchange="document.getElementById('date-form').submit()">
-        <a href="{{ route('sc.reports', array_merge(request()->only('from','to','tab'), ['export'=>1])) }}"
-           class="btn btn-orange">Export CSV</a>
-        <a href="{{ route('sc.reports', array_merge(request()->only('from','to','tab'), ['export'=>'xlsx'])) }}"
-           class="btn btn-orange">Export XLSX</a>
-        <a href="{{ route('sc.reports', array_merge(request()->only('from','to','tab'), ['export'=>'pdf'])) }}"
-           class="btn btn-orange">Download PDF</a>
+        <a href="{{ route('sc.reports', array_merge(request()->only('from','to','tab'), ['export' => 'pdf'])) }}"
+           class="btn btn-orange" style="gap:6px;" data-export-pdf>
+            <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path stroke-linecap="round" stroke-linejoin="round" d="M14 2v6h6M12 18v-6M9 15l3 3 3-3"/></svg>
+            Export PDF
+        </a>
     </form>
 @endsection
 
@@ -41,24 +40,73 @@
     ══════════════════════════════════════════════════════ --}}
     @if($activeTab === 'daily')
 
-        @php $maxVal = max($dailyData->max('delivered'), 1); @endphp
+        @php
+            // The most recent 14 days of the range, oldest on the left; each bar stacks delivered / failed / returned.
+            $chartDays = $dailyData->sortBy('date')->values()->slice(-14)->values();
+            $peak = max(1, (int) $chartDays->max(fn ($d) => $d->delivered + $d->failed + $d->returned));
+            $step = max(1, (int) ceil($peak / 4));
+            $top  = $step * 4;   // a round scale: 4 gridlines
+            $segments = [['delivered', 'Delivered', '#16A34A'], ['failed', 'Failed', '#DC2626'], ['returned', 'Returned', '#D97706']];
+        @endphp
+        <style>
+            .rc-chart { position: relative; display: grid; grid-template-columns: 28px 1fr; column-gap: 8px; }
+            .rc-axis { position: relative; height: 170px; margin-top: 18px; font-size: 10.5px; color: var(--text-muted); text-align: right; }
+            .rc-axis span { position: absolute; right: 0; transform: translateY(50%); }
+            .rc-plot { position: relative; height: 170px; margin-top: 18px; border-bottom: 1px solid #CBD5E1; }
+            .rc-grid { position: absolute; left: 0; right: 0; border-top: 1px dashed #E2E8F0; }
+            .rc-cols { position: absolute; inset: 0; display: flex; align-items: flex-end; gap: 10px; padding: 0 4px; }
+            .rc-col { position: relative; flex: 1; display: flex; flex-direction: column-reverse; justify-content: flex-start; height: 100%; min-width: 0; }
+            .rc-stack { display: flex; flex-direction: column-reverse; width: 100%; max-width: 56px; margin: 0 auto; border-radius: 6px 6px 0 0; overflow: hidden; transition: filter .15s; }
+            .rc-col:hover .rc-stack { filter: brightness(1.08); }
+            .rc-seg { width: 100%; }
+            .rc-total { margin: 0 auto 4px; font-size: 11px; font-weight: 700; color: var(--text); }
+            .rc-labels { display: flex; gap: 10px; padding: 6px 4px 0; margin-left: 36px; }
+            .rc-labels span { flex: 1; min-width: 0; text-align: center; font-size: 10.5px; color: var(--text-muted); white-space: nowrap; }
+            .rc-labels span.is-busy { color: var(--text); font-weight: 600; }
+        </style>
 
-        <div class="chart-placeholder">
-            <div style="font-size:13px;font-weight:600;margin-bottom:14px;">Daily Delivery Overview</div>
-            <div class="chart-bars">
-                @foreach($dailyData->take(7) as $day)
-                    <div class="chart-bar-group">
-                        <div class="chart-bar"
-                             style="height:{{ max(4, round(($day->delivered/$maxVal)*100)) }}%"
-                             title="{{ $day->delivered }} delivered"></div>
-                        <div class="chart-bar-label">{{ \Carbon\Carbon::parse($day->date)->format('m-d') }}</div>
+        <div class="chart-placeholder" data-daily-chart>
+            <div style="display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:14px;">
+                <div style="font-size:13px;font-weight:600;">Daily Delivery Overview</div>
+                <div style="font-size:11.5px;color:var(--text-muted);">
+                    {{ $chartDays->count() < $dailyData->count() ? 'Last ' . $chartDays->count() . ' days of the range' : $chartDays->count() . ' ' . \Illuminate\Support\Str::plural('day', $chartDays->count()) }}
+                </div>
+            </div>
+
+            <div class="rc-chart">
+                <div class="rc-axis" aria-hidden="true">
+                    @for ($g = 0; $g <= 4; $g++)<span style="bottom:{{ $g * 25 }}%;">{{ $g * $step }}</span>@endfor
+                </div>
+                <div class="rc-plot">
+                    @for ($g = 1; $g <= 4; $g++)<div class="rc-grid" style="bottom:{{ $g * 25 }}%;"></div>@endfor
+                    <div class="rc-cols">
+                        @foreach ($chartDays as $day)
+                            @php $sum = $day->delivered + $day->failed + $day->returned; @endphp
+                            <div class="rc-col" title="{{ \Carbon\Carbon::parse($day->date)->format('M j') }}: {{ $day->delivered }} delivered, {{ $day->failed }} failed, {{ $day->returned }} returned">
+                                @if ($sum > 0)
+                                    <div class="rc-stack" style="height:{{ round($sum / $top * 100, 2) }}%;">
+                                        @foreach ($segments as [$key, $label, $color])
+                                            @if ($day->$key > 0)<div class="rc-seg" style="height:{{ round($day->$key / $sum * 100, 2) }}%;background:{{ $color }};"></div>@endif
+                                        @endforeach
+                                    </div>
+                                    <div class="rc-total">{{ $sum }}</div>
+                                @endif
+                            </div>
+                        @endforeach
                     </div>
+                </div>
+            </div>
+            <div class="rc-labels">
+                @foreach ($chartDays as $day)
+                    @php $sum = $day->delivered + $day->failed + $day->returned; @endphp
+                    <span class="{{ $sum ? 'is-busy' : '' }}">{{ \Carbon\Carbon::parse($day->date)->format('M j') }}</span>
                 @endforeach
             </div>
-            <div class="chart-legend">
-                <span><span class="legend-dot" style="background:var(--accent-green)"></span>Delivered</span>
-                <span><span class="legend-dot" style="background:var(--accent-red)"></span>Failed</span>
-                <span><span class="legend-dot" style="background:var(--accent-yellow)"></span>Returned</span>
+
+            <div class="chart-legend" style="margin-top:14px;">
+                @foreach ($segments as [$key, $label, $color])
+                    <span><span class="legend-dot" style="background:{{ $color }}"></span>{{ $label }} · {{ $chartDays->sum($key) }}</span>
+                @endforeach
             </div>
         </div>
 

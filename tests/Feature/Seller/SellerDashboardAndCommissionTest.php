@@ -113,12 +113,17 @@ class SellerDashboardAndCommissionTest extends TestCase
         $this->assertEqualsWithDelta($admin->commission, $page->viewData('summary')['commission'], 0.001);
         $this->assertEqualsWithDelta($admin->payout, $page->viewData('summary')['net'], 0.001);
 
-        // CSV has the same lines.
-        $csv = $get(['export' => 'csv'])->streamedContent();
-        $this->assertStringContainsString('Rate (%)', $csv);
-        $this->assertSame(4, substr_count(trim($csv), "
-") + 1);              // header + 3 lines
-        $this->assertStringContainsString('Reversed', $csv);
+        // The PDF export has the same lines.
+        $data = null;
+        \Illuminate\Support\Facades\View::composer('seller.commissions.pdf', function ($view) use (&$data) { $data = $view->getData(); });
+        $pdf = $get(['export' => 'pdf'])->assertHeader('Content-Type', 'application/pdf');
+        $this->assertStringStartsWith('%PDF-', $pdf->getContent());
+        $this->assertStringContainsString('commission_', $pdf->headers->get('Content-Disposition'));
+        $this->assertStringContainsString('.pdf', $pdf->headers->get('Content-Disposition'));
+        $this->assertCount(3, $data['rows']);
+        $this->assertContains('reversed', $data['rows']->pluck('status')->all());
+        $this->assertSame($page->viewData('summary'), $data['summary']);
+        $this->assertStringStartsWith('%PDF-', $get(['export' => 'csv'])->getContent());   // old CSV links get the PDF
     }
 
     public function test_a_seller_never_sees_another_sellers_commission(): void

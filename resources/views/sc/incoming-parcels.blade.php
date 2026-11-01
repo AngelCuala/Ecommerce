@@ -24,8 +24,7 @@
                 @include('sc.partials.icon', ['name' => 'inbox', 'size' => 15, 'sw' => 2]) Find parcel
             </button>
         </form>
-        @include('sc.partials.camera-scan', ['form' => 'scan-form'])
-
+        
         {{-- This center's recent scans --}}
         @if ($recentScans->isNotEmpty())
             <details style="margin-top:12px;" data-scan-history>

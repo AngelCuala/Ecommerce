@@ -15,7 +15,7 @@ use Illuminate\Http\JsonResponse;
 
 /**
  * A logistics company's rider (the web's Hub Jobs, courier/rider/*): Online/Offline, job offers, pickups
- * (seller → hub), deliveries (hub → buyer) with photo + OTP + COD, failed attempts, returns, profile, pay and COD.
+ * (seller → hub), deliveries (hub → buyer) with a proof photo + COD, failed attempts, returns, profile, pay and COD.
  */
 class RiderController extends Controller
 {
@@ -108,7 +108,7 @@ class RiderController extends Controller
 
     public function start(int $delivery): JsonResponse { return $this->withDelivery($delivery, $this->web(WebRider::class, 'startDelivery', ['delivery' => $delivery])); }
 
-    /** Multipart: pod_photo, otp (6 digits), cod_collected (COD only). */
+    /** Multipart: pod_photo, cod_collected (COD only). An otp sent by older app builds is ignored. */
     public function deliver(int $delivery): JsonResponse { return $this->withDelivery($delivery, $this->web(WebRider::class, 'deliver', ['delivery' => $delivery])); }
 
     /** reason: one of failure_reasons. */

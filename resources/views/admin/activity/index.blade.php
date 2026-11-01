@@ -11,7 +11,7 @@
 
 <p class="mb-4 text-sm pl-muted">
     Every important action on ALVY — orders, cart, stock and product changes, vouchers, approvals, sign-ins and more —
-    by buyers, sellers, couriers, sorting centers and admins, with the visitor's IP address.
+    by buyers, sellers, couriers, sorting centers and admins.
     Passwords, one-time codes and form contents are never stored.
 </p>
 
@@ -24,7 +24,7 @@
 <form method="GET" class="pl-card pl-body mb-5 flex flex-wrap items-end gap-3">
     <div>
         <label class="pl-label">Search</label>
-        <input type="text" name="search" value="{{ request('search') }}" placeholder="Name, IP or details…" class="input w-52 !py-1.5 text-sm">
+        <input type="text" name="search" value="{{ request('search') }}" placeholder="Name or details…" class="input w-52 !py-1.5 text-sm">
     </div>
     <div>
         <label class="pl-label">Who</label>
@@ -78,7 +78,6 @@
                     <th>Action</th>
                     <th>Details</th>
                     <th>Result</th>
-                    <th>IP address</th>
                 </tr>
             </thead>
             <tbody>
@@ -110,18 +109,10 @@
                             @if ($log->reason)<span class="mt-0.5 block text-xs pl-muted">Reason: {{ $log->reason }}</span>@endif
                         </td>
                         <td><span class="pl-tag {{ $tag }}">{{ ucfirst($log->status) }}</span></td>
-                        <td class="whitespace-nowrap text-xs">
-                            @if ($log->ip_address)
-                                <a href="{{ route('admin.activity.index', ['search' => $log->ip_address]) }}" class="font-mono hover:underline pl-muted"
-                                   title="Show everything from this IP">{{ $log->ip_address }}</a>
-                            @else
-                                <span class="pl-muted">—</span>
-                            @endif
-                        </td>
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="6" class="!py-10 text-center text-sm pl-muted">No activity recorded yet.</td>
+                        <td colspan="5" class="!py-10 text-center text-sm pl-muted">No activity recorded yet.</td>
                     </tr>
                 @endforelse
             </tbody>

@@ -12,10 +12,6 @@
             {{ now()->format('l, F j, Y') }} · Sorting Center Management Portal
         </p>
     </div>
-    <form method="POST" action="{{ \App\Support\Portal::route('logout') }}">
-        @csrf
-        <button class="btn btn--ghost btn--sm">Sign out</button>
-    </form>
 </div>
 
 {{-- Live stat strip --}}
@@ -113,15 +109,6 @@ $features = [
         'desc'  => 'Send and receive messages with riders and sellers directly from the portal.',
         'links' => [
             ['label'=>'Open Chat', 'route'=>'admin.chat.index'],
-        ],
-        'badge' => null,
-    ],
-    [
-        'icon'  => '👤',
-        'title' => 'Account Management',
-        'desc'  => 'Update your profile details and change your password.',
-        'links' => [
-            ['label'=>'My Account', 'route'=>'admin.account.edit'],
         ],
         'badge' => null,
     ],

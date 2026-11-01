@@ -7,9 +7,10 @@
     <title>@yield('title', 'Dashboard') — LogiSort</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="{{ asset('css/sc.css') }}">
+    <link rel="stylesheet" href="{{ asset('css/sc.css') }}?v={{ filemtime(public_path('css/sc.css')) }}">
     <link rel="stylesheet" href="{{ asset('css/hover-effects.css') }}">
     @stack('styles')
+    <link rel="stylesheet" href="{{ asset('css/password-field.css') }}">
 </head>
 <body>
 <div class="shell">
@@ -17,18 +18,29 @@
     {{-- ── Sidebar ── --}}
     <aside class="sidebar">
 
-        <div class="sidebar-brand">
-            <div class="sidebar-brand-name">LogiSort</div>
-            <div class="sidebar-brand-sub">{{ auth()->user()->assigned_municipality ? auth()->user()->assigned_municipality.' Center' : 'Sorting Center' }}</div>
-        </div>
+        @php
+            $me = auth()->user();
+            $meInitials = collect(preg_split('/\s+/', trim($me->name ?? 'A')))->filter()->reject(fn ($w) => strtoupper($w) === 'ALVY')->take(2)
+                ->map(fn ($w) => mb_strtoupper(mb_substr($w, 0, 1)))->implode('') ?: mb_strtoupper(mb_substr($me->name ?? 'A', 0, 1));
+        @endphp
+        <a href="{{ route('sc.dashboard') }}" class="sb-brand" aria-label="LogiSort dashboard">
+            <img src="{{ asset('images/logo-mark.png') }}" alt="" class="sb-brand-logo">
+            <span class="sb-brand-text">
+                <span class="sb-brand-name">LogiSort <small>by ALVY</small></span>
+                <span class="sb-brand-sub">{{ $me->assigned_municipality ?: 'Sorting center' }}</span>
+            </span>
+        </a>
 
-        <div class="sidebar-user">
-            <div class="sidebar-avatar">{{ strtoupper(substr(auth()->user()->name ?? 'A', 0, 1)) }}</div>
-            <div>
-                <div class="sidebar-user-name">{{ auth()->user()->name ?? 'Admin' }}</div>
-                <div class="sidebar-user-role">{{ ucfirst(auth()->user()->role ?? 'admin') }}</div>
-            </div>
-        </div>
+        <a href="{{ route('sc.account') }}" class="sb-user {{ request()->routeIs('sc.account*') ? 'is-active' : '' }}" title="{{ $me->name }} · Account">
+            <span class="sb-user-avatar">{{ $meInitials }}<i aria-hidden="true"></i></span>
+            <span class="sb-user-text">
+                <span class="sb-user-name">{{ $me->name ?? 'Sorting center' }}</span>
+                <span class="sb-user-role">
+                    <span class="sb-pill">{{ ucfirst(str_replace('_', ' ', $me->role ?? 'sorting_center')) }}</span>
+                </span>
+            </span>
+            <svg class="sb-user-go" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m9 6 6 6-6 6"/></svg>
+        </a>
 
         <nav class="sidebar-nav">
             <a href="{{ route('sc.dashboard') }}" class="nav-link {{ request()->routeIs('sc.dashboard') ? 'active' : '' }}">
@@ -134,13 +146,6 @@
         <div class="sidebar-footer">
             <div class="sidebar-footer-name">{{ auth()->user()->name ?? 'System Admin' }}</div>
             <div class="sidebar-footer-email">{{ auth()->user()->email ?? '' }}</div>
-            <form method="POST" action="{{ route('sc.logout') }}">
-                @csrf
-                <button class="btn btn-ghost btn-sm" style="width:100%;justify-content:flex-start;gap:6px;">
-                    <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/></svg>
-                    Logout
-                </button>
-            </form>
         </div>
 
     </aside>
@@ -156,24 +161,15 @@
         </div>
 
         <div class="content">
-            @if(session('success'))
-                <div style="padding:10px 22px 0;"><div class="flash flash-success">{{ session('success') }}</div></div>
-            @endif
-            @if(session('info'))
-                <div style="padding:10px 22px 0;"><div class="flash" style="background:#EFF6FF;color:#1D4ED8;border:1px solid #BFDBFE;">{{ session('info') }}</div></div>
-            @endif
-            @if(session('error'))
-                <div style="padding:10px 22px 0;"><div class="flash flash-error">{{ session('error') }}</div></div>
-            @endif
-            @if($errors->any())
-                <div style="padding:10px 22px 0;"><div class="flash flash-error">{{ $errors->first() }}</div></div>
-            @endif
             @yield('content')
         </div>
     </div>
 
 </div>
+{{-- Messages after an action pop up (top right) instead of sitting above the page. --}}
+@include('sc.partials.toasts')
 @stack('scripts')
 <script src="{{ asset('js/prevent-back.js') }}"></script>
+<script src="{{ asset('js/logout-confirm.js') }}?v={{ filemtime(public_path('js/logout-confirm.js')) }}"></script>
 </body>
 </html>

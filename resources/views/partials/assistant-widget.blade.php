@@ -1,4 +1,4 @@
-{{-- ALVY Assistant: help chat for guests and buyers (App\Services\Assistant). AI answers once ANTHROPIC_API_KEY is set; Quick help until then. --}}
+{{-- ALVY Assistant: help chat for guests and buyers (App\Services\Assistant). AI answers once the AI key is set (GEMINI_API_KEY by default, see config/services.php); Quick help until then. --}}
 @php
     $assistantOn = ! auth()->check() || auth()->user()->role === 'buyer';
     $aiMode = $assistantOn && app(\App\Services\Assistant\ShopAssistant::class)->available();

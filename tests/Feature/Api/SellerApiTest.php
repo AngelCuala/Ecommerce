@@ -77,17 +77,10 @@ class SellerApiTest extends TestCase
         $this->api('GET', '/reports?from=2026-10-10&to=2026-10-01')->assertStatus(422)
             ->assertJsonValidationErrors(['to' => 'The end date must be on or after the start date.']);
 
-        // The export is the website's file (CSV / XLSX), with the rows on screen and a Total row.
+        // The export is the website's PDF (an older csv / xlsx request gets the PDF too).
         $range = 'from=' . now()->startOfMonth()->toDateString() . '&to=' . now()->toDateString();
-        $csv = $this->withToken($this->token)->get("/api/v1/seller/reports/export?format=csv&{$range}", ['Accept' => 'application/json']);
-        $csv->assertOk();
-        $this->assertStringStartsWith('text/csv', $csv->headers->get('Content-Type'));
-        $body = $csv->streamedContent();
-        $this->assertStringContainsString('Product,"Units sold","Gross sales","Net earnings"', $body);
-        $this->assertStringContainsString('"Rattan Fruit Basket",1,450', $body);
-        $this->assertStringContainsString('Total,1,450', $body);
-        $xlsx = $this->withToken($this->token)->get("/api/v1/seller/reports/export?format=xlsx&{$range}", ['Accept' => 'application/json']);
-        $xlsx->assertOk()->assertHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        $this->withToken($this->token)->get("/api/v1/seller/reports/export?format=csv&{$range}", ['Accept' => 'application/json'])
+            ->assertOk()->assertHeader('Content-Type', 'application/pdf');
         $pdf = $this->withToken($this->token)->get("/api/v1/seller/reports/export?format=pdf&{$range}", ['Accept' => 'application/json']);
         $pdf->assertOk()->assertHeader('Content-Type', 'application/pdf');
         $this->assertStringStartsWith('%PDF', $pdf->getContent());
@@ -252,7 +245,7 @@ class SellerApiTest extends TestCase
         $this->api('POST', '/store-settings', $ncr)->assertOk()->assertJsonPath('store.province', 'Metro Manila');
 
         $this->api('PUT', '/account/password', ['current_password' => 'wrong', 'password' => 'Bago@2026x', 'password_confirmation' => 'Bago@2026x'])
-            ->assertStatus(422)->assertJsonValidationErrors(['current_password' => 'The current password you entered is incorrect.']);
+            ->assertStatus(422)->assertJsonValidationErrors(['current_password' => 'Current password is incorrect.']);
 
         // Notifications work for sellers too.
         $before = $this->withToken($this->token)->getJson('/api/v1/notifications')->assertOk()->json('unread');

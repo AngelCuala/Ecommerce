@@ -1,6 +1,6 @@
-{{-- Sign Out button pinned to the bottom of a panel sidebar --}}
-<div class="border-t px-3 py-3" style="border-color:#ECE7E3;">
-    <form action="{{ \App\Support\Portal::route('logout') }}" method="POST" onsubmit="return confirm('Sign out of ALVY?')">
+{{-- Sign Out button pinned to the very bottom of the admin sidebar (admins have no account page) --}}
+<div class="shrink-0 border-t px-3 py-3" style="border-color:#ECE7E3;">
+    <form action="{{ \App\Support\Portal::route('logout') }}" method="POST">
         @csrf
         <button type="submit"
                 class="flex w-full items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-semibold text-white transition hover:opacity-90"

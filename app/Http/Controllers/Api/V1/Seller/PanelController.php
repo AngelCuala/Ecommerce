@@ -201,7 +201,7 @@ class PanelController extends Controller
     /** current_password, password, password_confirmation. */
     public function password(): JsonResponse
     {
-        return $this->actionJson($this->web(AccountController::class, 'updatePassword'), \App\Http\Controllers\Api\V1\PasswordCodeController::sentFlag());
+        return $this->actionJson($this->web(AccountController::class, 'changePassword'),\App\Http\Controllers\Api\V1\PasswordCodeController::sentFlag());
     }
 
     public function storeSettings(): JsonResponse

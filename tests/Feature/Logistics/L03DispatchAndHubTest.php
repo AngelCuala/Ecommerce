@@ -235,9 +235,8 @@ class L03DispatchAndHubTest extends TestCase
         $this->actingAs($this->rider1->user)->post(route('courier.rider.deliveries.start', $delivery->id))->assertSessionHas('success');
 
         $this->assertSame('Out for Delivery', $parcel->fresh()->statusLabel());
-        $otp = $delivery->fresh()->otp_code;
-        $this->assertMatchesRegularExpression('/^\d{6}$/', $otp);
-        $this->buyerPage($parcel)->assertSee('data-delivery-otp', false)->assertSee($otp);
+        $this->assertNull($delivery->fresh()->otp_code);   // no OTP: the proof-of-delivery photo completes it
+        $this->buyerPage($parcel)->assertSee('data-out-for-delivery', false);
     }
 
     /** LOG-HUB-004 */

@@ -100,6 +100,7 @@
       @media(prefers-reduced-motion:reduce){ *{ transition-duration:.001ms!important; } }
     </style>
     <link rel="stylesheet" href="{{ asset('css/hover-effects.css') }}">
+    <link rel="stylesheet" href="{{ asset('css/password-field.css') }}">
 </head>
 <body class="min-h-screen" style="background:#F5F5F4;">
 
@@ -141,7 +142,8 @@ $navSections = [
             ],
         ];
     @endphp
-    <aside class="hidden w-64 shrink-0 flex-col border-r lg:flex"
+    {{-- Pinned: stays in view while the page scrolls; only the menu scrolls if the window is short. --}}
+    <aside class="sticky top-0 hidden h-screen w-64 shrink-0 flex-col self-start overflow-hidden border-r lg:flex"
            style="background:#FFFFFF;border-color:#ECE7E3;color:#222;">
 
         {{-- Logo --}}
@@ -231,5 +233,6 @@ $navSections = [
 <script src="{{ asset('js/sidebar-drawer.js') }}"></script>
 <script src="{{ asset('js/Admin.js') }}"></script>
 <script src="{{ asset('js/prevent-back.js') }}"></script>
+<script src="{{ asset('js/logout-confirm.js') }}?v={{ filemtime(public_path('js/logout-confirm.js')) }}"></script>
 </body>
 </html>

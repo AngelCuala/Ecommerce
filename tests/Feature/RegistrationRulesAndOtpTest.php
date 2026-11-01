@@ -49,7 +49,6 @@ class RegistrationRulesAndOtpTest extends TestCase
             'house_number' => '12B',
             'street'       => 'Rizal Street',
             'terms'        => '1',
-            'valid_id'     => UploadedFile::fake()->create('id.jpg', 100, 'image/jpeg'),
         ], $overrides);
     }
 

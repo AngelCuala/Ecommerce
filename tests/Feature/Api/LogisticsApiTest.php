@@ -80,10 +80,10 @@ class LogisticsApiTest extends TestCase
             ->assertJsonPath('message', "{$parcel->tracking_number} is already Pickup Confirmed.");
 
         $this->api('POST', '/incoming/scan', ['tracking_number' => 'ALVY-NOPE'])->assertStatus(422)
-            ->assertJsonPath('message', 'Parcel ALVY-NOPE not found at your sorting center.');
+            ->assertJsonPath('message', \App\Support\WaybillScan::NOT_FOUND);
         // Scanning finds the parcel; receiving it is confirmed separately.
         $this->api('POST', '/incoming/scan', ['tracking_number' => $parcel->tracking_number])->assertOk()
-            ->assertJsonPath('message', "Found {$parcel->tracking_number} (Pickup Confirmed, to Quezon City). Check the parcel, then confirm receipt. Scanning alone records nothing.");
+            ->assertJsonPath('message', "Found {$parcel->tracking_number}. Opening the parcel…")->assertJsonPath('parcel_id', $parcel->id);
         $this->api('POST', "/incoming/{$parcel->id}/receive")->assertOk();
         $this->assertSame(1, $this->api('GET', '/incoming')->assertOk()->json('stats.for_sorting'));
 
@@ -241,9 +241,9 @@ class LogisticsApiTest extends TestCase
 
         $report = $this->api('GET', '/reports?from=2026-10-01&to=2026-10-03')->assertOk();
         $this->assertCount(3, $report->json('daily'));
-        $csv = $this->withToken($this->token)->get('/api/v1/logistics/reports/export?format=csv&tab=rider&from=2026-10-01&to=2026-10-03', ['Accept' => 'application/json']);
-        $csv->assertOk();
-        $this->assertStringContainsString('Rider,Area,Assigned,Delivered,Failed,Returned,"Success Rate %",Active', $csv->streamedContent());
+        // Reports export as PDF only, like the website (an older csv / xlsx request gets the PDF too).
+        $this->withToken($this->token)->get('/api/v1/logistics/reports/export?format=csv&tab=rider&from=2026-10-01&to=2026-10-03', ['Accept' => 'application/json'])
+            ->assertOk()->assertHeader('Content-Type', 'application/pdf');
         $pdf = $this->withToken($this->token)->get('/api/v1/logistics/reports/export?format=pdf&tab=rider&from=2026-10-01&to=2026-10-03', ['Accept' => 'application/json']);
         $pdf->assertOk()->assertHeader('Content-Type', 'application/pdf');
         $this->assertStringStartsWith('%PDF', $pdf->getContent());

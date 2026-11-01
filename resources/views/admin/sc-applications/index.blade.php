@@ -6,6 +6,20 @@
     </div>
 @endif
 
+{{-- Sorting center sign-up is unlisted (not on any login or sign-up page): share this link with new partners. --}}
+<div class="mb-5 flex flex-wrap items-center gap-3 rounded-xl border bg-white px-4 py-3" style="border-color:#E5E7EB;" data-sc-invite>
+    <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg" style="background:#FFF1EB;color:#fa4e1c;">
+        <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+    </span>
+    <div class="min-w-0 flex-1">
+        <p class="text-sm font-semibold" style="color:#1f2937;">Private registration link</p>
+        <p class="text-xs" style="color:#6b7280;">Sorting center sign-up isn't shown on any login or sign-up page. Send this link to partners you want to invite.</p>
+    </div>
+    <input type="text" readonly value="{{ route('sc.register') }}" class="w-72 max-w-full rounded-lg border px-3 py-1.5 font-mono text-xs" style="border-color:#E5E7EB;color:#374151;" data-sc-invite-url onclick="this.select()" aria-label="Sorting center registration link">
+    <button type="button" class="rounded-lg px-4 py-1.5 text-xs font-semibold text-white" style="background:#fa4e1c;"
+            onclick="var i=document.querySelector('[data-sc-invite-url]');navigator.clipboard.writeText(i.value).then(()=>{this.textContent='Copied!';setTimeout(()=>this.textContent='Copy link',1500)})">Copy link</button>
+</div>
+
 @php $current = request('status','all'); @endphp
 <div class="mb-6 flex gap-2 flex-wrap">
     @foreach(['all'=>'All','pending'=>'Pending','approved'=>'Approved','rejected'=>'Disapproved'] as $val=>$label)

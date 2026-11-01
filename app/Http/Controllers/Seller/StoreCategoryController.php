@@ -121,7 +121,8 @@ class StoreCategoryController extends Controller
                     $fail('A category named "' . $value . '" already exists in your store.');
                 }
             }],
-            'parent_id' => 'nullable|integer',
+            // A store category id, or "alvy:<id>" for an ALVY platform category.
+            'parent_id' => ['nullable', 'regex:/^(alvy:)?\d+$/'],
         ], [
             'name.required' => 'Please enter a category name.',
             'name.max'      => 'Category names can be up to ' . StoreCategory::MAX_NAME . ' characters.',

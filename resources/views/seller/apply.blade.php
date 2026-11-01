@@ -282,9 +282,9 @@
                     <input type="checkbox" id="terms" name="terms" value="1" class="mt-0.5 h-4 w-4 shrink-0" style="accent-color:#fa4e1c;" @checked(old('terms')) required>
                     <span class="text-sm pf-text">
                         I agree to ALVY's
-                        <a href="{{ route('policies.show', 'terms') }}" target="_blank" class="font-semibold underline" style="color:#fa4e1c;">Terms and Conditions</a>
+                        <a href="{{ route('policies.show', 'terms_of_service') }}" target="_blank" class="font-semibold underline" style="color:#fa4e1c;">Terms and Conditions</a>
                         and
-                        <a href="{{ route('policies.show', 'privacy') }}" target="_blank" class="font-semibold underline" style="color:#fa4e1c;">Privacy Policy</a>,
+                        <a href="{{ route('policies.show', 'privacy_policy') }}" target="_blank" class="font-semibold underline" style="color:#fa4e1c;">Privacy Policy</a>,
                         and confirm the information above is true.
                     </span>
                 </label>

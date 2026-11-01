@@ -220,7 +220,10 @@
                 <section class="form-card wiz-step" data-step="type" data-title="Account type">
                     <h2 class="card-title"><span class="card-num">1</span> What kind of account do you want?</h2>
                     <p class="-mt-2 mb-3 text-xs" style="color:#8a7a70;">Pick one to continue — the next steps depend on your choice.</p>
-                    <div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                    {{-- Sorting center sign-up is unlisted: the Logistics choice only shows when the page is
+                         opened through the private link (/sc/register → ?role=logistics) the ALVY admin shares. --}}
+                    @php $scInvite = old('role', request('role')) === 'logistics'; @endphp
+                    <div class="grid grid-cols-2 gap-2 {{ $scInvite ? 'sm:grid-cols-4' : 'sm:grid-cols-3' }}">
                         <div class="role-chip p-3 text-center" data-role="buyer">
                             <svg class="mx-auto mb-1 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
@@ -242,6 +245,7 @@
                             <span class="block text-xs font-semibold">Courier</span>
                             <span class="block text-[10px] opacity-75">Deliver parcels</span>
                         </div>
+                        @if ($scInvite)
                         <div class="role-chip p-3 text-center" data-role="logistics">
                             <svg class="mx-auto mb-1 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
@@ -249,6 +253,7 @@
                             <span class="block text-xs font-semibold">Logistics</span>
                             <span class="block text-[10px] opacity-75">Run a sorting hub</span>
                         </div>
+                        @endif
                     </div>
                     <input type="hidden" name="role" id="roleInput" value="">
                     <p class="field-error" data-error-for="roleInput"></p>
@@ -403,22 +408,6 @@
                             </button>
                         </div>
                         <p class="field-error" data-error-for="password_confirmation" id="passwordMatchMsg">@error('password_confirmation'){{ $message }}@enderror</p>
-                    </div>
-
-                    {{-- Upload ID (buyer) --}}
-                    <div class="mt-4" id="buyerIdSection">
-                        <label class="fld-label">Valid ID*</label>
-                        <div class="file-upload-box" onclick="document.getElementById('buyerIdUpload').click()">
-                            <span class="upload-icon">
-                                <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
-                            </span>
-                            <div class="min-w-0">
-                                <p class="truncate text-sm font-semibold" style="color:#3a2f29;" id="buyerIdLabel">Click to upload a valid ID</p>
-                                <p class="text-xs" style="color:#9a8b81;">JPG, PNG or PDF · max 5 MB</p>
-                            </div>
-                        </div>
-                        <input type="file" id="buyerIdUpload" name="valid_id" required accept="image/jpeg,image/png,.pdf" class="hidden">
-                        <img id="buyerIdPreview" class="file-preview hidden">
                     </div>
                 </section>
 
@@ -656,9 +645,9 @@
                     <input type="checkbox" id="agreeTerms" name="terms" value="1" class="mt-0.5 h-4 w-4 flex-shrink-0 rounded" style="accent-color:#fa4e1c;" @checked(old('terms')) required>
                     <span class="text-sm" style="color:#5a4d45;">
                         I agree to ALVY's
-                        <a href="{{ route('policies.show', 'terms') }}" target="_blank" class="font-semibold underline" style="color:#fa4e1c;" onclick="event.stopPropagation()">Terms and Conditions</a>
+                        <a href="{{ route('policies.show', 'terms_of_service') }}" target="_blank" data-policy-popup="terms_of_service" class="font-semibold underline" style="color:#fa4e1c;">Terms and Conditions</a>
                         and
-                        <a href="{{ route('policies.show', 'privacy') }}" target="_blank" class="font-semibold underline" style="color:#fa4e1c;" onclick="event.stopPropagation()">Privacy Policy</a>.
+                        <a href="{{ route('policies.show', 'privacy_policy') }}" target="_blank" data-policy-popup="privacy_policy" class="font-semibold underline" style="color:#fa4e1c;">Privacy Policy</a>.
                     </span>
                 </label>
                 @error('terms')
@@ -692,6 +681,9 @@
                 </div>
             </div>
         </form>
+
+{{-- Terms and Privacy Policy open in a pop-up; "I agree" ticks the checkbox --}}
+@include('partials.policy-popup', ['keys' => ['terms_of_service', 'privacy_policy'], 'agree' => 'agreeTerms'])
 
 <x-slot:scripts>
 <script>
@@ -797,7 +789,6 @@ document.addEventListener('DOMContentLoaded', function() {
     ['government_id', 'business_permit'].forEach(function (f) {
         setupFilePreview('logistics_' + f, 'logistics_' + f + '_preview', 'logistics_' + f + '_label');
     });
-    setupFilePreview('buyerIdUpload', 'buyerIdPreview', 'buyerIdLabel');
 
     // Age auto-calculation from birthday
     (function() {
@@ -816,19 +807,6 @@ document.addEventListener('DOMContentLoaded', function() {
         bday.addEventListener('change', calcAge);
         calcAge();
     })();
-
-    // Show/hide buyer ID upload when role changes
-    function syncBuyerIdVisibility(role) {
-        const sec = document.getElementById('buyerIdSection');
-        if (!sec) return;
-        sec.style.display = (role === 'buyer') ? '' : 'none';
-    }
-    syncBuyerIdVisibility(roleInput.value);
-    roleChips.forEach(chip => {
-        chip.addEventListener('click', function() {
-            syncBuyerIdVisibility(this.dataset.role);
-        });
-    });
 
     // Sellers: corporations upload an SEC certificate, everyone else a DTI certificate.
     const sellerType = document.getElementById('sellerType');

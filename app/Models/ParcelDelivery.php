@@ -16,10 +16,6 @@ class ParcelDelivery extends Model
     /** Reasons a rider can give for a failed attempt; "Refused" returns the parcel at once. */
     public const FAILURE_REASONS = ['Buyer not home', 'Wrong address', 'Refused'];
 
-    /** Wrong OTP entries before OTP entry is locked, and for how long (A32). */
-    public const OTP_MAX_TRIES   = 5;
-    public const OTP_LOCK_MINUTES = 15;
-
     public const STATUS_LABELS = [
         'assigned'         => 'Assigned',
         'out_for_delivery' => 'Out for Delivery',
@@ -50,11 +46,6 @@ class ParcelDelivery extends Model
     public function statusLabel(): string
     {
         return self::STATUS_LABELS[$this->status] ?? ucwords(str_replace('_', ' ', $this->status));
-    }
-
-    public function otpLocked(): bool
-    {
-        return $this->otp_locked_until && $this->otp_locked_until->isFuture();
     }
 
     public function parcel(): BelongsTo     { return $this->belongsTo(Parcel::class, 'parcel_id'); }

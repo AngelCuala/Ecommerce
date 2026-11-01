@@ -6,7 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
 use Illuminate\Http\Request;
 
-/** Everything important anyone did on ALVY (buyers, sellers, couriers, sorting centers, admins), with IP. */
+/** Everything important anyone did on ALVY (buyers, sellers, couriers, sorting centers, admins). */
 class ActivityLogController extends Controller
 {
     public const ROLES = [
@@ -36,7 +36,6 @@ class ActivityLogController extends Controller
         if ($request->filled('search')) {
             $term = '%' . $request->search . '%';
             $query->where(fn ($q) => $q->where('admin_name', 'like', $term)
-                ->orWhere('ip_address', 'like', $term)
                 ->orWhere('description', 'like', $term)
                 ->orWhere('action_label', 'like', $term));
         }

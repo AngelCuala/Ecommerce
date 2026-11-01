@@ -88,18 +88,18 @@ class IdUploadCheckTest extends TestCase
             ->assertSessionHasErrors(['government_id' => 'The government-issued ID must be a JPG, PNG or PDF file.']);
     }
 
-    public function test_buyer_id_on_create_account_is_checked_too(): void
+    public function test_buyers_create_an_account_without_uploading_an_id(): void
     {
-        $this->checkerSays(IdCheckResult::REJECTED, 'a screenshot');
-
         $this->from('/register')->post('/register', [
             'role' => 'buyer', 'first_name' => 'Juan', 'last_name' => 'Cruz', 'email' => 'juan@gmail.com',
-            'password' => 'secret123', 'sex' => 'male', 'contact_no' => '09171234567', 'birthday' => '2000-01-15',
-            'region' => 'CALABARZON', 'province' => 'Laguna', 'municipality' => 'Magdalena', 'barangay' => 'Poblacion',
+            'password' => 'Secret@123', 'password_confirmation' => 'Secret@123',
+            'sex' => 'male', 'contact_no' => '09171234567', 'birthday' => '2000-01-15',
+            'region' => 'CALABARZON', 'province' => 'Laguna', 'province_code' => '043400000',
+            'municipality' => 'Magdalena', 'municipality_code' => '043415000', 'barangay' => 'Poblacion',
             'house_number' => '1', 'street' => 'Rizal', 'terms' => '1',
-            'valid_id' => UploadedFile::fake()->create('id.png', 100, 'image/png'),
-        ])->assertSessionHasErrors('valid_id');
-        $this->assertDatabaseCount('users', 0);
+        ])->assertRedirect(route('otp.show'))->assertSessionHasNoErrors();
+
+        $this->assertNull(User::where('email', 'juan@gmail.com')->value('valid_id_path'));
     }
 
     public function test_checker_without_api_key_reports_unchecked_without_calling_out(): void

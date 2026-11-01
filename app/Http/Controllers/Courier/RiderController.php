@@ -23,7 +23,7 @@ use Illuminate\Support\Str;
 /**
  * The rider side of the logistics company's work, brought over from the mobile app:
  * profile and vehicle, Online/Offline, job offers, pickups (seller → hub),
- * deliveries (hub → buyer) with photo + OTP + COD, failed attempts, history, pay and COD remittance.
+ * deliveries (hub → buyer) with a proof-of-delivery photo + COD, failed attempts, history, pay and COD remittance.
  */
 class RiderController extends Controller
 {
@@ -247,7 +247,7 @@ class RiderController extends Controller
         return view('courier.rider.delivery', compact('rider', 'delivery'));
     }
 
-    /** Assigned → Out for Delivery. The buyer gets a 6-digit OTP to give the rider. */
+    /** Assigned → Out for Delivery. The buyer is told the rider is on the way. */
     public function startDelivery(int $delivery)
     {
         $rider = $this->rider();
@@ -258,20 +258,19 @@ class RiderController extends Controller
                 return back()->with('error', 'This delivery is already ' . $delivery->statusLabel() . '.');
             }
 
-            $delivery->update(['status' => 'out_for_delivery', 'picked_up_at' => now(),
-                'otp_code' => str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT), 'otp_attempts' => 0, 'otp_locked_until' => null]);
+            $delivery->update(['status' => 'out_for_delivery', 'picked_up_at' => now()]);
             $parcel = $delivery->parcel;
             $parcel->update(['status' => 'in_transit']);
             $svc = app(ParcelService::class);
             $svc->syncOrder($parcel);
             $svc->notifyBuyer($parcel, 'Out for delivery',
-                "{$svc->orderRef($parcel)} is out for delivery with {$rider->full_name}. Give the rider the 6-digit OTP shown on your order page.");
+                "{$svc->orderRef($parcel)} is out for delivery with {$rider->full_name}. Please be ready to receive it.");
 
-            return back()->with('success', 'Out for delivery. Ask the buyer for the OTP on their order page.');
+            return back()->with('success', 'Out for delivery. Take a proof-of-delivery photo when you hand the parcel over.');
         });
     }
 
-    /** Out for Delivery → Delivered: photo, the buyer's OTP and the exact COD amount (A24, A32). */
+    /** Out for Delivery → Delivered: the proof-of-delivery photo and, for COD, the exact amount collected (A24). */
     public function deliver(Request $request, int $delivery)
     {
         $rider    = $this->rider();
@@ -284,7 +283,6 @@ class RiderController extends Controller
         $cod = (float) $delivery->cod_amount > 0;
         $request->validate([
             'pod_photo'     => 'required|file|image|mimes:jpg,jpeg,png|mimetypes:image/jpeg,image/png|max:5120',
-            'otp'           => ['required', 'regex:/^\d{6}$/'],
             'cod_collected' => $cod ? 'required|numeric|min:0' : 'nullable',
         ], [
             'pod_photo.required'  => 'Take a proof-of-delivery photo.',
@@ -292,33 +290,16 @@ class RiderController extends Controller
             'pod_photo.mimes'     => 'The proof of delivery must be a JPG or PNG photo.',
             'pod_photo.mimetypes' => 'The proof of delivery must be a JPG or PNG photo.',
             'pod_photo.max'       => 'The photo must be 5 MB or smaller.',
-            'otp.required'        => 'Enter the 6-digit OTP from the buyer.',
-            'otp.regex'           => 'The OTP has exactly 6 digits.',
             'cod_collected.required' => 'Enter the COD amount you collected.',
         ]);
 
-        // OTP: 5 wrong tries lock entry for 15 minutes (even the right OTP is refused meanwhile).
-        if ($delivery->otpLocked()) {
-            return back()->withErrors(['otp' => 'OTP entry is locked after ' . ParcelDelivery::OTP_MAX_TRIES . ' wrong tries. Try again after ' . $delivery->otp_locked_until->format('g:i A') . '.']);
-        }
-        if ($delivery->otp_locked_until && $delivery->otp_locked_until->isPast()) {
-            $delivery->update(['otp_attempts' => 0, 'otp_locked_until' => null]);
-        }
-        if (! hash_equals((string) $delivery->otp_code, (string) $request->otp)) {
-            $tries = $delivery->otp_attempts + 1;
-            $locked = $tries >= ParcelDelivery::OTP_MAX_TRIES;
-            $delivery->update(['otp_attempts' => $tries, 'otp_locked_until' => $locked ? now()->addMinutes(ParcelDelivery::OTP_LOCK_MINUTES) : null]);
-            return back()->withErrors(['otp' => $locked
-                ? 'Wrong OTP. OTP entry is now locked for ' . ParcelDelivery::OTP_LOCK_MINUTES . ' minutes.'
-                : 'Wrong OTP. ' . (ParcelDelivery::OTP_MAX_TRIES - $tries) . ' ' . Str::plural('try', ParcelDelivery::OTP_MAX_TRIES - $tries) . ' left.']);
-        }
         if ($cod && round((float) $request->cod_collected, 2) !== round((float) $delivery->cod_amount, 2)) {
             return back()->withInput()->withErrors(['cod_collected' => 'The COD amount doesn\'t match. Collect exactly ₱' . number_format($delivery->cod_amount, 2) . '.']);
         }
 
         DB::transaction(function () use ($request, $delivery, $cod, $rider) {
             $delivery->update([
-                'status' => 'delivered', 'delivered_at' => now(), 'otp_attempts' => 0,
+                'status' => 'delivered', 'delivered_at' => now(),
                 'pod_path' => $request->file('pod_photo')->store('proof-of-delivery', 'public'),
                 'cod_collected' => $cod ? round((float) $delivery->cod_amount, 2) : 0,
             ]);

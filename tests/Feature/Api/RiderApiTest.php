@@ -90,23 +90,21 @@ class RiderApiTest extends TestCase
             ->assertJsonPath('message', 'You are Offline. You won\'t get new offers, but your 1 active job stay with you.');
     }
 
-    public function test_delivery_with_photo_otp_and_cod_then_remit(): void
+    public function test_delivery_with_photo_and_cod_then_remit(): void
     {
         $d = $this->deliveryFor($this->rider1);
         $detail = $this->api('GET', "/rider/deliveries/{$d->id}")->assertOk()->json('delivery');
         $this->assertSame([true, false, 490.0, 1, 3], [$detail['actions']['start'], $detail['actions']['deliver'], (float) $detail['cod_amount'], $detail['attempt'], $detail['max_attempts']]);
 
         $this->api('POST', "/rider/deliveries/{$d->id}/start")->assertOk()
-            ->assertJsonPath('message', 'Out for delivery. Ask the buyer for the OTP on their order page.')
+            ->assertJsonPath('message', 'Out for delivery. Take a proof-of-delivery photo when you hand the parcel over.')
             ->assertJsonPath('delivery.actions.deliver', true);
-        $otp = $d->fresh()->otp_code;
 
         $form = fn (array $over = []) => $this->withToken($this->token)->post("/api/v1/rider/deliveries/{$d->id}/deliver", $over + [
-            'pod_photo' => UploadedFile::fake()->image('pod.jpg'), 'otp' => $otp, 'cod_collected' => '490',
+            'pod_photo' => UploadedFile::fake()->image('pod.jpg'), 'cod_collected' => '490',
         ], ['Accept' => 'application/json']);
 
         $form(['pod_photo' => null])->assertStatus(422)->assertJsonValidationErrors(['pod_photo' => 'Take a proof-of-delivery photo.']);
-        $form(['otp' => $otp === '000000' ? '111111' : '000000'])->assertStatus(422)->assertJsonValidationErrors(['otp' => 'Wrong OTP. 4 tries left.']);
         $form(['cod_collected' => '450'])->assertStatus(422)
             ->assertJsonValidationErrors(['cod_collected' => 'The COD amount doesn\'t match. Collect exactly ₱490.00.']);
         $form()->assertOk()->assertJsonPath('message', 'Delivered. You earned ₱50.00 and collected ₱490.00 COD to remit.')

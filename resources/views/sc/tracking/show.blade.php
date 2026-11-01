@@ -21,13 +21,30 @@
     {{-- Package --}}
     <div class="card">
         <div class="card-header"><h2>Package</h2></div>
+        {{-- Waybill: the same barcode as the printed label (scannable from the screen too) --}}
+        <style>.wb-code svg { display:block; width:100%; height:46px; }</style>
+        <div data-waybill style="display:flex;flex-wrap:wrap;align-items:center;gap:14px 18px;padding:14px 16px;border-bottom:1px solid var(--border);background:#FAFBFC;">
+            <div style="flex:1 1 260px;min-width:0;">
+                <div style="font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted);">Waybill</div>
+                <div class="wb-code" style="margin-top:6px;max-width:340px;background:#fff;border:1px solid var(--border);border-radius:8px;padding:8px 10px 6px;">
+                    {!! \App\Support\Barcode::svg($parcel->waybill_number ?: $parcel->tracking_number, 46, 2) !!}
+                    <div style="margin-top:4px;text-align:center;font-family:'SF Mono',Consolas,monospace;font-size:14px;font-weight:700;letter-spacing:.08em;color:var(--text);" data-waybill-number>{{ $parcel->waybill_number ?: $parcel->tracking_number }}</div>
+                </div>
+            </div>
+            @if ((int) $parcel->current_sorting_center_id === (int) $me)
+                <a href="{{ route('sc.parcels.waybill', $parcel) }}" target="_blank" rel="noopener" class="btn btn-blue" style="gap:6px;" data-print-waybill>
+                    <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+                    Print waybill
+                </a>
+            @endif
+        </div>
         <table class="data-table">
             <tr><td class="text-muted" style="width:38%;">Seller (pickup)</td><td>{{ $parcel->seller?->storeName() ?? $parcel->seller?->name }} — {{ $parcel->pickup_address }}</td></tr>
             <tr><td class="text-muted">Deliver to</td><td>{{ $parcel->receiver_name }} — {{ $parcel->destination_municipality }}, {{ $parcel->destination_province }}</td></tr>
             <tr><td class="text-muted">Items</td><td>{{ $parcel->order?->items->map(fn ($i) => ($i->product->title ?? 'Item') . ' ×' . $i->quantity)->implode(', ') }}</td></tr>
             <tr><td class="text-muted">Current location</td><td>{{ $parcel->status === 'in_transfer' ? 'In transit between sorting centers' : (\App\Support\SortingCenters::nameOf($parcel->currentSortingCenter) ?? '—') }}</td></tr>
             <tr><td class="text-muted">Next destination</td><td>{{ $next['label'] ?? ($transfer ? 'Transfer to ' . \App\Support\SortingCenters::nameOf($transfer->toSortingCenter) : '—') }}</td></tr>
-            @if ($parcel->received_at)<tr><td class="text-muted">Received</td><td>{{ $parcel->received_at->format('M j, Y g:i A') }} by {{ $parcel->receivedBy?->name ?? '—' }}</td></tr>@endif
+            @if ($parcel->received_at)<tr><td class="text-muted">Received</td><td>{{ $parcel->received_at->copy()->tz(config('app.business_timezone'))->format('M j, Y g:i A') }} by {{ $parcel->receivedBy?->name ?? '—' }}</td></tr>@endif
         </table>
     </div>
 
@@ -174,7 +191,7 @@
                 <p class="text-muted">None.</p>
             @endforelse
             <form method="POST" action="{{ route('sc.tracking.exception', $parcel) }}" style="display:grid;gap:8px;border-top:1px solid var(--border);padding-top:12px;"
-                  onsubmit="return confirm('Flag this shipment for review?')">
+                  data-confirm-title="Flag this shipment?" data-confirm="It will be marked as an exception for review, and an administrator will be notified." data-confirm-ok="Flag exception">
                 @csrf
                 <label style="{{ $label }}">Flag shipment exception</label>
                 <select name="type" class="form-input" required>

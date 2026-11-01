@@ -20,11 +20,22 @@ return [
 
     // Checks that uploaded ID photos really are government-issued IDs.
     // Without an API key the check is skipped and uploads are flagged for admin review.
-    // ALVY Assistant: the AI help chat on the shop pages (App\Services\Assistant). Hidden until ANTHROPIC_API_KEY is set.
+    // ALVY Assistant: the AI help chat on the shop pages (App\Services\Assistant).
+    // Runs on Google Gemini by default (GEMINI_API_KEY from https://aistudio.google.com/apikey); set
+    // ASSISTANT_PROVIDER=claude to use Anthropic instead. Until the provider's key is set, the chat
+    // answers with Quick help only. `php artisan assistant:check` confirms the model exists for the key.
     'assistant' => [
         'enabled'     => env('ASSISTANT_ENABLED', true),
+        'provider'    => env('ASSISTANT_PROVIDER', 'gemini'),
+        'gemini_key'  => env('GEMINI_API_KEY'),
         'api_key'     => env('ANTHROPIC_API_KEY'),
-        'model'       => env('ASSISTANT_MODEL', 'claude-opus-5-5'),
+        'model'       => env('ASSISTANT_MODEL', env('ASSISTANT_PROVIDER', 'gemini') === 'claude' ? 'claude-opus-5-5' : 'gemini-3.8-flash'),
+        // When the main Gemini model is overloaded (503/429) after a couple of short retries, these answer instead
+        // (comma-separated, tried in order). Empty to only ever use ASSISTANT_MODEL.
+        'fallback_models' => env('ASSISTANT_FALLBACK_MODELS', 'gemini-3.6-flash,gemini-3.5-flash'),
+        'retry_waits_ms'  => [700, 1500],
+        'attempt_timeout' => (int) env('ASSISTANT_ATTEMPT_TIMEOUT', 15),   // seconds one model gets to start answering
+        'thinking'    => env('ASSISTANT_THINKING', 'low'),   // Gemini thinking level; empty to leave it to the model
         'timeout'     => (float) env('ASSISTANT_TIMEOUT', 45),
         'daily_limit' => (int) env('ASSISTANT_DAILY_LIMIT', 60),   // questions per visitor per day
     ],

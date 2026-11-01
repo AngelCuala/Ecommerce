@@ -28,11 +28,7 @@
         <label class="cx-label" for="pod_photo">Proof-of-delivery photo (JPG or PNG, up to 5 MB)</label>
         <input type="file" id="pod_photo" name="pod_photo" accept="image/jpeg,image/png" capture="environment" class="input">
         @error('pod_photo')<p class="cx-alert cx-alert-error">{{ $message }}</p>@enderror
-
-        <label class="cx-label cx-field-mt" for="otp">OTP from the buyer</label>
-        <input id="otp" name="otp" inputmode="numeric" maxlength="6" class="input" autocomplete="one-time-code" @disabled($delivery->otpLocked())>
-        @error('otp')<p class="cx-alert cx-alert-error">{{ $message }}</p>@enderror
-        @if($delivery->otpLocked())<p class="cx-alert cx-alert-error">OTP entry is locked until {{ $delivery->otp_locked_until->format('g:i A') }}.</p>@endif
+        <p style="font-size:12px;color:#8a7f78;margin-top:6px;">Take the photo with the parcel handed to the buyer (or at the door). It is the proof that completes the delivery.</p>
 
         @if($cod)
             <label class="cx-label cx-field-mt" for="cod_collected">COD collected (₱)</label>

@@ -19,7 +19,7 @@ class ReportController extends Controller
         $request->validate([
             'from' => 'nullable|date_format:Y-m-d',
             'to'   => 'nullable|date_format:Y-m-d|after_or_equal:from',
-            'export' => 'nullable|in:csv,xlsx,pdf',
+            'export' => 'nullable|in:pdf,csv,xlsx',   // always a PDF (older csv / xlsx links get the PDF too)
         ], [
             'to.after_or_equal' => 'The end date must be on or after the start date.',
         ]);
@@ -59,14 +59,17 @@ class ReportController extends Controller
 
         $commissionRate = config('marketplace.commission_rate', 10);
 
-        // A36: the export has exactly the rows and totals on screen, as CSV, XLSX or PDF.
+        // A36: the export has exactly the rows and totals on screen, as a PDF.
         if ($request->filled('export')) {
-            $rows = $byProduct->map(fn ($p) => [$p['title'], $p['qty'], round($p['revenue'], 2), round($p['earnings'], 2)])->all();
-            $rows[] = ['Total', $byProduct->sum('qty'), round($totalRevenue, 2), round($totalEarnings, 2)];
-            $shop = auth()->user()->sellerApplication?->shop_name ?? auth()->user()->name;
-            return \App\Support\TableExport::download("sales-report_{$from}_to_{$to}", ['Product', 'Units sold', 'Gross sales', 'Net earnings'], $rows, $request->export,
-                'Sales Report — ' . $shop, \Carbon\Carbon::parse($from)->format('M d, Y') . ' – ' . \Carbon\Carbon::parse($to)->format('M d, Y')
-                    . ' · ' . $totalOrders . ' order(s) · commission ₱' . number_format($totalCommission, 2));
+            return \Barryvdh\DomPDF\Facade\Pdf::loadView('seller.reports.pdf', [
+                'from' => $from, 'to' => $to, 'store' => auth()->user()->storeName(),
+                'byProduct' => $byProduct, 'commissionRate' => $commissionRate,
+                'totals' => ['orders' => $totalOrders, 'units' => (int) $byProduct->sum('qty'), 'revenue' => $totalRevenue,
+                             'sellerFunded' => $totalSellerFunded, 'commission' => $totalCommission, 'earnings' => $totalEarnings],
+                'generatedAt' => now(),
+            ])->setPaper('a4', 'portrait')
+                ->setOption('isFontSubsettingEnabled', true)   // embed only the glyphs used
+                ->download("sales-report_{$from}_to_{$to}.pdf");
         }
 
         return view('seller.reports.index', compact(

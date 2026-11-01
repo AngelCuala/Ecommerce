@@ -49,7 +49,7 @@ class ReportController extends Controller
 
         // Only the numbers for the report being shown are queried.
         $totalRevenue = $totalOrders = $totalItems = $byStatus = $topProducts = $dailySales = null;
-        $totalCommission = $totalPayout = $bySellerCommission = $dailyCommission = null;
+        $totalCommission = $totalPayout = $totalGross = $bySellerCommission = $dailyCommission = null;
         $commissionRate  = config('marketplace.commission_rate', 10);
 
         // Every seller with their sales for the period (the "Sellers" box, with "View sales" links).
@@ -87,6 +87,7 @@ class ReportController extends Controller
             // ── Commission Report ────────────────────────────────
             $totalCommission = $items()->sum('order_items.commission_amount');
             $totalPayout     = $items()->sum('order_items.seller_earning');
+            $totalGross      = (float) $items()->selectRaw('SUM(order_items.price * order_items.quantity) as g')->value('g');
 
             $bySellerCommission = $allSellers   // includes "ALVY (no seller)"
                 ->filter(fn ($row) => $row->units > 0)
@@ -115,7 +116,7 @@ class ReportController extends Controller
             'totalRevenue', 'totalOrders', 'totalItems',
             'byStatus', 'topProducts', 'dailySales',
             // Commission
-            'totalCommission', 'totalPayout', 'commissionRate',
+            'totalCommission', 'totalPayout', 'totalGross', 'commissionRate',
             'bySellerCommission', 'dailyCommission',
             'sellerBox',
         );

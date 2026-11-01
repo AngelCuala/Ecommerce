@@ -48,19 +48,11 @@
         });
     });
     
-    // Prevent caching of sensitive pages
-    if (window.location.pathname.includes('/admin') || 
-        window.location.pathname.includes('/seller') ||
-        window.location.pathname.includes('/courier') ||
-        window.location.pathname.includes('/logistics') ||
-        window.location.pathname.includes('/sc')) {
-        
-        // Override browser cache for dashboard pages
-        window.addEventListener('pageshow', function(event) {
-            if (event.persisted) {
-                // Page was loaded from cache, reload it
-                window.location.reload();
-            }
-        });
-    }
+    // A page brought back from the browser's memory by Back/Forward is asked for again, on every page
+    // (the shop's too): after signing out, the server then shows the signed-out page, not the old account.
+    window.addEventListener('pageshow', function(event) {
+        if (event.persisted) {
+            window.location.reload();
+        }
+    });
 })();

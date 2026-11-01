@@ -123,7 +123,7 @@ class RiderJson
             'out_at'           => $d->picked_up_at?->toIso8601String(),
             'delivered_at'     => $d->delivered_at?->toIso8601String(),
             'failure_reason'   => $d->failure_reason,
-            'otp_locked_until' => $d->otpLocked() ? $d->otp_locked_until->toIso8601String() : null,
+            'otp_locked_until' => null,   // delivery is confirmed by the proof photo only (no buyer OTP); kept for older app builds
             'pod_url'          => $d->status === 'delivered' ? ApiJson::file($d->pod_path) : null,
             'items'            => $p?->order ? $p->order->items->map(fn ($i) => ['title' => $i->product->title ?? 'Item',
                 'variation' => $i->variation_name, 'quantity' => (int) $i->quantity])->values() : [],
