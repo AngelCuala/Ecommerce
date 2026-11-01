@@ -15,7 +15,7 @@ use Tests\TestCase;
 
 /**
  * The whole rider flow through the real pages, for the workbook's same-city order
- * (Seller 1, Quezon City → Buyer 1, ADDR-1 Quezon City, COD ₱500.00):
+ * (Seller 1, Quezon City → Buyer 1, ADDR-1 Quezon City, COD ₱490.00):
  * Ready for Pickup → Assigned → Picked Up → At Hub → Out for Delivery → Delivered (A10).
  */
 class R08EndToEndFlowTest extends TestCase
@@ -35,7 +35,7 @@ class R08EndToEndFlowTest extends TestCase
     {
         $this->online($this->rider1);
         $order = $this->placeOrder($this->buyer1, [$this->cart($this->buyer1, $this->p02)])->first();
-        $this->assertEquals(500, $order->total_price);
+        $this->assertEquals(490, $order->total_price);
 
         // Seller: accept, pack, Ready for Pickup.
         $this->actingAs($this->seller1)->post(route('seller.orders.accept', $order->id));
@@ -56,12 +56,14 @@ class R08EndToEndFlowTest extends TestCase
         $this->assertSame(Order::SHIPPED, $order->fresh()->status);
 
         // At Hub, sorted to Brgy. Central, then the delivery job goes to Rider 1.
-        $this->actingAs($this->logistics1)->post(route('sc.parcels.scan'), ['tracking_number' => $parcel->tracking_number])->assertSessionHas('success');
+        // Scanning only finds the parcel; the hub then checks it and confirms receipt.
+        $this->actingAs($this->logistics1)->post(route('sc.parcels.scan'), ['tracking_number' => $parcel->tracking_number])->assertRedirect(route('sc.tracking.show', $parcel));
+        $this->actingAs($this->logistics1)->post(route('sc.tracking.receive', $parcel), ['confirm_received' => '1', 'condition' => 'good'])->assertSessionHas('success');
         $this->actingAs($this->logistics1)->post(route('sc.parcels.sort', $parcel), ['area_id' => $this->central->id])->assertSessionHas('success');
         $this->online($this->rider1);
         $this->actingAs($this->logistics1)->post(route('sc.dispatch.auto', $parcel))->assertSessionHas('success');
         $offer = $parcel->jobOffers()->where('kind', 'delivery')->sole();
-        $this->actingAs($this->rider1->user)->get(route('courier.rider'))->assertSee('COD: ₱500.00', false)->assertSee('Pay: ₱50.00 delivery', false);
+        $this->actingAs($this->rider1->user)->get(route('courier.rider'))->assertSee('COD: ₱490.00', false)->assertSee('Pay: ₱50.00 delivery', false);
         $this->actingAs($this->rider1->user)->post(route('courier.rider.offers.accept', $offer->id))->assertSessionHas('success');
 
         // Out for Delivery → Delivered with photo, the buyer's OTP and the COD.
@@ -70,13 +72,13 @@ class R08EndToEndFlowTest extends TestCase
         $otp = $delivery->fresh()->otp_code;
         $this->actingAs($this->buyer1)->get(route('profile.orders.show', $order->id))->assertSee($otp);
         $this->actingAs($this->rider1->user)->post(route('courier.rider.deliveries.deliver', $delivery->id), [
-            'pod_photo' => UploadedFile::fake()->image('pod_photo.jpg'), 'otp' => $otp, 'cod_collected' => '500.00',
+            'pod_photo' => UploadedFile::fake()->image('pod_photo.jpg'), 'otp' => $otp, 'cod_collected' => '490.00',
         ])->assertSessionHas('success');
 
         $this->assertSame(Order::DELIVERED, $order->fresh()->status);
         $wallet = app(RiderWallet::class);
         $this->assertEquals(80, $wallet->pay($this->rider1, now()->startOfDay(), now()->endOfDay()));   // ₱30 pickup + ₱50 delivery
-        $this->assertEquals(500, $wallet->codBalance($this->rider1));
+        $this->assertEquals(490, $wallet->codBalance($this->rider1));
     }
 
     public function test_the_seller_chooses_which_logistics_company_picks_up(): void

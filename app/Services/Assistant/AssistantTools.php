@@ -14,6 +14,8 @@ use App\Models\ReturnRequest;
 use App\Models\User;
 use App\Models\Voucher;
 use App\Services\ShippingService;
+use App\Support\ProductColors;
+use App\Support\ProductSearch;
 use App\Support\ServiceArea;
 use App\Support\ShipmentProgress;
 use Illuminate\Support\Collection;
@@ -30,6 +32,12 @@ use Illuminate\Support\Str;
 class AssistantTools
 {
     public const POLICY_TOPICS = ['return_refund_policy', 'terms_of_service', 'privacy_policy', 'prohibited_items'];
+
+    /** The policies the assistant may look up (not the hidden ones, e.g. returns while they are off). */
+    public static function policyTopics(): array
+    {
+        return array_values(array_filter(self::POLICY_TOPICS, fn ($k) => ! \App\Models\PlatformPolicy::hidden($k)));
+    }
     public const SUPPORT_TOPICS = ['order problem', 'delivery problem', 'payment or refund', 'wrong or damaged item', 'seller not responding', 'account or login', 'other'];
 
     /** Product cards collected during a turn (shown under the reply). */
@@ -44,31 +52,31 @@ class AssistantTools
     public function definitions(?User $user): array
     {
         $obj = fn (array $props, array $required = []) => ['type' => 'object', 'properties' => $props ?: new \stdClass(), 'required' => $required, 'additionalProperties' => false];
-        $productRef = ['type' => 'integer', 'description' => 'The product_id from an earlier tool result'];
+        $productRef = ['type' => 'string', 'description' => 'The product\'s ref (like "P3") from an earlier tool result'];
 
         $tools = [
             ['name' => 'search_products',
-             'description' => 'Search products buyers can order now. Matches name, brand, category and subcategory; tolerates misspellings. Returns product_id, current price, regular price when discounted, stock, rating, seller and link.',
+             'description' => 'Search products buyers can order now. Matches name, brand, category and subcategory; tolerates misspellings. Color words in the query (English or Tagalog, e.g. "red bag", "pulang damit", just "black") match the colors seen in product pictures. Returns each product\'s ref, current price, regular price when discounted, stock, rating, colors, seller and link.',
              'inputSchema' => $obj([
-                 'query'        => ['type' => 'string', 'description' => 'What to look for, e.g. "bag", "buko pie". Use "" to browse by category or price only.'],
+                 'query'        => ['type' => 'string', 'description' => 'What to look for, e.g. "bag", "buko pie", "red", "black shoes". Use "" to browse by category or price only.'],
                  'max_price'    => ['type' => 'number', 'description' => 'Highest price in pesos'],
                  'min_price'    => ['type' => 'number', 'description' => 'Lowest price in pesos'],
                  'category'     => ['type' => 'string', 'description' => 'Category name, e.g. "Food & Gourmet"'],
                  'on_sale_only' => ['type' => 'boolean', 'description' => 'Only discounted or flash-sale items'],
-                 'sort'         => ['type' => 'string', 'enum' => ['relevance', 'price_low', 'price_high', 'top_rated'], 'description' => 'Order of results'],
+                 'sort'         => ['type' => 'string', 'enum' => ['relevance', 'price_low', 'price_high', 'top_rated', 'random'], 'description' => 'Order of results. "random" for "anything" / "surprise me" (the default when query is "").'],
              ], ['query'])],
             ['name' => 'get_product_details',
              'description' => 'Full, current details of one product: price and any discount or flash sale, stock, options (sizes/colors) with their own price and stock, specifications, description, rating, seller and link.',
              'inputSchema' => $obj(['product_id' => $productRef], ['product_id'])],
             ['name' => 'compare_products',
-             'description' => 'Side-by-side current price, stock, rating, options and key specifications of 2 to 4 products.',
-             'inputSchema' => $obj(['product_ids' => ['type' => 'array', 'items' => ['type' => 'integer'], 'description' => '2 to 4 product_ids']], ['product_ids'])],
+             'description' => 'Side-by-side current price, stock, rating, units sold, options and key specifications of 2 to 4 products, plus each seller\'s store rating, followers, where it ships from and whether it is on vacation. Use it for "which is better", including the same item from different sellers.',
+             'inputSchema' => $obj(['product_ids' => ['type' => 'array', 'items' => ['type' => 'string'], 'description' => '2 to 4 product refs (like "P3")']], ['product_ids'])],
             ['name' => 'get_active_promotions',
              'description' => 'Promotions running now: flash sales, discounted products, claimable ALVY vouchers and store bundle deals.',
              'inputSchema' => $obj([])],
             ['name' => 'get_policy',
              'description' => "ALVY's published policy text on a topic.",
-             'inputSchema' => $obj(['topic' => ['type' => 'string', 'enum' => self::POLICY_TOPICS]], ['topic'])],
+             'inputSchema' => $obj(['topic' => ['type' => 'string', 'enum' => self::policyTopics()]], ['topic'])],
         ];
 
         if (! $user) {
@@ -116,7 +124,7 @@ class AssistantTools
         try {
             return match ($name) {
                 'search_products'         => $this->searchProducts($input),
-                'get_product_details'     => $this->productDetails((int) ($input['product_id'] ?? 0)),
+                'get_product_details'     => $this->productDetails($this->productId($input['product_id'] ?? null)),
                 'compare_products'        => $this->compare((array) ($input['product_ids'] ?? [])),
                 'get_active_promotions'   => $this->promotions(),
                 'get_policy'              => $this->policy((string) ($input['topic'] ?? '')),
@@ -124,9 +132,9 @@ class AssistantTools
                 'list_my_orders'          => $this->myOrders($user),
                 'get_order_details'       => $this->orderDetails($user, (string) ($input['order_number'] ?? '')),
                 'get_order_tracking'      => $this->orderTracking($user, (string) ($input['order_number'] ?? '')),
-                'estimate_shipping'       => $this->estimateShipping($user, (int) ($input['product_id'] ?? 0), (int) ($input['quantity'] ?? 1)),
+                'estimate_shipping'       => $this->estimateShipping($user, $this->productId($input['product_id'] ?? null), (int) ($input['quantity'] ?? 1)),
                 'get_my_addresses'        => $this->addresses($user),
-                'prepare_add_to_cart'     => $this->prepareAddToCart($user, (int) ($input['product_id'] ?? 0), $input['variation'] ?? null, (int) ($input['quantity'] ?? 1)),
+                'prepare_add_to_cart'     => $this->prepareAddToCart($user, $this->productId($input['product_id'] ?? null), $input['variation'] ?? null, (int) ($input['quantity'] ?? 1)),
                 'prepare_cancel_order'    => $this->prepareCancel($user, (string) ($input['order_number'] ?? ''), (string) ($input['reason'] ?? '')),
                 'prepare_support_request' => $this->prepareSupport($user, (string) ($input['topic'] ?? ''), (string) ($input['message'] ?? ''), $input['order_number'] ?? null),
                 default                   => ['error' => 'That tool does not exist. Only the listed tools can be used.'],
@@ -137,6 +145,31 @@ class AssistantTools
         }
     }
 
+    // ── Product refs ───────────────────────────────────────────
+    // The AI provider never sees database ids: products are "P1", "P2", … for this chat, kept in the session.
+
+    public const REFS_KEY = 'assistant_product_refs';
+
+    /** This chat's ref for a product ("P3"), given one the first time it is shown. */
+    public function ref(int $id): string
+    {
+        $refs = session(self::REFS_KEY, []);
+        if (($ref = array_search($id, $refs, true)) !== false) {
+            return $ref;
+        }
+        $ref = 'P' . (session('assistant_product_ref_next', 0) + 1);
+        session(['assistant_product_ref_next' => (int) substr($ref, 1)]);
+        $refs[$ref] = $id;
+        session([self::REFS_KEY => array_slice($refs, -300, null, true)]);
+        return $ref;
+    }
+
+    /** The product a ref stands for in this chat (0 = unknown ref). */
+    private function productId(mixed $ref): int
+    {
+        return (int) (session(self::REFS_KEY, [])[strtoupper(trim((string) $ref))] ?? 0);
+    }
+
     // ── Products ───────────────────────────────────────────────
 
     private function visible()
@@ -144,28 +177,51 @@ class AssistantTools
         return Product::published()->with(['seller.sellerApplication', 'category', 'variations'])->withAvg('reviews', 'rating')->withCount('reviews');
     }
 
+    /** Words in a search that don't name a product ("may sapatos ba kayo" → "sapatos"). */
+    private const SEARCH_FILLER = ['may', 'meron', 'ba', 'po', 'kayo', 'kau', 'ka', 'mga', 'na', 'ng', 'sa', 'yung', 'ung', 'ang', 'si',
+        'ako', 'ko', 'nyo', 'niyo', 'lang', 'kahit', 'anong', 'ano', 'any', 'anything', 'random', 'item', 'items', 'product', 'products',
+        'some', 'the', 'and', 'for', 'cheap', 'mura', 'murang', 'below', 'under', 'pesos', 'peso', 'php', 'have', 'you', 'do', 'is', 'there'];
+
+    /** Tagalog / Taglish words → the English words product names use. */
+    private const SEARCH_SYNONYMS = ['sapatos' => 'shoe', 'tsinelas' => 'slipper', 'sandalyas' => 'sandal', 'bota' => 'boots',
+        'damit' => 'shirt', 'kamiseta' => 'shirt', 'pantalon' => 'pants', 'shorts' => 'short', 'palda' => 'skirt', 'bestida' => 'dress',
+        'medyas' => 'socks', 'sumbrero' => 'hat', 'pitaka' => 'wallet', 'bagahe' => 'luggage', 'relo' => 'watch',
+        'alahas' => 'jewelry', 'kwintas' => 'necklace', 'singsing' => 'ring', 'hikaw' => 'earring', 'pulseras' => 'bracelet',
+        'pagkain' => 'food', 'inumin' => 'drink', 'kape' => 'coffee', 'tsokolate' => 'chocolate', 'laruan' => 'toy',
+        'libro' => 'book', 'aklat' => 'book', 'kuwaderno' => 'notebook', 'lapis' => 'pencil', 'pabango' => 'perfume', 'sabon' => 'soap',
+        'unan' => 'pillow', 'kumot' => 'blanket', 'upuan' => 'chair', 'mesa' => 'table', 'lamesa' => 'table', 'kusina' => 'kitchen',
+        'kaldero' => 'pot', 'kawali' => 'pan', 'payong' => 'umbrella', 'salamin' => 'glasses', 'aso' => 'dog', 'pusa' => 'cat'];
+
     private function searchProducts(array $in): array
     {
         $query = Str::limit(trim((string) ($in['query'] ?? '')), 80, '');
-        $words = collect(preg_split('/\s+/', mb_strtolower($query)))->filter(fn ($w) => mb_strlen($w) >= 2)->take(6)->values();
+        $words = collect(preg_split('/[^\pL\pN&-]+/u', mb_strtolower($query)))
+            ->filter(fn ($w) => mb_strlen($w) >= 2 && ! in_array($w, self::SEARCH_FILLER, true));
+        // Color words ("red", "pula") filter by the colors read from the pictures; the rest name the product.
+        $colors = $words->map(fn ($w) => ProductColors::fromWord($w))->filter()->unique()->values();
+        $words = $words->reject(fn ($w) => ProductColors::fromWord($w))
+            ->map(fn ($w) => self::SEARCH_SYNONYMS[$w] ?? $w)->unique()->take(6)->values();
         $min = isset($in['min_price']) ? max(0, (float) $in['min_price']) : null;
         $max = isset($in['max_price']) ? max(0, (float) $in['max_price']) : null;
         $category = isset($in['category']) ? Str::limit((string) $in['category'], 60, '') : null;
 
         $base = fn () => $this->visible()
-            ->when($category, fn ($q) => $q->whereHas('category', fn ($c) => $c->where('name', 'like', '%' . $category . '%')));
+            ->when($category, fn ($q) => $q->whereHas('category', fn ($c) => $c->where('name', 'like', '%' . $category . '%')))
+            ->when($colors->isNotEmpty(), fn ($q) => $q->where(fn ($any) => $colors->each(
+                fn ($c) => $any->orWhere(fn ($one) => ProductSearch::whereColor($one, $c)))));
 
+        // The price filter runs on the effective (sale) price after loading, so load enough to cover the whole catalogue.
         $matches = $words->isEmpty()
-            ? $base()->limit(80)->get()
+            ? $base()->limit(1000)->get()
             : $base()->where(fn ($q) => $words->each(fn ($w) => $q->orWhere('title', 'like', "%{$w}%")->orWhere('brand', 'like', "%{$w}%")
-                ->orWhere('subcategory', 'like', "%{$w}%")->orWhereHas('category', fn ($c) => $c->where('name', 'like', "%{$w}%"))))->limit(80)->get();
+                ->orWhere('subcategory', 'like', "%{$w}%")->orWhereHas('category', fn ($c) => $c->where('name', 'like', "%{$w}%"))))->limit(300)->get();
 
         $didYouMean = null;
         if ($matches->isEmpty() && $words->isNotEmpty()) {
             // Misspelled? Compare each word with the words in visible product titles.
             $pool = $base()->limit(400)->get();
             $matches = $pool->filter(fn (Product $p) => $words->contains(fn ($w) => collect(preg_split('/[^\pL\pN]+/u', mb_strtolower($p->title . ' ' . $p->brand)))
-                ->filter(fn ($t) => mb_strlen($t) >= 3)->contains(fn ($t) => levenshtein($w, $t) <= max(1, intdiv(mb_strlen($w), 4)))))->values();
+                ->filter(fn ($t) => mb_strlen($t) >= 3)->contains(fn ($t) => levenshtein($w, $t) <= (mb_strlen($w) >= 4 ? max(1, intdiv(mb_strlen($w), 4)) : 0))))->values();   // short words: "toy" is not a misspelled "top"
             $didYouMean = $matches->isNotEmpty() ? 'No exact match; these are close spellings.' : null;
         }
 
@@ -174,7 +230,8 @@ class AssistantTools
             ->filter(fn (Product $p) => empty($in['on_sale_only']) || $p->effective_price < (float) $p->price);
 
         $relevance = fn (Product $p) => $words->sum(fn ($w) => str_contains(mb_strtolower($p->title), $w) ? 2 : 1);
-        $matches = match ($in['sort'] ?? 'relevance') {
+        $matches = match ($in['sort'] ?? ($words->isEmpty() ? 'random' : 'relevance')) {
+            'random'     => $matches->filter(fn (Product $p) => $p->totalStock() > 0)->shuffle(),
             'price_low'  => $matches->sortBy(fn ($p) => $p->effective_price),
             'price_high' => $matches->sortByDesc(fn ($p) => $p->effective_price),
             'top_rated'  => $matches->sortByDesc(fn ($p) => [(float) $p->rating_avg, $p->rating_count]),
@@ -187,6 +244,7 @@ class AssistantTools
         return array_filter([
             'products' => $found->map(fn (Product $p) => $this->summary($p))->all(),
             'note'     => $found->isEmpty() ? 'No products match. Suggest other words, a different budget, or browsing /categories.' : $didYouMean,
+            'color_note' => $colors->isNotEmpty() ? 'Colors come from each product\'s main picture; mention the color options in get_product_details when there are any.' : null,
         ]);
     }
 
@@ -195,7 +253,7 @@ class AssistantTools
         $price = $p->effective_price;
         [$low, $high] = $p->priceRange();
         return array_filter([
-            'product_id'    => $p->id,
+            'ref'           => $this->ref($p->id),
             'name'          => $p->title,
             'price'         => $low !== $high ? $this->peso($low) . ' – ' . $this->peso($high) : $this->peso($price),
             'regular_price' => $price < (float) $p->price ? $this->peso((float) $p->price) : null,
@@ -203,6 +261,7 @@ class AssistantTools
             'rating'        => $p->rating_count ? $p->rating_avg . '/5 from ' . $p->rating_count . ' reviews' : 'no reviews yet',
             'seller'        => $p->seller?->storeName(),
             'category'      => $p->category?->name,
+            'colors'        => $p->colors ? implode(', ', $p->colors) : null,
             'link'          => '/products/' . $p->slug,
         ], fn ($v) => $v !== null);
     }
@@ -211,7 +270,7 @@ class AssistantTools
     {
         $p = $this->visible()->find($id);
         if (! $p) {
-            return ['error' => 'No product with that product_id is available to buyers (it may be sold out, removed or unpublished).'];
+            return ['error' => 'No product with that ref is available to buyers (it may be sold out, removed or unpublished). Search again for its ref.'];
         }
         $this->addCards(collect([$p]));
         $flash = $p->runningFlashSale();
@@ -229,22 +288,45 @@ class AssistantTools
         ], fn ($v) => $v !== null);
     }
 
-    private function compare(array $ids): array
+    private function compare(array $refs): array
     {
-        $ids = collect($ids)->map(fn ($i) => (int) $i)->filter()->unique()->take(4);
-        if ($ids->count() < 2) {
-            return ['error' => 'Give 2 to 4 product_ids to compare.'];
+        $refs = collect($refs)->map(fn ($r) => strtoupper(trim((string) $r)))->filter()->unique()->take(4);
+        if ($refs->count() < 2) {
+            return ['error' => 'Give 2 to 4 product refs (from a search) to compare.'];
         }
-        $products = $this->visible()->whereIn('id', $ids)->get();
+        $ids = $refs->mapWithKeys(fn ($r) => [$r => $this->productId($r)]);
+        $products = $this->visible()->whereIn('id', $ids->filter())->get();
         $this->addCards($products);
-        $missing = $ids->diff($products->pluck('id'))->values()->all();
+        $missing = $ids->reject(fn ($id) => $products->contains('id', $id))->keys()->values()->all();
+
+        // Units sold (delivered or completed orders) and each seller's store-wide rating and followers.
+        $sold = \App\Models\OrderItem::join('orders', 'orders.id', '=', 'order_items.order_id')
+            ->whereIn('order_items.product_id', $products->pluck('id'))->whereIn('orders.status', [Order::DELIVERED, Order::COMPLETED])
+            ->selectRaw('order_items.product_id, SUM(order_items.quantity) as n')->groupBy('order_items.product_id')->pluck('n', 'product_id');
+        $sellerIds = $products->pluck('seller_id')->unique();
+        $storeRatings = \App\Models\Review::join('products', 'products.id', '=', 'reviews.product_id')->whereIn('products.seller_id', $sellerIds)
+            ->selectRaw('products.seller_id, AVG(reviews.rating) as avg, COUNT(*) as n')->groupBy('products.seller_id')->get()->keyBy('seller_id');
+        $followers = \App\Models\StoreFollow::whereIn('seller_id', $sellerIds)->selectRaw('seller_id, COUNT(*) as n')->groupBy('seller_id')->pluck('n', 'seller_id');
 
         return array_filter([
-            'products' => $products->map(fn (Product $p) => $this->summary($p) + array_filter([
-                'options'        => $p->variations->pluck('name')->implode(', ') ?: null,
-                'specifications' => collect((array) $p->specs)->filter(fn ($v) => is_scalar($v))->map(fn ($v) => Str::limit((string) $v, 60))->take(6)->all() ?: null,
-            ]))->values()->all(),
+            'products' => $products->map(function (Product $p) use ($sold, $storeRatings, $followers) {
+                $app = $p->seller?->sellerApplication;
+                $store = $storeRatings[$p->seller_id] ?? null;
+                return $this->summary($p) + array_filter([
+                    'units_sold'     => (int) ($sold[$p->id] ?? 0),
+                    'options'        => $p->variations->pluck('name')->implode(', ') ?: null,
+                    'specifications' => collect((array) $p->specs)->filter(fn ($v) => is_scalar($v))->map(fn ($v) => Str::limit((string) $v, 60))->take(6)->all() ?: null,
+                    'condition'      => $p->condition,
+                    'store'          => array_filter([
+                        'rating'     => $store ? round((float) $store->avg, 1) . '/5 from ' . $store->n . ' reviews (all its products)' : 'no store reviews yet',
+                        'followers'  => (int) ($followers[$p->seller_id] ?? 0),
+                        'ships_from' => $app ? collect([$app->municipality, $app->province])->filter()->implode(', ') ?: null : null,
+                        'on_vacation' => $p->sellerOnVacation() ? 'yes: not taking orders right now' : null,
+                    ], fn ($v) => $v !== null),
+                ], fn ($v) => $v !== null && $v !== []);
+            })->values()->all(),
             'not_available' => $missing ? $missing : null,
+            'how_to_judge'  => 'Weigh price (with any sale), product rating and number of reviews, units sold, store rating, stock, and where it ships from (nearer usually means cheaper, faster shipping). Few or no reviews means there is not enough to judge quality: say so.',
         ]);
     }
 
@@ -257,7 +339,7 @@ class AssistantTools
         $this->addCards($onSale->take(4));
 
         return [
-            'flash_sales' => $flash->map(fn ($f) => ['product_id' => $f->product_id, 'name' => $f->product->title, 'flash_price' => $this->peso($f->flash_price),
+            'flash_sales' => $flash->map(fn ($f) => ['ref' => $this->ref($f->product_id), 'name' => $f->product->title, 'flash_price' => $this->peso($f->flash_price),
                 'regular_price' => $this->peso((float) $f->product->price), 'ends' => $f->ends_at->format('M j, g:i A'), 'units_left' => $f->remaining(), 'link' => '/products/' . $f->product->slug])->values()->all(),
             'discounted_products' => $onSale->map(fn ($p) => $this->summary($p))->all(),
             'alvy_vouchers' => Voucher::running()->whereIn('scope', [Voucher::SCOPE_PLATFORM, Voucher::SCOPE_SHIPPING])->where('is_claimable', true)->take(6)->get()
@@ -270,7 +352,7 @@ class AssistantTools
 
     private function policy(string $topic): array
     {
-        if (! in_array($topic, self::POLICY_TOPICS, true)) {
+        if (! in_array($topic, self::policyTopics(), true)) {
             return ['error' => 'Unknown policy topic.'];
         }
         $row = PlatformPolicy::where('key', $topic)->first();
@@ -291,7 +373,7 @@ class AssistantTools
 
         return [
             'items' => $lines->map(fn ($l) => array_filter([
-                'product_id' => $l->product_id, 'name' => $l->product->title, 'option' => $l->variation?->name, 'quantity' => $l->quantity,
+                'ref' => $this->ref($l->product_id), 'name' => $l->product->title, 'option' => $l->variation?->name, 'quantity' => $l->quantity,
                 'unit_price' => $this->peso($l->variation && $l->variation->price > 0 ? $l->product->priceFor((float) $l->variation->price) : $l->product->effective_price),
                 'available' => $l->product->isPublished() && $l->product->inStock() ? null : 'no longer available',
             ]))->values()->all(),
@@ -346,8 +428,9 @@ class AssistantTools
             'payment'  => $o->paymentMethodLabel() . ' · ' . $o->payment_status,
             'can_cancel' => $o->isCancellableByBuyer() ? 'yes, from the order page or by asking here' : 'no: ' . ($o->isReadyForPickup() ? 'the seller already booked the pickup; message the seller' : 'the order is past the cancellable stage (' . $o->buyerStatusLabel() . ')'),
             'returns'  => $o->returnRequests->map(fn (ReturnRequest $r) => ['reason' => $r->reason, 'status' => $r->statusLabel(), 'refund' => $r->refund_amount ? $this->peso($r->refund_amount) : null])->all() ?: null,
-            'return_window' => $o->returnWindowOpen() ? 'open until ' . $deadline?->format('M j, Y g:i A') . ' (request it from the order page with photos)'
-                : ($deadline ? 'closed on ' . $deadline->format('M j, Y') : 'opens once the order is delivered'),
+            'return_window' => ! Order::returnsEnabled() ? 'returns are not available on ALVY yet; message the seller from the order page'
+                : ($o->returnWindowOpen() ? 'open until ' . $deadline?->format('M j, Y g:i A') . ' (request it from the order page with photos)'
+                : ($deadline ? 'closed on ' . $deadline->format('M j, Y') : 'opens once the order is delivered')),
             'cancellation_reason' => $o->cancellation_reason,
             'link'     => '/profile/orders/' . $o->id,
         ], fn ($v) => $v !== null);
@@ -367,7 +450,6 @@ class AssistantTools
             'order_status'    => $o->buyerStatusLabel(),
             'shipment_status' => $t['status'],
             'last_confirmed_location' => $t['location'],
-            'tracking_number' => $t['tracking'],
             'delivered_at'    => $t['delivered_at']?->format('M j, Y g:i A'),
             'sorting_centers_visited' => collect($t['hubs'])->pluck('name')->filter()->unique()->values()->all() ?: null,
             'transfers'       => $t['transfers']->map(fn ($tr) => \App\Support\SortingCenters::displayName($tr->fromSortingCenter) . ' → ' . \App\Support\SortingCenters::displayName($tr->toSortingCenter) . ': ' . $tr->statusLabel())->all() ?: null,
@@ -399,7 +481,7 @@ class AssistantTools
         $quote = $this->shipping->quote(collect([$p->seller_id => ['items' => collect([$line])]]),
             $this->shipping->zoneOf($address->municipality_code ?: $address->province_code), $address->municipality_code)[$p->seller_id];
 
-        return ['product' => $p->title, 'quantity' => $qty, 'address' => $address->label . ' (' . collect([$address->barangay, $address->city])->filter()->implode(', ') . ')',
+        return ['product' => $p->title, 'quantity' => $qty, 'address' => Str::limit((string) $address->label, 30) . ' (' . $address->city . ')',
             'shipping_fee' => $this->peso($quote['fee']), 'route' => $quote['route'], 'chargeable_weight_kg' => $quote['chargeable'],
             'note' => 'Same calculation as checkout; vouchers can lower it. Items from one store ship together.'];
     }
@@ -407,7 +489,8 @@ class AssistantTools
     private function addresses(User $user): array
     {
         return ['addresses' => $user->addresses()->orderByDesc('is_default')->get()->map(fn ($a) => [
-            'label' => $a->label, 'area' => collect([$a->barangay, $a->city, $a->province])->filter()->implode(', '), 'default' => (bool) $a->is_default,
+            // City and province only: no street, house number, barangay, or the recipient's name and phone.
+            'label' => Str::limit((string) $a->label, 30), 'area' => collect([$a->city, $a->province])->filter()->implode(', '), 'default' => (bool) $a->is_default,
             'deliverable' => $this->shipping->unserviceableReason($a->municipality_code, $a->province_code) === null,
         ])->all(), 'manage_at' => '/profile/addresses'];
     }
@@ -509,7 +592,9 @@ class AssistantTools
             . "- Shipping fee: from the parcel's weight and the distance between the seller and the buyer's address, shown at checkout. Vouchers can lower it.\n"
             . '- Order steps: Pending (seller hasn\'t accepted) → Processing (accepted, being packed) → Shipped (picked up; it passes through ALVY sorting centers, possibly a transfer between hubs) → Out for delivery → Delivered → Completed (the buyer taps "Order Received", or after ' . Order::RETURN_DAYS . " days).\n"
             . "- Cancelling: until the seller books the pickup. After that, message the seller.\n"
-            . '- Returns/refunds: from the order page within ' . Order::RETURN_DAYS . " days of delivery, with 1–5 photos. The seller approves or rejects; if rejected the buyer can escalate to ALVY. COD refunds go to the buyer's refund account; online payments go back to the payment method.\n"
+            . (Order::returnsEnabled()
+                ? '- Returns/refunds: from the order page within ' . Order::RETURN_DAYS . " days of delivery, with 1–5 photos. The seller approves or rejects; if rejected the buyer can escalate to ALVY. COD refunds go to the buyer's refund account; online payments go back to the payment method.\n"
+                : "- Returns/refunds: not available on ALVY yet. If something is wrong, the buyer messages the seller from the order page.\n")
             . "- Pages: My Purchases /profile/orders · Cart /cart · Addresses /profile/addresses · Accounts & Security /profile/security (password, email, phone) · Profile /profile/personal-info · Vouchers /my-vouchers · Forgot password /forgot-password.";
     }
 }

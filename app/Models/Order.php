@@ -277,10 +277,17 @@ class Order extends Model
         return $this->delivered_at?->copy()->addDays(self::RETURN_DAYS);
     }
 
+    /** Whether buyers can ask for returns at all (config marketplace.returns_enabled; off for now). */
+    public static function returnsEnabled(): bool
+    {
+        return (bool) config('marketplace.returns_enabled', false);
+    }
+
     /** Return / refund: only after delivery, within RETURN_DAYS, and before the order is completed. */
     public function returnWindowOpen(): bool
     {
-        return $this->status === self::DELIVERED
+        return self::returnsEnabled()
+            && $this->status === self::DELIVERED
             && $this->delivered_at
             && now()->lte($this->returnDeadline());
     }

@@ -306,10 +306,12 @@
                 </section>
             @endif
 
-            <p class="mt-5 text-xs" style="color:#a39890;">
-                Questions about returns? See our
-                <a href="{{ route('policies.show', 'return_refund_policy') }}" class="underline hover:text-[#fa4e1c]">return &amp; refund policy</a>.
-            </p>
+            @if (\App\Models\Order::returnsEnabled())
+                <p class="mt-5 text-xs" style="color:#a39890;">
+                    Questions about returns? See our
+                    <a href="{{ route('policies.show', 'return_refund_policy') }}" class="underline hover:text-[#fa4e1c]">return &amp; refund policy</a>.
+                </p>
+            @endif
         </div>
     </div>
 

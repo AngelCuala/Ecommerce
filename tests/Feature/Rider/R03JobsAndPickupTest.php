@@ -37,7 +37,7 @@ class R03JobsAndPickupTest extends TestCase
 
         $this->actingAs($this->rider1->user)->get(route('courier.rider'))->assertOk()
             ->assertSee('Maria Clara Santos')->assertSee('Commonwealth, Quezon City')
-            ->assertSee('Bilis Hatid Express Inc. hub')->assertSee('COD: ₱500.00', false)->assertSee('Pay: ₱30.00 pickup', false);
+            ->assertSee('Bilis Hatid Express Inc. hub')->assertSee('COD: ₱490.00', false)->assertSee('Pay: ₱30.00 pickup', false);
 
         $this->accept($offer)->assertSessionHas('success');
         $pickup = ParcelPickup::sole();

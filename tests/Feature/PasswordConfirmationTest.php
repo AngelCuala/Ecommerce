@@ -27,7 +27,7 @@ class PasswordConfirmationTest extends TestCase
     {
         return array_merge([
             'role' => 'buyer', 'first_name' => 'Juan', 'last_name' => 'Dela Cruz', 'email' => 'juan@gmail.com',
-            'password' => 'secret123', 'password_confirmation' => 'secret123', 'sex' => 'male', 'contact_no' => '09171234567',
+            'password' => 'Secret@123', 'password_confirmation' => 'Secret@123', 'sex' => 'male', 'contact_no' => '09171234567',
             'birthday' => '2000-01-15', 'region' => 'CALABARZON', 'province' => 'Laguna', 'province_code' => '043400000',
             'municipality' => 'Magdalena', 'municipality_code' => '043415000', 'barangay' => 'Poblacion',
             'house_number' => '12B', 'street' => 'Rizal Street', 'terms' => '1',
@@ -49,16 +49,16 @@ class PasswordConfirmationTest extends TestCase
 
     public function test_buyer_sign_up_needs_a_matching_confirmation(): void
     {
-        $this->from('/register')->post('/register', $this->buyer(['password_confirmation' => 'secret124']))
-            ->assertSessionHasErrors(['password' => 'The passwords do not match. Please type the same password in both fields.']);
+        $this->from('/register')->post('/register', $this->buyer(['password_confirmation' => 'Secret@124']))
+            ->assertSessionHasErrors(['password' => 'The passwords do not match.']);
         $this->from('/register')->post('/register', $this->buyer(['password_confirmation' => null]))
-            ->assertSessionHasErrors('password_confirmation');
+            ->assertSessionHasErrors(['password' => 'The passwords do not match.']);   // still refused
         $this->assertSame(0, User::count());
 
         $this->from('/register')->post('/register', $this->buyer())->assertSessionHasNoErrors();
         $user = User::where('email', 'juan@gmail.com')->first();
-        $this->assertNotSame('secret123', $user->password);
-        $this->assertTrue(Hash::check('secret123', $user->password));
+        $this->assertNotSame('Secret@123', $user->password);
+        $this->assertTrue(Hash::check('Secret@123', $user->password));
     }
 
     public function test_passwords_are_never_sent_back_into_the_form(): void

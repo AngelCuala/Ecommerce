@@ -232,7 +232,7 @@
                             <button class="rounded-md px-4 py-1.5 text-sm font-semibold text-white" style="background:#B91C1C;">Escalate</button>
                         </form>
                     @endif
-                    <div class="mt-2 flex flex-wrap gap-2">@foreach ($return->photos() as $ph)<img src="{{ asset('storage/' . $ph) }}" class="h-20 rounded-md object-cover" alt="Evidence">@endforeach</div>
+                    <div class="mt-2 flex flex-wrap gap-2">@foreach ($return->photos() as $ph)<img src="{{ \App\Support\ProtectedFile::url($ph) }}" class="h-20 rounded-md object-cover" alt="Evidence">@endforeach</div>
                 </section>
             @endif
 

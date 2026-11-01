@@ -141,6 +141,51 @@ class GeminiAssistantModelTest extends TestCase
         $this->assertStringContainsString('gemini-3.6-flash', $urls->last());
     }
 
+    public function test_a_model_at_its_limit_is_not_retried_and_is_skipped_for_a_minute(): void
+    {
+        config(['services.assistant.retry_waits_ms' => [0, 0], 'services.assistant.fallback_models' => 'gemini-3.6-flash']);
+        Http::fake(fn (Request $r) => str_contains($r->url(), 'gemini-3.8-flash')
+            ? Http::response(['error' => ['code' => 429, 'message' => 'You exceeded your current quota']], 429)
+            : Http::response(self::reply([['text' => 'Hi! I can help you shop.']])));
+        $mainTries = fn () => Http::recorded()->filter(fn ($pair) => str_contains($pair[0]->url(), 'gemini-3.8-flash'))->count();
+
+        $this->ask('hello')->assertOk()->assertJsonPath('mode', 'ai');
+        $this->assertSame(1, $mainTries());   // no retries: they would only use up more of the limit
+
+        $this->ask('any vouchers?')->assertOk()->assertJsonPath('mode', 'ai');
+        $this->assertSame(1, $mainTries());   // skipped while cooling down
+
+        $this->travel(61)->seconds();
+        $this->ask('thanks')->assertOk();
+        $this->assertSame(2, $mainTries());   // tried again after a minute
+    }
+
+    public function test_a_model_that_hits_its_limit_mid_reply_hands_the_reply_to_a_backup(): void
+    {
+        config(['services.assistant.retry_waits_ms' => [0, 0], 'services.assistant.fallback_models' => 'gemini-3.5-flash-lite']);
+        Http::fake(function (Request $r) {
+            static $mainCalls = 0;
+            if (str_contains($r->url(), 'gemini-3.8-flash')) {
+                return ++$mainCalls === 1
+                    ? Http::response(self::reply([['functionCall' => ['name' => 'search_products', 'args' => ['query' => 'tote']], 'thoughtSignature' => 'sig-main']]))
+                    : Http::response(['error' => ['code' => 429, 'message' => 'You exceeded your current quota']], 429);
+            }
+            return Http::response(self::reply([['text' => 'Here is a tote bag.']]));
+        });
+
+        $res = $this->ask('tote bags?')->assertOk();
+        $this->assertSame('ai', $res->json('mode'));   // not Quick help
+        $this->assertSame('Here is a tote bag.', $res->json('reply'));
+
+        // The back-up got the main model's call with Google's stand-in signature (the real one only works on its own model).
+        $backup = Http::recorded()->map(fn ($pair) => $pair[0])->first(fn (Request $r) => str_contains($r->url(), 'gemini-3.5-flash-lite'));
+        $call = $backup['contents'][1]['parts'][0];
+        $this->assertSame('search_products', $call['functionCall']['name']);
+        $this->assertSame('skip_thought_signature_validator', $call['thoughtSignature']);
+        $this->assertArrayNotHasKey('_model', $call);
+        $this->assertStringNotContainsString('_model', json_encode($backup->data()));
+    }
+
     public function test_a_bad_key_does_not_try_other_models(): void
     {
         Http::fake(['generativelanguage.googleapis.com/*' => Http::response(['error' => ['code' => 400, 'message' => 'API key not valid.']], 400)]);

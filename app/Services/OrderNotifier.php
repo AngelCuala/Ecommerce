@@ -39,7 +39,7 @@ class OrderNotifier
             Order::SHIPPED          => ['Order shipped', "Order {$n} has been picked up and is on its way.", 'info'],
             Order::DELIVERED        => $from === Order::RETURN_REQUESTED
                 ? ['Return request rejected', "The seller rejected the return request for order {$n}. See the order for their reason.", 'warning']
-                : ['Order delivered', "Order {$n} was delivered. Tap Order Received, or ask for a return within " . Order::RETURN_DAYS . ' days.', 'success'],
+                : ['Order delivered', "Order {$n} was delivered. Tap Order Received" . (Order::returnsEnabled() ? ', or ask for a return within ' . Order::RETURN_DAYS . ' days.' : '.'), 'success'],
             Order::COMPLETED        => ['Order completed', "Order {$n} is complete. Rate your items to help other buyers.", 'success'],
             Order::CANCELLED        => ['Order cancelled', "Order {$n} was cancelled" . ($order->cancellation_reason ? ': ' . $order->cancellation_reason : '.'), 'warning'],
             Order::RETURN_REQUESTED => ['Return requested', "Your return request for order {$n} was sent to the seller.", 'info'],

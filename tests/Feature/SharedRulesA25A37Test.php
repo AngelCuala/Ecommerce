@@ -152,10 +152,10 @@ class SharedRulesA25A37Test extends TestCase
         $this->assertSame(1, Voucher::where('code', 'MCH50')->value('used_count'));
     }
 
-    /** A22: a session expires after 30 minutes of inactivity. */
+    /** A22 (changed by the owner on 2026-11-02 from 30 minutes): a session expires after a week of inactivity. */
     public function test_a22_session_lifetime(): void
     {
-        $this->assertSame(30, (int) config('session.lifetime'));
+        $this->assertSame(10080, (int) config('session.lifetime'));
     }
 
     /** A34: suspending a rider returns their not-yet-picked-up jobs to the Unassigned queue. */

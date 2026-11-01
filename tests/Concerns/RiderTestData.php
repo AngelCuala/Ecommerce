@@ -69,7 +69,7 @@ trait RiderTestData
         }
     }
 
-    /** Seller 1's COD order for P-02 to ADDR-1 (₱450 + ₱50 shipping = ₱500.00), as a parcel at Logistics 1. */
+    /** Seller 1's COD order for P-02 to ADDR-1 (₱450 + ₱40 same-city shipping = ₱490.00), as a parcel at Logistics 1. */
     protected function parcel(string $status = 'pickup_approved', array $extra = [], ?Order $order = null, ?User $company = null): Parcel
     {
         $order ??= $this->placeOrder($this->buyer1, [$this->cart($this->buyer1, $this->p02)])->first();

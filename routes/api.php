@@ -354,6 +354,10 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         Route::post('/wishlist/{productId}',      [Buyer\AccountController::class, 'toggleWish'])->name('wishlist.toggle');
         Route::get('/vouchers',                   [Buyer\AccountController::class, 'vouchers'])->name('vouchers');
         Route::get('/vouchers/center',            [Buyer\AccountController::class, 'voucherCenter'])->name('vouchers.center');
+        Route::post('/vouchers/claim-all',        [Buyer\AccountController::class, 'claimAllVouchers'])->middleware('throttle:10,1')->name('vouchers.claim-all');
+        // A buyer applying to sell or to deliver (the website's "Become a seller / courier"; same rules).
+        Route::post('/become-seller',             [Buyer\AccountController::class, 'becomeSeller'])->middleware('throttle:10,1')->name('become.seller');
+        Route::post('/become-courier',            [Buyer\AccountController::class, 'becomeCourier'])->middleware('throttle:10,1')->name('become.courier');
         Route::post('/vouchers/{voucher}/claim',  [Buyer\AccountController::class, 'claimVoucher'])->name('vouchers.claim');
         Route::get('/following',                  [Buyer\AccountController::class, 'following'])->name('following');
         Route::post('/stores/{sellerId}/follow',  [Buyer\AccountController::class, 'toggleFollow'])->name('stores.follow');

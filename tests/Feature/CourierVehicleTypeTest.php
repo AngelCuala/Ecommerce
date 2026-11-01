@@ -65,8 +65,8 @@ class CourierVehicleTypeTest extends TestCase
         $this->assertSame('09181234568', $courier->contact_no);
         $this->assertSame('Quezon City', $courier->municipality);
         $this->assertSame('1995-05-20', \Carbon\Carbon::parse($courier->birthday)->toDateString());
-        Storage::disk('public')->assertExists($courier->id_license_path);
-        Storage::disk('public')->assertExists($courier->or_cr_path);
+        Storage::disk('local')->assertExists($courier->id_license_path);
+        Storage::disk('local')->assertExists($courier->or_cr_path);
         $this->assertStringContainsString('courier-licenses', $courier->id_license_path);
         $this->assertStringContainsString('courier-vehicle-regs', $courier->or_cr_path);
     }

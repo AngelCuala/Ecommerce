@@ -299,7 +299,7 @@ class ScRegistrationAndLogisticsTest extends TestCase
         // One login for everyone: the old logistics entrances lead to it.
         $this->get('/sorting-center/login')->assertRedirect('/login');
         $this->get('/sorting-center')->assertRedirect('/login');
-        $this->get('/sc/login')->assertRedirect('/login');
+        $this->get('/sc/login')->assertOk()->assertSee('Welcome back');   // the sorting center portal's own sign-in page
         $this->get('/logistics/login')->assertRedirect('/login');
     }
 

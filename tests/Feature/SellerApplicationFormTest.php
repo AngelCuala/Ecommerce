@@ -98,7 +98,7 @@ class SellerApplicationFormTest extends TestCase
         $this->assertSame('National Capital Region (NCR)', $app->region);
         $this->assertSame('Quezon City', $app->municipality);
         $this->assertSame('1121', $app->zip_code);
-        Storage::disk('public')->assertExists([$app->government_id_path, $app->dti_certificate_path, $app->bir_2303_path]);
+        Storage::disk('local')->assertExists([$app->government_id_path, $app->dti_certificate_path, $app->bir_2303_path]);
     }
 
     public function test_wrong_account_password_is_rejected(): void

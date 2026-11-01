@@ -196,9 +196,15 @@ class HubController extends Controller
     {
         $d = $this->pageData($this->web(WebSc::class, 'deliveryAssignment'));
 
+        // Like the website: sorted parcels waiting in each barangay, and each rider's open deliveries.
+        $waiting = collect($d['waiting'] ?? []);
+        $openJobs = collect($d['openJobs'] ?? []);
+
         return response()->json(ApiJson::page($d['parcels'], fn ($p) => LogisticsJson::parcel($p)) + [
-            'riders' => $d['riders']->map(fn ($r) => LogisticsJson::rider($r))->values(),
-            'areas'  => $d['areas']->map(fn ($a) => ['id' => $a->id, 'name' => $a->name])->values(),
+            // "active_jobs": the app's rider picker already shows it ("N active job(s)").
+            'riders' => $d['riders']->map(fn ($r) => LogisticsJson::rider($r) + ['active_jobs' => (int) ($openJobs[$r->id] ?? 0)])->values(),
+            'areas'  => $d['areas']->map(fn ($a) => ['id' => $a->id, 'name' => $a->name, 'waiting' => (int) ($waiting[$a->id] ?? 0)])->values(),
+            'waiting_total' => (int) $waiting->sum(),
         ]);
     }
 

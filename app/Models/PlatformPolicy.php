@@ -23,7 +23,18 @@ class PlatformPolicy extends Model
         );
     }
 
+    /** Policies not shown while their feature is off (the Return & Refund Policy while returns are off). */
+    public static function hidden(string $key): bool
+    {
+        return $key === 'return_refund_policy' && ! \App\Models\Order::returnsEnabled();
+    }
+
     public static function defaultPolicies(): array
+    {
+        return array_values(array_filter(self::allPolicies(), fn ($p) => ! self::hidden($p['key'])));
+    }
+
+    private static function allPolicies(): array
     {
         return [
             ['key' => 'about_us',               'title' => 'About Us'],

@@ -26,6 +26,18 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Returns and refunds
+    |--------------------------------------------------------------------------
+    | Off until the return process is ready: buyers can't request a return, and
+    | the Return & Refund Policy is hidden everywhere. Requests made before it was
+    | turned off can still be finished (seller decision, escalation, admin).
+    | Set RETURNS_ENABLED=true to bring it all back.
+    |
+    */
+    'returns_enabled' => (bool) env('RETURNS_ENABLED', false),
+
+    /*
+    |--------------------------------------------------------------------------
     | Low-stock alert level
     |--------------------------------------------------------------------------
     | A seller is alerted when a product's stock drops to this many units or fewer.

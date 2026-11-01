@@ -337,13 +337,13 @@
                 <h2 class="font-display text-base font-bold mb-4" style="color:#222222;">Valid ID</h2>
                 @php $ext = pathinfo($user->valid_id_path, PATHINFO_EXTENSION); @endphp
                 @if (in_array(strtolower($ext), ['jpg','jpeg','png']))
-                    <a href="{{ asset('storage/'.$user->valid_id_path) }}" target="_blank">
-                        <img src="{{ asset('storage/'.$user->valid_id_path) }}"
+                    <a href="{{ \App\Support\ProtectedFile::url($user->valid_id_path) }}" target="_blank">
+                        <img src="{{ \App\Support\ProtectedFile::url($user->valid_id_path) }}"
                              class="max-h-64 rounded-xl border object-contain"
                              style="border-color:#F0E4D8;" alt="Valid ID">
                     </a>
                 @else
-                    <a href="{{ asset('storage/'.$user->valid_id_path) }}" target="_blank"
+                    <a href="{{ \App\Support\ProtectedFile::url($user->valid_id_path) }}" target="_blank"
                        class="inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold"
                        style="border-color:#cfdce8;color:#fa4e1c;">
                         📄 View ID Document

@@ -326,7 +326,7 @@ class S07VouchersFlashAndBundlesTest extends TestCase
         $this->assertSame($sale->id, $items[0]->flash_sale_id);
         $this->assertNull($items[1]->flash_sale_id);
         $this->assertSame(3, $sale->fresh()->sold);
-        $this->assertEquals(749 + 65, $order->total_price);   // + shipping within NCR (0.8 kg × 2 = 1.6 → 2 kg)
+        $this->assertEquals(749 + 50, $order->total_price);   // + same-city shipping (0.8 kg × 2 = 1.6 → 2 kg: ₱40 + ₱10)
         $this->actingAs($this->buyer1)->get(route('profile.orders.show', $order->id))->assertSee('299.00')->assertSee('450.00');
         $this->actingAs($this->seller1)->get(route('seller.orders.show', $order->id))->assertSee('299.00')->assertSee('450.00');
     }

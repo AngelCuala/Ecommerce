@@ -48,6 +48,7 @@
 
     <div class="mb-5 flex flex-wrap border-b" style="border-color:#ECE7E3;">
         @foreach ($tabs as $key => $label)
+            @continue($key === 'return_refund' && ! \App\Models\Order::returnsEnabled() && ! ($counts[$key] ?? 0))
             <a href="{{ route('seller.orders.index', array_merge(request()->only(['date_from', 'date_to', 'q']), ['tab' => $key])) }}"
                class="status-tab {{ $tab === $key ? 'is-active' : '' }}" data-tab="{{ $key }}">{{ $label }}<span class="tab-count">{{ $counts[$key] ?? 0 }}</span></a>
         @endforeach

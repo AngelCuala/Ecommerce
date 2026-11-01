@@ -151,8 +151,28 @@ class PortalSessionTest extends TestCase
         $this->assertCount(3, array_filter(array_keys($this->jar), fn ($n) => str_starts_with($n, (string) config('session.cookie'))));
     }
 
+    public function test_signing_out_of_a_sorting_center_shows_its_login_not_the_buyer_signed_in_next_to_it(): void
+    {
+        User::forceCreate(['name' => 'Hub', 'email' => 'hub@e.com', 'password' => Hash::make('Hub@2026'), 'role' => 'sorting_center',
+            'approval_status' => 'approved', 'email_verified_at' => now()]);
+        $this->login('/login', $this->buyer1->email, 'Mamimili@2026');
+        $this->follow($this->login('/login', 'hub@e.com', 'Hub@2026'))->assertOk();   // main login, handed to the sorting center portal
+        $this->browse('GET', '/sc/dashboard')->assertOk();
+
+        $out = $this->browse('POST', '/sc/logout');
+        $out->assertRedirect('/sc/login');
+        $this->follow($out)->assertOk()->assertSee('Log in to the ALVY Sorting Center')
+            ->assertSee('You have been signed out.')->assertSee('action="' . route('sc.login.attempt') . '"', false);
+        $this->browse('GET', '/sc/dashboard')->assertRedirect('/sc/login');
+
+        // Signing in again on that page opens the sorting center, not the shop.
+        $this->follow($this->login('/sc/login', 'hub@e.com', 'Hub@2026'))->assertOk();
+        $this->browse('GET', '/sc/dashboard')->assertOk();
+    }
+
     public function test_time_limits_apply_to_each_portal_separately(): void
     {
+        config(['session.lifetime' => 30]);   // short idle limit so the test can show it per portal
         $this->login('/login', $this->buyer1->email, 'Mamimili@2026');
         $this->follow($this->login('/seller/login', $this->seller1->email, 'Tindahan@2026'));
 

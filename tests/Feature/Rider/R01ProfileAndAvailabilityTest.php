@@ -135,10 +135,10 @@ class R01ProfileAndAvailabilityTest extends TestCase
         $this->assertTrue($this->rider1->fresh()->isOnlineNow());
         $this->actingAs($this->logistics1)->get(route('sc.riders'))->assertSee('data-online', false);
 
-        $parcel = $this->parcel();   // COD ₱500.00, Ready for Pickup
+        $parcel = $this->parcel();   // COD ₱490.00, Ready for Pickup
         $offer = $this->dispatcher()->offer($parcel);
         $this->assertSame($this->rider1->id, $offer->rider_id);
-        $this->actingAs($this->rider1->user)->get(route('courier.rider'))->assertSee($parcel->tracking_number)->assertSee('₱500.00');
+        $this->actingAs($this->rider1->user)->get(route('courier.rider'))->assertSee($parcel->tracking_number)->assertSee('₱490.00');
     }
 
     /** RID-AVAIL-002 (A14) */
@@ -162,11 +162,11 @@ class R01ProfileAndAvailabilityTest extends TestCase
 
         $this->actingAs($this->rider1->user)->post(route('courier.rider.online'), ['online' => 0])
             ->assertSessionHas('success', fn ($m) => str_contains($m, 'active job stay with you'));
-        $this->actingAs($this->rider1->user)->get(route('courier.rider'))->assertSee($delivery->parcel->tracking_number);
+        $this->actingAs($this->rider1->user)->get(route('courier.rider'))->assertSee($delivery->parcel->waybill_number ?: $delivery->parcel->tracking_number);   // jobs show the waybill number
 
         $this->assertNull($this->dispatcher()->offer($this->parcel()));   // no new offers while offline
         $this->actingAs($this->rider1->user)->post(route('courier.rider.deliveries.deliver', $delivery->id), [
-            'pod_photo' => UploadedFile::fake()->image('pod_photo.jpg'), 'otp' => $delivery->otp_code, 'cod_collected' => '500.00',
+            'pod_photo' => UploadedFile::fake()->image('pod_photo.jpg'), 'otp' => $delivery->otp_code, 'cod_collected' => '490.00',
         ])->assertSessionHas('success');
         $this->assertSame('delivered', $delivery->fresh()->status);
     }

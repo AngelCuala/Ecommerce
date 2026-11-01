@@ -41,12 +41,17 @@ use Illuminate\Support\Facades\Route;
 // Each portal has its own sign-in, sign-out and hand-off address, and its own copy of the shared
 // pages its accounts use, so those pages read that portal's login.
 Route::get('/session/handoff/{token}', \App\Http\Controllers\Auth\PortalHandoffController::class)->middleware('throttle:30,1')->name('portal.handoff');
+
+// Private uploads (IDs, permits, proof of delivery, return photos, …): only through a signed link that expires (App\Support\ProtectedFile).
+Route::get('/files/{path}', \App\Http\Controllers\ProtectedFileController::class)->where('path', '.*')
+    ->middleware(['signed:relative', 'throttle:120,1'])->name('files.show');
+
 foreach (['seller', 'courier', 'admin', 'sc'] as $portal) {
     Route::prefix($portal)->name($portal . '.')->group(function () use ($portal) {
         Route::get('/session/handoff/{token}', \App\Http\Controllers\Auth\PortalHandoffController::class)->middleware('throttle:30,1')->name('portal.handoff');
-        if ($portal !== 'sc') {   // sorting centers keep their own /sc/login and /sc/logout
-            Route::get('/login', [AuthenticatedSessionController::class, 'create'])->name('login');
-            Route::post('/login', [AuthenticatedSessionController::class, 'store'])->name('login.attempt');
+        Route::get('/login', [AuthenticatedSessionController::class, 'create'])->name('login');
+        Route::post('/login', [AuthenticatedSessionController::class, 'store'])->name('login.attempt');
+        if ($portal !== 'sc') {   // sorting centers keep their own /sc/logout (SortingCenterController)
             Route::post('/logout', [AuthenticatedSessionController::class, 'destroy'])->middleware('auth')->name('logout');
         }
     });
@@ -81,8 +86,8 @@ Route::middleware('auth')->group(function () {
 });
 
 // ── Sorting Center Portal ────────────────────────────────────
-// Everyone signs in at /login (logistics companies too); the old logistics entrances lead there.
-Route::redirect('/sc/login', '/login')->name('sc.login');   // Portal::loginUrl('sc')
+// /sc/login (above) is the sorting center portal's own sign-in, so signing out there never lands in a buyer
+// account signed in to the shop in the same browser. /login works for logistics too; old entrances lead there.
 Route::get('/sc/register',  [\App\Http\Controllers\SortingCenter\RegistrationController::class, 'create'])->name('sc.register')->middleware('guest');
 Route::post('/sc/register', [\App\Http\Controllers\SortingCenter\RegistrationController::class, 'store'])->name('sc.register.store')->middleware('guest');
 

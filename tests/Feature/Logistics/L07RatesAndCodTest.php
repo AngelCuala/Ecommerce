@@ -28,7 +28,7 @@ class L07RatesAndCodTest extends TestCase
 
     private function saveRate(array $data)
     {
-        return $this->actingAs($this->logistics1)->from(route('sc.rates'))->post(route('sc.rates.update'), $data + ['route' => 'NCR-NCR', 'additional_kg' => '15.00']);
+        return $this->actingAs($this->logistics1)->from(route('sc.rates'))->post(route('sc.rates.update'), $data + ['route' => 'Same city', 'additional_kg' => '10.00']);   // Buyer 1 and Seller 1 are in the same city
     }
 
     /** Shipping for Seller 1 on a new checkout of P-02 (0.8 kg) to this address. */
@@ -44,20 +44,20 @@ class L07RatesAndCodTest extends TestCase
     public function test_log_rate_001_rate_change_applies_to_new_checkouts_only(): void
     {
         $old = $this->placeOrder($this->buyer1, [$this->cart($this->buyer1, $this->p02)])->first();
-        $this->assertEquals(50, (float) $old->shipping_fee);
+        $this->assertEquals(40, (float) $old->shipping_fee);   // same city: ₱40 for the first kg
 
-        $this->saveRate(['first_kg' => '55.00'])->assertSessionHas('success', 'Rate for NCR → NCR saved. It applies to checkouts started from now on.');
-        $this->actingAs($this->logistics1)->get(route('sc.rates'))->assertOk()->assertSee('value="55.00"', false);
+        $this->saveRate(['first_kg' => '45.00'])->assertSessionHas('success', 'Rate for Same city saved. It applies to checkouts started from now on.');
+        $this->actingAs($this->logistics1)->get(route('sc.rates'))->assertOk()->assertSee('value="45.00"', false);
 
-        $this->assertEquals(55, $this->previewShipping($this->addr1)->json('stores.' . $this->seller1->id . '.shipping'));
+        $this->assertEquals(45, $this->previewShipping($this->addr1)->json('stores.' . $this->seller1->id . '.shipping'));
         $new = $this->placeOrder($this->buyer1, [$this->cart($this->buyer1, $this->p02)])->first();
-        $this->assertEquals(55, (float) $new->shipping_fee);
+        $this->assertEquals(45, (float) $new->shipping_fee);
 
-        $this->assertEquals(50, (float) $old->fresh()->shipping_fee);
-        $this->actingAs($this->buyer1)->get(route('profile.orders.show', $old->id))->assertSee('₱50.00');
+        $this->assertEquals(40, (float) $old->fresh()->shipping_fee);
+        $this->actingAs($this->buyer1)->get(route('profile.orders.show', $old->id))->assertSee('₱40.00');
 
-        $log = ActivityLog::where('description', 'Shipping rate NCR → NCR changed')->sole();
-        $this->assertSame(['NCR → NCR: ₱50.00 + ₱15.00/kg', 'NCR → NCR: ₱55.00 + ₱15.00/kg', 'Shipping rate changed'],
+        $log = ActivityLog::where('description', 'Shipping rate Same city changed')->sole();
+        $this->assertSame(['Same city: ₱40.00 + ₱10.00/kg', 'Same city: ₱45.00 + ₱10.00/kg', 'Shipping rate changed'],
             [$log->old_value, $log->new_value, $log->reason]);
         $this->assertSame($this->logistics1->id, (int) $log->admin_id);
     }
@@ -73,7 +73,7 @@ class L07RatesAndCodTest extends TestCase
         $this->assertSame(0, ShippingRate::count());
 
         $this->saveRate(['first_kg' => '0.01'])->assertSessionHasNoErrors()->assertSessionHas('success');
-        $this->assertEquals(0.01, (float) ShippingRate::where('route', 'NCR-NCR')->sole()->first_kg);
+        $this->assertEquals(0.01, (float) ShippingRate::where('route', 'Same city')->sole()->first_kg);
     }
 
     /** LOG-RATE-003 */

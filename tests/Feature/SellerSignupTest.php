@@ -347,7 +347,7 @@ class SellerSignupTest extends TestCase
         ])->assertRedirect(route('otp.show'));
 
         $app = SellerApplication::first();
-        Storage::disk('public')->assertExists([$app->government_id_path, $app->dti_certificate_path, $app->bir_2303_path]);
+        Storage::disk('local')->assertExists([$app->government_id_path, $app->dti_certificate_path, $app->bir_2303_path]);
         Mail::assertSent(LoginOtpMail::class, fn ($m) => $m->hasTo('mariaclara.santos@example.com'));
     }
 
@@ -528,7 +528,7 @@ class SellerSignupTest extends TestCase
         $this->assertSame('pending', $app->status);
         $this->assertSame('pending', $seller->fresh()->approval_status);
         $this->assertNotSame($oldBir, $app->bir_2303_path);
-        Storage::disk('public')->assertExists($app->bir_2303_path);
+        Storage::disk('local')->assertExists($app->bir_2303_path);
 
         $this->actingAs($this->admin())->get(route('admin.seller-applications.index', ['status' => 'pending']))
             ->assertOk()->assertSee('Maria Clara Handicrafts');

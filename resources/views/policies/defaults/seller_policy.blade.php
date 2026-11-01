@@ -8,6 +8,7 @@
     $maxPhotos = \App\Models\Product::MAX_IMAGES;
     $area = \App\Support\ServiceArea::label();
     $policy = fn (string $key) => route('policies.show', $key);
+    $returnsOn = \App\Models\Order::returnsEnabled();
 @endphp
 <style>
     .pp h2 { margin: 1.75rem 0 .5rem; font-family: 'Nunito', ui-sans-serif, system-ui; font-size: 1.1rem; font-weight: 800; color: #222; }
@@ -29,8 +30,12 @@
         <strong>Effective date:</strong> October 22, 2026. This policy sets out the rules for selling on ALVY: who can sell,
         how listings, orders, shipping, returns and payments work, and what happens when the rules are broken.
         By opening a store on ALVY you agree to this policy, our <a href="{{ $policy('terms_of_service') }}">Terms of Service</a>,
-        <a href="{{ $policy('prohibited_items') }}">Prohibited Items Policy</a> and
-        <a href="{{ $policy('return_refund_policy') }}">Return &amp; Refund Policy</a>.
+        @if ($returnsOn)
+            <a href="{{ $policy('prohibited_items') }}">Prohibited Items Policy</a> and
+            <a href="{{ $policy('return_refund_policy') }}">Return &amp; Refund Policy</a>.
+        @else
+            and <a href="{{ $policy('prohibited_items') }}">Prohibited Items Policy</a>.
+        @endif
     </p>
 
     <h2>1. Who can sell on ALVY</h2>
@@ -127,6 +132,13 @@
     </ul>
 
     <h2>8. Returns and refunds</h2>
+    @if (! $returnsOn)
+    <ul>
+        <li>Buyer returns and refunds through ALVY are <strong>not available yet</strong>. If a buyer has a problem with an
+            order, they message you from the order page; please help them in good faith.</li>
+        <li>Orders complete when the buyer confirms receipt, or automatically {{ $returnDays }} days after delivery.</li>
+    </ul>
+    @else
     <ul>
         <li>Buyers can request a return or refund within <strong>{{ $returnDays }} days</strong> of delivery, with photos and a
             reason, as described in the <a href="{{ $policy('return_refund_policy') }}">Return &amp; Refund Policy</a>.</li>
@@ -136,6 +148,7 @@
             decision is final.</li>
         <li>For approved returns, the refunded amount (and its commission) is taken out of your earnings for that order.</li>
     </ul>
+    @endif
 
     <h2>9. Fees, earnings and payouts</h2>
     <table>

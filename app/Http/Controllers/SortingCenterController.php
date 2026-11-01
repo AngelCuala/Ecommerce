@@ -1172,7 +1172,8 @@ class SortingCenterController extends Controller
         \Auth::logout();
         $request->session()->invalidate();
         $request->session()->regenerateToken();
-        return redirect()->route('login');
+        // The sorting center's own sign-in page: /login would open a buyer account signed in to the shop in this browser.
+        return redirect()->route('sc.login')->with('success', 'You have been signed out.');
     }
 
     // ══════════════════════════════════════════════════════════════

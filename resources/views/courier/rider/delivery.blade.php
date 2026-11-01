@@ -54,6 +54,6 @@
 @endif
 
 @if($delivery->status === 'delivered' && $delivery->pod_path)
-    <div class="card" style="padding:18px 20px;"><img src="{{ asset('storage/' . $delivery->pod_path) }}" alt="Proof of delivery" style="max-height:220px;border-radius:8px;"></div>
+    <div class="card" style="padding:18px 20px;"><img src="{{ \App\Support\ProtectedFile::url($delivery->pod_path) }}" alt="Proof of delivery" style="max-height:220px;border-radius:8px;"></div>
 @endif
 </x-courier-layout>

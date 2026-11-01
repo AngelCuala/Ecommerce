@@ -29,12 +29,13 @@ return [
         'provider'    => env('ASSISTANT_PROVIDER', 'gemini'),
         'gemini_key'  => env('GEMINI_API_KEY'),
         'api_key'     => env('ANTHROPIC_API_KEY'),
-        'model'       => env('ASSISTANT_MODEL', env('ASSISTANT_PROVIDER', 'gemini') === 'claude' ? 'claude-opus-5-5' : 'gemini-3.8-flash'),
+        'model'       => env('ASSISTANT_MODEL', env('ASSISTANT_PROVIDER', 'gemini') === 'claude' ? 'claude-opus-5-5' : 'gemini-3.6-flash'),
         // When the main Gemini model is overloaded (503/429) after a couple of short retries, these answer instead
         // (comma-separated, tried in order). Empty to only ever use ASSISTANT_MODEL.
-        'fallback_models' => env('ASSISTANT_FALLBACK_MODELS', 'gemini-3.6-flash,gemini-3.5-flash'),
+        'fallback_models' => env('ASSISTANT_FALLBACK_MODELS', 'gemini-3.5-flash-lite,gemini-3.1-flash-lite,gemini-flash-lite-latest,gemini-3-flash-preview,gemini-3.5-flash,gemini-3.8-flash,gemini-flash-latest,gemini-3.7-flash,gemma-4-26b-a4b-it,gemma-4-31b-it'),
         'retry_waits_ms'  => [700, 1500],
         'attempt_timeout' => (int) env('ASSISTANT_ATTEMPT_TIMEOUT', 15),   // seconds one model gets to start answering
+        'fallback_budget' => (float) env('ASSISTANT_FALLBACK_BUDGET', 25),   // seconds to spend trying back-up models before Quick help
         'thinking'    => env('ASSISTANT_THINKING', 'low'),   // Gemini thinking level; empty to leave it to the model
         'timeout'     => (float) env('ASSISTANT_TIMEOUT', 45),
         'daily_limit' => (int) env('ASSISTANT_DAILY_LIMIT', 60),   // questions per visitor per day

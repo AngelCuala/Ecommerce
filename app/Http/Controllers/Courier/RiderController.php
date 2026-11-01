@@ -300,7 +300,7 @@ class RiderController extends Controller
         DB::transaction(function () use ($request, $delivery, $cod, $rider) {
             $delivery->update([
                 'status' => 'delivered', 'delivered_at' => now(),
-                'pod_path' => $request->file('pod_photo')->store('proof-of-delivery', 'public'),
+                'pod_path' => $request->file('pod_photo')->store('proof-of-delivery', \App\Support\ProtectedFile::DISK),
                 'cod_collected' => $cod ? round((float) $delivery->cod_amount, 2) : 0,
             ]);
             $parcel = $delivery->parcel;

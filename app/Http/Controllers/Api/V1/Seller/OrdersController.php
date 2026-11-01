@@ -23,6 +23,7 @@ class OrdersController extends Controller
         return response()->json(ApiJson::page($d['orders'], fn ($o) => SellerJson::orderRow($o)) + [
             'tab'  => $d['tab'],
             'tabs' => collect(['all' => ['label' => 'All']] + Order::SELLER_TABS)
+                ->reject(fn ($t, $key) => $key === 'return_refund' && ! Order::returnsEnabled() && ! ($d['counts'][$key] ?? 0))
                 ->map(fn ($t, $key) => ['key' => $key, 'label' => $t['label'], 'count' => $d['counts'][$key] ?? 0])->values(),
         ]);
     }
@@ -59,6 +60,7 @@ class OrdersController extends Controller
             'payment_method' => $order->payment_method,
             'buyer_note'   => $order->buyer_note,
             'tracking'     => $d['tracking'],
+            'waybill'      => $d['waybill'] ?? null,   // what the website's QR code holds (hubs scan it)
             'weight_kg'    => $d['weight'] !== null ? (float) $d['weight'] : null,
             'seller'       => ['name' => $d['seller']?->storeName() ?? $d['seller']?->name,
                 'phone' => $d['seller']?->sellerApplication?->phone ?? $d['seller']?->contact_no, 'address' => $d['seller']?->sellerApplication?->address],

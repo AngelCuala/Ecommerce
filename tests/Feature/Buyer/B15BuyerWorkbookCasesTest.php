@@ -262,19 +262,19 @@ class B15BuyerWorkbookCasesTest extends TestCase
         $this->openCheckout($this->buyer1, [$this->cart($this->buyer1, $this->p01, 1, 'Natural / M'), $this->cart($this->buyer1, $this->p02), $this->cart($this->buyer1, $this->p05)]);
         $all = ['platform_voucher' => 'PLAT100', 'shipping_voucher' => 'FREESHIP'];
 
-        $this->assertEquals(1083, $this->preview($all + ['seller_vouchers' => [$this->seller1->id => 'MCH50']])->json('total'));
+        $this->assertEquals(1068, $this->preview($all + ['seller_vouchers' => [$this->seller1->id => 'MCH50']])->json('total'));   // Seller 1 ships within the buyer's city (₱50 for 2 kg)
 
         // MCH10 for Seller 1 replaces MCH50 (never both): ₱699 × 10% = ₱69.90.
         $p = $this->preview($all + ['seller_vouchers' => [$this->seller1->id => 'MCH50'], 'voucher_code' => 'MCH10'])->json();
         $this->assertSame([$this->seller1->id => 'MCH10'], $p['applied']['sellers']);
         $this->assertEquals(69.90, $p['seller_discount']);
-        $this->assertEquals(1063.10, $p['total']);
+        $this->assertEquals(1048.10, $p['total']);
 
         // RVSECRET isn't applicable: Seller 2's subtotal ₱399 is under ₱1,000.
         $p = $this->preview($all + ['seller_vouchers' => [$this->seller1->id => 'MCH10', $this->seller2->id => 'RVSECRET']])->json();
         $this->assertArrayNotHasKey($this->seller2->id, $p['applied']['sellers']);
         $this->assertStringContainsString('₱1,000', implode(' ', $p['notices']));
-        $this->assertEquals(1063.10, $p['total']);
+        $this->assertEquals(1048.10, $p['total']);
     }
 
     /** BUY-VOU-004 */
@@ -301,14 +301,14 @@ class B15BuyerWorkbookCasesTest extends TestCase
     {
         $this->openCheckout($this->buyer1, [$this->cart($this->buyer1, $this->p02)]);
         $p = $this->preview(['shipping_voucher' => 'FREESHIP'])->json();
-        $this->assertEquals([50, 50, 450], [$p['shipping_total'], $p['shipping_discount'], $p['subtotal']]);
+        $this->assertEquals([40, 40, 450], [$p['shipping_total'], $p['shipping_discount'], $p['subtotal']]);   // same city: ₱40
         $this->assertEquals(450, $p['total']);   // ₱0.00 shipping, never negative
 
         CartItem::query()->delete();
-        $this->openCheckout($this->buyer1, [$this->cart($this->buyer1, $this->p02), $this->cart($this->buyer1, $this->p01, 1, 'Natural / M')]);
+        $this->openCheckout($this->buyer1, [$this->cart($this->buyer1, $this->p02, 3), $this->cart($this->buyer1, $this->p01, 1, 'Natural / M')]);
         $p = $this->preview(['shipping_voucher' => 'FREESHIP'])->json();
-        $this->assertEquals([65, 50, 699], [$p['shipping_total'], $p['shipping_discount'], $p['subtotal']]);
-        $this->assertEquals(699 + 15, $p['total']);   // ₱15.00 shipping left; merchandise unchanged
+        $this->assertEquals([60, 50, 1599], [$p['shipping_total'], $p['shipping_discount'], $p['subtotal']]);   // 2.8 kg → 3 kg, same city: ₱40 + 2 × ₱10
+        $this->assertEquals(1599 + 10, $p['total']);   // ₱10.00 shipping left; merchandise unchanged
     }
 
     // ── B8 Checkout ───────────────────────────────────────────
@@ -325,13 +325,13 @@ class B15BuyerWorkbookCasesTest extends TestCase
         $this->actingAs($this->buyer1)->from(route('checkout.index'))->post(route('checkout.store'), $form)
             ->assertSessionHasErrors("seller_vouchers.{$this->seller1->id}");
         $this->assertSame(0, Order::count());
-        $this->assertEquals(500, $this->preview()->json('total'));   // the updated total, without MCH50
+        $this->assertEquals(490, $this->preview()->json('total'));   // the updated total, without MCH50 (₱450 + ₱40)
 
         // The same page can now place the order without the voucher (it isn't treated as already placed).
         unset($form['seller_vouchers']);
         $this->flushSession();
         $this->actingAs($this->buyer1)->post(route('checkout.store'), $form)->assertRedirect(route('checkout.confirmation'));
-        $this->assertEquals(500, Order::sole()->total_price);
+        $this->assertEquals(490, Order::sole()->total_price);
     }
 
     /** BUY-CHK-011 (A22) */
@@ -348,7 +348,7 @@ class B15BuyerWorkbookCasesTest extends TestCase
         $this->flushSession();
         $this->place(['total' => '1.00', 'total_price' => '1.00', 'subtotal' => '1.00', 'price' => '1.00'])->assertSessionHasNoErrors();
         $order = Order::sole();
-        $this->assertEquals(500, $order->total_price);   // ₱450 + ₱50 shipping
+        $this->assertEquals(490, $order->total_price);   // ₱450 + ₱40 shipping (same city)
         $this->assertEquals(450, $order->items()->sole()->price);
     }
 

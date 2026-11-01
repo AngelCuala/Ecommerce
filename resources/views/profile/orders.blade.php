@@ -12,6 +12,7 @@
             <nav class="pf-card pf-nav-scroll flex gap-1 overflow-x-auto p-1.5 text-sm">
                 <a href="{{ route('profile.orders') }}" class="whitespace-nowrap rounded-lg px-3 py-2 font-medium" style="{{ $tab === 'all' ? 'background:#fa4e1c;color:#fff;' : 'color:#57534E;' }}">All</a>
                 @foreach (\App\Models\Order::TABS as $key => $t)
+                    @continue($key === 'return_refund' && ! \App\Models\Order::returnsEnabled() && ! $counts[$key])
                     <a href="{{ route('profile.orders', ['tab' => $key]) }}" class="whitespace-nowrap rounded-lg px-3 py-2 font-medium" style="{{ $tab === $key ? 'background:#fa4e1c;color:#fff;' : 'color:#57534E;' }}">
                         {{ $t['label'] }}@if ($counts[$key] > 0) <span class="ml-0.5 text-xs opacity-80">({{ $counts[$key] }})</span>@endif
                     </a>

@@ -223,7 +223,7 @@ class LogisticsController extends Controller
             RiderJobOffer::where('parcel_id', $parcel->id)->where('status', 'pending')->update(['status' => 'cancelled']);
             $parcel->update([
                 'status' => $data['type'], 'failure_reason' => $data['reason'],
-                'exception_photo_path' => $request->hasFile('photo') ? $request->file('photo')->store('parcel-exceptions', 'public') : null,
+                'exception_photo_path' => $request->hasFile('photo') ? $request->file('photo')->store('parcel-exceptions', \App\Support\ProtectedFile::DISK) : null,
             ]);
 
             // The buyer can't receive it: the order is refunded (claim) — no stock comes back.

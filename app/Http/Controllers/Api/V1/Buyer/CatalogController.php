@@ -62,6 +62,7 @@ class CatalogController extends Controller
     {
         return response()->json(['categories' => collect(CategoryPageController::catalog())->map(fn ($c) => [
             'name' => $c['name'], 'slug' => $c['slug'], 'subcategories' => $c['subs'] ?? $c['subcategories'] ?? [],
+            'image_url' => asset('images/categories/' . $c['slug'] . '.jpg'),   // the same picture as the home shortcuts
         ])->values()]);
     }
 
@@ -91,7 +92,8 @@ class CatalogController extends Controller
         $d = $this->pageData($this->web(StoreController::class, 'show', ['sellerId' => $sellerId]));
 
         return response()->json(ApiJson::page($d['products'], fn ($p) => ApiJson::productCard($p)) + [
-            'store'      => ApiJson::store($d['seller']) + ['followers' => $d['followers'], 'following' => $d['following']],
+            'store'      => ApiJson::store($d['seller']) + ['followers' => $d['followers'], 'following' => $d['following'],
+                'product_count' => (int) ($d['productCount'] ?? 0)],   // the website's "N products"
             'store_categories' => $d['storeCategories']->map(fn ($c) => [
                 'id' => $c->id, 'name' => $c->name, 'count' => $c->products_count,
                 'children' => $c->children->map(fn ($s) => ['id' => $s->id, 'name' => $s->name, 'count' => $s->products_count])->values(),

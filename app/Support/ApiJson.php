@@ -25,7 +25,7 @@ class ApiJson
 {
     public static function file(?string $path): ?string
     {
-        return $path ? asset('storage/' . $path) : null;
+        return ProtectedFile::url($path);   // IDs, proof of delivery, …: a signed link that expires; other uploads: the public address
     }
 
     public static function page(LengthAwarePaginator $p, callable $map): array
@@ -69,6 +69,7 @@ class ApiJson
             'slug'             => $product->slug,
             'title'            => $product->title,
             'image_url'        => self::file($product->image),
+            'thumb_url'        => $product->image ? $product->thumb_url : null,   // small WebP for product cards (the original until it exists)
             'category'         => $product->relationLoaded('category') ? $product->category?->name : null,
             'price'            => $price,
             'original_price'   => $hasDiscount ? (float) $product->price : null,

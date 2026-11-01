@@ -131,7 +131,7 @@ class L05TrackingAndReturnsTest extends TestCase
         $this->exception($parcel, ['type' => 'damaged', 'reason' => $reason, 'photo' => UploadedFile::fake()->image('pod_photo.jpg')])->assertSessionHas('success');
         $parcel->refresh();
         $this->assertSame('Damaged', $parcel->statusLabel());
-        Storage::disk('public')->assertExists($parcel->exception_photo_path);
+        Storage::disk('local')->assertExists($parcel->exception_photo_path);
         $this->assertTrue(UserNotification::where('user_id', $this->buyer1->id)->where('title', 'Parcel damaged')->exists());
         $this->assertTrue(UserNotification::where('user_id', $this->seller1->id)->where('title', 'Parcel damaged')->exists());
     }

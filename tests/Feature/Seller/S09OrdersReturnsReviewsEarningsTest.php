@@ -126,7 +126,7 @@ class S09OrdersReturnsReviewsEarningsTest extends TestCase
     public function test_sel_ord_002_accept_pack_ready_for_pickup_and_print_waybill(): void
     {
         $order = $this->placeOrder($this->buyer1, [$this->cart($this->buyer1, $this->p02)])->first();
-        $this->assertEquals(500, $order->total_price);   // ₱450 + ₱50 shipping (0.8 kg within NCR)
+        $this->assertEquals(490, $order->total_price);   // ₱450 + ₱40 shipping (0.8 kg, same city)
         $this->assertSame('new', $order->sellerStep());
 
         $this->seller('post', 'seller.orders.accept', $order)->assertSessionHas('success');
@@ -151,7 +151,7 @@ class S09OrdersReturnsReviewsEarningsTest extends TestCase
 
         $this->actingAs($this->seller1)->get(route('seller.orders.waybill', $order->id))->assertOk()
             ->assertSee($parcel->tracking_number)->assertSee($order->full_name)->assertSee('45 Kalayaan Ave.')
-            ->assertSee('12 Tandang Sora Ave., Commonwealth')->assertSee('0.8 kg')->assertSee('₱500.00');
+            ->assertSee('12 Tandang Sora Ave., Commonwealth')->assertSee('0.8 kg')->assertSee('₱490.00');
         // Buyer 1's timeline shows each step.
         $this->actingAs($this->buyer1)->get(route('profile.orders.show', $order->id))->assertOk()->assertSee('Ready for pickup');
     }
@@ -239,8 +239,8 @@ class S09OrdersReturnsReviewsEarningsTest extends TestCase
         $this->actingAs($this->seller1)->get(route('seller.orders.show', $order->id))->assertOk()
             ->assertSee('Natural / M')->assertSee('₱249.00 × 1', false)->assertSee('Rattan Fruit Basket')->assertSee('₱450.00')
             ->assertSee('Store voucher MCH50')->assertSee('−₱50.00', false)
-            ->assertSee('Shipping fee (buyer pays)')->assertSee('₱65.00')
-            ->assertSee('Please wrap as a gift')->assertSee('COD')->assertSee('45 Kalayaan Ave.')
+            ->assertSee('Shipping fee (buyer pays)')->assertSee('₱50.00')   // 2 kg, same city
+            ->assertSee('Please wrap as a gift')->assertSee('Cash on delivery')->assertSee('45 Kalayaan Ave.')
             ->assertDontSee('USB-C Fast Charger 20W');   // Seller 2's item is not in this order
     }
 

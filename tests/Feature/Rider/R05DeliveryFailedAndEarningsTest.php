@@ -30,7 +30,7 @@ class R05DeliveryFailedAndEarningsTest extends TestCase
     {
         return $this->actingAs(($rider ?? $this->rider1)->user)->from(route('courier.rider.deliveries.show', $d->id))
             ->post(route('courier.rider.deliveries.deliver', $d->id), array_merge([
-                'pod_photo' => UploadedFile::fake()->image('pod_photo.jpg')->size(1100), 'cod_collected' => '500.00',
+                'pod_photo' => UploadedFile::fake()->image('pod_photo.jpg')->size(1100), 'cod_collected' => '490.00',
             ], $over));
     }
 
@@ -67,10 +67,10 @@ class R05DeliveryFailedAndEarningsTest extends TestCase
         $this->assertSame(Order::DELIVERED, $order->fresh()->status);
         $this->assertSame('Paid', $order->fresh()->payment_status);
 
-        $this->actingAs($this->buyer1)->get(route('profile.orders.show', $order->id))->assertSee('data-proof-of-delivery', false)->assertSee($d->pod_path);
-        $this->assertEquals(500, $this->wallet()->codBalance($this->rider1));
+        $this->actingAs($this->buyer1)->get(route('profile.orders.show', $order->id))->assertSee('data-proof-of-delivery', false)->assertSee(route('shipments.pod', $order), false);   // the photo goes through a signed-in route, not its file path
+        $this->assertEquals(490, $this->wallet()->codBalance($this->rider1));
         $this->assertEquals(50, $this->wallet()->pay($this->rider1, now()->startOfDay(), now()->endOfDay()));
-        $this->assertTrue(UserNotification::where('user_id', $this->seller1->id)->where('title', 'Parcel delivered')->exists());
+        $this->assertTrue(UserNotification::where('user_id', $this->seller1->id)->where('title', 'Delivered')->exists());   // the seller is told by the tracking event
         $this->actingAs($this->logistics1)->get(route('sc.delivery-monitoring'))->assertOk()->assertSee($d->parcel->tracking_number);
     }
 
@@ -108,12 +108,12 @@ class R05DeliveryFailedAndEarningsTest extends TestCase
     public function test_rid_dlv_005_cod_amount_must_match(): void
     {
         $d = $this->deliveryFor($this->rider1, 'out_for_delivery');
-        foreach (['499.99', '500.01'] as $amount) {
-            $this->deliver($d, ['cod_collected' => $amount])->assertSessionHasErrors(['cod_collected' => 'The COD amount doesn\'t match. Collect exactly ₱500.00.']);
+        foreach (['489.99', '490.01'] as $amount) {
+            $this->deliver($d, ['cod_collected' => $amount])->assertSessionHasErrors(['cod_collected' => 'The COD amount doesn\'t match. Collect exactly ₱490.00.']);
         }
         $this->assertSame('out_for_delivery', $d->fresh()->status);
-        $this->deliver($d, ['cod_collected' => '500.00'])->assertSessionHas('success');
-        $this->assertEquals(500, $d->fresh()->cod_collected);
+        $this->deliver($d, ['cod_collected' => '490.00'])->assertSessionHas('success');
+        $this->assertEquals(490, $d->fresh()->cod_collected);
     }
 
     /** RID-DLV-006 */

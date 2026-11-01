@@ -177,10 +177,45 @@ class AccountController extends Controller
         return $this->actionJson($this->web(VoucherWalletController::class, 'claim', ['voucher' => $voucher]));
     }
 
+    /**
+     * "Become a seller": the website's seller application for a signed-in buyer (same fields, documents and
+     * rules, plus the account password to confirm). The account stays a buyer until the admin approves.
+     */
+    public function becomeSeller(): JsonResponse
+    {
+        return $this->actionJson($this->web(\App\Http\Controllers\SellerApplicationController::class, 'store'),
+            ['user' => AuthController::userPayload(auth()->user()->fresh())]);
+    }
+
+    /**
+     * "Become a courier": the website's courier application (vehicle, OR/CR, ID, the sorting center to join).
+     * Like the website the account becomes a pending courier, so the app shows its new home screen.
+     */
+    public function becomeCourier(): JsonResponse
+    {
+        $response = $this->web(\App\Http\Controllers\Courier\RegistrationController::class, 'store');
+
+        return $this->actionJson($response, ['user' => AuthController::userPayload(auth()->user()->fresh())]);
+    }
+
+    /** "Claim all" on a Voucher Center tab (tab = shipping | discount | store; none = every tab): the website's rules. */
+    public function claimAllVouchers(): JsonResponse
+    {
+        return $this->actionJson($this->web(VoucherWalletController::class, 'claimAll'));
+    }
+
     public function following(): JsonResponse
     {
         $d = $this->pageData($this->web(StoreController::class, 'following'));
-        return response()->json(['stores' => collect($d['stores'] ?? [])->map(fn ($s) => ApiJson::store($s->seller))->values()]);
+        // Each store with the website's numbers and a preview of its 4 newest products.
+        return response()->json(['stores' => collect($d['stores'] ?? [])->map(fn ($s) => ApiJson::store($s->seller) + [
+            'products'  => (int) $s->products,
+            'followers' => (int) $s->followers,
+            'rating'    => $s->rating,
+            'reviews'   => (int) $s->reviews,
+            'vouchers'  => (int) $s->vouchers,
+            'latest'    => collect($s->latest)->map(fn ($p) => ApiJson::productCard($p))->values(),
+        ])->values()]);
     }
 
     public function toggleFollow(int $sellerId): JsonResponse

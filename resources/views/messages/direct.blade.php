@@ -32,8 +32,8 @@
                         @include('messages._product-card', ['product' => $msg->product])
                     @endif
                     @if ($msg->attachment_path)
-                        <a href="{{ asset('storage/' . $msg->attachment_path) }}" target="_blank" class="mb-1">
-                            <img src="{{ asset('storage/' . $msg->attachment_path) }}" alt="Photo" class="max-h-56 max-w-[16rem] rounded-xl border object-cover" style="border-color:#ECE7E3;" loading="lazy">
+                        <a href="{{ \App\Support\ProtectedFile::url($msg->attachment_path) }}" target="_blank" class="mb-1">
+                            <img src="{{ \App\Support\ProtectedFile::url($msg->attachment_path) }}" alt="Photo" class="max-h-56 max-w-[16rem] rounded-xl border object-cover" style="border-color:#ECE7E3;" loading="lazy">
                         </a>
                     @endif
                     @if ($msg->body !== '')

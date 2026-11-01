@@ -131,7 +131,7 @@ class StaffController extends Controller
 
         $paths = [];
         foreach (['license_file' => 'id_license_path', 'or_cr_file' => 'or_cr_path', 'nbi_file' => 'nbi_path'] as $field => $column) {
-            $paths[$column] = $request->file($field)->store('courier-documents', 'public');
+            $paths[$column] = $request->file($field)->store('courier-documents', \App\Support\ProtectedFile::DISK);
         }
 
         $courier = DB::transaction(function () use ($sc, $data, $paths) {

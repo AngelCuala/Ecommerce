@@ -9,6 +9,7 @@
     $idle         = (int) config('session.lifetime', 30);
     $maxHours     = intdiv((int) config('session.max_login_minutes', 480), 60);
     $policy       = fn (string $key) => route('policies.show', $key);
+    $returnsOn    = \App\Models\Order::returnsEnabled();
 @endphp
 <style>
     .pp h2 { margin: 1.75rem 0 .5rem; font-family: 'Nunito', ui-sans-serif, system-ui; font-size: 1.1rem; font-weight: 800; color: #222; }
@@ -35,7 +36,7 @@
     <p>These Terms work together with our other policies, which form part of your agreement with us:</p>
     <ul>
         <li><a href="{{ $policy('privacy_policy') }}">Privacy Policy</a>: how we collect and use your personal information.</li>
-        <li><a href="{{ $policy('return_refund_policy') }}">Return &amp; Refund Policy</a>: how returns and refunds work.</li>
+        @if ($returnsOn)<li><a href="{{ $policy('return_refund_policy') }}">Return &amp; Refund Policy</a>: how returns and refunds work.</li>@endif
         <li><a href="{{ $policy('prohibited_items') }}">Prohibited Items Policy</a>: what may not be sold on ALVY.</li>
         <li><a href="{{ $policy('seller_policy') }}">Seller Policy</a>: extra rules for anyone who sells on ALVY.</li>
     </ul>
@@ -112,10 +113,18 @@
             over, the rider takes a <strong>proof-of-delivery photo</strong>, which completes the delivery.</li>
         <li>If a delivery fails (for example, nobody is home or the address is wrong), the rider tries again, up to
             {{ $attempts }} attempts. After the last failed attempt, or if you refuse the parcel, it is returned to the seller.</li>
-        <li>Check your parcel when you receive it. If something is wrong, request a return as described below.</li>
+        <li>Check your parcel when you receive it. If something is wrong, {{ $returnsOn ? 'request a return as described below' : 'message the seller from your order page' }}.</li>
     </ul>
 
     <h2>9. Returns and refunds</h2>
+    @if (! $returnsOn)
+    <ul>
+        <li>Returns and refunds through ALVY are <strong>not available yet</strong>. If something is wrong with your order,
+            message the seller from your order page, or contact us.</li>
+        <li>Cancelled orders are still refunded as described in section 7.</li>
+        <li>An order is completed when you confirm you received it, or automatically {{ $returnDays }} days after delivery.</li>
+    </ul>
+    @else
     <ul>
         <li>You can request a return or refund within <strong>{{ $returnDays }} days</strong> of delivery, from your order page.
             Choose a reason (for example damaged, wrong or missing items, an item not as described, or a change of mind) and add
@@ -127,6 +136,7 @@
         <li>An order is completed when you confirm you received it, or automatically when the return window ends.</li>
         <li>The full rules are in the <a href="{{ $policy('return_refund_policy') }}">Return &amp; Refund Policy</a>.</li>
     </ul>
+    @endif
 
     <h2>10. Reviews, chat and content you post</h2>
     <ul>
@@ -178,7 +188,7 @@
 
     <h2>15. Disputes and governing law</h2>
     <p>
-        If you have a problem with an order, first contact the seller through chat, or use the return process on your order page.
+        If you have a problem with an order, first contact the seller through chat{{ $returnsOn ? ', or use the return process on your order page' : '' }}.
         If it is still not solved, contact us and we will help both sides reach a fair outcome. These Terms are governed by the
         laws of the Republic of the Philippines, including the <strong>Electronic Commerce Act of 2000 (Republic Act No. 8792)</strong>.
     </p>

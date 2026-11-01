@@ -40,6 +40,18 @@ class ProductSearch
         return DB::getDriverName() === 'sqlite' ? "datetime('now')" : 'NOW()';
     }
 
+    /** Products of a palette color: seen in the picture, or the buyer's word as a whole word in the name. */
+    public static function whereColor(Builder $q, string $color, ?string $word = null): Builder
+    {
+        $q->whereJsonContains('products.colors', $color);
+        foreach (array_unique([mb_strtolower($color), mb_strtolower((string) ($word ?? $color))]) as $w) {
+            $w = self::likeEscape($w);
+            $q->orWhereRaw('LOWER(products.title) LIKE ?', [$w . ' %'])->orWhereRaw('LOWER(products.title) LIKE ?', ['% ' . $w . ' %'])
+              ->orWhereRaw('LOWER(products.title) LIKE ?', ['% ' . $w])->orWhereRaw('LOWER(products.title) = ?', [$w]);
+        }
+        return $q;
+    }
+
     /** "%" and "_" typed by the buyer are searched as themselves. */
     public static function likeEscape(string $term): string
     {
@@ -62,6 +74,12 @@ class ProductSearch
         // Every word must match somewhere (title, brand, category…), in any order.
         $term = trim((string) $term);
         foreach (preg_split('/\s+/', $term, -1, PREG_SPLIT_NO_EMPTY) as $word) {
+            // A color word ("red", "pula"): the colors read from the picture, or the whole word in the name
+            // (not "red" inside "shredder").
+            if ($color = ProductColors::fromWord($word)) {
+                $query->where(fn ($q) => self::whereColor($q, $color, $word));
+                continue;
+            }
             $like = '%' . self::likeEscape($word) . '%';
             $query->where(fn ($q) => $q->where('title', 'like', $like)
                 ->orWhere('brand', 'like', $like)

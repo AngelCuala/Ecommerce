@@ -100,7 +100,7 @@
                     <div>
                         <p class="mb-2 text-xs font-semibold uppercase tracking-wide" style="color:#6b90aa;">Government ID</p>
                         @if ($app->government_id_path)
-                            <a href="{{ asset('storage/'.$app->government_id_path) }}" target="_blank"
+                            <a href="{{ \App\Support\ProtectedFile::url($app->government_id_path) }}" target="_blank"
                                class="inline-flex items-center gap-2 rounded-lg border-2 px-4 py-2 text-sm font-semibold"
                                style="border-color:#fa4e1c;color:#fa4e1c;background:#fff;">View document</a>
                         @else
@@ -110,7 +110,7 @@
                     <div>
                         <p class="mb-2 text-xs font-semibold uppercase tracking-wide" style="color:#6b90aa;">Business Permit</p>
                         @if ($app->business_permit_path)
-                            <a href="{{ asset('storage/'.$app->business_permit_path) }}" target="_blank"
+                            <a href="{{ \App\Support\ProtectedFile::url($app->business_permit_path) }}" target="_blank"
                                class="inline-flex items-center gap-2 rounded-lg border-2 px-4 py-2 text-sm font-semibold"
                                style="border-color:#fa4e1c;color:#fa4e1c;background:#fff;">View document</a>
                         @else

@@ -41,6 +41,11 @@ class AssistantController extends Controller
             return response()->json(['message' => "I'm still answering your previous question. One moment please."], 429);
         }
         RateLimiter::hit($key, 86400);
+        // When the quick models are used up, the slow back-up (Gemma) can take longer than PHP's usual 30 s.
+        // (Not in tests: there it would limit the whole test run, not one request.)
+        if (! app()->runningUnitTests()) {
+            @set_time_limit(85);
+        }
 
         try {
             return response()->json($this->assistant->ask($data['message'], auth()->user()));

@@ -51,7 +51,7 @@
                 @if ($rr->details)<p class="pl-muted">{{ $rr->details }}</p>@endif
                 <div class="flex flex-wrap gap-2">
                     @foreach ($rr->photos() as $ph)
-                        <a href="{{ asset('storage/' . $ph) }}" target="_blank" class="inline-block"><img src="{{ asset('storage/' . $ph) }}" alt="Evidence photo" class="h-28 rounded-md border object-cover" style="border-color:#ECE7E3;"></a>
+                        <a href="{{ \App\Support\ProtectedFile::url($ph) }}" target="_blank" class="inline-block"><img src="{{ \App\Support\ProtectedFile::url($ph) }}" alt="Evidence photo" class="h-28 rounded-md border object-cover" style="border-color:#ECE7E3;"></a>
                     @endforeach
                 </div>
                 @if ($rr->status === 'requested')<p class="text-xs" style="color:#B45309;">Answer by {{ $rr->created_at->addDays(\App\Models\ReturnRequest::RESPOND_DAYS)->format('M j, Y g:i A') }}, or it is approved automatically.</p>@endif

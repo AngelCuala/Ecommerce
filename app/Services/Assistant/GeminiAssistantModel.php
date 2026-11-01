@@ -3,6 +3,7 @@
 namespace App\Services\Assistant;
 
 use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use RuntimeException;
 
@@ -28,29 +29,45 @@ class GeminiAssistantModel implements AssistantModel
     /** Busy / overloaded answers from Google: worth a retry, then the back-up model. */
     private const BUSY = [429, 500, 503, 504];
 
-    /** The model this reply started on; a reply's tool loop stays on it (thought signatures are per model). */
+    /** Cache key prefix: a model that hit its limit or hung is skipped for a minute. */
+    private const COOLDOWN = 'assistant-gemini-cooldown:';
+
+    /** The model this reply is on; the rest of its tool loop prefers it. */
     private ?string $activeModel = null;
+
+    /**
+     * Google's stand-in thought signature for a function call another model made: lets a back-up model finish a
+     * reply when the first one hits its limit mid-way (Gemini 3 otherwise rejects calls without their signature).
+     */
+    private const FOREIGN_SIGNATURE = 'skip_thought_signature_validator';
 
     public function respond(string $system, array $messages, array $tools): object
     {
         $body = $this->body($system, $messages, $tools);
 
-        // Mid-reply (tool results going back): stay on the model that started it.
-        if ($this->activeModel && $this->hasModelTurns($messages)) {
-            return $this->message($this->call($this->activeModel, $body));
-        }
-
         $models = array_values(array_unique(array_filter(array_merge(
             [(string) config('services.assistant.model')],
             array_map('trim', explode(',', (string) config('services.assistant.fallback_models'))),
         ))));
+        // Mid-reply (tool results going back): the model that started it goes first.
+        if ($this->activeModel && $this->hasModelTurns($messages)) {
+            $models = array_values(array_unique([$this->activeModel, ...$models]));
+        }
+        // Skip models that just hit their limit or hung (for a minute), unless none are left.
+        $ready = array_values(array_filter($models, fn ($m) => ! Cache::has(self::COOLDOWN . $m)));
+        $models = $ready ?: $models;
 
         $last = null;
+        $started = microtime(true);
         foreach ($models as $model) {
+            // A long back-up list must not keep the buyer waiting: after this long, Quick help answers instead.
+            if ($last && microtime(true) - $started > (float) config('services.assistant.fallback_budget', 25)) {
+                break;
+            }
             try {
                 $json = $this->call($model, $body);
                 $this->activeModel = $model;
-                return $this->message($json);
+                return $this->message($json, $model);
             } catch (GeminiBusy $e) {
                 $last = $e;   // overloaded or unknown model: try the next one
             }
@@ -59,18 +76,45 @@ class GeminiAssistantModel implements AssistantModel
         throw new RuntimeException($last?->getMessage() ?? 'Gemini is unavailable.');
     }
 
-    /** One model, with a couple of short retries while Google says it's busy. */
+    /**
+     * One model, with a couple of short retries while Google says it's busy. A 429 (its rate limit) isn't retried:
+     * a back-up model answers instead, since retrying only spends more of the limit and adds seconds.
+     */
     private function call(string $model, array $body): array
     {
+        // Parts another model wrote (earlier in this reply) carry that model's signatures: swap in the stand-in.
+        foreach ($body['contents'] as &$content) {
+            foreach ($content['parts'] as &$part) {
+                $from = $part['_model'] ?? $model;
+                unset($part['_model']);
+                if ($from !== $model) {
+                    if (isset($part['functionCall'])) {
+                        $part['thoughtSignature'] = self::FOREIGN_SIGNATURE;
+                    } else {
+                        unset($part['thoughtSignature']);
+                    }
+                }
+            }
+            unset($part);
+        }
+        unset($content);
+
         $waits = (array) config('services.assistant.retry_waits_ms', [700, 1500]);
+        $timeout = (int) config('services.assistant.attempt_timeout', 15);
+        if (str_starts_with($model, 'gemma-')) {
+            // Gemma (the last back-up: big daily quota) rejects "low" thinking; "minimal" makes it ~5x faster.
+            $body['generationConfig']['thinkingConfig'] = ['thinkingLevel' => 'minimal'];
+            $timeout = max($timeout, 30);
+        }
         for ($try = 0; ; $try++) {
             try {
                 $response = Http::withHeaders(['x-goog-api-key' => (string) config('services.assistant.gemini_key')])
                     ->connectTimeout(10)
-                    ->timeout((int) config('services.assistant.attempt_timeout', 15))
+                    ->timeout($timeout)
                     ->post(self::ENDPOINT . rawurlencode($model) . ':generateContent', $body);
             } catch (ConnectionException $e) {
                 // No answer in time: an overloaded model often just hangs. Move on instead of waiting again.
+                Cache::put(self::COOLDOWN . $model, true, 60);
                 throw new GeminiBusy('Gemini timed out (' . $model . '): ' . $e->getMessage(), 0, $e);
             }
 
@@ -78,6 +122,10 @@ class GeminiAssistantModel implements AssistantModel
                 return (array) $response->json();
             }
             $message = 'Gemini ' . $response->status() . ' (' . $model . '): ' . ($response->json('error.message') ?? $response->body());
+            if ($response->status() === 429) {
+                Cache::put(self::COOLDOWN . $model, true, 60);
+                throw new GeminiBusy($message);
+            }
             if (in_array($response->status(), self::BUSY, true) && $try < count($waits)) {
                 usleep((int) $waits[$try] * 1000);
                 continue;
@@ -139,7 +187,10 @@ class GeminiAssistantModel implements AssistantModel
                         break;
                     case 'tool_use':
                         $callNames[$b['id']] = $b['name'];
-                        $parts[] = $b['raw'] ?? ['functionCall' => ['name' => $b['name'], 'args' => (object) ($b['input'] ?? [])]];
+                        $part = $b['raw'] ?? ['functionCall' => ['name' => $b['name']]];
+                        // args must stay a JSON object: a decoded {} comes back as [] and Gemini rejects a list.
+                        $part['functionCall']['args'] = (object) ($part['functionCall']['args'] ?? ($b['input'] ?? []));
+                        $parts[] = $part;
                         break;
                     case 'tool_result':
                         $id = $b['toolUseID'] ?? ($b['tool_use_id'] ?? '');
@@ -162,7 +213,7 @@ class GeminiAssistantModel implements AssistantModel
     }
 
     /** Gemini reply → an object shaped like a Messages-API message (->content blocks, ->stopReason). */
-    private function message(array $json): object
+    private function message(array $json, string $model): object
     {
         $candidate = $json['candidates'][0] ?? null;
         $blocked = ! empty($json['promptFeedback']['blockReason'])
@@ -170,6 +221,7 @@ class GeminiAssistantModel implements AssistantModel
 
         $blocks = [];
         foreach ($candidate['content']['parts'] ?? [] as $i => $part) {
+            $part['_model'] = $model;   // which model wrote it (see call()); never sent to Google
             if (isset($part['functionCall'])) {
                 $blocks[] = (object) [
                     'type'  => 'tool_use',

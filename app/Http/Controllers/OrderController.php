@@ -119,6 +119,9 @@ class OrderController extends Controller
     {
         $order = Order::where('user_id', auth()->id())->findOrFail($id);
 
+        if (! Order::returnsEnabled()) {
+            return back()->with('error', 'Returns and refunds are not available yet. If something is wrong with your order, message the seller from the order page.');
+        }
         if (! $order->returnWindowOpen()) {
             return back()->with('error', $order->status === Order::COMPLETED
                 ? 'This order is already completed, so a return can no longer be requested.'
@@ -154,7 +157,7 @@ class OrderController extends Controller
         if (count($files) > \App\Models\ReturnRequest::MAX_PHOTOS) {
             return back()->withInput()->withErrors(['evidence_photos' => 'You can add up to ' . \App\Models\ReturnRequest::MAX_PHOTOS . ' photos.']);
         }
-        $paths = array_map(fn ($f) => $f->store('returns', 'public'), $files);
+        $paths = array_map(fn ($f) => $f->store('returns', \App\Support\ProtectedFile::DISK), $files);
 
         // All items (or none ticked) = the whole order; some items = refund those items only (A8).
         $allIds = $order->items()->pluck('id')->map(fn ($id) => (int) $id)->sort()->values()->all();

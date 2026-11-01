@@ -43,6 +43,23 @@ class LogisticsWebParityTest extends TestCase
         return $this->withToken($this->token)->json($method, '/api/v1/logistics' . $uri, $data);
     }
 
+    public function test_assignment_and_sorting_have_the_websites_counts(): void
+    {
+        $a = $this->api('GET', '/assignment')->assertOk();
+        $this->assertArrayHasKey('waiting_total', $a->json());
+        foreach ($a->json('areas') as $area) {
+            $this->assertArrayHasKey('waiting', $area);   // parcels waiting in each barangay
+        }
+        foreach ($a->json('riders') as $rider) {
+            $this->assertArrayHasKey('active_jobs', $rider);   // each rider's open deliveries
+        }
+        $this->assertSame(array_sum(array_column($a->json('areas'), 'waiting')), $a->json('waiting_total'));
+
+        $s = $this->api('GET', '/sorting')->assertOk();   // everything the app's sorting stats are made from
+        $this->assertArrayHasKey('sorted_today', $s->json());
+        $this->assertArrayHasKey('sorted', $s->json('areas.0'));
+    }
+
     public function test_tracking_board_receive_with_condition_and_exception(): void
     {
         $parcel = $this->parcel('in_transit_to_hub');

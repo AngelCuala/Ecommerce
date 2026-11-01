@@ -18,9 +18,9 @@ class ShipmentTrackingController extends Controller
 
         $path = ParcelDelivery::whereHas('parcel', fn ($q) => $q->where('order_id', $order->id))
             ->where('status', 'delivered')->whereNotNull('pod_path')->latest('id')->value('pod_path');
-        abort_unless($path && Storage::disk('public')->exists($path), 404);
+        abort_unless($path, 404);
 
-        return response()->file(Storage::disk('public')->path($path), ['Cache-Control' => 'private, max-age=600']);
+        return \App\Support\ProtectedFile::response($path);   // kept on the private disk
     }
 
     /** The GCash receipt the buyer uploaded at checkout (private file): the buyer, the order's seller or an admin. */

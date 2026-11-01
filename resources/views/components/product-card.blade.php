@@ -73,8 +73,9 @@
         @if ($hasDiscount && ! $outOfStock)
             <span class="pc-tag">-{{ $discountPercent }}%</span>
         @endif
-        <img src="{{ !empty($product->image) ? asset('storage/' . $product->image) : 'https://placehold.co/400x400/f5f5f5/999?text=' . urlencode($product->title) }}"
-             alt="{{ $product->title }}" loading="lazy"
+        {{-- The small WebP copy (products:thumbs) when there is one; the original otherwise. --}}
+        <img src="{{ !empty($product->image) ? $product->thumb_url : 'https://placehold.co/400x400/f5f5f5/999?text=' . urlencode($product->title) }}"
+             alt="{{ $product->title }}" loading="lazy" decoding="async"
              @class(['opacity-50' => $outOfStock])>
     </a>
 

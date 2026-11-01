@@ -155,7 +155,7 @@ class MessageController extends Controller
             'sender_id'       => $userId,
             'receiver_id'     => $otherId,
             'body'            => (string) $request->body,
-            'attachment_path' => $request->file('attachment')?->store('chat', 'public'),
+            'attachment_path' => $request->file('attachment')?->store('chat', \App\Support\ProtectedFile::DISK),
             'product_id'      => $productId,
         ]);
 

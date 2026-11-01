@@ -51,12 +51,9 @@ class CourierApplicationController extends Controller
             'nbi'     => $courier->nbi_path,
             default   => null,
         };
-        abort_unless($path && Storage::disk('public')->exists($path), 404);
+        abort_unless($path, 404);
 
-        return Storage::disk('public')->response($path, null, [
-            'Cache-Control'          => 'private, no-store',
-            'X-Content-Type-Options' => 'nosniff',
-        ]);
+        return \App\Support\ProtectedFile::response($path);   // kept on the private disk
     }
 
     public function approve(Courier $courier, CourierReview $review)

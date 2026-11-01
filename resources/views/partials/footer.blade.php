@@ -9,7 +9,7 @@
         'Help' => [
             ['My orders', route('profile.orders')],
             ['Cart', route('cart.index')],
-            ['Return & refund policy', $policy('return_refund_policy')],
+            ...(\App\Models\Order::returnsEnabled() ? [['Return & refund policy', $policy('return_refund_policy')]] : []),
             ['Prohibited items', $policy('prohibited_items')],
         ],
         'ALVY' => [

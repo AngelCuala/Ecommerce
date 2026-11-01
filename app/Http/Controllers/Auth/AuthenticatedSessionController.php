@@ -13,10 +13,17 @@ class AuthenticatedSessionController extends Controller
 {
     public function create()
     {
-        // If user is already authenticated, redirect to appropriate dashboard
+        // Already signed in (usually the browser's Back button right after logging in): ask whether to
+        // log out instead of silently showing the form, so the user knows what happens.
         if (auth()->check()) {
             $user = auth()->user();
-            return $this->redirectToUserDashboard($user);
+            return response()
+                ->view('auth.signed-in', [
+                    'user'        => $user,
+                    'continueUrl' => $this->redirectToUserDashboard($user)->getTargetUrl(),
+                    'logoutUrl'   => $user->role === 'sorting_center' ? route('sc.logout') : route('logout'),
+                ])
+                ->header('Cache-Control', 'no-cache, no-store, max-age=0, must-revalidate');
         }
 
         // Add cache control headers to prevent browser back button issues
@@ -362,7 +369,8 @@ class AuthenticatedSessionController extends Controller
 
         // Add cache control headers to prevent accessing cached dashboard pages
         return response()
-            ->redirectTo(\App\Support\Portal::current() === \App\Support\Portal::SHOP ? '/' : \App\Support\Portal::loginUrl())
+            ->redirectTo($request->input('next') === 'login' || \App\Support\Portal::current() !== \App\Support\Portal::SHOP
+                ? \App\Support\Portal::loginUrl() : '/')   // next=login: signed out from the "still logged in?" page
             ->with('success', 'You have been signed out.')
             ->header('Cache-Control', 'no-cache, no-store, max-age=0, must-revalidate')
             ->header('Pragma', 'no-cache')

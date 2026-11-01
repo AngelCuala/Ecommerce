@@ -247,7 +247,7 @@ class CourierTripsController extends Controller
         $updates = array_intersect_key($data, array_flip(['load_capacity_kg', 'plate_number', 'license_expiry']));
         foreach (['license_file' => 'id_license_path', 'or_cr_file' => 'or_cr_path', 'nbi_file' => 'nbi_path'] as $field => $column) {
             if ($r->hasFile($field)) {
-                $updates[$column] = $r->file($field)->store('courier-documents', 'public');
+                $updates[$column] = $r->file($field)->store('courier-documents', \App\Support\ProtectedFile::DISK);
             }
         }
         if (! $updates) {
@@ -264,8 +264,8 @@ class CourierTripsController extends Controller
     {
         $c = $this->me();
         $path = ['license' => $c->id_license_path, 'or-cr' => $c->or_cr_path, 'nbi' => $c->nbi_path][$document] ?? null;
-        abort_unless($path && Storage::disk('public')->exists($path), 404);
+        abort_unless($path, 404);
 
-        return Storage::disk('public')->response($path, null, ['Cache-Control' => 'private, no-store']);
+        return \App\Support\ProtectedFile::response($path);   // kept on the private disk
     }
 }

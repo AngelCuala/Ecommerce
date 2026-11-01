@@ -168,7 +168,7 @@
                                 @foreach ($documents as $label => $path)
                                     <li class="flex items-center justify-between gap-3 px-3 py-2 text-sm" style="border-color:#F2EEEA;">
                                         <span style="color:#222;">{{ $label }}</span>
-                                        <a href="{{ asset('storage/' . $path) }}" target="_blank" rel="noopener" class="font-medium hover:underline" style="color:#fa4e1c;">View</a>
+                                        <a href="{{ \App\Support\ProtectedFile::url($path) }}" target="_blank" rel="noopener" class="font-medium hover:underline" style="color:#fa4e1c;">View</a>
                                     </li>
                                 @endforeach
                             </ul>

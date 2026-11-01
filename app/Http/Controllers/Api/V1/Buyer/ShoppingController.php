@@ -150,7 +150,7 @@ class ShoppingController extends Controller
 
         return response()->json(ApiJson::page($d['orders'], fn ($o) => ApiJson::orderSummary($o)) + [
             'tab'    => $d['tab'],
-            'tabs'   => collect(\App\Models\Order::TABS)->map(fn ($t, $key) => ['key' => $key, 'label' => $t['label'], 'count' => $d['counts'][$key] ?? 0])->values(),
+            'tabs'   => collect(\App\Models\Order::TABS)->reject(fn ($t, $key) => $key === 'return_refund' && ! \App\Models\Order::returnsEnabled() && ! ($d['counts'][$key] ?? 0))->map(fn ($t, $key) => ['key' => $key, 'label' => $t['label'], 'count' => $d['counts'][$key] ?? 0])->values(),
         ]);
     }
 

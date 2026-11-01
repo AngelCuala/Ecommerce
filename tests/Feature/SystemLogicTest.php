@@ -35,7 +35,7 @@ class SystemLogicTest extends TestCase
 
     public function test_logistics_override_delivers_the_order_and_counts_the_cod_cash(): void
     {
-        $d = $this->deliveryFor($this->rider1);   // ₱500.00 COD
+        $d = $this->deliveryFor($this->rider1);   // ₱490.00 COD
         $this->scOverride($d, 'out_for_delivery')->assertSessionHas('success');
 
         // The buyer sees the parcel is on the way (no OTP: the proof of delivery completes it).
@@ -47,8 +47,8 @@ class SystemLogicTest extends TestCase
         $this->assertSame(Order::DELIVERED, $order->status);   // not stuck at Shipped
         $this->assertSame('Paid', $order->payment_status);
         $this->assertNotNull($order->delivered_at);
-        $this->assertEquals(500, (float) $d->fresh()->cod_collected);
-        $this->assertEquals(500, app(RiderWallet::class)->codBalance($this->rider1));
+        $this->assertEquals(490, (float) $d->fresh()->cod_collected);
+        $this->assertEquals(490, app(RiderWallet::class)->codBalance($this->rider1));
 
         // So it completes and pays the seller like any delivered order.
         $this->actingAs($this->buyer1)->post(route('orders.confirm-delivery', $order->id))->assertSessionHas('success');
@@ -61,7 +61,7 @@ class SystemLogicTest extends TestCase
         $this->scOverride($d, 'out_for_delivery');
 
         $this->actingAs($this->rider1->user)->post(route('courier.rider.deliveries.deliver', $d->id), [
-            'pod_photo' => $this->jpg('pod_photo.jpg', 300), 'otp' => $d->fresh()->otp_code, 'cod_collected' => '500.00',
+            'pod_photo' => $this->jpg('pod_photo.jpg', 300), 'otp' => $d->fresh()->otp_code, 'cod_collected' => '490.00',
         ])->assertSessionHas('success');
         $this->assertSame(Order::DELIVERED, $d->parcel->order->fresh()->status);
     }
@@ -87,7 +87,7 @@ class SystemLogicTest extends TestCase
             ->post(route('sc.parcels.assign', $parcel), ['rider_id' => $this->rider1->id])->assertSessionHas('success');
 
         $d = ParcelDelivery::where('parcel_id', $parcel->id)->sole();
-        $this->assertSame([1, 500.0], [(int) $d->attempt, (float) $d->cod_amount]);
+        $this->assertSame([1, 490.0], [(int) $d->attempt, (float) $d->cod_amount]);
 
         // The rider must collect the cash before it counts as delivered.
         $this->actingAs($this->rider1->user)->post(route('courier.rider.deliveries.start', $d->id));
@@ -130,7 +130,7 @@ class SystemLogicTest extends TestCase
         $this->actingAs($admin)->post(route('admin.logistics.deliveries.assign', $sorted), ['rider_id' => $this->rider2->id])->assertSessionHas('error');   // already assigned
 
         $this->assertSame(1, ParcelDelivery::where('parcel_id', $sorted->id)->count());
-        $this->assertEquals(500, (float) ParcelDelivery::where('parcel_id', $sorted->id)->sole()->cod_amount);
+        $this->assertEquals(490, (float) ParcelDelivery::where('parcel_id', $sorted->id)->sole()->cod_amount);
         $this->assertSame(0, ParcelDelivery::where('parcel_id', $atHub->id)->count());
     }
 
@@ -171,6 +171,6 @@ class SystemLogicTest extends TestCase
 
         $this->actingAs($this->seller1)->post(route('seller.orders.return', $order->id), ['decision' => 'approve'])->assertSessionHas('success');
         $this->assertSame(Order::REFUNDED, $order->fresh()->status);
-        $this->assertEquals(500, (float) $order->fresh()->refunded_amount);
+        $this->assertEquals(490, (float) $order->fresh()->refunded_amount);
     }
 }
