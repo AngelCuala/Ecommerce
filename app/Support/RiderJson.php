@@ -34,6 +34,11 @@ class RiderJson
             'plate_number'   => $rider->plate_number,
             'license_number' => $rider->license_number,
             'license_expiry' => $rider->license_expiry?->toDateString(),
+            // The Account page's warning: expired, or within 30 days.
+            'license_state'  => ! $rider->license_expiry ? null : ($rider->license_expiry->isPast() ? 'expired'
+                : ($rider->license_expiry->lte(now()->addDays(30)) ? 'soon' : null)),
+            'rider_since'    => $rider->approved_at?->toIso8601String(),
+            'area'           => $rider->area?->name,
             'needs_reverification' => (bool) $rider->needs_reverification,
             'has_license_file' => (bool) $rider->license_path,
             'has_or_cr_file'   => (bool) $rider->or_cr_path,
@@ -71,8 +76,10 @@ class RiderJson
     {
         $p = $pu->parcel;
         return [
-            'id' => $pu->id, 'tracking' => $p?->tracking_number, 'status' => $pu->status, 'status_label' => $pu->statusLabel(),
+            'id' => $pu->id, 'tracking' => $p?->tracking_number, 'waybill' => $p?->waybill_number, 'status' => $pu->status, 'status_label' => $pu->statusLabel(),
             'seller' => $p?->seller->name ?? '', 'pickup_address' => $p?->pickup_address,
+            // The website's Acknowledge and "On my way" (the seller is told the rider is coming).
+            'acknowledged' => (bool) $pu->acknowledged_at, 'on_the_way' => (bool) $pu->en_route_at,
         ];
     }
 
@@ -96,9 +103,10 @@ class RiderJson
     {
         $p = $d->parcel;
         return [
-            'id' => $d->id, 'tracking' => $p?->tracking_number, 'status' => $d->status, 'status_label' => $d->statusLabel(),
+            'id' => $d->id, 'tracking' => $p?->tracking_number, 'waybill' => $p?->waybill_number, 'status' => $d->status, 'status_label' => $d->statusLabel(),
             'receiver' => $p?->receiver_name, 'address' => $p?->dropoff_address,
             'attempt' => (int) $d->attempt, 'max_attempts' => ParcelDelivery::MAX_ATTEMPTS,
+            'acknowledged' => (bool) $d->acknowledged_at, 'updated_at' => $d->updated_at?->toIso8601String(),
         ];
     }
 

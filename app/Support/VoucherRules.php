@@ -27,6 +27,23 @@ class VoucherRules
         }
     }
 
+    /**
+     * Runs [$then] with the request's [$fields] (typed in Philippine time) converted to UTC, as vouchers and
+     * promotions do, so "after:now" checks and the saved values are right. On a validation error the form
+     * gets back what was typed. Used by flash sales, product sale dates, pickup schedules and announcements.
+     */
+    public static function inBusinessTime(Request $request, array $fields, callable $then)
+    {
+        $typed = $request->only($fields);
+        $request->merge(array_map(fn ($v) => self::toUtc($v), $typed));
+        try {
+            return $then();
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            $request->merge($typed);
+            throw $e;
+        }
+    }
+
     /** A datetime-local value typed in business time, as a UTC string (unparseable values pass through to validation). Also used for promotions. */
     public static function toUtc($value)
     {

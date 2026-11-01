@@ -28,6 +28,7 @@ class LogisticsJson
         return [
             'id'              => $p->id,
             'tracking'        => $p->tracking_number,
+            'waybill'         => $p->waybill_number,
             'status'          => $p->status,
             'status_label'    => $p->statusLabel(),
             'order_id'        => $p->order_id,
@@ -77,6 +78,7 @@ class LogisticsJson
             'has_license_file'  => (bool) $r->license_path,
             'has_or_cr_file'    => (bool) $r->or_cr_path,
             'pending_activation' => $r->isPendingActivation(),
+            'can_transport_transfers' => (bool) $r->can_transport_transfers,
             'created_at'        => $r->created_at?->toIso8601String(),
         ];
         if ($wallet) {

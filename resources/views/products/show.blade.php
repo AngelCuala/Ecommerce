@@ -144,7 +144,7 @@
                 </div>
             @elseif ($upcoming)
                 <div class="mt-3 flex flex-wrap items-center gap-3 rounded-lg border px-3 py-2 text-sm" style="border-color:#FDBA9B;background:#FFF8F4;color:#9A3412;">
-                    <span>⚡ Flash sale <strong>{{ $upcoming->starts_at->format('M j, g:i A') }}</strong>: ₱{{ number_format($upcoming->flash_price, 2) }} for the first {{ $upcoming->quantity }}</span>
+                    <span>⚡ Flash sale <strong>{{ $upcoming->starts_at->tz(config('app.business_timezone'))->format('M j, g:i A') }}</strong>: ₱{{ number_format($upcoming->flash_price, 2) }} for the first {{ $upcoming->quantity }}</span>
                     @auth
                         <form action="{{ route('flash-sales.remind', $upcoming) }}" method="POST" class="ml-auto">@csrf
                             <button class="rounded-md px-3 py-1 text-xs font-semibold {{ $reminded ? 'border' : 'text-white' }}" style="{{ $reminded ? 'border-color:#fa4e1c;color:#fa4e1c;' : 'background:#fa4e1c;' }}">{{ $reminded ? '✓ Reminder set' : 'Remind me' }}</button>

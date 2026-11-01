@@ -189,7 +189,13 @@ class RiderApiTest extends TestCase
 
         $profit = $this->api('GET', '/courier/profit', [], $token)->assertOk();
         $this->assertSame([50.0, 1], [(float) $profit->json('total_earnings'), $profit->json('total_deliveries')]);
-        $this->assertSame('delivered', $this->api('GET', '/courier/history', [], $token)->assertOk()->json('data.0.status'));
+        $history = $this->api('GET', '/courier/history', [], $token)->assertOk();
+        $this->assertSame('delivered', $history->json('data.0.status'));
+        // The row opens its delivery page; the website's cards and status filter come along.
+        $this->assertSame('courier', $history->json('data.0.kind'));
+        $this->assertIsInt($history->json('data.0.id'));
+        $this->assertSame(1, $history->json('summary.delivered'));
+        $this->assertSame('Failed / returned', $history->json('statuses.failed'));
 
         $this->assertSame('m****@*******.com', $this->api('GET', '/courier/account', [], $token)->assertOk()->json('courier.masked_email'));
         $this->api('PUT', '/courier/account/password', ['current_password' => 'nope', 'password' => 'Bago@2026x', 'password_confirmation' => 'Bago@2026x'], $token)

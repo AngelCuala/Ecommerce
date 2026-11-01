@@ -116,10 +116,20 @@ class HubController extends Controller
     public function incoming(): JsonResponse
     {
         $d = $this->pageData($this->web(WebSc::class, 'incomingParcels'));
-        return response()->json(ApiJson::page($d['parcels'], fn ($p) => LogisticsJson::parcel($p)) + ['stats' => $d['miniStats']]);
+        $labels = ['found' => 'Found', 'duplicate' => 'Already received', 'not_found' => 'Not found'];
+
+        return response()->json(ApiJson::page($d['parcels'], fn ($p) => LogisticsJson::parcel($p)) + [
+            'stats' => $d['miniStats'],
+            // This center's own recent scans (the website's "Recent scans").
+            'recent_scans' => $d['recentScans']->map(fn ($s) => [
+                'code' => $s->old_value, 'result' => $s->status, 'result_label' => $labels[$s->status] ?? 'Invalid code',
+                'parcel_status' => $s->new_value, 'parcel_id' => $s->subject_type === 'Parcel' ? $s->subject_id : null,
+                'at' => $s->created_at?->toIso8601String(),
+            ])->values(),
+        ]);
     }
 
-    /** hub_id (optional): the company's hub receiving it; the buyer's timeline then says "At Hub (HUB-QC)". */
+    /** hub_id (optional): the company's hub receiving it; the buyer's timeline then says "At Hub (HUB-QC)". condition, notes (optional). */
     public function receive(int $parcel): JsonResponse
     {
         $p = Parcel::findOrFail($parcel);
@@ -137,7 +147,12 @@ class HubController extends Controller
             $this->atHub($p);
         }
 
-        return $this->actionJson($this->web(WebSc::class, 'scanParcel'));
+        // Scanning only finds the parcel (the website then opens its tracking page to confirm receipt).
+        $json = $this->actionJson($this->web(WebSc::class, 'scanParcel'));
+        if ($json->getStatusCode() === 200 && preg_match('#/sc/tracking/(\d+)#', (string) ($json->getData(true)['redirect'] ?? ''), $m)) {
+            $json->setData($json->getData(true) + ['parcel_id' => (int) $m[1]]);
+        }
+        return $json;
     }
 
     /** Which of the company's hubs is receiving the parcel (only for this company's parcels). */
@@ -242,14 +257,18 @@ class HubController extends Controller
     public function transfers(): JsonResponse
     {
         $d = $this->pageData($this->web(WebSc::class, 'transfers'));
-        $t = fn (ParcelTransfer $x) => ['id' => $x->id, 'tracking' => $x->parcel?->tracking_number, 'parcel_id' => $x->parcel_id,
-            'from' => $x->fromSortingCenter?->name, 'to' => $x->toSortingCenter?->name, 'reason' => $x->reason, 'status' => $x->status,
-            'created_at' => $x->created_at?->toIso8601String(), 'received_at' => $x->received_at?->toIso8601String()];
+        $t = fn (ParcelTransfer $x) => TrackingController::transfer($x) + ['tracking' => $x->parcel?->tracking_number,
+            'waybill' => $x->parcel?->waybill_number, 'parcel_id' => $x->parcel_id,
+            'direction' => (int) $x->from_sorting_center_id === (int) auth()->id() ? 'out' : 'in'];
 
         return response()->json([
-            'parcels'  => $d['myParcels']->map(fn ($p) => LogisticsJson::parcel($p))->values(),
-            'centers'  => $d['otherCenters']->map(fn ($u) => ['id' => $u->id, 'name' => $u->name, 'municipality' => $u->assigned_municipality,
-                'can_receive' => $u->hasAssignedMunicipality()])->values(),
+            // Parcels that can be sent on, each with the hub the website suggests.
+            'parcels'  => $d['myParcels']->map(fn ($p) => LogisticsJson::parcel($p) + [
+                'next' => ($n = $d['suggested'][$p->id] ?? null) ? ['type' => $n['type'], 'label' => $n['label'], 'center_id' => $n['center']?->id] : null,
+            ])->values(),
+            'centers'  => $d['otherCenters']->map(fn ($u) => ['id' => $u->id, 'name' => \App\Support\SortingCenters::displayName($u),
+                'municipality' => $u->assigned_municipality, 'can_receive' => $u->hasAssignedMunicipality()])->values(),
+            'transporters' => $d['transporters']->map(fn ($r) => ['id' => $r->id, 'name' => $r->full_name])->values(),
             'outgoing' => $d['outgoing']->map($t)->values(),
             'incoming' => $d['incoming']->map($t)->values(),
             'history'  => $d['history']->map($t)->values(),

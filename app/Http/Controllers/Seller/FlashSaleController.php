@@ -24,7 +24,8 @@ class FlashSaleController extends Controller
 
     public function store(Request $request)
     {
-        $data = $request->validate([
+        // The times are Philippine time (stored as UTC, like vouchers and promotions).
+        $data = \App\Support\VoucherRules::inBusinessTime($request, ['starts_at', 'ends_at'], fn () => $request->validate([
             'product_id'  => 'required|integer',
             'flash_price' => 'required|numeric|min:1|max:1000000',
             'quantity'    => 'required|integer|min:1|max:99999',
@@ -33,7 +34,7 @@ class FlashSaleController extends Controller
         ], [
             'starts_at.after' => 'The flash sale must start in the future.',
             'ends_at.after'   => 'The flash sale must end after it starts.',
-        ]);
+        ]));
 
         $product = Product::published()->where('seller_id', auth()->id())->with('variations')->find($data['product_id']);
         if (! $product || $product->variations->isNotEmpty()) {

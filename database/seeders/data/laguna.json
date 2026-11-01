@@ -1,0 +1,1427 @@
+{
+ "province": {
+  "name": "Laguna",
+  "psgc": "0403400000",
+  "code": "043400000",
+  "region": "Region IV-A (CALABARZON)",
+  "region_psgc": "0400000000",
+  "region_code": "040000000"
+ },
+ "towns": [
+  {
+   "name": "Alaminos",
+   "psgc": "0403401000",
+   "code": "043401000",
+   "level": "Mun",
+   "barangays": [
+    {
+     "name": "Barangay I",
+     "psgc": "0403401003",
+     "code": "043401003"
+    },
+    {
+     "name": "Barangay II",
+     "psgc": "0403401004",
+     "code": "043401004"
+    },
+    {
+     "name": "Barangay III",
+     "psgc": "0403401005",
+     "code": "043401005"
+    },
+    {
+     "name": "Barangay IV",
+     "psgc": "0403401006",
+     "code": "043401006"
+    },
+    {
+     "name": "Del Carmen",
+     "psgc": "0403401001",
+     "code": "043401001"
+    },
+    {
+     "name": "Palma",
+     "psgc": "0403401002",
+     "code": "043401002"
+    },
+    {
+     "name": "San Agustin",
+     "psgc": "0403401007",
+     "code": "043401007"
+    },
+    {
+     "name": "San Andres",
+     "psgc": "0403401008",
+     "code": "043401008"
+    }
+   ]
+  },
+  {
+   "name": "Bay",
+   "psgc": "0403402000",
+   "code": "043402000",
+   "level": "Mun",
+   "barangays": [
+    {
+     "name": "Bitin",
+     "psgc": "0403402001",
+     "code": "043402001"
+    },
+    {
+     "name": "Calo",
+     "psgc": "0403402002",
+     "code": "043402002"
+    },
+    {
+     "name": "Dila",
+     "psgc": "0403402003",
+     "code": "043402003"
+    },
+    {
+     "name": "Maitim",
+     "psgc": "0403402004",
+     "code": "043402004"
+    },
+    {
+     "name": "Masaya",
+     "psgc": "0403402005",
+     "code": "043402005"
+    },
+    {
+     "name": "Paciano Rizal",
+     "psgc": "0403402006",
+     "code": "043402006"
+    },
+    {
+     "name": "Puypuy",
+     "psgc": "0403402009",
+     "code": "043402009"
+    },
+    {
+     "name": "San Agustin",
+     "psgc": "0403402016",
+     "code": "043402016"
+    }
+   ]
+  },
+  {
+   "name": "Calauan",
+   "psgc": "0403406000",
+   "code": "043406000",
+   "level": "Mun",
+   "barangays": [
+    {
+     "name": "Balayhangin",
+     "psgc": "0403406001",
+     "code": "043406001"
+    },
+    {
+     "name": "Bangyas",
+     "psgc": "0403406002",
+     "code": "043406002"
+    },
+    {
+     "name": "Dayap",
+     "psgc": "0403406003",
+     "code": "043406003"
+    },
+    {
+     "name": "Hanggan",
+     "psgc": "0403406004",
+     "code": "043406004"
+    },
+    {
+     "name": "Imok",
+     "psgc": "0403406005",
+     "code": "043406005"
+    },
+    {
+     "name": "Kanluran",
+     "psgc": "0403406013",
+     "code": "043406013"
+    },
+    {
+     "name": "Lamot 1",
+     "psgc": "0403406006",
+     "code": "043406006"
+    },
+    {
+     "name": "Lamot 2",
+     "psgc": "0403406007",
+     "code": "043406007"
+    }
+   ]
+  },
+  {
+   "name": "Cavinti",
+   "psgc": "0403407000",
+   "code": "043407000",
+   "level": "Mun",
+   "barangays": [
+    {
+     "name": "Anglas",
+     "psgc": "0403407001",
+     "code": "043407001"
+    },
+    {
+     "name": "Bangco",
+     "psgc": "0403407002",
+     "code": "043407002"
+    },
+    {
+     "name": "Bukal",
+     "psgc": "0403407003",
+     "code": "043407003"
+    },
+    {
+     "name": "Bulajo",
+     "psgc": "0403407004",
+     "code": "043407004"
+    },
+    {
+     "name": "Cansuso",
+     "psgc": "0403407005",
+     "code": "043407005"
+    },
+    {
+     "name": "Duhat",
+     "psgc": "0403407006",
+     "code": "043407006"
+    },
+    {
+     "name": "Inao-Awan",
+     "psgc": "0403407007",
+     "code": "043407007"
+    },
+    {
+     "name": "Kanluran Talaongan",
+     "psgc": "0403407008",
+     "code": "043407008"
+    }
+   ]
+  },
+  {
+   "name": "City of Biñan",
+   "psgc": "0403403000",
+   "code": "043403000",
+   "level": "City",
+   "barangays": [
+    {
+     "name": "Biñan",
+     "psgc": "0403403001",
+     "code": "043403001"
+    },
+    {
+     "name": "Bungahan",
+     "psgc": "0403403002",
+     "code": "043403002"
+    },
+    {
+     "name": "Canlalay",
+     "psgc": "0403403004",
+     "code": "043403004"
+    },
+    {
+     "name": "Casile",
+     "psgc": "0403403005",
+     "code": "043403005"
+    },
+    {
+     "name": "De La Paz",
+     "psgc": "0403403006",
+     "code": "043403006"
+    },
+    {
+     "name": "Ganado",
+     "psgc": "0403403007",
+     "code": "043403007"
+    },
+    {
+     "name": "Langkiwa",
+     "psgc": "0403403009",
+     "code": "043403009"
+    },
+    {
+     "name": "Loma",
+     "psgc": "0403403011",
+     "code": "043403011"
+    }
+   ]
+  },
+  {
+   "name": "City of Cabuyao",
+   "psgc": "0403404000",
+   "code": "043404000",
+   "level": "City",
+   "barangays": [
+    {
+     "name": "Baclaran",
+     "psgc": "0403404001",
+     "code": "043404001"
+    },
+    {
+     "name": "Banaybanay",
+     "psgc": "0403404002",
+     "code": "043404002"
+    },
+    {
+     "name": "Banlic",
+     "psgc": "0403404003",
+     "code": "043404003"
+    },
+    {
+     "name": "Barangay Dos",
+     "psgc": "0403404018",
+     "code": "043404018"
+    },
+    {
+     "name": "Barangay Tres",
+     "psgc": "0403404019",
+     "code": "043404019"
+    },
+    {
+     "name": "Barangay Uno",
+     "psgc": "0403404017",
+     "code": "043404017"
+    },
+    {
+     "name": "Bigaa",
+     "psgc": "0403404005",
+     "code": "043404005"
+    },
+    {
+     "name": "Butong",
+     "psgc": "0403404004",
+     "code": "043404004"
+    }
+   ]
+  },
+  {
+   "name": "City of Calamba",
+   "psgc": "0403405000",
+   "code": "043405000",
+   "level": "City",
+   "barangays": [
+    {
+     "name": "Bagong Kalsada",
+     "psgc": "0403405001",
+     "code": "043405001"
+    },
+    {
+     "name": "Banadero",
+     "psgc": "0403405002",
+     "code": "043405002"
+    },
+    {
+     "name": "Banlic",
+     "psgc": "0403405003",
+     "code": "043405003"
+    },
+    {
+     "name": "Barandal",
+     "psgc": "0403405004",
+     "code": "043405004"
+    },
+    {
+     "name": "Barangay 1",
+     "psgc": "0403405038",
+     "code": "043405038"
+    },
+    {
+     "name": "Barangay 2",
+     "psgc": "0403405039",
+     "code": "043405039"
+    },
+    {
+     "name": "Barangay 3",
+     "psgc": "0403405040",
+     "code": "043405040"
+    },
+    {
+     "name": "Barangay 4",
+     "psgc": "0403405041",
+     "code": "043405041"
+    }
+   ]
+  },
+  {
+   "name": "City of San Pablo",
+   "psgc": "0403424000",
+   "code": "043424000",
+   "level": "City",
+   "barangays": [
+    {
+     "name": "Atisan",
+     "psgc": "0403424080",
+     "code": "043424080"
+    },
+    {
+     "name": "Bagong Bayan II-A",
+     "psgc": "0403424001",
+     "code": "043424001"
+    },
+    {
+     "name": "Bagong Pook VI-C",
+     "psgc": "0403424002",
+     "code": "043424002"
+    },
+    {
+     "name": "Barangay I-A",
+     "psgc": "0403424003",
+     "code": "043424003"
+    },
+    {
+     "name": "Barangay I-B",
+     "psgc": "0403424004",
+     "code": "043424004"
+    },
+    {
+     "name": "Barangay II-A",
+     "psgc": "0403424005",
+     "code": "043424005"
+    },
+    {
+     "name": "Barangay II-B",
+     "psgc": "0403424006",
+     "code": "043424006"
+    },
+    {
+     "name": "Barangay II-C",
+     "psgc": "0403424007",
+     "code": "043424007"
+    }
+   ]
+  },
+  {
+   "name": "City of San Pedro",
+   "psgc": "0403425000",
+   "code": "043425000",
+   "level": "City",
+   "barangays": [
+    {
+     "name": "Bagong Silang",
+     "psgc": "0403425001",
+     "code": "043425001"
+    },
+    {
+     "name": "Calendola",
+     "psgc": "0403425021",
+     "code": "043425021"
+    },
+    {
+     "name": "Chrysanthemum",
+     "psgc": "0403425023",
+     "code": "043425023"
+    },
+    {
+     "name": "Cuyab",
+     "psgc": "0403425002",
+     "code": "043425002"
+    },
+    {
+     "name": "Estrella",
+     "psgc": "0403425003",
+     "code": "043425003"
+    },
+    {
+     "name": "Fatima",
+     "psgc": "0403425024",
+     "code": "043425024"
+    },
+    {
+     "name": "G.S.I.S.",
+     "psgc": "0403425004",
+     "code": "043425004"
+    },
+    {
+     "name": "Landayan",
+     "psgc": "0403425005",
+     "code": "043425005"
+    }
+   ]
+  },
+  {
+   "name": "City of Santa Rosa",
+   "psgc": "0403428000",
+   "code": "043428000",
+   "level": "City",
+   "barangays": [
+    {
+     "name": "Aplaya",
+     "psgc": "0403428001",
+     "code": "043428001"
+    },
+    {
+     "name": "Balibago",
+     "psgc": "0403428002",
+     "code": "043428002"
+    },
+    {
+     "name": "Caingin",
+     "psgc": "0403428003",
+     "code": "043428003"
+    },
+    {
+     "name": "Dila",
+     "psgc": "0403428004",
+     "code": "043428004"
+    },
+    {
+     "name": "Dita",
+     "psgc": "0403428005",
+     "code": "043428005"
+    },
+    {
+     "name": "Don Jose",
+     "psgc": "0403428006",
+     "code": "043428006"
+    },
+    {
+     "name": "Ibaba",
+     "psgc": "0403428007",
+     "code": "043428007"
+    },
+    {
+     "name": "Kanluran",
+     "psgc": "0403428015",
+     "code": "043428015"
+    }
+   ]
+  },
+  {
+   "name": "Famy",
+   "psgc": "0403408000",
+   "code": "043408000",
+   "level": "Mun",
+   "barangays": [
+    {
+     "name": "Asana",
+     "psgc": "0403408001",
+     "code": "043408001"
+    },
+    {
+     "name": "Bacong-Sigsigan",
+     "psgc": "0403408002",
+     "code": "043408002"
+    },
+    {
+     "name": "Bagong Pag-Asa",
+     "psgc": "0403408003",
+     "code": "043408003"
+    },
+    {
+     "name": "Balitoc",
+     "psgc": "0403408004",
+     "code": "043408004"
+    },
+    {
+     "name": "Banaba",
+     "psgc": "0403408005",
+     "code": "043408005"
+    },
+    {
+     "name": "Batuhan",
+     "psgc": "0403408006",
+     "code": "043408006"
+    },
+    {
+     "name": "Bulihan",
+     "psgc": "0403408007",
+     "code": "043408007"
+    },
+    {
+     "name": "Caballero",
+     "psgc": "0403408008",
+     "code": "043408008"
+    }
+   ]
+  },
+  {
+   "name": "Kalayaan",
+   "psgc": "0403409000",
+   "code": "043409000",
+   "level": "Mun",
+   "barangays": [
+    {
+     "name": "Longos",
+     "psgc": "0403409001",
+     "code": "043409001"
+    },
+    {
+     "name": "San Antonio",
+     "psgc": "0403409002",
+     "code": "043409002"
+    },
+    {
+     "name": "San Juan",
+     "psgc": "0403409003",
+     "code": "043409003"
+    }
+   ]
+  },
+  {
+   "name": "Liliw",
+   "psgc": "0403410000",
+   "code": "043410000",
+   "level": "Mun",
+   "barangays": [
+    {
+     "name": "Bagong Anyo",
+     "psgc": "0403410002",
+     "code": "043410002"
+    },
+    {
+     "name": "Bayate",
+     "psgc": "0403410003",
+     "code": "043410003"
+    },
+    {
+     "name": "Bongkol",
+     "psgc": "0403410005",
+     "code": "043410005"
+    },
+    {
+     "name": "Bubukal",
+     "psgc": "0403410004",
+     "code": "043410004"
+    },
+    {
+     "name": "Cabuyew",
+     "psgc": "0403410007",
+     "code": "043410007"
+    },
+    {
+     "name": "Calumpang",
+     "psgc": "0403410008",
+     "code": "043410008"
+    },
+    {
+     "name": "Culoy",
+     "psgc": "0403410009",
+     "code": "043410009"
+    },
+    {
+     "name": "Dagatan",
+     "psgc": "0403410010",
+     "code": "043410010"
+    }
+   ]
+  },
+  {
+   "name": "Los Baños",
+   "psgc": "0403411000",
+   "code": "043411000",
+   "level": "Mun",
+   "barangays": [
+    {
+     "name": "Anos",
+     "psgc": "0403411001",
+     "code": "043411001"
+    },
+    {
+     "name": "Bagong Silang",
+     "psgc": "0403411002",
+     "code": "043411002"
+    },
+    {
+     "name": "Bambang",
+     "psgc": "0403411003",
+     "code": "043411003"
+    },
+    {
+     "name": "Batong Malake",
+     "psgc": "0403411004",
+     "code": "043411004"
+    },
+    {
+     "name": "Baybayin",
+     "psgc": "0403411005",
+     "code": "043411005"
+    },
+    {
+     "name": "Bayog",
+     "psgc": "0403411006",
+     "code": "043411006"
+    },
+    {
+     "name": "Lalakay",
+     "psgc": "0403411007",
+     "code": "043411007"
+    },
+    {
+     "name": "Maahas",
+     "psgc": "0403411008",
+     "code": "043411008"
+    }
+   ]
+  },
+  {
+   "name": "Luisiana",
+   "psgc": "0403412000",
+   "code": "043412000",
+   "level": "Mun",
+   "barangays": [
+    {
+     "name": "Barangay Zone I",
+     "psgc": "0403412002",
+     "code": "043412002"
+    },
+    {
+     "name": "Barangay Zone II",
+     "psgc": "0403412003",
+     "code": "043412003"
+    },
+    {
+     "name": "Barangay Zone III",
+     "psgc": "0403412004",
+     "code": "043412004"
+    },
+    {
+     "name": "Barangay Zone IV",
+     "psgc": "0403412005",
+     "code": "043412005"
+    },
+    {
+     "name": "Barangay Zone V",
+     "psgc": "0403412006",
+     "code": "043412006"
+    },
+    {
+     "name": "Barangay Zone VI",
+     "psgc": "0403412007",
+     "code": "043412007"
+    },
+    {
+     "name": "Barangay Zone VII",
+     "psgc": "0403412008",
+     "code": "043412008"
+    },
+    {
+     "name": "Barangay Zone VIII",
+     "psgc": "0403412009",
+     "code": "043412009"
+    }
+   ]
+  },
+  {
+   "name": "Lumban",
+   "psgc": "0403413000",
+   "code": "043413000",
+   "level": "Mun",
+   "barangays": [
+    {
+     "name": "Bagong Silang",
+     "psgc": "0403413001",
+     "code": "043413001"
+    },
+    {
+     "name": "Balimbingan",
+     "psgc": "0403413002",
+     "code": "043413002"
+    },
+    {
+     "name": "Balubad",
+     "psgc": "0403413003",
+     "code": "043413003"
+    },
+    {
+     "name": "Caliraya",
+     "psgc": "0403413004",
+     "code": "043413004"
+    },
+    {
+     "name": "Concepcion",
+     "psgc": "0403413005",
+     "code": "043413005"
+    },
+    {
+     "name": "Lewin",
+     "psgc": "0403413006",
+     "code": "043413006"
+    },
+    {
+     "name": "Maracta",
+     "psgc": "0403413007",
+     "code": "043413007"
+    },
+    {
+     "name": "Maytalang I",
+     "psgc": "0403413008",
+     "code": "043413008"
+    }
+   ]
+  },
+  {
+   "name": "Mabitac",
+   "psgc": "0403414000",
+   "code": "043414000",
+   "level": "Mun",
+   "barangays": [
+    {
+     "name": "Amuyong",
+     "psgc": "0403414001",
+     "code": "043414001"
+    },
+    {
+     "name": "Bayanihan",
+     "psgc": "0403414008",
+     "code": "043414008"
+    },
+    {
+     "name": "Lambac",
+     "psgc": "0403414002",
+     "code": "043414002"
+    },
+    {
+     "name": "Libis ng Nayon",
+     "psgc": "0403414009",
+     "code": "043414009"
+    },
+    {
+     "name": "Lucong",
+     "psgc": "0403414003",
+     "code": "043414003"
+    },
+    {
+     "name": "Maligaya",
+     "psgc": "0403414010",
+     "code": "043414010"
+    },
+    {
+     "name": "Masikap",
+     "psgc": "0403414011",
+     "code": "043414011"
+    },
+    {
+     "name": "Matalatala",
+     "psgc": "0403414004",
+     "code": "043414004"
+    }
+   ]
+  },
+  {
+   "name": "Magdalena",
+   "psgc": "0403415000",
+   "code": "043415000",
+   "level": "Mun",
+   "barangays": [
+    {
+     "name": "Alipit",
+     "psgc": "0403415001",
+     "code": "043415001"
+    },
+    {
+     "name": "Baanan",
+     "psgc": "0403415004",
+     "code": "043415004"
+    },
+    {
+     "name": "Balanac",
+     "psgc": "0403415005",
+     "code": "043415005"
+    },
+    {
+     "name": "Bucal",
+     "psgc": "0403415006",
+     "code": "043415006"
+    },
+    {
+     "name": "Buenavista",
+     "psgc": "0403415007",
+     "code": "043415007"
+    },
+    {
+     "name": "Bungkol",
+     "psgc": "0403415008",
+     "code": "043415008"
+    },
+    {
+     "name": "Buo",
+     "psgc": "0403415009",
+     "code": "043415009"
+    },
+    {
+     "name": "Burlungan",
+     "psgc": "0403415010",
+     "code": "043415010"
+    }
+   ]
+  },
+  {
+   "name": "Majayjay",
+   "psgc": "0403416000",
+   "code": "043416000",
+   "level": "Mun",
+   "barangays": [
+    {
+     "name": "Amonoy",
+     "psgc": "0403416001",
+     "code": "043416001"
+    },
+    {
+     "name": "Bakia",
+     "psgc": "0403416002",
+     "code": "043416002"
+    },
+    {
+     "name": "Balanac",
+     "psgc": "0403416004",
+     "code": "043416004"
+    },
+    {
+     "name": "Balayong",
+     "psgc": "0403416005",
+     "code": "043416005"
+    },
+    {
+     "name": "Banilad",
+     "psgc": "0403416007",
+     "code": "043416007"
+    },
+    {
+     "name": "Banti",
+     "psgc": "0403416008",
+     "code": "043416008"
+    },
+    {
+     "name": "Bitaoy",
+     "psgc": "0403416010",
+     "code": "043416010"
+    },
+    {
+     "name": "Botocan",
+     "psgc": "0403416011",
+     "code": "043416011"
+    }
+   ]
+  },
+  {
+   "name": "Nagcarlan",
+   "psgc": "0403417000",
+   "code": "043417000",
+   "level": "Mun",
+   "barangays": [
+    {
+     "name": "Abo",
+     "psgc": "0403417001",
+     "code": "043417001"
+    },
+    {
+     "name": "Alibungbungan",
+     "psgc": "0403417002",
+     "code": "043417002"
+    },
+    {
+     "name": "Alumbrado",
+     "psgc": "0403417003",
+     "code": "043417003"
+    },
+    {
+     "name": "Balayong",
+     "psgc": "0403417004",
+     "code": "043417004"
+    },
+    {
+     "name": "Balimbing",
+     "psgc": "0403417005",
+     "code": "043417005"
+    },
+    {
+     "name": "Balinacon",
+     "psgc": "0403417006",
+     "code": "043417006"
+    },
+    {
+     "name": "Bambang",
+     "psgc": "0403417007",
+     "code": "043417007"
+    },
+    {
+     "name": "Banago",
+     "psgc": "0403417008",
+     "code": "043417008"
+    }
+   ]
+  },
+  {
+   "name": "Paete",
+   "psgc": "0403418000",
+   "code": "043418000",
+   "level": "Mun",
+   "barangays": [
+    {
+     "name": "Bagumbayan",
+     "psgc": "0403418001",
+     "code": "043418001"
+    },
+    {
+     "name": "Bangkusay",
+     "psgc": "0403418002",
+     "code": "043418002"
+    },
+    {
+     "name": "Ermita",
+     "psgc": "0403418003",
+     "code": "043418003"
+    },
+    {
+     "name": "Ibaba del Norte",
+     "psgc": "0403418004",
+     "code": "043418004"
+    },
+    {
+     "name": "Ibaba del Sur",
+     "psgc": "0403418005",
+     "code": "043418005"
+    },
+    {
+     "name": "Ilaya del Norte",
+     "psgc": "0403418006",
+     "code": "043418006"
+    },
+    {
+     "name": "Ilaya del Sur",
+     "psgc": "0403418007",
+     "code": "043418007"
+    },
+    {
+     "name": "Maytoong",
+     "psgc": "0403418008",
+     "code": "043418008"
+    }
+   ]
+  },
+  {
+   "name": "Pagsanjan",
+   "psgc": "0403419000",
+   "code": "043419000",
+   "level": "Mun",
+   "barangays": [
+    {
+     "name": "Anibong",
+     "psgc": "0403419001",
+     "code": "043419001"
+    },
+    {
+     "name": "Barangay I",
+     "psgc": "0403419012",
+     "code": "043419012"
+    },
+    {
+     "name": "Barangay II",
+     "psgc": "0403419013",
+     "code": "043419013"
+    },
+    {
+     "name": "Biñan",
+     "psgc": "0403419002",
+     "code": "043419002"
+    },
+    {
+     "name": "Buboy",
+     "psgc": "0403419003",
+     "code": "043419003"
+    },
+    {
+     "name": "Cabanbanan",
+     "psgc": "0403419004",
+     "code": "043419004"
+    },
+    {
+     "name": "Calusiche",
+     "psgc": "0403419005",
+     "code": "043419005"
+    },
+    {
+     "name": "Dingin",
+     "psgc": "0403419006",
+     "code": "043419006"
+    }
+   ]
+  },
+  {
+   "name": "Pakil",
+   "psgc": "0403420000",
+   "code": "043420000",
+   "level": "Mun",
+   "barangays": [
+    {
+     "name": "Banilan",
+     "psgc": "0403420002",
+     "code": "043420002"
+    },
+    {
+     "name": "Baño",
+     "psgc": "0403420001",
+     "code": "043420001"
+    },
+    {
+     "name": "Burgos",
+     "psgc": "0403420003",
+     "code": "043420003"
+    },
+    {
+     "name": "Casa Real",
+     "psgc": "0403420004",
+     "code": "043420004"
+    },
+    {
+     "name": "Casinsin",
+     "psgc": "0403420005",
+     "code": "043420005"
+    },
+    {
+     "name": "Dorado",
+     "psgc": "0403420006",
+     "code": "043420006"
+    },
+    {
+     "name": "Gonzales",
+     "psgc": "0403420007",
+     "code": "043420007"
+    },
+    {
+     "name": "Kabulusan",
+     "psgc": "0403420008",
+     "code": "043420008"
+    }
+   ]
+  },
+  {
+   "name": "Pangil",
+   "psgc": "0403421000",
+   "code": "043421000",
+   "level": "Mun",
+   "barangays": [
+    {
+     "name": "Balian",
+     "psgc": "0403421001",
+     "code": "043421001"
+    },
+    {
+     "name": "Dambo",
+     "psgc": "0403421002",
+     "code": "043421002"
+    },
+    {
+     "name": "Galalan",
+     "psgc": "0403421003",
+     "code": "043421003"
+    },
+    {
+     "name": "Isla",
+     "psgc": "0403421004",
+     "code": "043421004"
+    },
+    {
+     "name": "Mabato-Azufre",
+     "psgc": "0403421005",
+     "code": "043421005"
+    },
+    {
+     "name": "Natividad",
+     "psgc": "0403421006",
+     "code": "043421006"
+    },
+    {
+     "name": "San Jose",
+     "psgc": "0403421007",
+     "code": "043421007"
+    },
+    {
+     "name": "Sulib",
+     "psgc": "0403421008",
+     "code": "043421008"
+    }
+   ]
+  },
+  {
+   "name": "Pila",
+   "psgc": "0403422000",
+   "code": "043422000",
+   "level": "Mun",
+   "barangays": [
+    {
+     "name": "Aplaya",
+     "psgc": "0403422001",
+     "code": "043422001"
+    },
+    {
+     "name": "Bagong Pook",
+     "psgc": "0403422002",
+     "code": "043422002"
+    },
+    {
+     "name": "Bukal",
+     "psgc": "0403422003",
+     "code": "043422003"
+    },
+    {
+     "name": "Bulilan Norte",
+     "psgc": "0403422004",
+     "code": "043422004"
+    },
+    {
+     "name": "Bulilan Sur",
+     "psgc": "0403422005",
+     "code": "043422005"
+    },
+    {
+     "name": "Concepcion",
+     "psgc": "0403422006",
+     "code": "043422006"
+    },
+    {
+     "name": "Labuin",
+     "psgc": "0403422007",
+     "code": "043422007"
+    },
+    {
+     "name": "Linga",
+     "psgc": "0403422008",
+     "code": "043422008"
+    }
+   ]
+  },
+  {
+   "name": "Rizal",
+   "psgc": "0403423000",
+   "code": "043423000",
+   "level": "Mun",
+   "barangays": [
+    {
+     "name": "Antipolo",
+     "psgc": "0403423001",
+     "code": "043423001"
+    },
+    {
+     "name": "East Poblacion",
+     "psgc": "0403423006",
+     "code": "043423006"
+    },
+    {
+     "name": "Entablado",
+     "psgc": "0403423002",
+     "code": "043423002"
+    },
+    {
+     "name": "Laguan",
+     "psgc": "0403423003",
+     "code": "043423003"
+    },
+    {
+     "name": "Paule 1",
+     "psgc": "0403423004",
+     "code": "043423004"
+    },
+    {
+     "name": "Paule 2",
+     "psgc": "0403423005",
+     "code": "043423005"
+    },
+    {
+     "name": "Pook",
+     "psgc": "0403423008",
+     "code": "043423008"
+    },
+    {
+     "name": "Tala",
+     "psgc": "0403423009",
+     "code": "043423009"
+    }
+   ]
+  },
+  {
+   "name": "Santa Cruz",
+   "psgc": "0403426000",
+   "code": "043426000",
+   "level": "Mun",
+   "barangays": [
+    {
+     "name": "Alipit",
+     "psgc": "0403426001",
+     "code": "043426001"
+    },
+    {
+     "name": "Bagumbayan",
+     "psgc": "0403426002",
+     "code": "043426002"
+    },
+    {
+     "name": "Barangay I",
+     "psgc": "0403426014",
+     "code": "043426014"
+    },
+    {
+     "name": "Barangay II",
+     "psgc": "0403426015",
+     "code": "043426015"
+    },
+    {
+     "name": "Barangay III",
+     "psgc": "0403426016",
+     "code": "043426016"
+    },
+    {
+     "name": "Barangay IV",
+     "psgc": "0403426017",
+     "code": "043426017"
+    },
+    {
+     "name": "Barangay V",
+     "psgc": "0403426018",
+     "code": "043426018"
+    },
+    {
+     "name": "Bubukal",
+     "psgc": "0403426003",
+     "code": "043426003"
+    }
+   ]
+  },
+  {
+   "name": "Santa Maria",
+   "psgc": "0403427000",
+   "code": "043427000",
+   "level": "Mun",
+   "barangays": [
+    {
+     "name": "Adia",
+     "psgc": "0403427001",
+     "code": "043427001"
+    },
+    {
+     "name": "Bagong Pook",
+     "psgc": "0403427002",
+     "code": "043427002"
+    },
+    {
+     "name": "Bagumbayan",
+     "psgc": "0403427003",
+     "code": "043427003"
+    },
+    {
+     "name": "Barangay I",
+     "psgc": "0403427019",
+     "code": "043427019"
+    },
+    {
+     "name": "Barangay II",
+     "psgc": "0403427020",
+     "code": "043427020"
+    },
+    {
+     "name": "Barangay III",
+     "psgc": "0403427021",
+     "code": "043427021"
+    },
+    {
+     "name": "Barangay IV",
+     "psgc": "0403427022",
+     "code": "043427022"
+    },
+    {
+     "name": "Bubukal",
+     "psgc": "0403427004",
+     "code": "043427004"
+    }
+   ]
+  },
+  {
+   "name": "Siniloan",
+   "psgc": "0403429000",
+   "code": "043429000",
+   "level": "Mun",
+   "barangays": [
+    {
+     "name": "Acevida",
+     "psgc": "0403429001",
+     "code": "043429001"
+    },
+    {
+     "name": "Bagong Pag-Asa",
+     "psgc": "0403429002",
+     "code": "043429002"
+    },
+    {
+     "name": "Bagumbarangay",
+     "psgc": "0403429003",
+     "code": "043429003"
+    },
+    {
+     "name": "Buhay",
+     "psgc": "0403429005",
+     "code": "043429005"
+    },
+    {
+     "name": "G. Redor",
+     "psgc": "0403429020",
+     "code": "043429020"
+    },
+    {
+     "name": "Gen. Luna",
+     "psgc": "0403429006",
+     "code": "043429006"
+    },
+    {
+     "name": "Halayhayin",
+     "psgc": "0403429007",
+     "code": "043429007"
+    },
+    {
+     "name": "J. Rizal",
+     "psgc": "0403429023",
+     "code": "043429023"
+    }
+   ]
+  },
+  {
+   "name": "Victoria",
+   "psgc": "0403430000",
+   "code": "043430000",
+   "level": "Mun",
+   "barangays": [
+    {
+     "name": "Banca-banca",
+     "psgc": "0403430001",
+     "code": "043430001"
+    },
+    {
+     "name": "Daniw",
+     "psgc": "0403430002",
+     "code": "043430002"
+    },
+    {
+     "name": "Masapang",
+     "psgc": "0403430003",
+     "code": "043430003"
+    },
+    {
+     "name": "Nanhaya",
+     "psgc": "0403430004",
+     "code": "043430004"
+    },
+    {
+     "name": "Pagalangan",
+     "psgc": "0403430005",
+     "code": "043430005"
+    },
+    {
+     "name": "San Benito",
+     "psgc": "0403430007",
+     "code": "043430007"
+    },
+    {
+     "name": "San Felix",
+     "psgc": "0403430008",
+     "code": "043430008"
+    },
+    {
+     "name": "San Francisco",
+     "psgc": "0403430009",
+     "code": "043430009"
+    }
+   ]
+  }
+ ]
+}

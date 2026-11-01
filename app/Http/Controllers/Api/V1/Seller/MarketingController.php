@@ -54,7 +54,7 @@ class MarketingController extends Controller
             'id' => $v->id, 'code' => $v->code, 'name' => $v->name, 'label' => $v->discountLabel(), 'state' => $v->stateLabel(),
             'discount_type' => $v->discount_type, 'discount_value' => (float) $v->discount_value,
             'max_discount' => $v->max_discount !== null ? (float) $v->max_discount : null, 'min_spend' => (float) $v->min_spend,
-            'starts_at' => $v->starts_at?->format('Y-m-d\TH:i'), 'ends_at' => $v->ends_at?->format('Y-m-d\TH:i'),
+            'starts_at' => \App\Support\VoucherRules::forInput($v->starts_at), 'ends_at' => \App\Support\VoucherRules::forInput($v->ends_at),
             'usage_limit' => $v->usage_limit, 'per_user_limit' => $v->per_user_limit, 'used_count' => (int) $v->used_count,
             'claims' => $v->claims()->count(), 'is_active' => (bool) $v->is_active, 'is_claimable' => (bool) $v->is_claimable,
             'product_ids' => array_values(array_map('intval', (array) ($v->product_ids ?? []))),

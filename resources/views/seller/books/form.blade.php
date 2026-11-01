@@ -225,11 +225,11 @@
                             </div>
                             <div>
                                 <label class="pf-label" for="sale_starts_at">Sale starts <span class="opt">— blank = now</span></label>
-                                <input type="datetime-local" id="sale_starts_at" name="sale_starts_at" :disabled="saleType === 'none'" value="{{ old('sale_starts_at', optional($book->sale_starts_at ?? null)->format('Y-m-d\TH:i')) }}" class="input">
+                                <input type="datetime-local" id="sale_starts_at" name="sale_starts_at" :disabled="saleType === 'none'" value="{{ old('sale_starts_at', \App\Support\VoucherRules::forInput($book->sale_starts_at ?? null)) }}" class="input">
                             </div>
                             <div>
                                 <label class="pf-label" for="sale_ends_at">Sale ends <span class="opt">— optional</span></label>
-                                <input type="datetime-local" id="sale_ends_at" name="sale_ends_at" :disabled="saleType === 'none'" value="{{ old('sale_ends_at', optional($book->sale_ends_at ?? null)->format('Y-m-d\TH:i')) }}" class="input">
+                                <input type="datetime-local" id="sale_ends_at" name="sale_ends_at" :disabled="saleType === 'none'" value="{{ old('sale_ends_at', \App\Support\VoucherRules::forInput($book->sale_ends_at ?? null)) }}" class="input">
                                 <p class="pf-note">Buyers see a countdown; the sale stops at this time.</p>
                             </div>
                         </div>

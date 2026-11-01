@@ -51,9 +51,17 @@ class ScRegistrationAndLogisticsTest extends TestCase
         ];
     }
 
+    /** Signs up and, when it reaches the email code step, enters the emailed code (every sign-up confirms its email). */
     private function register(array $override = [])
     {
-        return $this->from(route('sc.register'))->post(route('sc.register.store'), $this->regData($override));
+        $data = $this->regData($override);
+        $res = $this->from(route('sc.register'))->post(route('sc.register.store'), $data);
+        if (! $res->isRedirect(route('otp.show'))) {
+            return $res;
+        }
+        $code = Mail::sent(\App\Mail\LoginOtpMail::class, fn ($m) => $m->user->email === $data['email'])->last()->code;
+
+        return $this->post(route('otp.verify'), ['otp' => $code]);
     }
 
     private function admin(): User
@@ -199,7 +207,7 @@ class ScRegistrationAndLogisticsTest extends TestCase
         $this->actingAs($this->admin())->get(route('admin.sc-applications.show', $app))->assertSee('already serves');
         $this->actingAs($this->admin())->patch(route('admin.sc-applications.approve', $app))->assertSessionHas('error');
         $this->assertSame('pending', $app->fresh()->status);
-        Mail::assertNothingSent();
+        Mail::assertNotSent(SortingCenterApprovedMail::class);   // only the sign-up code was emailed
     }
 
     public function test_already_reviewed_cannot_be_approved_again(): void

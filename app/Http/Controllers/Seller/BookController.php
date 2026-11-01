@@ -486,6 +486,10 @@ class BookController extends Controller
                 $request->merge([$f => null]);
             }
         }
+        // The sale dates are Philippine time (stored as UTC, like vouchers); a failed form gets back what was typed.
+        $typedSale = $request->only('sale_starts_at', 'sale_ends_at');
+        $request->merge(array_map(fn ($v) => \App\Support\VoucherRules::toUtc($v), $typedSale));
+
         // "20.00" from a saved sale is the whole percentage 20.
         if (is_string($pct = $request->input('discount_percent')) && preg_match('/^\d+\.0+$/', $pct)) {
             $request->merge(['discount_percent' => (string) (int) $pct]);
@@ -731,7 +735,12 @@ class BookController extends Controller
             }
         });
 
-        return $validator->validate();
+        try {
+            return $validator->validate();
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            $request->merge($typedSale);
+            throw $e;
+        }
     }
 
     /** Photos the product will have after this save (kept + new uploads). */

@@ -20,10 +20,14 @@ class ProductsController extends Controller
     {
         $d = $this->pageData($this->web(BookController::class, 'index'));
 
-        return response()->json([
-            'data'   => $d['books']->map(fn ($p) => SellerJson::productRow($p))->values(),
-            'status' => $d['status'],
-            'counts' => $d['counts'],
+        // status, search, category_id, min_price, max_price, sort, page (25 a page, like the website).
+        return response()->json(ApiJson::page($d['books'], fn ($p) => SellerJson::productRow($p)) + [
+            'status'     => $d['status'],
+            'counts'     => $d['counts'],
+            'sort'       => $d['sort'],
+            'sorts'      => \App\Http\Controllers\Seller\BookController::SORTS,
+            'categories' => collect($d['categories'])->map(fn ($name, $id) => ['id' => (int) $id, 'name' => $name])->values(),
+            'low_stock_default' => (int) config('marketplace.low_stock_threshold', 10),
         ]);
     }
 
@@ -44,6 +48,9 @@ class ProductsController extends Controller
     {
         return [
             'categories'      => $d['categories']->map(fn ($c) => ['id' => $c->id, 'name' => $c->name])->values(),
+            // The store's registered line of business: products are listed under it.
+            'business_category_id' => $d['businessCategoryId'] ?? null,
+            'low_stock_default' => (int) config('marketplace.low_stock_threshold', 10),
             'subcategories'   => (object) $d['subcategoryMap'],
             'spec_schemas'    => (object) $d['specSchemas'],
             'addresses'       => $d['addresses']->map(fn ($a) => ApiJson::address($a))->values(),

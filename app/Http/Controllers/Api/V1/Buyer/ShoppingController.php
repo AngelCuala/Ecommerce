@@ -72,6 +72,8 @@ class ShoppingController extends Controller
             'address_id' => $d['address']?->id,
             'payment_methods' => collect($d['paymentMethods'])->map(fn ($m, $key) => ['key' => $key] + (is_array($m) ? $m : ['label' => $m]))->values(),
             'checkout_token'  => $d['token'],
+            // Pay by GCash and upload the receipt (payment_method=gcash_receipt, payment_proof, payment_reference).
+            'gcash_account'   => $d['gcashAccount'] ?? null,
             'prices'    => $d['prices'],
             'platform_voucher' => $q['platform_voucher']?->code,
             'shipping_voucher' => $q['shipping_voucher']?->code,
@@ -123,6 +125,7 @@ class ShoppingController extends Controller
                 'shipping'   => $summary['shipping'][$sellerId]['fee'] ?? null,
                 'weight'     => $summary['shipping'][$sellerId]['weight'] ?? null,
                 'chargeable' => $summary['shipping'][$sellerId]['chargeable'] ?? null,
+                'route'      => $summary['shipping'][$sellerId]['route'] ?? null,   // "Same city", "Luzon → Visayas"…
                 'discount'   => $q['seller_discounts'][$sellerId] ?? 0,
                 'promo'      => $g['promo'] ?? 0,
                 'promo_labels' => $g['promo_labels'] ?? [],

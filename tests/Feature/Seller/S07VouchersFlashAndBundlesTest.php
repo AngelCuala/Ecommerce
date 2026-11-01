@@ -31,7 +31,7 @@ class S07VouchersFlashAndBundlesTest extends TestCase
         return array_merge([
             'code' => 'MCH50', 'name' => 'Maria Clara ₱50 off', 'discount_type' => 'fixed', 'discount_value' => '50',
             'min_spend' => '300', 'usage_limit' => '100', 'per_user_limit' => '1',
-            'starts_at' => now()->startOfMonth()->format('Y-m-d\TH:i'), 'ends_at' => now()->endOfMonth()->format('Y-m-d\TH:i'),
+            'starts_at' => now()->startOfMonth()->copy()->tz(config('app.business_timezone'))->format('Y-m-d\TH:i'), 'ends_at' => now()->endOfMonth()->copy()->tz(config('app.business_timezone'))->format('Y-m-d\TH:i'),
             'is_active' => '1', 'is_claimable' => '1',
         ], $over);
     }
@@ -160,7 +160,7 @@ class S07VouchersFlashAndBundlesTest extends TestCase
         $this->createVoucher(['code' => 'VUSE0', 'usage_limit' => '0'])->assertSessionHasErrors(['usage_limit' => 'The total uses must be at least 1 (leave it empty for unlimited).']);
         $this->createVoucher(['code' => 'VPER', 'usage_limit' => '1', 'per_user_limit' => '2'])
             ->assertSessionHasErrors(['per_user_limit' => 'Uses per buyer can\'t be more than the total uses allowed.']);
-        $this->createVoucher(['code' => 'VDATE', 'starts_at' => now()->addDays(3)->format('Y-m-d\TH:i'), 'ends_at' => now()->addDay()->format('Y-m-d\TH:i')])
+        $this->createVoucher(['code' => 'VDATE', 'starts_at' => now()->addDays(3)->copy()->tz(config('app.business_timezone'))->format('Y-m-d\TH:i'), 'ends_at' => now()->addDay()->copy()->tz(config('app.business_timezone'))->format('Y-m-d\TH:i')])
             ->assertSessionHasErrors('ends_at');
         $this->assertSame(0, Voucher::whereIn('code', ['VAMT0', 'VPCT0', 'VPCT100', 'VCAP0', 'VUSE0', 'VPER', 'VDATE'])->count());
     }
@@ -261,7 +261,7 @@ class S07VouchersFlashAndBundlesTest extends TestCase
     {
         $this->travelTo(now()->setTime(9, 0));
         $slot = ['product_id' => $this->p02->id, 'flash_price' => 299, 'quantity' => 3,
-            'starts_at' => now()->setTime(12, 0)->format('Y-m-d H:i'), 'ends_at' => now()->setTime(14, 0)->format('Y-m-d H:i')];
+            'starts_at' => now()->setTime(12, 0)->copy()->tz(config('app.business_timezone'))->format('Y-m-d H:i'), 'ends_at' => now()->setTime(14, 0)->copy()->tz(config('app.business_timezone'))->format('Y-m-d H:i')];
         $this->actingAs($this->seller1)->post(route('seller.flash-sales.store'), $slot)->assertSessionHas('success');
         $this->actingAs($this->seller1)->get(route('seller.flash-sales.index'))->assertSee('Upcoming');
 
@@ -279,7 +279,7 @@ class S07VouchersFlashAndBundlesTest extends TestCase
     public function test_sel_flash_002_flash_quantity_and_price_validation(): void
     {
         $slot = fn ($day, $qty, $price = 299) => ['product_id' => $this->p02->id, 'flash_price' => $price, 'quantity' => $qty,
-            'starts_at' => now()->addDays($day)->format('Y-m-d H:i'), 'ends_at' => now()->addDays($day)->addHour()->format('Y-m-d H:i')];
+            'starts_at' => now()->addDays($day)->copy()->tz(config('app.business_timezone'))->format('Y-m-d H:i'), 'ends_at' => now()->addDays($day)->addHour()->copy()->tz(config('app.business_timezone'))->format('Y-m-d H:i')];
         $store = fn ($data) => $this->actingAs($this->seller1)->from(route('seller.flash-sales.index'))->post(route('seller.flash-sales.store'), $data);
 
         $store($slot(1, 0))->assertSessionHasErrors('quantity');

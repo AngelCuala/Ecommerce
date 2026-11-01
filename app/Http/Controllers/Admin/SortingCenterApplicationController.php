@@ -18,7 +18,9 @@ class SortingCenterApplicationController extends Controller
 {
     public function index()
     {
-        $applications = SortingCenterApplication::with('user')->latest()->get();
+        // Sign-ups that haven't entered the email code yet are not listed (as for sellers).
+        $applications = SortingCenterApplication::with('user')
+            ->whereHas('user', fn ($q) => $q->where('approval_status', '!=', 'unverified'))->latest()->get();
         return view('admin.sc-applications.index', compact('applications'));
     }
 

@@ -77,6 +77,8 @@ class ApiJson
             'rating'           => $product->rating,
             'sold'             => (int) ($product->sold ?? 0),
             'out_of_stock'     => ($product->stock ?? 1) <= 0,
+            'stock'            => (int) ($product->stock ?? 0),
+            'low_stock'        => ($product->stock ?? 1) > 0 && $product->isLowStock(),
             'on_vacation'      => in_array($product->seller_id, $vacation),
             'wished'           => in_array($product->id, $wished),
             'seller_id'        => $product->seller_id,
@@ -123,6 +125,7 @@ class ApiJson
             'sale_ends_at'     => $hasDiscount && $product->sale_ends_at ? $product->sale_ends_at->toIso8601String() : null,
             'in_stock'         => $inStock,
             'stock'            => $product->totalStock(),
+            'low_stock_at'     => $product->lowStockThreshold(),
             'purchase_limit'   => $product->purchase_limit,
             'allowance'        => $d['allowance'] ?? null,
             'max_quantity'     => max(1, min($product->totalStock(), $d['allowance'] ?? PHP_INT_MAX)),
@@ -180,6 +183,12 @@ class ApiJson
             'name'        => $v->name,
             'scope'       => $v->scope,
             'label'       => $v->discountLabel(),
+            // The website's voucher ticket: FREE SHIPPING / 10% OFF / ₱50 OFF, where it works and how much is used up.
+            'type'        => $v->discount_type,
+            'value'       => (float) $v->discount_value,
+            'max'         => $v->max_discount !== null ? (float) $v->max_discount : null,
+            'where'       => $v->whereText(),
+            'used_pct'    => $v->usedPercent(),
             'min_spend'   => (float) $v->min_spend,
             'ends_at'     => $v->ends_at?->toIso8601String(),
             'store'       => $v->seller_id ? ($v->relationLoaded('seller') ? $v->seller?->storeName() : null) : 'ALVY',
@@ -232,6 +241,44 @@ class ApiJson
     ];
 
     /** Everything the web's order page shows, and which of its buttons are there. */
+    /**
+     * The website's Shipment tracking card (shipment/_tracking, App\Support\ShipmentProgress): tracking and waybill numbers,
+     * where the parcel is, the 5-step progress, the hubs on its route, every recorded update and the steps still to come.
+     */
+    public static function tracking(Order $order): array
+    {
+        $t = \App\Support\ShipmentProgress::for($order);
+        $s = $t['parcel']?->status;
+        $reached = match (true) {
+            ! $s, in_array($s, ['pending_pickup', 'pickup_approved', 'pickup_rejected', 'cancelled'], true) => 0,
+            $s === 'in_transit_to_hub'                                                                  => 1,
+            in_array($s, ['in_transit', 'failed'], true)                                               => 3,
+            $s === 'delivered'                                                                          => 4,
+            default                                                                                     => 2,
+        };
+        $warn = ['delivery_failed', 'transfer_delayed', 'exception_reported', 'return_to_sender', 'cancelled', 'lost', 'damaged', 'pickup_rejected'];
+
+        return [
+            'tracking_number' => $t['tracking'],
+            'waybill_number'  => $t['parcel']?->waybill_number,
+            'status'          => $t['status'],
+            'location'        => $t['location'],
+            'milestones'      => ['Ordered', 'Collected', 'At sorting center', 'Out for delivery', 'Delivered'],
+            'reached'         => $reached,
+            'delivered'       => $s === 'delivered',
+            'trouble'         => in_array($s, ['failed', 'return_to_sender', 'returned', 'lost', 'damaged', 'cancelled', 'pickup_rejected'], true),
+            'hubs'            => collect($t['hubs'])->pluck('name')->filter()->unique()->values(),
+            'events'          => $t['events']->values()->map(fn ($e) => [
+                'type' => $e->event_type, 'label' => $e->label(), 'note' => $e->event_type !== 'transfer_dispatched' ? $e->note : null,
+                'at' => $e->occurred_at?->toIso8601String(), 'warning' => in_array($e->event_type, $warn, true),
+            ])->reverse()->values(),   // newest first
+            'expected'        => $t['expected'],
+            'delivered_at'    => $t['delivered_at']?->toIso8601String(),
+            'attempts'        => $t['attempts'],
+            'under_review'    => (bool) $t['under_review'],
+        ];
+    }
+
     public static function orderDetail(Order $order): array
     {
         $return = $order->returnRequests->first();
@@ -274,11 +321,16 @@ class ApiJson
             'delivery' => $delivery ? [
                 'status'       => $delivery->status,
                 'rider'        => $delivery->rider->full_name ?? null,
+                'vehicle'      => trim(($delivery->rider?->vehicle_type ?? '') . ' ' . ($delivery->rider?->plate_number ?? '')) ?: null,
+                'rider_hub'    => $delivery->rider?->sortingCenter ? \App\Support\SortingCenters::displayName($delivery->rider->sortingCenter) : 'ALVY logistics',
                 'otp'          => $delivery->status === 'out_for_delivery' ? $delivery->otp_code : null,
                 'cod_amount'   => (float) $delivery->cod_amount,
+                'cod_collected' => (float) $delivery->cod_collected,
                 'delivered_at' => $delivery->delivered_at?->toIso8601String(),
                 'proof_url'    => $delivery->status === 'delivered' ? self::file($delivery->pod_path) : null,
             ] : null,
+            'tracking' => self::tracking($order),
+            'payment_proof' => $order->payment_proof_path ? ['reference' => $order->payment_reference, 'has_file' => true] : null,
             'timeline' => $order->events->map(fn ($e) => [
                 'label' => self::EVENT_LABELS[$e->status] ?? $e->status, 'note' => $e->note, 'at' => $e->created_at?->toIso8601String(),
             ])->values()->all(),
@@ -300,6 +352,7 @@ class ApiJson
                 'return_deadline' => $returnOpen ? $order->returnDeadline()?->toIso8601String() : null,
                 'return_reasons'  => ReturnRequest::REASONS,
                 'escalate'        => $return && $return->status === 'rejected' && $order->status === Order::DELIVERED,
+                'rate_prompt'     => $reviewOpen && $order->items->contains(fn ($i) => ! $i->review),
                 'message_seller'  => (bool) $order->seller_id,
             ],
         ];
@@ -315,6 +368,10 @@ class ApiJson
             'city' => $a->city, 'province' => $a->province, 'region' => $a->region, 'zip' => $a->zip,
             'municipality_code' => $a->municipality_code, 'province_code' => $a->province_code,
             'is_default' => (bool) $a->is_default, 'full_address' => $a->full_address,
+            'latitude' => $a->latitude, 'longitude' => $a->longitude,   // map pin (optional)
+            'complete' => (bool) $a->municipality_code,
+            'deliverable' => ! \App\Support\ServiceArea::enabled() || ($a->municipality_code && \App\Support\ServiceArea::coversLocality($a->municipality_code)),
+            'service_area' => \App\Support\ServiceArea::enabled() ? \App\Support\ServiceArea::label() : null,
         ];
     }
 

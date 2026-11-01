@@ -63,7 +63,7 @@
                         <p class="mt-2 text-xs pl-muted">
                             Posted by {{ $ann->admin->name ?? 'Admin' }} · {{ $ann->published_at?->format('M d, Y H:i') ?? $ann->created_at->format('M d, Y H:i') }}
                             @if ($ann->expires_at)
-                                · Expires {{ $ann->expires_at->format('M d, Y') }}
+                                · Expires {{ $ann->expires_at->tz(config('app.business_timezone'))->format('M d, Y') }}
                             @endif
                         </p>
                     </div>

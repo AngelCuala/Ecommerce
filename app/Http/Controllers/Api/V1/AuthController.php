@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Services\LoginOtp;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
@@ -209,12 +210,47 @@ class AuthController extends Controller
      * The web's sign-up form (role buyer, courier (a rider), seller or logistics, same fields and uploads),
      * run through the web's own controller so every rule and message is the same.
      */
+    /**
+     * "Continue with Google" in the app: the website's Google sign-in gave the app a one-time code.
+     * An existing account signs in (same checks as a password login); a new Google email gets
+     * status "signup" with the email (locked) and name for the sign-up form, plus the code to send with it.
+     */
+    public function googleExchange(Request $request): JsonResponse
+    {
+        $data = $request->validate(['code' => 'required|string|max:100', 'device_name' => 'nullable|string|max:100']);
+        $entry = Cache::get('google-app:' . $data['code']);
+        if (! $entry) {
+            throw ValidationException::withMessages(['email' => 'Your Google sign-in has expired. Please try again.']);
+        }
+        if ($entry['kind'] === 'signup') {
+            return response()->json([
+                'status' => 'signup', 'google_code' => $data['code'], 'email' => $entry['email'],
+                'first_name' => $entry['first_name'], 'last_name' => $entry['last_name'],
+                'message' => 'No ALVY account uses ' . $entry['email'] . ' yet. Finish signing up — no email code needed, Google has already verified your email.',
+            ]);
+        }
+        Cache::forget('google-app:' . $data['code']);
+        $user = User::find($entry['user_id']);
+        if (! $user) {
+            throw ValidationException::withMessages(['email' => 'This account no longer exists.']);
+        }
+
+        return $this->admit($request, $user);
+    }
+
     public function register(Request $request): JsonResponse
     {
         // The web controllers keep the code step in a session; the app gets an otp_token instead.
         $session = app('session')->driver('array');
         $session->start();
         $request->setLaravelSession($session);
+
+        // A sign-up that started with "Continue with Google": the email is Google's, and no email code is needed.
+        $google = $request->filled('google_code') ? Cache::get('google-app:' . $request->input('google_code')) : null;
+        if ($google && ($google['kind'] ?? null) === 'signup') {
+            \App\Support\GoogleSignup::remember($request, $google['google_id'], $google['email']);
+            $request->merge(['email' => $google['email']]);
+        }
 
         $response = app(RegisteredUserController::class)->store($request);
         $flashed = method_exists($response, 'getSession') ? $response->getSession() : null;
@@ -228,6 +264,16 @@ class AuthController extends Controller
             return response()->json(['message' => $message, 'errors' => $bag ?: ['email' => [$message]]], 422);
         }
 
+        if ($google && ($user = User::whereRaw('LOWER(email) = ?', [mb_strtolower($google['email'])])->first()) && ! $user->isUnverified()) {
+            Cache::forget('google-app:' . $request->input('google_code'));
+            // Signed up with Google: in right away when the account may sign in (a seller applicant sees its status).
+            try {
+                return $this->admit($request, $user);
+            } catch (ValidationException) {
+                return response()->json(['status' => 'submitted', 'message' => $flash ?: 'Registration submitted. Please wait for the administrator\'s approval.'], 201);
+            }
+        }
+
         if ($userId = $session->get('otp.user_id')) {
             $user = User::findOrFail($userId);
             return $this->otpRequired($user, $flash ?: 'Almost done! We sent a 6-digit verification code to ' . LoginOtp::maskEmail($user->email) . '.');
@@ -235,6 +281,26 @@ class AuthController extends Controller
 
         // A logistics (sorting center) sign-up waits for the administrator; no code step.
         return response()->json(['status' => 'submitted', 'message' => $flash ?: 'Registration submitted. Please wait for the administrator\'s approval.'], 201);
+    }
+
+    /**
+     * The web's "Forgot password?": emails a reset link (the same generic answer whether or not the email has an
+     * account). The link opens the website's reset page, which sets the new password.
+     */
+    public function forgotPassword(Request $request): JsonResponse
+    {
+        $session = app('session')->driver('array');
+        $session->start();
+        $request->setLaravelSession($session);
+
+        $response = app(\App\Http\Controllers\Auth\PasswordResetLinkController::class)->store($request);
+        $errors = method_exists($response, 'getSession') ? $response->getSession()?->get('errors') : null;
+        if ($errors instanceof \Illuminate\Support\ViewErrorBag && $errors->any()) {
+            $bag = $errors->getBag('default')->toArray();
+            return response()->json(['message' => collect($bag)->flatten()->first(), 'errors' => $bag], 422);
+        }
+
+        return response()->json(['message' => \App\Http\Controllers\Auth\PasswordResetLinkController::SENT]);
     }
 
     /** Lists the sign-up form needs (seller categories and types, sorting centers a courier can join). */

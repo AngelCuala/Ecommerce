@@ -402,7 +402,8 @@ class Linehaul
             $this->fail('reason', 'Choose the reason for the delay (' . implode(', ', self::DELAY_REASONS) . ').');
         }
         try {
-            $at = $eta ? \Carbon\Carbon::parse($eta) : null;
+            // A typed time is Philippine time (a value with its own offset keeps it).
+            $at = $eta ? \Carbon\Carbon::parse($eta, config('app.business_timezone'))->utc() : null;
         } catch (\Throwable) {
             $at = null;
         }

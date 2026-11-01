@@ -47,6 +47,9 @@ class RidersController extends Controller
             'unassigned'  => $d['unassigned']->map($job)->values(),
             'riders'      => $d['riders']->map(fn ($r) => LogisticsJson::rider($r) + ['active_jobs' => (int) $r->active_jobs])->values(),
             'eligible_ids' => collect($d['eligible'])->pluck('id')->values(),
+            // The website's "Choose rider" list: available riders first, the rest with why not (suspended, offline, full).
+            'rider_choices' => collect($d['riderChoices'] ?? [])->map(fn ($c) => ['id' => $c->rider->id, 'name' => $c->rider->full_name,
+                'available' => (bool) $c->available, 'why' => $c->available ? null : $c->why, 'active_jobs' => (int) $c->rider->active_jobs])->values(),
             'with_riders' => $d['withRiders']->map(fn ($x) => ['tracking' => $x->parcel?->tracking_number, 'rider' => $x->rider?->full_name,
                 'status' => $x->status, 'status_label' => $x->statusLabel(), 'picked_up_at' => $x->picked_up_at?->toIso8601String()])->values(),
             'not_started' => $d['notStarted']->map(fn ($x) => ['kind' => $x->kind, 'parcel_id' => $x->parcel?->id, 'tracking' => $x->parcel?->tracking_number,

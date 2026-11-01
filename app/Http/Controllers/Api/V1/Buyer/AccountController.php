@@ -157,6 +157,21 @@ class AccountController extends Controller
         ]);
     }
 
+    /** The web's Voucher Center: every claimable voucher running now · tab: all, shipping, discount, store. */
+    public function voucherCenter(): JsonResponse
+    {
+        $d = $this->pageData($this->web(VoucherWalletController::class, 'center'));
+        $used = $d['used'];
+
+        return response()->json([
+            'tab'      => $d['tab'],
+            'counts'   => $d['counts'],
+            'vouchers' => $d['vouchers']->map(fn ($v) => ApiJson::voucher($v, in_array($v->id, $d['claimedIds'], true)) + [
+                'times_used' => (int) ($used[$v->id] ?? 0),
+            ])->values(),
+        ]);
+    }
+
     public function claimVoucher(Voucher $voucher): JsonResponse
     {
         return $this->actionJson($this->web(VoucherWalletController::class, 'claim', ['voucher' => $voucher]));

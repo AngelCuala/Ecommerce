@@ -162,7 +162,7 @@ class SellerApiTest extends TestCase
             ->assertJsonValidationErrors(['sorting_center_id' => 'Choose the logistics company whose rider will pick up the parcel.']);
         $this->online($this->rider1);
         $this->api('POST', "/orders/{$order->id}/handover", ['sorting_center_id' => $this->logistics1->id,
-            'pickup_scheduled_at' => now()->addHour()->format('Y-m-d H:i')])->assertOk()
+            'pickup_scheduled_at' => now()->addHour()->copy()->tz(config('app.business_timezone'))->format('Y-m-d H:i')])->assertOk()
             ->assertJsonPath('order.seller_step', 'ready')->assertJsonPath('order.parcel.status', 'pickup_approved');
         $waybill = $this->api('GET', "/orders/{$order->id}/waybill")->assertOk()->json('waybill');
         $this->assertSame('ALVY', substr($waybill['tracking'], 0, 4));
@@ -191,10 +191,10 @@ class SellerApiTest extends TestCase
         $this->api('PATCH', "/vouchers/{$v->id}/toggle")->assertOk()->assertJsonPath('message', 'Voucher MCH75 turned off.');
 
         $this->api('POST', '/flash-sales', ['product_id' => $this->p02->id, 'flash_price' => 500, 'quantity' => 3,
-            'starts_at' => now()->addHour()->format('Y-m-d H:i'), 'ends_at' => now()->addHours(3)->format('Y-m-d H:i')])
+            'starts_at' => now()->addHour()->copy()->tz(config('app.business_timezone'))->format('Y-m-d H:i'), 'ends_at' => now()->addHours(3)->copy()->tz(config('app.business_timezone'))->format('Y-m-d H:i')])
             ->assertStatus(422)->assertJsonValidationErrors('flash_price');
         $this->api('POST', '/flash-sales', ['product_id' => $this->p02->id, 'flash_price' => 299, 'quantity' => 3,
-            'starts_at' => now()->addHour()->format('Y-m-d H:i'), 'ends_at' => now()->addHours(3)->format('Y-m-d H:i')])
+            'starts_at' => now()->addHour()->copy()->tz(config('app.business_timezone'))->format('Y-m-d H:i'), 'ends_at' => now()->addHours(3)->copy()->tz(config('app.business_timezone'))->format('Y-m-d H:i')])
             ->assertOk()->assertJsonPath('message', 'Flash sale scheduled for "Rattan Fruit Basket".');
         $this->assertSame('Upcoming', $this->api('GET', '/flash-sales')->json('sales.0.state'));
 

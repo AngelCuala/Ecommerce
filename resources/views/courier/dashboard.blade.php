@@ -36,7 +36,7 @@
                     </p>
                     <p class="cx-item-meta">Seller: <strong style="color:#374151;">{{ $d->pickupName() }}</strong></p>
                     <p class="cx-item-meta">Deliver to: {{ $d->order->full_name ?? '—' }} · {{ $d->order->city ?? '' }}</p>
-                    @if($d->pickup_scheduled_at)<p class="cx-item-meta">Pickup: {{ $d->pickup_scheduled_at->format('M d, Y h:i A') }}</p>@endif
+                    @if($d->pickup_scheduled_at)<p class="cx-item-meta">Pickup: {{ $d->pickup_scheduled_at->copy()->tz(config('app.business_timezone'))->format('M d, Y h:i A') }}</p>@endif
                     <p class="cx-item-meta">{{ $d->itemCount() }} item(s) · ₱{{ number_format($d->delivery_fee,2) }} fee</p>
                 </div>
                 <div class="cx-actions">
@@ -107,7 +107,7 @@
                 <p class="cx-item-title">Order #{{ str_pad($d->order_id,6,'0',STR_PAD_LEFT) }}</p>
                 <p class="cx-item-meta">Pickup from: {{ $d->pickupName() }}</p>
                 <p class="cx-item-meta">Deliver to: {{ $d->order->full_name ?? '—' }} · {{ $d->order->city ?? '' }}</p>
-                @if($d->pickup_scheduled_at)<p class="cx-item-meta">Pickup: {{ $d->pickup_scheduled_at->format('M d, Y h:i A') }}</p>@endif
+                @if($d->pickup_scheduled_at)<p class="cx-item-meta">Pickup: {{ $d->pickup_scheduled_at->copy()->tz(config('app.business_timezone'))->format('M d, Y h:i A') }}</p>@endif
                 <p class="cx-item-meta">{{ $d->itemCount() }} item(s) · Earn ₱{{ number_format($d->delivery_fee,2) }}</p>
             </div>
             <form action="{{ route('courier.deliveries.accept',$d->id) }}" method="POST"

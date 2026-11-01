@@ -50,6 +50,10 @@ class CatalogController extends Controller
             'notes'      => $d['notes'],
             'categories' => $d['categories']->values(),
             'locations'  => $d['locations']->values(),
+            // The store filter, and stores whose name matches the search (shown above the products).
+            'stores'     => collect($d['stores'] ?? [])->map(fn ($name, $id) => ['id' => (int) $id, 'name' => $name])->values(),
+            'matched_stores' => collect($d['matchedStores'] ?? [])->map(fn ($s) => ['id' => (int) $s->user_id, 'name' => $s->shop_name,
+                'location' => trim($s->municipality . ', ' . $s->province, ', '), 'logo_url' => ApiJson::file($s->logo_path)])->values(),
             'category_page' => null,
         ]);
     }
@@ -102,12 +106,17 @@ class CatalogController extends Controller
     public function policy(string $key): JsonResponse
     {
         $d = $this->pageData($this->web(PolicyController::class, 'show', ['key' => $key]));
-        $defaults = collect(\App\Models\PlatformPolicy::defaultPolicies())->keyBy('key');
+        // The published text, else the website's default (its <style> block is for the web page only).
+        $html = $d['policy']?->content ?? \App\Models\PlatformPolicy::defaultContent($key);
+        $html = $html ? trim(preg_replace('#<style\b[^>]*>.*?</style>#is', '', $html)) : null;
 
         return response()->json([
-            'key'     => $d['key'],
-            'title'   => $d['title'],
-            'content' => $d['policy']?->content ?? ($defaults[$key]['content'] ?? null),
+            'key'          => $d['key'],
+            'title'        => $d['title'],
+            'content'      => $html ?: null,
+            'updated_at'   => $d['policy']?->updated_at?->toIso8601String(),
+            'others'       => $key === 'about_us' ? [] : collect(\App\Models\PlatformPolicy::defaultPolicies())
+                ->reject(fn ($p) => in_array($p['key'], [$key, 'about_us'], true))->map(fn ($p) => ['key' => $p['key'], 'title' => $p['title']])->values(),
         ]);
     }
 }

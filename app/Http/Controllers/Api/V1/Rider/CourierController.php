@@ -66,16 +66,21 @@ class CourierController extends Controller
         return $json;
     }
 
-    /** status, order_id, date (Y-m-d) · page. */
+    /** q (order # or tracking no.), status (in_progress, delivered, failed), date (Y-m-d) · page. */
     public function history(): JsonResponse
     {
         $d = $this->pageData($this->web(DeliveryController::class, 'history'));
-        return response()->json(ApiJson::page($d['deliveries'], fn ($x) => [
+        // Which page the row opens: a hub delivery (Hub Jobs) or a courier-marketplace one.
+        $open = fn ($x) => preg_match('#/courier/rider/deliveries/(\d+)#', (string) $x->url, $m) ? ['kind' => 'rider', 'id' => (int) $m[1]]
+            : (preg_match('#/courier/deliveries/(\d+)#', (string) $x->url, $m) ? ['kind' => 'courier', 'id' => (int) $m[1]] : ['kind' => null, 'id' => null]);
+
+        return response()->json(ApiJson::page($d['deliveries'], fn ($x) => $open($x) + [
             'order_number' => $x->order, 'tracking' => $x->tracking, 'buyer' => $x->buyer, 'place' => $x->place, 'seller' => $x->seller,
             'status' => $x->group === 'in_progress' ? 'in_progress' : $x->group, 'status_label' => $x->label, 'note' => $x->note,
             'attempt' => $x->attempt, 'cod' => $x->cod, 'fee' => $x->pay,
             'delivered_at' => $x->group === 'delivered' ? $x->at?->toIso8601String() : null, 'created_at' => $x->at?->toIso8601String(),
-        ]) + ['summary' => $d['summary']]);
+        ]) + ['summary' => $d['summary'],
+            'statuses' => collect(DeliveryController::HISTORY_STATUSES)->map(fn ($s) => $s[0])->all()]);
     }
 
     public function profit(): JsonResponse
@@ -105,14 +110,22 @@ class CourierController extends Controller
     {
         $d = $this->pageData($this->web(AccountController::class, 'index'));
         $c = $d['courier'];
+        $rider = $d['rider'];
 
         return response()->json([
             'user'    => AuthController::userPayload($d['user']),
+            // A rider added by the logistics company may have no courier record: its own name and number then.
             'courier' => [
-                'name' => $c->fullName() ?: $d['user']->name, 'masked_email' => $d['maskedEmail'], 'contact_no' => $c->contact_no ?? $d['user']->phone,
-                'sex' => $c->sex, 'age' => $c->age, 'birthday' => $c->birthday?->toDateString(), 'address' => $c->fullAddress(),
-                'vehicle_type' => $c->vehicle_type, 'plate_number' => $c->plate_number, 'status' => $c->status, 'hub' => $c->hubName(),
+                'name' => $c?->fullName() ?: ($rider?->full_name ?? $d['user']->name), 'masked_email' => $d['maskedEmail'],
+                'contact_no' => $c?->contact_no ?? $rider?->phone ?? $d['user']->phone,
+                'sex' => $c?->sex, 'age' => $c?->age, 'birthday' => $c?->birthday?->toDateString(), 'address' => $c?->fullAddress(),
+                'vehicle_type' => $c?->vehicle_type ?? $rider?->vehicle_type, 'plate_number' => $c?->plate_number ?? $rider?->plate_number,
+                'status' => $c?->status ?? 'approved', 'hub' => $c?->hubName() ?? $rider?->companyName(),
             ],
+            // The website's Account page now holds the rider profile (vehicle, license, documents) and the header numbers.
+            'rider'    => $rider ? \App\Support\RiderJson::rider($rider) : null,
+            'stats'    => $d['stats'],   // earned, jobs, online
+            'vehicles' => $d['vehicles'],
         ]);
     }
 

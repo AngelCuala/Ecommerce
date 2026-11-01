@@ -35,7 +35,7 @@
             <h2 class="mt-8 mb-3 text-sm font-semibold" style="color:#222222;">How to install</h2>
             <ol class="list-decimal space-y-2 pl-5 text-sm" style="color:#444444;">
                 <li>Open this page on your Android phone and tap <strong>Download for Android</strong>.</li>
-                <li>Open the downloaded <strong>ALVY.apk</strong>. If your phone asks, allow installing apps from your browser or files app.</li>
+                <li>Open the downloaded <strong>ALVYSHOP.apk</strong>. If your phone asks, allow installing apps from your browser or files app.</li>
                 <li>Tap <strong>Install</strong>, then open ALVY and sign in with your ALVY account (or create one).</li>
             </ol>
             <p class="mt-6 text-xs" style="color:#6b90aa;">

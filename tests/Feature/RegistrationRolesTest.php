@@ -115,7 +115,7 @@ class RegistrationRolesTest extends TestCase
             'role' => 'logistics', 'business_name' => 'ALVY Hub Magdalena',
             'government_id'   => UploadedFile::fake()->create('gov.jpg', 100, 'image/jpeg'),
             'business_permit' => UploadedFile::fake()->create('permit.pdf', 100, 'application/pdf'),
-        ]))->assertSessionHasNoErrors()->assertRedirect(route('login'));
+        ]))->assertSessionHasNoErrors()->assertRedirect(route('otp.show'));   // the email code first, like every sign-up
 
         $user = User::where('email', 'mario@example.com')->firstOrFail();
         $this->assertSame('sorting_center_pending', $user->role);

@@ -203,8 +203,13 @@ class AuthApiTest extends TestCase
             'role' => 'logistics', 'email' => 'rosa.hub@example.com', 'contact_no' => '09175550003', 'business_name' => 'Rosa Hub',
             'government_id' => UploadedFile::fake()->create('id.pdf', 50, 'application/pdf'),
             'business_permit' => UploadedFile::fake()->create('permit.pdf', 50, 'application/pdf'),
-        ]))->assertStatus(201)->assertJsonPath('status', 'submitted')
-            ->assertJsonPath('message', fn ($m) => str_contains($m, 'Please wait for the administrator'));
+        ]))->assertStatus(202)->assertJsonPath('status', 'otp_required');
+        // The email is confirmed with the code first, like every other sign-up.
+        $code = null;
+        Mail::assertSent(\App\Mail\LoginOtpMail::class, function ($m) use (&$code) { $code = $m->code; return $m->user->email === 'rosa.hub@example.com'; });
+        $otpToken = $this->postJson('/api/v1/auth/login', ['email' => 'rosa.hub@example.com', 'password' => 'Secret@123'])->assertStatus(202)->json('otp_token');
+        $this->postJson('/api/v1/auth/otp/verify', ['otp_token' => $otpToken, 'otp' => $code])->assertOk()
+            ->assertJsonPath('status', 'pending_approval')->assertJsonPath('message', fn ($m) => str_contains($m, 'waiting for admin approval'));
 
         $this->assertSame('sorting_center_pending', User::where('email', 'rosa.hub@example.com')->sole()->role);
         $this->login('rosa.hub@example.com', 'Secret@123')->assertStatus(422)

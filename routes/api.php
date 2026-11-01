@@ -21,7 +21,9 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
     Route::post('/auth/otp/verify',   [AuthController::class, 'verifyOtp'])->middleware('throttle:10,1')->name('auth.otp.verify');
     Route::post('/auth/otp/resend',   [AuthController::class, 'resendOtp'])->middleware('throttle:5,1')->name('auth.otp.resend');
     Route::post('/auth/register',     [AuthController::class, 'register'])->middleware('throttle:10,1')->name('auth.register');
+    Route::post('/auth/google/exchange', [AuthController::class, 'googleExchange'])->middleware('throttle:10,1')->name('auth.google.exchange');
     Route::get('/auth/register/options', [AuthController::class, 'registerOptions'])->name('auth.register.options');
+    Route::post('/auth/forgot-password', [AuthController::class, 'forgotPassword'])->middleware('throttle:20,1')->name('auth.forgot-password');
 
     Route::middleware('auth:sanctum')->group(function () {
         Route::get('/me',           [AuthController::class, 'me'])->name('me');
@@ -57,6 +59,8 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         Route::get('/dashboard',                     [Seller\PanelController::class, 'dashboard'])->name('dashboard');
         Route::get('/reports',                       [Seller\PanelController::class, 'reports'])->name('reports');
         Route::get('/reports/export',                [Seller\PanelController::class, 'exportReport'])->name('reports.export');
+        Route::get('/commissions',                   [Seller\PanelController::class, 'commissions'])->name('commissions');
+        Route::get('/commissions/export',            [Seller\PanelController::class, 'exportCommissions'])->name('commissions.export');
         Route::get('/earnings',                      [Seller\PanelController::class, 'earnings'])->name('earnings');
         Route::post('/earnings/payouts',             [Seller\PanelController::class, 'requestPayout'])->name('earnings.payout');
         Route::get('/reviews',                       [Seller\PanelController::class, 'reviews'])->name('reviews');
@@ -90,6 +94,7 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         Route::post('/orders/{id}/return',           [Seller\OrdersController::class, 'decideReturn'])->name('orders.return');
         Route::post('/orders/{id}/returned-received', [Seller\OrdersController::class, 'returnedReceived'])->name('orders.returned-received');
         Route::get('/orders/{id}/waybill',           [Seller\OrdersController::class, 'waybill'])->name('orders.waybill');
+        Route::get('/orders/{id}/payment-proof',     [\App\Http\Controllers\Api\V1\OrderFilesController::class, 'paymentProof'])->whereNumber('id')->name('orders.payment-proof');
 
         Route::get('/vouchers',                      [Seller\MarketingController::class, 'vouchers'])->name('vouchers');
         Route::get('/vouchers/form/{voucher?}',      [Seller\MarketingController::class, 'voucherForm'])->name('vouchers.form');
@@ -159,6 +164,10 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
             Route::get('/earnings',                        [Rider\RiderController::class, 'earnings'])->name('earnings');
             Route::get('/cod',                             [Rider\RiderController::class, 'cod'])->name('cod');
             Route::post('/cod/remit',                      [Rider\RiderController::class, 'remit'])->name('cod.remit');
+            Route::get('/cod/remittances/{remittance}',    [Rider\RiderController::class, 'remittanceReceipt'])->whereNumber('remittance')->name('cod.receipt');
+            Route::post('/jobs/{kind}/{job}/acknowledge',  [Rider\RiderController::class, 'acknowledge'])->whereIn('kind', ['pickup', 'delivery'])->whereNumber('job')->name('jobs.acknowledge');
+            Route::post('/jobs/{kind}/{job}/decline',      [Rider\RiderController::class, 'declineJob'])->whereIn('kind', ['pickup', 'delivery'])->whereNumber('job')->name('jobs.decline');
+            Route::post('/pickups/{pickup}/arriving',      [Rider\RiderController::class, 'arriving'])->whereNumber('pickup')->name('pickups.arriving');
         });
 
         // A direct (freelance) courier.
@@ -189,6 +198,16 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         Route::post('/pickup-requests/{parcel}/reject',  [Logistics\HubController::class, 'rejectPickup'])->whereNumber('parcel')->name('pickup-requests.reject');
         Route::get('/incoming',                          [Logistics\HubController::class, 'incoming'])->name('incoming');
         Route::post('/incoming/scan',                    [Logistics\HubController::class, 'scan'])->name('incoming.scan');
+        // The website's Shipment Tracking board, Commissions and printable waybills.
+        Route::get('/tracking',                          [Logistics\TrackingController::class, 'index'])->name('tracking');
+        Route::get('/tracking/{parcel}',                 [Logistics\TrackingController::class, 'show'])->whereNumber('parcel')->name('tracking.show');
+        Route::post('/tracking/{parcel}/receive',        [Logistics\TrackingController::class, 'receive'])->whereNumber('parcel')->name('tracking.receive');
+        Route::post('/tracking/{parcel}/start-sorting',  [Logistics\TrackingController::class, 'startSorting'])->whereNumber('parcel')->name('tracking.start-sorting');
+        Route::post('/tracking/{parcel}/exception',      [Logistics\TrackingController::class, 'exception'])->whereNumber('parcel')->name('tracking.exception');
+        Route::post('/riders/{rider}/transport',         [Logistics\TrackingController::class, 'toggleTransport'])->name('riders.transport');
+        Route::get('/commissions',                       [Logistics\TrackingController::class, 'commissions'])->name('commissions');
+        Route::get('/commissions/export',                [Logistics\TrackingController::class, 'exportCommissions'])->name('commissions.export');
+        Route::get('/waybills',                          [Logistics\TrackingController::class, 'waybills'])->name('waybills');
         Route::post('/incoming/{parcel}/receive',        [Logistics\HubController::class, 'receive'])->whereNumber('parcel')->name('incoming.receive');
         Route::get('/sorting',                           [Logistics\HubController::class, 'sorting'])->name('sorting');
         Route::post('/sorting/{parcel}',                 [Logistics\HubController::class, 'sort'])->whereNumber('parcel')->name('sorting.sort');
@@ -283,6 +302,14 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         Route::get('/policies/{key}',       [Buyer\CatalogController::class, 'policy'])->name('policies.show');
     });
 
+    // ALVY Assistant (guests and buyers; the chat is kept in the token's session).
+    Route::middleware(['api.optional-auth', 'api.session'])->prefix('assistant')->name('assistant.')->group(function () {
+        Route::get('/history',           [Buyer\AssistantController::class, 'history'])->name('history');
+        Route::post('/ask',              [Buyer\AssistantController::class, 'ask'])->middleware('throttle:10,1')->name('ask');
+        Route::post('/reset',            [Buyer\AssistantController::class, 'reset'])->name('reset');
+        Route::post('/actions/{token}',  [Buyer\AssistantController::class, 'confirm'])->middleware('throttle:10,1')->name('confirm');
+    });
+
     // The web's buyer pages (auth + buyer_only), with a web session for the sign-in.
     Route::middleware(['auth:sanctum', 'api.buyer', 'api.session'])->group(function () {
         Route::get('/cart',                       [Buyer\ShoppingController::class, 'cart'])->name('cart');
@@ -296,6 +323,8 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
 
         Route::get('/orders',                     [Buyer\ShoppingController::class, 'orders'])->name('orders');
         Route::get('/orders/{id}',                [Buyer\ShoppingController::class, 'order'])->whereNumber('id')->name('orders.show');
+        Route::get('/orders/{id}/payment-proof',  [\App\Http\Controllers\Api\V1\OrderFilesController::class, 'paymentProof'])->whereNumber('id')->name('orders.payment-proof');
+        Route::get('/orders/{id}/proof-of-delivery', [\App\Http\Controllers\Api\V1\OrderFilesController::class, 'proofOfDelivery'])->whereNumber('id')->name('orders.pod');
         Route::post('/orders/{id}/cancel',        [Buyer\ShoppingController::class, 'cancel'])->name('orders.cancel');
         Route::post('/orders/{id}/received',      [Buyer\ShoppingController::class, 'confirmReceived'])->name('orders.received');
         Route::post('/orders/{id}/return',        [Buyer\ShoppingController::class, 'requestReturn'])->name('orders.return');
@@ -324,6 +353,7 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         Route::get('/wishlist',                   [Buyer\AccountController::class, 'wishlist'])->name('wishlist');
         Route::post('/wishlist/{productId}',      [Buyer\AccountController::class, 'toggleWish'])->name('wishlist.toggle');
         Route::get('/vouchers',                   [Buyer\AccountController::class, 'vouchers'])->name('vouchers');
+        Route::get('/vouchers/center',            [Buyer\AccountController::class, 'voucherCenter'])->name('vouchers.center');
         Route::post('/vouchers/{voucher}/claim',  [Buyer\AccountController::class, 'claimVoucher'])->name('vouchers.claim');
         Route::get('/following',                  [Buyer\AccountController::class, 'following'])->name('following');
         Route::post('/stores/{sellerId}/follow',  [Buyer\AccountController::class, 'toggleFollow'])->name('stores.follow');

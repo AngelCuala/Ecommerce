@@ -38,7 +38,7 @@
             </div>
             <div>
                 <label class="pl-label" for="fs-start">Starts</label>
-                <input id="fs-start" type="datetime-local" name="starts_at" value="{{ old('starts_at') }}" min="{{ now()->format('Y-m-d\TH:i') }}" class="input text-sm" required>
+                <input id="fs-start" type="datetime-local" name="starts_at" value="{{ old('starts_at') }}" min="{{ now()->tz(config('app.business_timezone'))->format('Y-m-d\TH:i') }}" class="input text-sm" required>
                 @error('starts_at')<p class="text-xs" style="color:#B91C1C;">{{ $message }}</p>@enderror
             </div>
             <div>
@@ -58,7 +58,7 @@
             @forelse ($sales as $s)
                 <tr>
                     <td>{{ $s->product->title ?? 'Removed product' }}</td>
-                    <td class="whitespace-nowrap text-xs">{{ $s->starts_at->format('M j, g:i A') }} – {{ $s->ends_at->format('M j, g:i A') }}</td>
+                    <td class="whitespace-nowrap text-xs">{{ $s->starts_at->tz(config('app.business_timezone'))->format('M j, g:i A') }} – {{ $s->ends_at->tz(config('app.business_timezone'))->format('M j, g:i A') }}</td>
                     <td class="text-right">₱{{ number_format($s->flash_price, 2) }}</td>
                     <td class="text-right">{{ $s->sold }} / {{ $s->quantity }}</td>
                     <td class="text-right">{{ $s->reminders_count }}</td>

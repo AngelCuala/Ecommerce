@@ -30,6 +30,14 @@ class PanelController extends Controller
         $chart = $d['earningsChart'];
 
         return response()->json([
+            // period: today, week, month (default), custom with from / to (Y-m-d).
+            'period'           => $d['range']->period,
+            'range_label'      => $d['range']->label(),
+            'from'             => $d['range']->from->toDateString(),
+            'to'               => $d['range']->to->toDateString(),
+            'money'            => $money,   // gross, refunds, commission, net, pending_commission, finalized_commission, lines
+            'product_counts'   => $d['productCounts'],
+            'best_sellers'     => collect($d['bestSellers'])->map(fn ($b) => ['product_id' => $b->product_id, 'title' => $b->title, 'units' => $b->units, 'sales' => $b->sales])->values(),
             'total_earnings'   => (float) $money['net'],
             'total_revenue'    => (float) $money['gross'],
             'total_commission' => (float) $money['commission'],
@@ -53,6 +61,42 @@ class PanelController extends Controller
                 'status' => $i->order?->status, 'created_at' => $i->created_at?->toIso8601String(),
             ])->values(),
         ]);
+    }
+
+    /**
+     * The website's Commission details: every order line with the rate stored at purchase, the commission and the net,
+     * by period (today, week, month, custom from/to) and status (pending, finalized, refunded, reversed, unpaid) · page.
+     */
+    public function commissions(): JsonResponse
+    {
+        request()->query->remove('export');
+        $d = $this->pageData($this->web(\App\Http\Controllers\Seller\CommissionController::class, 'index'));
+        $c = $d['commission'];
+
+        return response()->json(ApiJson::page($d['items'], fn ($i) => [
+            'order_id' => $i->order_id, 'order_number' => $i->order?->number(), 'placed_at' => $i->order?->created_at?->toIso8601String(),
+            'product' => $i->product->title ?? 'Removed product', 'option' => $i->variation_name, 'quantity' => (int) $i->quantity,
+            'gross' => \App\Services\SellerCommission::gross($i), 'rate' => (float) $i->commission_rate,
+            'commission' => (float) $i->commission_amount, 'net' => (float) $i->seller_earning,
+            'status' => $c->statusOf($i), 'status_label' => \App\Services\SellerCommission::STATUSES[$c->statusOf($i)] ?? $c->statusOf($i),
+        ]) + [
+            'period' => $d['range']->period, 'range_label' => $d['range']->label(),
+            'from' => $d['range']->from->toDateString(), 'to' => $d['range']->to->toDateString(),
+            'status' => $d['status'], 'statuses' => \App\Services\SellerCommission::STATUSES,
+            'summary' => $d['summary'], 'configured_rate' => (float) $d['configuredRate'],
+        ]);
+    }
+
+    /** The commission lines as a file (format: csv / xlsx), like the website's export. */
+    public function exportCommissions(): mixed
+    {
+        request()->validate(['format' => 'required|in:csv,xlsx'], ['format.in' => 'Choose CSV or Excel (XLSX).']);
+        request()->query->set('export', request()->input('format'));
+        $response = $this->web(\App\Http\Controllers\Seller\CommissionController::class, 'index');
+
+        return $response instanceof \Symfony\Component\HttpFoundation\Response && ! $response instanceof \Illuminate\Http\RedirectResponse
+            ? $response
+            : $this->actionJson($response);
     }
 
     /** from, to (Y-m-d). */

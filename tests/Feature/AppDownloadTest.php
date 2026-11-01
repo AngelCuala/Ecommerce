@@ -41,7 +41,7 @@ class AppDownloadTest extends TestCase
 
         $res = $this->get(route('app.download'))->assertOk();
         $this->assertSame('application/vnd.android.package-archive', $res->headers->get('Content-Type'));
-        $this->assertStringContainsString('attachment; filename=ALVY.apk', $res->headers->get('Content-Disposition'));
+        $this->assertStringContainsString('attachment; filename=ALVYSHOP.apk', $res->headers->get('Content-Disposition'));
     }
 
     public function test_the_footer_links_to_it(): void

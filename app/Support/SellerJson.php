@@ -31,6 +31,8 @@ class SellerJson
             'is_archived'     => (bool) $p->is_archived,
             'sale_state'      => $p->saleState(),
             'low_stock'       => $p->isLowStock(),
+            'low_stock_at'    => $p->lowStockThreshold(),   // this product's alert level, else the store default
+            'sold'            => isset($p->sold) ? (int) $p->sold : null,
             'variations_count' => $p->relationLoaded('variations') ? $p->variations->count() : null,
         ];
     }
@@ -48,9 +50,10 @@ class SellerJson
             'description'      => $p->description,
             'sale_price'       => $p->sale_price !== null ? (float) $p->sale_price : null,
             'discount_percent' => (float) $p->discount_percent > 0 ? (int) $p->discount_percent : null,
-            'sale_starts_at'   => $p->sale_starts_at?->format('Y-m-d\TH:i'),
-            'sale_ends_at'     => $p->sale_ends_at?->format('Y-m-d\TH:i'),
+            'sale_starts_at'   => $p->sale_starts_at ? \App\Support\VoucherRules::forInput($p->sale_starts_at) : null,
+            'sale_ends_at'     => $p->sale_ends_at ? \App\Support\VoucherRules::forInput($p->sale_ends_at) : null,
             'purchase_limit'   => $p->purchase_limit,
+            'low_stock_threshold' => $p->low_stock_threshold,   // empty = the store default
             'variation_labels' => $p->variation_labels,
             'weight_kg'        => $p->weight_kg !== null ? (float) $p->weight_kg : null,
             'length_cm'        => $p->length_cm !== null ? (float) $p->length_cm : null,
@@ -123,6 +126,14 @@ class SellerJson
                 'price' => (float) $i->price, 'quantity' => (int) $i->quantity, 'image_url' => ApiJson::file($i->product?->image),
                 'refunded' => $i->refunded_at ? (float) $i->refund_amount : null,
             ])->values(),
+            // The website's Shipment tracking card, and GCash paid by receipt (accepting the order confirms the money arrived).
+            'tracking' => ApiJson::tracking($order),
+            'payment' => ['method' => $order->paymentMethodLabel(), 'status' => $order->payment_status],
+            'gcash' => $order->isGcashReceipt() ? [
+                'has_receipt' => (bool) $order->payment_proof_path, 'reference' => $order->payment_reference,
+                'amount' => (float) $order->total_price, 'checking' => $order->payment_status === 'For verification',
+            ] : null,
+            'waybill_number' => $parcel?->waybill_number,
             'ship_to' => ['name' => $order->full_name, 'phone' => $order->phone, 'address' => $order->fullAddress(), 'note' => $order->buyer_note],
             'timeline' => $order->events->map(fn ($e) => ['status' => $e->status, 'note' => $e->note, 'at' => $e->created_at?->toIso8601String()])->values(),
             'return' => $lastReturn ? [
@@ -148,7 +159,8 @@ class SellerJson
                 'accept'          => in_array($order->status, ['Pending', 'Processing'], true) && $step === 'new',
                 'pack'            => in_array($order->status, ['Pending', 'Processing'], true) && $step === 'accepted',
                 'book_pickup'     => ! in_array($order->status, Order::LOGISTICS_DONE, true) && $canBook,
-                'waybill'         => in_array($order->status, ['Pending', 'Processing'], true) && in_array($step, ['packed', 'ready'], true),
+                'waybill'         => $order->canPrintWaybill(),
+                'accept_label'    => $order->isGcashReceipt() && $order->payment_status === 'For verification' ? 'Payment received · Accept order' : 'Accept order',
                 'cancel'          => in_array($order->status, ['Pending', 'Processing'], true) && $order->isCancellableBySeller(),
                 'cancel_reasons'  => Order::SELLER_CANCEL_REASONS,
                 'handed_over'     => ! in_array($order->status, Order::LOGISTICS_DONE, true) && $delivery?->status === 'accepted',
