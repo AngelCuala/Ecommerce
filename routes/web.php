@@ -327,6 +327,7 @@ Route::middleware(['auth', 'buyer_only', 'prevent.back'])->group(function () {
     Route::patch('/reviews/{review}',             [\App\Http\Controllers\ReviewController::class, 'update'])->name('reviews.update');
 
     Route::post('/checkout/preview',              [CheckoutController::class, 'preview'])->name('checkout.preview');
+    Route::post('/checkout/quantity',             [CheckoutController::class, 'quantity'])->name('checkout.quantity');
 
     Route::get('/notifications/{id}/open',        [ProfileController::class, 'openNotification'])->name('notifications.open');
     Route::post('/notifications/read-all',        [ProfileController::class, 'readAllNotifications'])->name('notifications.read-all');

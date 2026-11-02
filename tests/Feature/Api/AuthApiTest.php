@@ -78,16 +78,17 @@ class AuthApiTest extends TestCase
         $this->getJson('/api/v1/me')->assertUnauthorized();
     }
 
-    public function test_login_ends_after_30_idle_minutes(): void
+    public function test_login_ends_after_a_week_without_use(): void
     {
         $token = $this->login('juanmiguel.delacruz@example.com', 'Mamimili@2026')->json('token');
         $this->withToken($token)->getJson('/api/v1/me')->assertOk();
 
-        $this->travel(29)->minutes();
+        $this->travel(2)->hours();   // used to end after 30 idle minutes; now like the website, a week
         $this->app['auth']->forgetGuards();
-        $this->withToken($token)->getJson('/api/v1/me')->assertOk();   // used again: the clock restarts
+        $this->withToken($token)->getJson('/api/v1/me')->assertOk();
 
-        $this->travel(31)->minutes();
+        $this->travel(7)->days();
+        $this->travel(1)->minutes();
         $this->app['auth']->forgetGuards();
         $this->withToken($token)->getJson('/api/v1/me')->assertUnauthorized();
     }

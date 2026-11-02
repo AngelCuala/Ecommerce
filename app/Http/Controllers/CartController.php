@@ -150,8 +150,8 @@ class CartController extends Controller
         return back()->with('success', 'Item removed from cart.');
     }
 
-    /** Why this many units can't be bought (stock, or the per-buyer limit), or null. */
-    private function quantityProblem(Product $product, int $qty, int $stock, int $alreadyInCart = 0): ?string
+    /** Why this many units can't be bought (stock, or the per-buyer limit), or null. Also used by checkout's − / +. */
+    public function quantityProblem(Product $product, int $qty, int $stock, int $alreadyInCart = 0): ?string
     {
         if ($qty > $stock) {
             return 'Only ' . $stock . ' left in stock' . ($alreadyInCart ? " (you already have {$alreadyInCart} in your cart)" : '') . '.';

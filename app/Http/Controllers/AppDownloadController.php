@@ -28,7 +28,7 @@ class AppDownloadController extends Controller
         $path = self::apkPath();
         abort_unless(is_file($path), 404, 'The app is not available for download yet.');
 
-        return response()->download($path, 'ALVYSHOP.apk', [
+        return response()->download($path, 'ALVY Shop.apk', [
             'Content-Type'  => 'application/vnd.android.package-archive',
             'Cache-Control' => 'no-cache',
         ]);

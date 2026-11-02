@@ -71,4 +71,20 @@ return Application::configure(basePath: dirname(__DIR__))
                 ->withInput($request->except(['_token', 'password', 'password_confirmation', 'current_password']))
                 ->with('error', 'Your session expired, so that was not saved. Please try again.');
         });
+
+        // The app's login ended because it is older than a week (config sanctum.expiration): say so, like the
+        // website does, instead of a bare "Unauthenticated.".
+        $exceptions->render(function (\Illuminate\Auth\AuthenticationException $e, \Illuminate\Http\Request $request) {
+            $minutes = (int) config('sanctum.expiration');
+            if (! $request->is('api/*') || ! $minutes || ! ($bearer = $request->bearerToken())) {
+                return null;
+            }
+            $token = \Laravel\Sanctum\PersonalAccessToken::findToken($bearer);
+            if (! $token || $token->created_at->gt(now()->subMinutes($minutes))) {
+                return null;   // unknown or revoked token: the usual answer
+            }
+
+            return response()->json(['message' => 'For your security you were signed out after '
+                . \App\Http\Middleware\EnforceLoginTimeLimit::duration($minutes) . '. Please log in again.'], 401);
+        });
     })->create();

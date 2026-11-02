@@ -15,6 +15,9 @@ Schedule::command('riders:expire-offers')->everyMinute();
 // Return requests the seller hasn't answered in 3 days are approved (A31).
 Schedule::command('returns:auto-approve')->hourly();
 
+// App logins older than a week no longer work (config sanctum.expiration); clear them from the database.
+Schedule::command('sanctum:prune-expired --hours=24')->daily();
+
 // New or changed product pictures: the AI reads their colors so searches like "red" or "pula" find them.
 Schedule::command('products:tag-colors --limit=20')->everyTenMinutes()->withoutOverlapping();
 // Small WebP copies of new product pictures for the product cards (faster pages on phones).

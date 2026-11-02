@@ -72,6 +72,24 @@
         });
         setText('[data-total="total"]', peso(d.total));
 
+        // Each line's quantity, price and subtotal (after − / +), and the prices the order is placed at.
+        (d.lines || []).forEach(function (l) {
+            var box = form.querySelector('[data-qty-line="' + l.key + '"]');
+            if (box) {
+                box.dataset.qty = l.quantity;
+                box.dataset.stock = l.stock;
+                box.querySelector('[data-qty-value]').textContent = l.quantity;
+                box.querySelector('[data-qty-step="-1"]').disabled = l.quantity <= 1;
+                box.querySelector('[data-qty-step="1"]').disabled = l.quantity >= l.stock;
+            }
+            setText('[data-line-price="' + l.key + '"]', l.price);
+            setText('[data-line-subtotal="' + l.key + '"]', peso(l.subtotal));
+        });
+        Object.keys(d.prices || {}).forEach(function (id) {
+            var input = form.querySelector('input[name="prices[' + id + ']"]');
+            if (input) input.value = d.prices[id];
+        });
+
         choose(document.getElementById('platformVoucher'), d.applied.platform);
         choose(document.getElementById('shippingVoucher'), d.applied.shipping);
         form.querySelectorAll('select[name^="seller_vouchers"]').forEach(function (s) {
@@ -109,6 +127,44 @@
             if (e.name !== 'AbortError') placeBtn.disabled = false;
         });
     }
+
+    // − / + on a line: the server saves the quantity (stock and per-buyer checks) and sends the new summary.
+    form.addEventListener('click', function (e) {
+        var step = e.target.closest('[data-qty-step]');
+        if (!step) return;
+        e.preventDefault();
+        var box = step.closest('[data-qty-line]');
+        var key = box.dataset.qtyLine;
+        var qty = Math.min(Math.max((+box.dataset.qty || 1) + (+step.dataset.qtyStep), 1), +box.dataset.stock || 99999);
+        if (qty === +box.dataset.qty) return;
+        var msg = form.querySelector('[data-qty-msg="' + key + '"]');
+        var buttons = box.querySelectorAll('button');
+        buttons.forEach(function (b) { b.disabled = true; });
+        placeBtn.disabled = true;
+        fetch(form.dataset.quantityUrl, {
+            method: 'POST',
+            headers: { 'X-CSRF-TOKEN': token, 'Accept': 'application/json' },
+            body: payload({ line: key, quantity: qty }),
+        }).then(function (r) {
+            return r.json().then(function (d) { return { ok: r.ok, d: d }; });
+        }).then(function (res) {
+            if (res.ok) {
+                msg.classList.add('hidden');
+                render(res.d);
+            } else {
+                msg.textContent = res.d.message || 'The quantity could not be changed. Please try again.';
+                msg.classList.remove('hidden');
+                box.querySelector('[data-qty-step="-1"]').disabled = +box.dataset.qty <= 1;
+                box.querySelector('[data-qty-step="1"]').disabled = +box.dataset.qty >= +box.dataset.stock;
+                placeBtn.disabled = !!document.getElementById('unserviceableMsg').textContent.trim();
+            }
+        }).catch(function () {
+            msg.textContent = 'The quantity could not be changed. Please check your connection and try again.';
+            msg.classList.remove('hidden');
+            buttons.forEach(function (b) { b.disabled = false; });
+            placeBtn.disabled = false;
+        });
+    });
 
     form.addEventListener('change', function (e) {
         if (e.target.matches('input[name="address_id"], select.v-select')) refresh();

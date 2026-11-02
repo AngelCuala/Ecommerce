@@ -25,8 +25,11 @@ use Illuminate\Validation\ValidationException;
  */
 class AuthController extends Controller
 {
-    /** A22: an app login ends after this many minutes without use (see AppServiceProvider). */
-    public const IDLE_MINUTES = 30;
+    /** A22: an app login ends after this many minutes without use, like a website login (a week; see AppServiceProvider). */
+    public static function idleMinutes(): int
+    {
+        return (int) config('session.lifetime', 10080);
+    }
 
     /** How long the code step may take before signing in again. */
     private const OTP_TOKEN_MINUTES = 30;

@@ -245,6 +245,8 @@ class CheckoutController extends Controller
         ]);
 
         return response()->json($this->summaryJson($summary) + [
+            'lines'   => $this->linesJson($lines, $buyNow),
+            'prices'  => $this->priceMap($lines),
             'errors'  => array_map(fn ($m) => $m[0], $errors),
             'applied' => [
                 'platform' => $q['platform_voucher']?->code,
@@ -252,6 +254,55 @@ class CheckoutController extends Controller
                 'sellers'  => array_map(fn ($v) => $v->code, $q['seller_vouchers']),
             ],
         ]);
+    }
+
+    /**
+     * − / + on a checkout line: saves the new quantity (the cart line, or the Buy now item) with the cart's
+     * stock and per-buyer checks, then answers with the new summary like preview() — no page reload.
+     */
+    public function quantity(Request $request)
+    {
+        $request->validate([
+            'line'     => 'required|string|max:20',
+            'quantity' => 'required|integer|min:1|max:99999',
+        ], [
+            'quantity.min' => 'The quantity must be at least 1.',
+        ]);
+
+        $buyNow = $request->boolean('buy_now') && Session::has('buy_now');
+        $line = $buyNow
+            ? $this->buyNowLines(true)?->first()
+            : $this->cartLines()->firstWhere('id', (int) $request->line);
+        if (! $line || ! $line->product) {
+            return response()->json(['message' => 'This item is no longer available.'], 422);
+        }
+
+        $qty = (int) $request->quantity;
+        if ($error = app(CartController::class)->quantityProblem($line->product, $qty, $line->availableStock())) {
+            return response()->json(['message' => $error], 422);
+        }
+
+        if ($buyNow) {
+            Session::put('buy_now', ['product_id' => $line->product_id, 'variation_id' => $line->variation_id, 'quantity' => $qty]);
+        } else {
+            $line->update(['quantity' => $qty]);
+        }
+
+        return $this->preview($request);
+    }
+
+    /** Each line's quantity, price text and subtotal, for the checkout page to update in place. */
+    private function linesJson(Collection $lines, bool $buyNow): array
+    {
+        $peso = fn ($n) => '₱' . number_format((float) $n, 2);
+
+        return $lines->map(fn (CartItem $l) => [
+            'key'      => $buyNow ? 'buy' : (string) $l->id,
+            'quantity' => (int) $l->quantity,
+            'stock'    => $l->availableStock(),
+            'subtotal' => $l->subtotal(),
+            'price'    => collect($l->priceParts())->map(fn ($p) => $peso($p[1]) . ' × ' . $p[0] . ($p[2] && count($l->priceParts()) > 1 ? ' (flash)' : ''))->implode(' + '),
+        ])->values()->all();
     }
 
     private function summaryJson(array $summary): array
