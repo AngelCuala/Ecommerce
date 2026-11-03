@@ -84,7 +84,7 @@
                 @foreach ([
                     ['Coverage barangays', $summary['areas'], route('sc.areas'), 'location', '#F3F0FB', '#6D4AA5'],
                     ['Riders', $summary['riders'], route('sc.riders'), 'rider', '#EAF2FB', 'var(--accent-blue)'],
-                    ['Parcels handled', $summary['handled'], route('sc.incoming-parcels'), 'parcel', '#FFF4E5', 'var(--accent-orange)'],
+                    ['Parcels handled', $summary['handled'], route('sc.shipments'), 'parcel', '#FFF4E5', 'var(--accent-orange)'],
                     ['Delivered', $summary['delivered'], route('sc.delivery-monitoring', ['status' => 'delivered']), 'check', '#E9F8EF', 'var(--accent-green)'],
                 ] as [$lbl, $val, $href, $ic, $bg, $fg])
                     <a href="{{ $href }}" class="card ac-stat">

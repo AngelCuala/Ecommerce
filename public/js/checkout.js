@@ -71,6 +71,11 @@
             toggleRow('[data-row="' + k + '"]', d[k] > 0);
         });
         setText('[data-total="total"]', peso(d.total));
+        // GCash: the amount to send ALVY (all the orders' totals).
+        var gcashPay = document.querySelector('[data-gcash-pay]');
+        if (gcashPay && d.gcash_total !== undefined) gcashPay.textContent = peso(d.gcash_total);
+        var gcashOrders = document.querySelector('[data-gcash-orders]');
+        if (gcashOrders && d.gcash_orders !== undefined) gcashOrders.textContent = peso(d.gcash_orders);
 
         // Each line's quantity, price and subtotal (after − / +), and the prices the order is placed at.
         (d.lines || []).forEach(function (l) {

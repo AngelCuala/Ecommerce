@@ -19,7 +19,7 @@ class ScToastMessagesTest extends TestCase
 
     public function test_error_and_success_messages_pop_up(): void
     {
-        $this->actingAs($this->logistics1)->from(route('sc.incoming-parcels'))->followingRedirects()
+        $this->actingAs($this->logistics1)->from(route('sc.tracking'))->followingRedirects()
             ->post(route('sc.parcels.scan'), ['tracking_number' => 'PH000000000000000'])
             ->assertOk()
             ->assertSee('id="sc-toasts"', false)->assertSee('data-toast="error"', false)
@@ -36,6 +36,6 @@ class ScToastMessagesTest extends TestCase
 
     public function test_no_messages_means_no_pop_up(): void
     {
-        $this->actingAs($this->logistics1)->get(route('sc.incoming-parcels'))->assertOk()->assertDontSee('id="sc-toasts"', false);
+        $this->actingAs($this->logistics1)->get(route('sc.shipments'))->assertOk()->assertDontSee('id="sc-toasts"', false);
     }
 }

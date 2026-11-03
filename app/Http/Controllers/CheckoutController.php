@@ -200,7 +200,9 @@ class CheckoutController extends Controller
             'user'      => $user,
             'buyNow'    => $buyNow,
             'paymentMethods' => app(PaymentService::class)->methods(),
-            'gcashAccount'   => self::gcashAccount(),
+            'gcash'          => \App\Support\AlvyGcash::account(),
+            'gcashOrders'    => round(array_sum($this->storeTotals($summary)), 2),
+            'gcashTotal'     => \App\Support\AlvyGcash::amount(array_sum($this->storeTotals($summary))),
             'token'     => (string) Str::uuid(),
             'prices'    => $this->priceMap($lines),
         ]);
@@ -305,9 +307,31 @@ class CheckoutController extends Controller
         ])->values()->all();
     }
 
+    /**
+     * What each store's order will cost: [sellerId => total]. The same sum as the order's total_price
+     * (createOrders uses it); their sum is the GCash amount the buyer sends ALVY and the admin checks.
+     */
+    private function storeTotals(array $summary): array
+    {
+        $quote = $summary['quote'];
+        $shares = $this->vouchers->lineShares($quote);
+        $shippingShares = $this->vouchers->shippingShares($quote);
+
+        $totals = [];
+        foreach ($quote['groups'] as $sellerId => $group) {
+            $fee     = $summary['shipping'][$sellerId]['fee'] ?? 0;
+            $alvyOff = round($group['items']->sum(fn ($l) => $shares[$l->id]['platform'] ?? 0), 2);
+            $totals[$sellerId] = round(max(0, $group['gross'] - $group['promo'] - ($quote['seller_discounts'][$sellerId] ?? 0) - $alvyOff)
+                + max(0, $fee - ($shippingShares[$sellerId] ?? 0)), 2);
+        }
+
+        return $totals;
+    }
+
     private function summaryJson(array $summary): array
     {
         $q = $summary['quote'];
+        $pay = $this->storeTotals($summary);
         return [
             'unserviceable' => $summary['unserviceable'],
             'stores'  => collect($summary['groups'])->map(fn ($g, $sellerId) => [
@@ -326,6 +350,8 @@ class CheckoutController extends Controller
             'platform_discount' => $q['platform_discount'],
             'shipping_discount' => $q['shipping_discount'],
             'total'             => $q['total'],
+            'gcash_orders'      => round(array_sum($pay), 2),
+            'gcash_total'       => \App\Support\AlvyGcash::amount(array_sum($pay)),   // what the buyer sends ALVY (the orders' total, centavos set for this checkout)
             'notices'           => array_values($q['notices']),
         ];
     }
@@ -336,9 +362,8 @@ class CheckoutController extends Controller
     {
         $request->validate([
             'address_id'        => 'required|integer',
-            'payment_method'    => ['required', 'in:' . implode(',', array_merge(['cod'], self::gcashAccount() ? ['gcash_receipt'] : [], array_keys(app(PaymentService::class)->methods())))],
-            'payment_proof'     => ['required_if:payment_method,gcash_receipt', 'nullable', 'file', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
-            'payment_reference' => ['nullable', 'string', 'regex:/^[0-9 ]{6,20}$/'],
+            // GCash (gcash_receipt): paid to ALVY's GCash QR; the receipt and Ref No. are checked below.
+            'payment_method'    => ['required', 'in:' . implode(',', array_merge(['cod', 'gcash_receipt'], array_keys(app(PaymentService::class)->methods())))],
             'checkout_token'    => 'required|uuid',
             'prices'            => 'nullable|array',
             'buyer_notes'       => 'nullable|array',
@@ -350,11 +375,6 @@ class CheckoutController extends Controller
             'voucher_code'      => 'nullable|string|max:30',
         ], [
             'payment_method.required' => 'Please choose a payment method.',
-            'payment_proof.required_if' => 'Upload the screenshot of your GCash receipt.',
-            'payment_proof.image'     => 'The GCash receipt must be a photo or screenshot (JPG, PNG or WebP).',
-            'payment_proof.mimes'     => 'The GCash receipt must be a photo or screenshot (JPG, PNG or WebP).',
-            'payment_proof.max'       => 'The GCash receipt must be 5 MB or smaller.',
-            'payment_reference.regex' => 'The GCash reference number is the 13-digit "Ref No." on your receipt.',
             'address_id.required'     => 'Please choose a delivery address.',
             'buyer_notes.*.max'       => 'A note to the seller can be at most 200 characters.',
         ]);
@@ -404,13 +424,41 @@ class CheckoutController extends Controller
         $quote = $summary['quote'];
         $group = (string) Str::uuid();
 
+        // GCash: one payment to ALVY's GCash QR for the whole checkout, with its receipt screenshot and Ref No.
+        $receipt = $request->payment_method === 'gcash_receipt';
+        if ($receipt) {
+            if (! \App\Support\AlvyGcash::enabled()) {
+                return back()->with('error', 'GCash is not available right now. Please choose Cash on Delivery.');
+            }
+            $request->validate([
+                'payment_proof'     => ['required', 'file', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
+                // Numbers only (spaces as typed are fine), 13 of them, and never a Ref No. used for another order.
+                'payment_reference' => ['required', 'string', 'regex:/^[0-9 ]+$/', function ($attribute, $value, $fail) {
+                    $digits = preg_replace('/\s+/', '', (string) $value);
+                    if (strlen($digits) !== 13) {
+                        $fail('The GCash Ref No. has 13 numbers. Copy it from your receipt.');
+                    } elseif (Order::where('payment_method', Order::GCASH_RECEIPT)->where('payment_reference', $digits)->exists()) {
+                        $fail('This GCash Ref No. was already used for another order. Check your receipt.');
+                    }
+                }],
+            ], [
+                'payment_proof.required'     => 'Upload the screenshot of your GCash receipt.',
+                'payment_proof.image'        => 'The GCash receipt must be a photo or screenshot (JPG, PNG or WebP).',
+                'payment_proof.mimes'        => 'The GCash receipt must be a photo or screenshot (JPG, PNG or WebP).',
+                'payment_proof.max'          => 'The GCash receipt must be 5 MB or smaller.',
+                'payment_reference.required' => 'Enter the GCash Ref No. of your payment.',
+                'payment_reference.regex'    => 'The GCash Ref No. can only have numbers (no letters).',
+            ]);
+        }
+
         // Only the first click with this page's token places orders. The token is taken here, after every
         // check, so a blocked attempt (price, voucher, stock) can be fixed and placed again.
         if (! Cache::add($tokenKey, $user->id, now()->addHour())) {
             return redirect()->route('profile.orders')->with('success', 'Your order was already placed.');
         }
 
-        $proof = $request->payment_method === 'gcash_receipt' ? $request->file('payment_proof')->store('payment-proofs', 'local') : null;
+        // One receipt for the whole checkout (private disk), shared by its orders.
+        $proof = $receipt ? $request->file('payment_proof')->store('payment-proofs', 'local') : null;
         try {
             $orders = DB::transaction(fn () => $this->createOrders($lines, $summary, $address, $request, $group, $request->payment_method, $proof));
         } catch (\App\Exceptions\CheckoutProblem $e) {   // ran out of stock / over a purchase limit while checking out
@@ -438,7 +486,11 @@ class CheckoutController extends Controller
         } else {
             CartItem::where('user_id', $user->id)->whereIn('id', $lines->pluck('id'))->delete();
         }
-        Session::forget(['checkout_selection', 'checkout_vouchers']);
+        Session::forget(['checkout_selection', 'checkout_vouchers', 'gcash_cents']);
+        // A GCash payment to check: tell the admins now (the receipt reader adds its findings within a minute).
+        if ($request->payment_method === 'gcash_receipt') {
+            \App\Services\GcashChecks::notifyAdmins(collect($orders));
+        }
         Session::put('last_checkout_group', $group);
 
         // E-wallet / card: straight to the payment page. The orders wait in To Pay until it is paid.
@@ -460,6 +512,9 @@ class CheckoutController extends Controller
     private function createOrders(Collection $lines, array $summary, UserAddress $address, Request $request, string $group, string $method = 'cod', ?string $proof = null): array
     {
         $receipt = $method === 'gcash_receipt';
+        $reference = $receipt ? preg_replace('/\s+/', '', (string) $request->input('payment_reference')) : null;
+        $totals = $this->storeTotals($summary);
+        $expected = $receipt ? \App\Support\AlvyGcash::amount(array_sum($totals)) : null;   // the exact amount the buyer was shown
         $online = ! in_array($method, ['cod', 'gcash_receipt'], true);
         $quote = $summary['quote'];
         $user  = auth()->user();
@@ -538,13 +593,15 @@ class CheckoutController extends Controller
                 'platform_discount' => $alvyOff,
                 'shipping_voucher_id' => $shipOff > 0 ? $quote['shipping_voucher']?->id : null,
                 'shipping_discount' => $shipOff,
-                'total_price'       => round(max(0, $subtotal - $promoOff - $storeOff - $alvyOff) + max(0, $fee - $shipOff), 2),
+                'total_price'       => $totals[$sellerId],   // = max(0, subtotal − promo − store − ALVY) + max(0, fee − shipping voucher)
                 'payment_method'    => $receipt ? Order::GCASH_RECEIPT : strtoupper($method),
                 'payment_status'    => $online ? 'Unpaid' : ($receipt ? 'For verification' : 'Pending'),
                 'payment_proof_path' => $receipt ? $proof : null,
-                'payment_reference' => $receipt && $request->filled('payment_reference') ? preg_replace('/\s+/', '', $request->payment_reference) : null,
+                'payment_reference' => $reference ?: null,
+                'payment_expected'  => $expected,
                 'pay_by'            => $online ? now()->addMinutes((int) config('payments.unpaid_minutes', 60)) : null,
-                'status'            => $online ? Order::AWAITING_PAYMENT : Order::PENDING,
+                // GCash waits in To Pay until an admin confirms the money reached ALVY; the sellers see it then.
+                'status'            => $online || $receipt ? Order::AWAITING_PAYMENT : Order::PENDING,
             ]);
 
             $orderItems = [];
@@ -589,6 +646,10 @@ class CheckoutController extends Controller
                     ]);
                 }
 
+                // GCash: the stock (and flash-sale units) are taken when ALVY approves the payment (Order::takeStock).
+                if ($receipt) {
+                    continue;
+                }
                 if (isset($flashUse[$line->id])) {
                     $flashUse[$line->id]->increment('sold', $line->flashUnits());
                 }
@@ -652,10 +713,4 @@ class CheckoutController extends Controller
         return view('checkout.confirmation', compact('orders'));
     }
 
-    /** The shop's GCash account buyers send to (GCASH_NUMBER, GCASH_ACCOUNT_NAME), or null when not set up. */
-    public static function gcashAccount(): ?array
-    {
-        $number = trim((string) config('payments.gcash_receipt.number'));
-        return $number === '' ? null : ['number' => $number, 'name' => trim((string) config('payments.gcash_receipt.name')) ?: 'ALVY'];
-    }
 }

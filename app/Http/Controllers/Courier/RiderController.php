@@ -335,28 +335,27 @@ class RiderController extends Controller
             }
 
             $parcel = $delivery->parcel;
-            $returnToSender = $data['reason'] === 'Refused' || $delivery->attempt >= ParcelDelivery::MAX_ATTEMPTS;
+            // Refused, or the last attempt: the order is cancelled and the parcel stays at the hub (no Return to Sender).
+            $final = $data['reason'] === 'Refused' || $delivery->attempt >= ParcelDelivery::MAX_ATTEMPTS;
             $delivery->update(['status' => 'failed', 'failure_reason' => $data['reason'], 'remarks' => $data['reason']]);
-            $parcel->update(['status' => $returnToSender ? 'return_to_sender' : 'failed', 'failure_reason' => $data['reason']]);
+            $parcel->update(['status' => 'failed', 'failure_reason' => $data['reason']]);
 
             $svc = app(ParcelService::class);
             $ref = $svc->orderRef($parcel);
             $attempt = "attempt {$delivery->attempt} of " . ParcelDelivery::MAX_ATTEMPTS;
-            if ($returnToSender) {
-                $svc->notifyBuyer($parcel, 'Returning to seller', "{$ref} could not be delivered ({$data['reason']}, {$attempt}). It is being returned to the seller.", 'warning');
-                $svc->notifySeller($parcel, 'Parcel returning to you', "{$ref} ({$parcel->tracking_number}) is Return to Sender: {$data['reason']}, {$attempt}.", 'warning');
-            } else {
-                $svc->notifyBuyer($parcel, 'Delivery attempt failed', "{$ref} could not be delivered: {$data['reason']} ({$attempt}). We'll try again.", 'warning');
+            \App\Models\ActivityLog::note('Failed delivery ' . $parcel->tracking_number . ': ' . $data['reason'], $parcel);
+            if ($final) {
+                $svc->cancelUndeliverable($parcel->fresh(), "{$data['reason']}, {$attempt}");
+                return redirect()->route('courier.rider')->with('success', "{$parcel->tracking_number} could not be delivered, so the order was cancelled. Bring the parcel back to the hub.");
             }
+
+            $svc->notifyBuyer($parcel, 'Delivery attempt failed', "{$ref} could not be delivered: {$data['reason']} ({$attempt}). We'll try again.", 'warning');
             if ($scId = $parcel->current_sorting_center_id) {
-                $svc->notify((int) $scId, 'Failed delivery', "{$parcel->tracking_number}: {$data['reason']} ({$attempt})" . ($returnToSender ? ' → Return to Sender.' : '. Reschedule it.'), 'warning');
+                $svc->notify((int) $scId, 'Failed delivery', "{$parcel->tracking_number}: {$data['reason']} ({$attempt}). Reschedule it.", 'warning');
             }
             $svc->syncOrder($parcel->fresh());
-            \App\Models\ActivityLog::note('Failed delivery ' . $parcel->tracking_number . ': ' . $data['reason'], $parcel);
 
-            return redirect()->route('courier.rider')->with('success', $returnToSender
-                ? "{$parcel->tracking_number} is Return to Sender. No further attempt."
-                : "Failed delivery recorded ({$attempt}). Logistics will reschedule it.");
+            return redirect()->route('courier.rider')->with('success', "Failed delivery recorded ({$attempt}). Logistics will reschedule it.");
         });
     }
 

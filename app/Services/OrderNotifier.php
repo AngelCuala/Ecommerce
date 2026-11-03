@@ -14,6 +14,12 @@ class OrderNotifier
     /** A new order was placed (called once its items exist). */
     public function placed(Order $order): void
     {
+        if ($order->status === Order::AWAITING_PAYMENT && $order->isGcashReceipt()) {
+            // The seller hears about it once ALVY has confirmed the GCash payment.
+            $this->toBuyer($order, 'Checking your GCash payment', 'We received your GCash receipt for order ' . $order->number()
+                . '. ALVY will check it, then the seller prepares your order.', 'info');
+            return;
+        }
         if ($order->status === Order::AWAITING_PAYMENT) {
             // The seller hears about it once it is paid.
             $this->toBuyer($order, 'Complete your payment', 'Pay for order ' . $order->number() . ' by '
@@ -29,7 +35,8 @@ class OrderNotifier
         $n = $order->number();
 
         if ($from === Order::AWAITING_PAYMENT && $order->status === Order::PENDING) {
-            $this->toBuyer($order, 'Payment received', "We received your payment for order {$n}. The seller will prepare it soon.", 'success');
+            $this->toBuyer($order, 'Payment received', ($order->isGcashReceipt() ? "ALVY confirmed your GCash payment for order {$n}." : "We received your payment for order {$n}.")
+                . ' The seller will prepare it soon.', 'success');
             $this->toSellers($order, "New order {$n}", 'A buyer paid for ' . $this->itemsText($order) . '. Please prepare it.', 'info');
             return;
         }
@@ -41,7 +48,11 @@ class OrderNotifier
                 ? ['Return request rejected', "The seller rejected the return request for order {$n}. See the order for their reason.", 'warning']
                 : ['Order delivered', "Order {$n} was delivered. Tap Order Received" . (Order::returnsEnabled() ? ', or ask for a return within ' . Order::RETURN_DAYS . ' days.' : '.'), 'success'],
             Order::COMPLETED        => ['Order completed', "Order {$n} is complete. Rate your items to help other buyers.", 'success'],
-            Order::CANCELLED        => ['Order cancelled', "Order {$n} was cancelled" . ($order->cancellation_reason ? ': ' . $order->cancellation_reason : '.'), 'warning'],
+            Order::CANCELLED        => $from === Order::AWAITING_PAYMENT && $order->isGcashReceipt() && str_starts_with((string) $order->cancellation_reason, 'GCash payment not confirmed')
+                ? ['GCash payment rejected', "ALVY couldn't confirm your GCash payment for order {$n}, so the order was cancelled. Reason: "
+                    . trim(substr($order->cancellation_reason, strlen('GCash payment not confirmed:'))) . '.'
+                    . ($order->payment_status === 'Refund pending' ? ' The money you sent will be returned to your GCash.' : ''), 'warning']
+                : ['Order cancelled', "Order {$n} was cancelled" . ($order->cancellation_reason ? ': ' . $order->cancellation_reason : '.'), 'warning'],
             Order::RETURN_REQUESTED => ['Return requested', "Your return request for order {$n} was sent to the seller.", 'info'],
             Order::REFUNDED         => ['Refund approved', "Your return for order {$n} was approved. Your refund is on its way.", 'success'],
             Order::IN_DISPUTE       => ['Return escalated', "Order {$n} is In Dispute. ALVY will review the return and decide.", 'info'],

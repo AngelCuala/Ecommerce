@@ -237,7 +237,8 @@ class MessageController extends Controller
 
         // Admins and sellers see every account they can message, even with no
         // conversation yet. Admin -> everyone; others -> their allowed recipients.
-        if ($me->isAdmin() || $me->isSeller() || $me->isCourier() || $me->isSortingCenter()) {
+        // Buyers too, so ALVY (the admin) is always there to message.
+        if ($me->isAdmin() || $me->isSeller() || $me->isCourier() || $me->isSortingCenter() || $me->isBuyer()) {
             if ($me->isAdmin()) {
                 $contactIds = User::where('id', '!=', $userId)
                     ->whereIn('role', ['admin', 'seller', 'buyer', 'sorting_center', 'courier'])
@@ -431,10 +432,10 @@ class MessageController extends Controller
      */
     private function courierContactIds(User $courierUser): array
     {
-        $courier = $courierUser->courier;
-        if (! $courier) return [];
-
+        // The admin is always reachable, even for a rider with no courier record.
         $ids = User::where('role', 'admin')->pluck('id')->all();
+        $courier = $courierUser->courier;
+        if (! $courier) return $ids;
 
         $orderIds = \App\Models\Delivery::where('courier_id', $courier->id)->pluck('order_id');
 
@@ -506,7 +507,11 @@ class MessageController extends Controller
                 $targets[$buyer->id] = $buyer->name . ' (Buyer)';
             }
         } elseif ($me->isBuyer()) {
-            // Buyer can message sellers of their orders
+            // Buyer can message ALVY (the admin) and the sellers of their orders
+            // (A foreach, not ->each(fn …): an arrow function only gets a copy of $targets.)
+            foreach (User::where('role', 'admin')->get() as $u) {
+                $targets[$u->id] = $u->name . ' (Admin)';
+            }
             $sellerIds = \App\Models\OrderItem::whereHas('order', fn ($q) => $q->where('user_id', $me->id))
                 ->with('product.seller')
                 ->get()
@@ -518,8 +523,10 @@ class MessageController extends Controller
             }
         } elseif ($me->isSortingCenter()) {
             // Sorting center can message admins
-            User::where('role', 'admin')->get()
-                ->each(fn ($u) => $targets[$u->id] = $u->name . ' (Admin)');
+            // (A foreach, not ->each(fn …): an arrow function only gets a copy of $targets.)
+            foreach (User::where('role', 'admin')->get() as $u) {
+                $targets[$u->id] = $u->name . ' (Admin)';
+            }
         } elseif ($me->isCourier()) {
             // Courier can message admin + buyers/sellers of their assigned orders
             $ids = $this->courierContactIds($me);

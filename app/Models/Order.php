@@ -12,7 +12,8 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
  * sharing a checkout_group).
  *
  * Status flow (buyer tab in brackets):
- *   Awaiting Payment [To Pay] → (paid online) Pending, or Cancelled when not paid in time
+ *   Awaiting Payment [To Pay] → (paid online) Pending, or Cancelled when not paid in time;
+ *                               GCash to ALVY: Pending once an admin confirms the receipt, Cancelled if rejected
  *   Pending → Processing [To Ship] → Shipped → Delivered [To Receive] → Completed [Completed]
  *   Pending / Processing → Cancelled [Cancelled]
  *   Delivered → Return Requested → Refunded, or back to Delivered if the seller rejects [Return/Refund]
@@ -49,7 +50,7 @@ class Order extends Model
         'return_refund' => ['label' => 'Return/Refund', 'statuses' => [self::RETURN_REQUESTED, self::REFUNDED, self::IN_DISPUTE]],
     ];
 
-    public const SELLER_CANCEL_REASONS = ['Out of stock', 'Item damaged before shipping', 'Wrong price listed', 'Cannot ship to this address', 'Buyer asked to cancel', 'GCash payment not received'];
+    public const SELLER_CANCEL_REASONS = ['Out of stock', 'Item damaged before shipping', 'Wrong price listed', 'Cannot ship to this address', 'Buyer asked to cancel'];
 
     /** GCash sent outside ALVY, proved with an uploaded receipt (not the online gateway). */
     public const GCASH_RECEIPT = 'GCASH_RECEIPT';
@@ -76,7 +77,7 @@ class Order extends Model
         'subtotal', 'shipping_fee', 'shipping_weight_kg', 'total_price',
         'platform_voucher_id', 'platform_discount', 'seller_discount',
         'shipping_voucher_id', 'shipping_discount',
-        'payment_method', 'payment_status', 'pay_by', 'refunded_amount', 'payment_proof_path', 'payment_reference',
+        'payment_method', 'payment_status', 'pay_by', 'refunded_amount', 'payment_proof_path', 'payment_reference', 'payment_expected', 'payment_check',
         'status', 'cancellation_reason',
         'delivered_at', 'completed_at', 'cancelled_at',
         'accepted_at', 'packed_at', 'promo_discount',
@@ -98,6 +99,8 @@ class Order extends Model
         'packed_at'    => 'datetime',
         'promo_discount' => 'decimal:2',
         'refunded_amount' => 'decimal:2',
+        'payment_expected' => 'decimal:2',
+        'payment_check'    => 'array',
     ];
 
     protected static function booted(): void
@@ -152,7 +155,9 @@ class Order extends Model
             if ($order->status === self::CANCELLED && $from !== self::CANCELLED) {
                 $order->closeOpenPickups();
                 // A parcel brought back to the seller restocks only when the seller confirms receipt (A3).
-                if (! $order->awaitingReturnReceipt()) {
+                // A GCash order never approved never took its stock (takeStock runs on approval).
+                $tookStock = ! ($order->isGcashReceipt() && $from === self::AWAITING_PAYMENT);
+                if ($tookStock && ! $order->awaitingReturnReceipt()) {
                     $order->restock();
                 }
                 app(\App\Services\VoucherService::class)->release($order);
@@ -196,6 +201,46 @@ class Order extends Model
     }
 
     /** Put the order's units back on the shelf (and on their variants and flash sales). */
+    /**
+     * A GCash order takes its stock only when ALVY approves the payment (checkout only checks it is there).
+     * Returns the name of an item that no longer has enough stock (nothing is taken then), or null once taken.
+     * Call inside a transaction.
+     */
+    public function takeStock(): ?string
+    {
+        $items = $this->items()->with('product')->get();
+
+        // One check per product / option (a line split into flash and regular parts counts once).
+        foreach ($items->groupBy(fn ($i) => $i->product_id . ':' . ($i->variation_id ?: 0)) as $group) {
+            $item = $group->first();
+            $have = $item->variation_id
+                ? (int) ProductVariation::whereKey($item->variation_id)->lockForUpdate()->value('stock')
+                : (int) Product::withTrashed()->whereKey($item->product_id)->lockForUpdate()->value('stock');
+            if ($have < $group->sum('quantity')) {
+                return ($item->product->title ?? 'An item') . ($item->variation_name ? ' (' . $item->variation_name . ')' : '');
+            }
+        }
+
+        foreach ($items as $item) {
+            if ($item->flash_sale_id) {
+                FlashSale::whereKey($item->flash_sale_id)->increment('sold', $item->quantity);
+                Product::forgetFlashSales();
+            }
+            if ($item->variation_id && ($variation = ProductVariation::find($item->variation_id))) {
+                // decrement() on the option sends its low-stock alert (ProductVariation::booted).
+                $variation->decrement('stock', $item->quantity);
+                Product::withTrashed()->whereKey($item->product_id)
+                    ->update(['stock' => ProductVariation::where('product_id', $item->product_id)->sum('stock')]);
+            } else {
+                $before = (int) Product::withTrashed()->whereKey($item->product_id)->value('stock');
+                Product::withTrashed()->whereKey($item->product_id)->decrement('stock', $item->quantity);
+                \App\Services\LowStockAlert::check($item->product, $before, $before - $item->quantity);
+            }
+        }
+
+        return null;
+    }
+
     public function restock(): void
     {
         foreach ($this->items()->get() as $item) {
@@ -225,6 +270,12 @@ class Order extends Model
     /** Buyer can cancel an unpaid order, or a paid one until the seller books the pickup ("Ready for Pickup"). */
     public function isCancellableByBuyer(): bool
     {
+        // GCash: ALVY approves or rejects the receipt first, and once it is paid there is no refund,
+        // so the buyer can't cancel it (they message ALVY instead).
+        if ($this->isGcashReceipt()) {
+            // Only a rejected payment (nothing confirmed) the buyer would rather not fix.
+            return $this->status === self::AWAITING_PAYMENT && $this->payment_status === 'Rejected';
+        }
         return $this->status === self::AWAITING_PAYMENT
             || (in_array($this->status, [self::PENDING, self::PROCESSING], true) && ! $this->isReadyForPickup());
     }
@@ -262,7 +313,7 @@ class Order extends Model
     /** Still waiting to be paid, and still in time to pay. */
     public function canBePaid(): bool
     {
-        return $this->status === self::AWAITING_PAYMENT && (! $this->pay_by || $this->pay_by->isFuture());
+        return $this->status === self::AWAITING_PAYMENT && ! $this->isGcashReceipt() && (! $this->pay_by || $this->pay_by->isFuture());
     }
 
     /** "Order Received" only once the parcel has been delivered. */
@@ -333,7 +384,8 @@ class Order extends Model
     /** A seller can cancel until the parcel is picked up (assumption A6). */
     public function isCancellableBySeller(): bool
     {
-        return in_array($this->status, [self::PENDING, self::PROCESSING], true) && ! $this->isPickedUp();
+        // A GCash order is paid to ALVY with no refunds: only ALVY can cancel it.
+        return in_array($this->status, [self::PENDING, self::PROCESSING], true) && ! $this->isPickedUp() && ! $this->isGcashReceipt();
     }
 
     /** The My Purchases tab this order belongs in. */
@@ -351,7 +403,8 @@ class Order extends Model
     public function buyerStatusLabel(): string
     {
         return match ($this->status) {
-            self::AWAITING_PAYMENT => $this->payment_status === 'Failed' ? 'Payment failed — pay again' : 'Waiting for payment',
+            self::AWAITING_PAYMENT => $this->isGcashReceipt() ? ($this->payment_status === 'Rejected' ? 'GCash payment rejected: please fix it' : 'ALVY is checking your GCash payment')
+                : ($this->payment_status === 'Failed' ? 'Payment failed — pay again' : 'Waiting for payment'),
             self::PENDING          => 'Waiting for the seller',
             self::PROCESSING       => $this->isReadyForPickup() ? 'Ready for pickup' : 'Seller is preparing your order',
             self::SHIPPED          => 'On the way',
@@ -396,6 +449,12 @@ class Order extends Model
     public function voucherDiscount(): float
     {
         return (float) $this->platform_discount + (float) $this->seller_discount;
+    }
+
+    /** The buyer's saved address the order ships to (its map pin, if any, guides the rider). */
+    public function deliveryAddress(): BelongsTo
+    {
+        return $this->belongsTo(UserAddress::class, 'address_id');
     }
 
     public function user(): BelongsTo

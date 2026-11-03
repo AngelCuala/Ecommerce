@@ -25,7 +25,7 @@ class WaybillScannerTest extends TestCase
 
     private function scan(User $sc, string $code)
     {
-        return $this->actingAs($sc)->from(route('sc.incoming-parcels'))->post(route('sc.parcels.scan'), ['tracking_number' => $code]);
+        return $this->actingAs($sc)->from(route('sc.tracking'))->post(route('sc.parcels.scan'), ['tracking_number' => $code]);
     }
 
     /** Collected by Logistics 1's pickup rider, on its way to Logistics 1. */
@@ -57,14 +57,13 @@ class WaybillScannerTest extends TestCase
         $log = $this->lastScan($this->logistics1);
         $this->assertSame(['found', $parcel->waybill_number, $parcel->statusLabel()], [$log->status, $log->old_value, $log->new_value]);
 
-        $this->actingAs($this->logistics1)->get(route('sc.incoming-parcels'))->assertOk()
-            ->assertSee('data-scan-history', false)->assertSee($parcel->waybill_number)->assertSee('data-scan-row="found"', false)
-            ->assertDontSee('data-waybill-scanner', false);   // the QR scanner is on the Shipment Board only; typing / a USB scanner works here
+        $this->actingAs($this->logistics1)->get(route('sc.tracking'))->assertOk()
+            ->assertSee('data-scan-history', false)->assertSee($parcel->waybill_number)->assertSee('data-scan-row="found"', false);   // history is on the Shipment Board
     }
 
     public function test_invalid_and_unknown_codes_are_refused_and_logged(): void
     {
-        $this->scan($this->logistics1, 'hello world!')->assertRedirect(route('sc.incoming-parcels'))
+        $this->scan($this->logistics1, 'hello world!')->assertRedirect(route('sc.tracking'))
             ->assertSessionHas('error', fn ($m) => str_contains($m, 'is not a waybill or tracking number'));
         $this->assertSame('invalid', $this->lastScan($this->logistics1)->status);
 
@@ -136,7 +135,7 @@ class WaybillScannerTest extends TestCase
         $this->assertSame(0, ActivityLog::where('action', 'sc_scan')->count());
 
         $this->scan($this->logistics1, $parcel->waybill_number);
-        $this->actingAs($this->logistics2)->get(route('sc.incoming-parcels'))->assertOk()
+        $this->actingAs($this->logistics2)->get(route('sc.tracking'))->assertOk()
             ->assertDontSee('data-scan-history', false)->assertDontSee($parcel->waybill_number);
     }
 }

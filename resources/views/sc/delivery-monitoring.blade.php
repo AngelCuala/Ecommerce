@@ -157,8 +157,8 @@
                                     <button class="btn btn-blue btn-sm">Reschedule</button>
                                 </form>
                                 <form method="POST" action="{{ route('sc.deliveries.return', $d) }}"
-                                      data-confirm="The parcel goes back to the seller and this order's delivery ends." data-confirm-title="Return to the seller?" data-confirm-ok="Return to seller">@csrf
-                                    <button class="btn btn-ghost btn-sm" style="color:#DC2626;border-color:#f3c9c9;">Return to Seller</button>
+                                      data-confirm="The order is cancelled and the parcel stays at your hub for the seller to collect." data-confirm-title="Cancel this order?" data-confirm-ok="Cancel order">@csrf
+                                    <button class="btn btn-ghost btn-sm" style="color:#DC2626;border-color:#f3c9c9;">Cancel order</button>
                                 </form>
                             </div>
                         @elseif ($d->status === 'failed')

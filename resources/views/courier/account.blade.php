@@ -101,15 +101,15 @@
     <div class="ac-hero-body">
         <label class="cx-avatar-ring" for="cx-avatar-input" title="Change photo">
             <span class="cx-avatar-circle">
-                @if ($user->profile_photo_path)
-                    <img data-avatar-preview class="cx-avatar-img" src="{{ asset('storage/'.$user->profile_photo_path) }}" alt="Profile photo">
-                @else
-                    <span data-avatar-initial class="cx-avatar-initial">{{ strtoupper(substr($courier->first_name ?? $displayName, 0, 1)) }}</span>
-                @endif
+                <img data-photo-preview class="cx-avatar-img" src="{{ $user->profile_photo_path ? asset('storage/'.$user->profile_photo_path) : '' }}" alt="Profile photo"
+                     @unless ($user->profile_photo_path) style="display:none;" @endunless>
+                @unless ($user->profile_photo_path)
+                    <span data-photo-initial class="cx-avatar-initial">{{ strtoupper(substr($courier->first_name ?? $displayName, 0, 1)) }}</span>
+                @endunless
             </span>
             <span class="cx-avatar-overlay">@include('courier.partials.icon', ['name' => 'camera', 'size' => 22])</span>
         </label>
-        <input id="cx-avatar-input" data-avatar-input type="file" name="avatar" accept="image/jpg,image/jpeg,image/png,image/webp" style="display:none;">
+        <input id="cx-avatar-input" type="file" accept="image/jpeg,image/png,image/webp" style="display:none;" data-photo-upload data-photo-url="{{ route('account.photo') }}">
 
         <div class="ac-hero-id">
             <h2 class="font-display">{{ $displayName }}</h2>
@@ -131,7 +131,7 @@
                 @include('courier.partials.icon', ['name' => 'camera', 'size' => 14, 'sw' => 2]) Change photo
             </label>
         </div>
-        <span data-avatar-filename style="flex-basis:100%;margin-top:-8px;font-size:11px;color:#9db3c4;"></span>
+        <span data-photo-status style="flex-basis:100%;margin-top:-8px;font-size:11px;color:#9db3c4;">JPG, PNG or WebP, up to 5 MB. Saved as soon as you choose it.</span>
     </div>
 
     @if ($rider)
@@ -296,7 +296,7 @@
 </div>
 
 @push('scripts')
-<script src="{{ asset('js/courier-account.js') }}"></script>
+<script src="{{ asset('js/photo-upload.js') }}"></script>
 @endpush
 
 </x-courier-layout>

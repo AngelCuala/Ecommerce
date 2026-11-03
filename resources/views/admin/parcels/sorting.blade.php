@@ -53,20 +53,10 @@
                 <td class="text-secondary">{{ $parcel->size ?? 'Parcel' }}</td>
                 <td class="text-secondary">{{ $parcel->weight_kg ? $parcel->weight_kg.' kg' : '—' }}</td>
                 <td>
-                    <form method="POST" action="{{ route('admin.logistics.parcels.sort',$parcel) }}" id="sort-form-{{ $parcel->id }}" style="display:inline;">
-                        @csrf
-                        <input name="reason" required minlength="10" maxlength="300" placeholder="Override reason (required)" style="width:190px;">
-                        <select name="area_id" style="width:140px;background:var(--bg-input);" onchange="">
-                            <option value="">Select area…</option>
-                            @foreach($areas as $area)
-                                <option value="{{ $area->id }}" @selected($parcel->area_id == $area->id)>{{ $area->name }}</option>
-                            @endforeach
-                        </select>
-                    </form>
+                    <span class="text-xs" style="color:#6b90aa;" data-status-locked>Follows the seller → logistics → rider process</span>
                 </td>
                 <td>
-                    <button onclick="document.getElementById('sort-form-{{ $parcel->id }}').submit()"
-                            class="btn btn--primary btn--sm">Confirm Sort</button>
+                    <span class="text-secondary">—</span>
                 </td>
             </tr>
         @empty

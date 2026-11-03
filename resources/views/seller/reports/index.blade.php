@@ -9,8 +9,15 @@
         'This year'    => [now()->startOfYear()->toDateString(), now()->toDateString()],
     ];
     $rangeLabel = \Carbon\Carbon::parse($from)->format('M j, Y') . ' – ' . \Carbon\Carbon::parse($to)->format('M j, Y');
-    $maxVal = max(1, (float) $byDate->max());
+    // Chart scale: a round top value (₱100, ₱250, ₱500, ₱1,000 …) with lines at quarters.
+    $peak   = (float) $byDate->max();
+    $maxVal = 100;
+    for ($step = 0; $maxVal < $peak; $step++) {
+        $maxVal = [250, 500, 1000][$step % 3] * 10 ** intdiv($step, 3);   // 250, 500, 1,000, 2,500, 5,000, 10,000 …
+    }
     $every  = max(1, (int) ceil($byDate->count() / 10));   // label at most ~10 bars
+    $showValues = $byDate->count() <= 14;                   // amounts above the bars when there are few
+    $bestLabel = $byDateUnit === 'month' ? 'Best month' : 'Best day';
 @endphp
 <style>
     .rp-card { background: #fff; border: 1px solid #ECE7E3; border-radius: .75rem; }
@@ -76,23 +83,41 @@
     {{-- Daily earnings --}}
     <div class="rp-card mb-5 px-5 py-4">
         <div class="mb-4 flex items-baseline justify-between">
-            <h2 class="font-semibold" style="color:#222;">Daily net earnings</h2>
+            <h2 class="font-semibold" style="color:#222;">{{ $byDateUnit === 'month' ? 'Monthly' : 'Daily' }} net earnings</h2>
             @if ($byDate->count())
-                <span class="text-xs" style="color:#8a7f78;">Best day: {{ $byDate->sortDesc()->keys()->first() }} · ₱{{ number_format($byDate->max(), 2) }}</span>
+                <span class="text-xs" style="color:#8a7f78;">{{ $bestLabel }}: {{ $byDate->sortDesc()->keys()->first() }} · ₱{{ number_format($peak, 2) }}</span>
             @endif
         </div>
         @if ($byDate->count())
-            <div class="flex h-40 items-end gap-1.5 border-b" style="border-color:#ECE7E3;">
-                @foreach ($byDate as $date => $amount)
-                    <div class="rp-col flex h-full flex-1 flex-col justify-end" title="{{ $date }}: ₱{{ number_format($amount, 2) }}">
-                        <div class="rp-bar" style="height:{{ max(2, round($amount / $maxVal * 100)) }}%;"></div>
+            <div class="flex gap-2" data-earnings-chart>
+                {{-- ₱ scale --}}
+                <div class="relative h-44 w-14 shrink-0 text-right text-[10px]" style="color:#a39890;">
+                    @foreach ([1, .75, .5, .25, 0] as $f)
+                        <span class="absolute right-0 -translate-y-1/2" style="top:{{ (1 - $f) * 100 }}%;">₱{{ number_format($maxVal * $f) }}</span>
+                    @endforeach
+                </div>
+                <div class="min-w-0 flex-1">
+                    <div class="relative h-44 border-b border-l" style="border-color:#E7E5E4;">
+                        @foreach ([.25, .5, .75, 1] as $f)
+                            <div class="absolute inset-x-0 border-t border-dashed" style="top:{{ (1 - $f) * 100 }}%;border-color:#F2EEEA;"></div>
+                        @endforeach
+                        <div class="absolute inset-0 flex items-end justify-center gap-1.5 px-1">
+                            @foreach ($byDate as $date => $amount)
+                                <div class="rp-col flex h-full flex-1 flex-col items-center justify-end" style="max-width:56px;" title="{{ $date }}: ₱{{ number_format($amount, 2) }}" data-bar="{{ $date }}">
+                                    @if ($showValues && $amount > 0)
+                                        <span class="mb-0.5 whitespace-nowrap text-[10px] font-semibold" style="color:#57534E;">₱{{ number_format($amount, $amount < 1000 ? 2 : 0) }}</span>
+                                    @endif
+                                    <div class="rp-bar" style="height:{{ $amount > 0 ? max(1, round($amount / $maxVal * 100, 2)) : 0 }}%;"></div>
+                                </div>
+                            @endforeach
+                        </div>
                     </div>
-                @endforeach
-            </div>
-            <div class="mt-1.5 flex gap-1.5">
-                @foreach ($byDate->keys() as $i => $date)
-                    <span class="flex-1 truncate text-center text-[11px]" style="color:#a39890;">{{ $i % $every === 0 ? $date : '' }}</span>
-                @endforeach
+                    <div class="mt-1.5 flex justify-center gap-1.5 px-1">
+                        @foreach ($byDate->keys() as $i => $date)
+                            <span class="flex-1 truncate text-center text-[10px]" style="color:#a39890;max-width:56px;">{{ $i % $every === 0 ? $date : '' }}</span>
+                        @endforeach
+                    </div>
+                </div>
             </div>
         @else
             <p class="py-10 text-center text-sm" style="color:#8a7f78;">No sales in this period.</p>

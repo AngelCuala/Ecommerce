@@ -22,6 +22,11 @@ class PanelController extends Controller
 {
     use CallsWeb;
 
+    public function acknowledgeViolation(int $violation): JsonResponse
+    {
+        return $this->actionJson($this->web(DashboardController::class, 'acknowledgeViolation', ['violation' => $violation]));
+    }
+
     public function dashboard(): JsonResponse
     {
         $d = $this->pageData($this->web(DashboardController::class, 'index'));
@@ -55,6 +60,11 @@ class PanelController extends Controller
             'low_stock_count'      => (int) $d['productCounts']['low_stock'],
             'sold_out_count'       => (int) $d['productCounts']['out_of_stock'],
             'unread_notifications' => auth()->user()->notifications()->whereNull('read_at')->count(),
+            // Warnings from ALVY (Admin → Reports & Complaints), shown until the seller taps "I understand".
+            'violations'       => \App\Models\SellerViolation::where('seller_id', auth()->id())->where('acknowledged', false)->with('product:id,title')->latest()->get()
+                ->map(fn ($v) => ['id' => $v->id, 'action' => \App\Models\SellerViolation::actionLabels()[$v->action] ?? 'Warning',
+                    'type' => \App\Models\SellerViolation::typeLabels()[$v->type] ?? $v->type, 'product' => $v->product?->title,
+                    'note' => $v->note, 'at' => $v->created_at?->toIso8601String()])->values(),
             'recent_orders'    => $d['recentOrders']->map(fn ($i) => [
                 'order_id' => $i->order_id, 'number' => $i->order?->number(), 'buyer' => $i->order?->user?->name,
                 'product' => $i->product?->title, 'quantity' => (int) $i->quantity, 'earning' => (float) $i->seller_earning,

@@ -33,7 +33,66 @@
     @endif
 
     {{-- To Pay --}}
-    @if ($order->status === \App\Models\Order::AWAITING_PAYMENT)
+    @if ($order->status === \App\Models\Order::AWAITING_PAYMENT && $order->isGcashReceipt() && $order->payment_status === 'Rejected')
+        {{-- Rejected: why, how to fix it, and the form to upload the right receipt. --}}
+        @php
+            $gc = $order->payment_check ?? [];
+            $gAccount = \App\Support\AlvyGcash::account();
+            $gGroup = \App\Models\Order::where('checkout_group', $order->checkout_group)->where('status', \App\Models\Order::AWAITING_PAYMENT)->get();
+            $gAmount = (float) ($order->payment_expected ?? $gGroup->sum('total_price'));
+            $gFixBy = ! empty($gc['fix_by']) ? \Illuminate\Support\Carbon::parse($gc['fix_by'])->tz(config('app.business_timezone', 'Asia/Manila')) : null;
+        @endphp
+        <div class="mt-4 rounded-xl border p-4 text-sm" style="background:#FEF2F2;border-color:#FCA5A5;" data-gcash-rejected>
+            <p class="font-bold" style="color:#B91C1C;">Your GCash payment was rejected</p>
+            <div class="mt-2 grid gap-3 sm:grid-cols-2">
+                <div>
+                    <p class="text-xs font-bold uppercase tracking-wide" style="color:#991B1B;">Why</p>
+                    <ul class="mt-1 list-inside list-disc" style="color:#7F1D1D;">@foreach ($gc['rejection']['problems'] ?? [] as $p)<li>{{ $p['reason'] }}</li>@endforeach</ul>
+                </div>
+                <div>
+                    <p class="text-xs font-bold uppercase tracking-wide" style="color:#991B1B;">How to fix it</p>
+                    <ul class="mt-1 list-inside list-disc" style="color:#7F1D1D;">@foreach (array_unique(array_column($gc['rejection']['problems'] ?? [], 'fix')) as $fix)<li>{{ $fix }}</li>@endforeach</ul>
+                </div>
+            </div>
+            <p class="mt-2 text-xs" style="color:#B91C1C;">
+                Upload the right receipt{{ $gFixBy ? ' by ' . $gFixBy->format('M j, g:i A') : '' }}, or the order is cancelled.
+                Try {{ $gc['tries'] ?? 1 }} of {{ \App\Services\GcashChecks::MAX_TRIES }}.@if ($gGroup->count() > 1) This payment covers orders {{ $gGroup->map->number()->implode(', ') }}.@endif
+            </p>
+
+            <form method="POST" action="{{ route('orders.gcash-resubmit', $order->id) }}" enctype="multipart/form-data" class="mt-3 grid gap-4 rounded-lg border bg-white p-4 sm:grid-cols-[150px_1fr]" style="border-color:#FECACA;">
+                @csrf
+                @if ($gAccount)
+                    <a href="{{ $gAccount['qr_url'] }}" target="_blank" rel="noopener" title="Open the QR bigger">
+                        <img src="{{ $gAccount['qr_url'] }}" alt="ALVY GCash QR" class="w-full rounded-lg border bg-white object-contain" style="border-color:#BFDBFE;">
+                    </a>
+                @endif
+                <div class="min-w-0 space-y-3">
+                    <div style="color:#1E3A8A;">
+                        <p class="text-xs">Send exactly this amount to {{ $gAccount['name'] ?? 'ALVY' }}{{ ! empty($gAccount['number']) ? ' · ' . $gAccount['number'] : '' }}</p>
+                        <p class="font-display text-2xl font-extrabold" style="color:#0B2A5B;">₱{{ number_format($gAmount, 2) }}</p>
+                    </div>
+                    <div>
+                        <label class="mb-1 block text-xs font-semibold" style="color:#1E3A8A;" for="fix-proof">Screenshot of the GCash receipt *</label>
+                        <input type="file" id="fix-proof" name="payment_proof" accept="image/jpeg,image/png,image/webp" required class="block w-full rounded-lg border bg-white px-3 py-2 text-xs" style="border-color:#BFDBFE;">
+                        @error('payment_proof')<p class="mt-1 text-xs font-medium" style="color:#B91C1C;">{{ $message }}</p>@enderror
+                    </div>
+                    <div>
+                        <label class="mb-1 block text-xs font-semibold" style="color:#1E3A8A;" for="fix-ref">GCash Ref No. *</label>
+                        <input type="text" id="fix-ref" name="payment_reference" value="{{ old('payment_reference') }}" required inputmode="numeric" maxlength="13" pattern="\d{13}"
+                               title="The 13 numbers of the GCash Ref No." oninput="this.value = this.value.replace(/\D/g, '').slice(0, 13)"
+                               placeholder="13 numbers, e.g. 1012345678901" autocomplete="off" class="block w-full rounded-lg border bg-white px-3 py-2 font-mono text-sm" style="border-color:#BFDBFE;">
+                        @error('payment_reference')<p class="mt-1 text-xs font-medium" style="color:#B91C1C;">{{ $message }}</p>@enderror
+                    </div>
+                    <button class="pf-btn px-6">Send the new receipt</button>
+                </div>
+            </form>
+        </div>
+    @elseif ($order->status === \App\Models\Order::AWAITING_PAYMENT && $order->isGcashReceipt())
+        <div class="mt-4 rounded-xl border p-4 text-sm" style="background:#F5F9FF;border-color:#BFDBFE;" data-gcash-checking>
+            <p class="font-bold" style="color:#1E3A8A;">ALVY is checking your GCash payment</p>
+            <p style="color:#3B5B8C;">We match your receipt{{ $order->payment_reference ? ' (Ref No. ' . $order->payment_reference . ')' : '' }} with the money in ALVY's GCash. Once it's confirmed, the seller prepares your order. If something doesn't match, you're told why and how to fix it.</p>
+        </div>
+    @elseif ($order->status === \App\Models\Order::AWAITING_PAYMENT)
         <div class="mt-4 flex flex-wrap items-center gap-3 rounded-xl border p-4" style="{{ $order->payment_status === 'Failed' ? 'background:#FEF2F2;border-color:#FCA5A5;' : 'background:#FFFBEB;border-color:#FCD34D;' }}">
             <div class="min-w-0 flex-1 text-sm">
                 @if ($order->payment_status === 'Failed')
@@ -316,7 +375,7 @@
                     @if ($order->isGcashReceipt())
                         <div class="mt-3 flex items-center justify-between gap-2 rounded-lg px-3 py-2 text-xs" style="background:#F5F9FF;color:#1E3A8A;" data-gcash-receipt>
                             <span>{{ $order->payment_reference ? 'Ref No. ' . $order->payment_reference : 'GCash receipt' }}
-                                @if ($order->payment_status === 'For verification')<span class="block" style="color:#5B7BA8;">The seller is checking your payment.</span>@endif
+                                @if ($order->payment_status === 'For verification')<span class="block" style="color:#5B7BA8;">ALVY is checking your payment.</span>@elseif ($order->payment_status === 'Refund pending')<span class="block" style="color:#5B7BA8;">ALVY will send the money back to your GCash.</span>@endif
                             </span>
                             @if ($order->payment_proof_path)<a href="{{ \App\Support\Portal::route('orders.payment-proof', $order) }}" target="_blank" rel="noopener" class="shrink-0 font-semibold hover:underline" style="color:#007DFE;">View your GCash receipt</a>@endif
                         </div>

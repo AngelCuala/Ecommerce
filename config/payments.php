@@ -25,14 +25,9 @@ return [
     ],
 
     /*
-    | GCash sent by the buyer to the shop's GCash account, outside ALVY: the buyer uploads the receipt
-    | screenshot at checkout and the seller checks it before accepting the order. Shown at checkout
-    | only when GCASH_NUMBER is set.
+    | GCash paid to the store itself (payment_method gcash_receipt) is not set here: each seller uploads
+    | their GCash QR in Store Settings, and checkout offers GCash when every store in it has one.
     */
-    'gcash_receipt' => [
-        'number' => env('GCASH_NUMBER'),
-        'name'   => env('GCASH_ACCOUNT_NAME'),
-    ],
 
     'paymongo' => [
         'secret_key' => env('PAYMONGO_SECRET_KEY'),

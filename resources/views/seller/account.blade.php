@@ -64,19 +64,19 @@
                     <button type="button" id="avatar-box" onclick="document.getElementById('avatar-input').click()"
                             class="group relative flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full"
                             style="background:#F5F2EF;" aria-label="Change profile photo">
-                        @if ($u->profile_photo_path)
-                            <img id="avatar-preview" src="{{ asset('storage/' . $u->profile_photo_path) }}" class="h-full w-full object-cover" alt="">
-                        @else
-                            <span id="avatar-initial" class="font-display text-xl font-bold" style="color:#8a7f78;">{{ strtoupper(mb_substr($u->name, 0, 1)) }}</span>
-                        @endif
+                        <img id="avatar-preview" data-photo-preview src="{{ $u->profile_photo_path ? asset('storage/' . $u->profile_photo_path) : '' }}"
+                             class="{{ $u->profile_photo_path ? '' : 'hidden' }} h-full w-full object-cover" alt="">
+                        @unless ($u->profile_photo_path)
+                            <span id="avatar-initial" data-photo-initial class="font-display text-xl font-bold" style="color:#8a7f78;">{{ strtoupper(mb_substr($u->name, 0, 1)) }}</span>
+                        @endunless
                         <span class="absolute inset-0 hidden items-center justify-center text-[11px] font-medium text-white group-hover:flex" style="background:rgba(0,0,0,.45);">Change</span>
                     </button>
                     <div class="min-w-0">
-                        <input id="avatar-input" type="file" name="avatar" accept="image/jpeg,image/png,image/webp" class="hidden" onchange="previewAvatar(this)">
+                        <input id="avatar-input" type="file" accept="image/jpeg,image/png,image/webp" class="hidden" data-photo-upload data-photo-url="{{ route('account.photo') }}">
                         <label for="avatar-input" class="inline-block cursor-pointer rounded-md border px-3 py-1.5 text-sm font-medium transition hover:bg-stone-50" style="border-color:#E7E5E4;color:#44403C;">
                             {{ $u->profile_photo_path ? 'Change photo' : 'Upload photo' }}
                         </label>
-                        <p id="avatar-filename" class="ac-note">JPG, PNG or WebP, up to 2 MB.</p>
+                        <p id="avatar-filename" class="ac-note" data-photo-status>JPG, PNG or WebP, up to 5 MB. Saved as soon as you choose it.</p>
                         @error('avatar')<p class="ac-error">{{ $message }}</p>@enderror
                     </div>
                 </div>
@@ -196,22 +196,5 @@
     </form>
 </div>
 
-<script>
-function previewAvatar(input) {
-    const file = input.files && input.files[0];
-    if (!file) return;
-    document.getElementById('avatar-filename').textContent = file.name;
-    const box = document.getElementById('avatar-box');
-    document.getElementById('avatar-initial')?.remove();
-    let img = document.getElementById('avatar-preview');
-    if (!img) {
-        img = document.createElement('img');
-        img.id = 'avatar-preview';
-        img.className = 'h-full w-full object-cover';
-        img.alt = '';
-        box.prepend(img);
-    }
-    img.src = URL.createObjectURL(file);
-}
-</script>
+<script src="{{ asset('js/photo-upload.js') }}"></script>
 </x-seller-layout>

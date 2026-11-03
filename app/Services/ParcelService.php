@@ -232,15 +232,15 @@ class ParcelService
                 break;
 
             case 'failed':
-                $back = $delivery->attempt >= \App\Models\ParcelDelivery::MAX_ATTEMPTS;
+                $last = $delivery->attempt >= \App\Models\ParcelDelivery::MAX_ATTEMPTS;
                 $delivery->update(['status' => 'failed', 'failure_reason' => $reason, 'remarks' => $reason]);
-                $parcel->update(['status' => $back ? 'return_to_sender' : 'failed', 'failure_reason' => $reason]);
-                $this->notifyBuyer($parcel, $back ? 'Returning to seller' : 'Delivery attempt failed', $back
-                    ? "{$ref} could not be delivered ({$reason}) after " . \App\Models\ParcelDelivery::MAX_ATTEMPTS . ' attempts. It is being returned to the seller.'
-                    : "{$ref} could not be delivered: {$reason}. The sorting center will reschedule it.", 'warning');
-                if ($back) {
-                    $this->notifySeller($parcel, 'Parcel returning to you', "{$ref} ({$parcel->tracking_number}) is Return to Sender: {$reason}.", 'warning');
+                $parcel->update(['status' => 'failed', 'failure_reason' => $reason]);
+                if ($last) {
+                    // The last attempt: the order is cancelled and the parcel stays at the hub (no Return to Sender).
+                    $this->cancelUndeliverable($parcel->fresh(), $reason . ', ' . \App\Models\ParcelDelivery::MAX_ATTEMPTS . ' attempts');
+                    return $parcel->fresh();
                 }
+                $this->notifyBuyer($parcel, 'Delivery attempt failed', "{$ref} could not be delivered: {$reason}. The sorting center will reschedule it.", 'warning');
                 break;
 
             default:
@@ -250,6 +250,26 @@ class ParcelService
         $this->syncOrder($parcel->fresh());
 
         return $parcel->fresh();
+    }
+
+    /**
+     * The parcel can't be delivered (the last attempt failed, or the buyer refused it): the order is cancelled
+     * and the parcel stays at the hub for the seller to collect. The buyer and seller are told through the
+     * order's cancellation; the hub is told here. (This replaces Return to Sender.)
+     */
+    public function cancelUndeliverable(Parcel $parcel, string $reason): void
+    {
+        $hub = $parcel->currentSortingCenter?->name ?? 'the sorting center';
+        $parcel->update(['status' => 'cancelled', 'failure_reason' => $reason]);
+        $order = $parcel->order;
+        if ($order && ! in_array($order->status, [\App\Models\Order::CANCELLED, \App\Models\Order::COMPLETED], true)) {
+            $order->update(['status' => \App\Models\Order::CANCELLED,
+                'cancellation_reason' => "Delivery failed ({$reason}). The parcel is kept at {$hub} for the seller to collect."]);
+        }
+        if ($scId = $parcel->current_sorting_center_id) {
+            $this->notify((int) $scId, 'Undeliverable parcel', "{$parcel->tracking_number}: {$reason}. The order was cancelled; keep the parcel for the seller to collect.", 'warning');
+        }
+        \App\Models\ActivityLog::note('Undeliverable, order cancelled: ' . $parcel->tracking_number . ' (' . $reason . ')', $parcel);
     }
 
     public function notifyBuyer(Parcel $parcel, string $title, string $body, string $type = 'info'): void

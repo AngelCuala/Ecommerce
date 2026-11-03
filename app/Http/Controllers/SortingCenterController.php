@@ -892,7 +892,7 @@ class SortingCenterController extends Controller
         $parcel = $delivery->parcel;
         $this->guardParcel($parcel, ['failed']);
         if ($parcel->deliveries()->count() >= ParcelDelivery::MAX_ATTEMPTS) {
-            return back()->with('error', "{$parcel->tracking_number} already had " . ParcelDelivery::MAX_ATTEMPTS . ' delivery attempts. Return it to the seller.');
+            return back()->with('error', "{$parcel->tracking_number} already had " . ParcelDelivery::MAX_ATTEMPTS . ' delivery attempts. Cancel the order instead.');
         }
 
         $parcel->update(['status' => 'sorted']);
@@ -905,24 +905,15 @@ class SortingCenterController extends Controller
             ->with('success', "{$parcel->tracking_number} rescheduled. Assign a rider for the next attempt.");
     }
 
-    /** Failed delivery -> return the parcel to the seller. */
+    /** Failed delivery -> give up: the order is cancelled and the parcel stays at the hub for the seller. */
     public function returnParcel(ParcelDelivery $delivery)
     {
         $parcel = $delivery->parcel;
         $this->guardParcel($parcel, ['failed']);
 
-        // Into the Return-to-Sender queue: a rider brings it back and the seller confirms receipt (A10, A3).
-        $parcel->update(['status' => 'return_to_sender']);
+        $this->parcels()->cancelUndeliverable($parcel, $parcel->failure_reason ?: 'delivery could not be completed');
 
-        $svc = $this->parcels();
-        $reason = $parcel->failure_reason ?: 'delivery could not be completed';
-        $svc->notifySeller($parcel, 'Parcel returning',
-            "{$svc->orderRef($parcel)} ({$parcel->tracking_number}) is being returned to you. Reason: {$reason}.", 'warning');
-        $svc->notifyBuyer($parcel, 'Parcel returning to seller',
-            "{$svc->orderRef($parcel)} could not be delivered and is going back to the seller. Reason: {$reason}.", 'warning');
-        $svc->syncOrder($parcel->fresh());
-
-        return redirect()->route('sc.rts')->with('success', "{$parcel->tracking_number} moved to the Return-to-Sender queue. Assign a rider to bring it back.");
+        return back()->with('success', "{$parcel->tracking_number}: order cancelled. Keep the parcel at the hub for the seller to collect.");
     }
 
     // ── Reports ───────────────────────────────────────────────

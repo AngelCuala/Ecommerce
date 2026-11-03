@@ -83,7 +83,7 @@ class LogisticsController extends Controller
         $status = $request->get('status');
         $q = trim((string) $request->get('q'));
 
-        $query = $this->bucketQuery($status, $from, $to)->with(['order', 'seller'])
+        $query = $this->bucketQuery($status, $from, $to)->with(['order', 'seller.sellerApplication'])
             ->when($q !== '', function ($query) use ($q) {
                 $id = ctype_digit(ltrim(preg_replace('/^(ORD|#)-?/i', '', $q), '0')) ? (int) preg_replace('/\D/', '', $q) : null;
                 $query->where(fn ($w) => $w->where('tracking_number', $q)

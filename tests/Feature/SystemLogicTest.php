@@ -66,7 +66,7 @@ class SystemLogicTest extends TestCase
         $this->assertSame(Order::DELIVERED, $d->parcel->order->fresh()->status);
     }
 
-    public function test_override_of_the_last_failed_attempt_sends_the_parcel_back(): void
+    public function test_override_of_the_last_failed_attempt_cancels_the_order(): void
     {
         $parcel = $this->parcel('sorted');
         foreach ([1, 2] as $n) {
@@ -76,8 +76,9 @@ class SystemLogicTest extends TestCase
         $this->assertSame(3, (int) $third->attempt);
 
         $this->scOverride($third, 'failed', 'Buyer not home for the third time.')->assertSessionHas('success');
-        $this->assertSame('return_to_sender', $parcel->fresh()->status);
-        $this->assertTrue(UserNotification::where('user_id', $this->seller1->id)->where('title', 'Parcel returning to you')->exists());
+        $this->assertSame('cancelled', $parcel->fresh()->status);
+        $this->assertSame(\App\Models\Order::CANCELLED, $parcel->order->fresh()->status);
+        $this->assertTrue(UserNotification::where('user_id', $this->seller1->id)->where('title', 'like', '%cancelled')->exists());
     }
 
     public function test_delivery_assignment_page_job_carries_cod_and_attempt(): void
@@ -97,41 +98,31 @@ class SystemLogicTest extends TestCase
         $this->assertSame('out_for_delivery', $d->fresh()->status);
     }
 
-    public function test_admin_override_follows_the_same_rules(): void
+    public function test_admins_cannot_override_a_delivery(): void
     {
         $admin = $this->account('admin', 'ops.admin@example.com', 'Ops Admin');
         $d = $this->deliveryFor($this->rider1, 'out_for_delivery');
-        $url = route('admin.logistics.deliveries.update-status', $d);
 
-        $this->actingAs($admin)->from(route('admin.logistics.deliveries.monitor'))->post($url, ['status' => 'delivered'])->assertSessionHasErrors('remarks');
-        $this->actingAs($admin)->from(route('admin.logistics.deliveries.monitor'))->post($url, ['status' => 'assigned', 'remarks' => self::REASON])->assertSessionHasErrors('status');
+        $this->actingAs($admin)->from(route('admin.logistics.deliveries.monitor'))
+            ->post(route('admin.logistics.deliveries.update-status', $d), ['status' => 'delivered', 'remarks' => self::REASON])
+            ->assertSessionHas('error', \App\Http\Middleware\AdminCannotChangeShipmentStatus::MESSAGE);
         $this->assertSame('out_for_delivery', $d->fresh()->status);
-
-        $this->actingAs($admin)->post($url, ['status' => 'delivered', 'remarks' => self::REASON])->assertSessionHas('success');
-        $this->assertSame([Order::DELIVERED, 'Paid'], [$d->parcel->order->fresh()->status, $d->parcel->order->fresh()->payment_status]);
-        $log = \App\Models\ActivityLog::where('description', 'Admin override on ' . $d->parcel->tracking_number)->sole();
-        $this->assertSame(['Out for Delivery', 'Delivered', self::REASON], [$log->old_value, $log->new_value, $log->reason]);
-
-        // A finished delivery can't be moved again.
-        $this->actingAs($admin)->post($url, ['status' => 'failed', 'remarks' => self::REASON])->assertSessionHas('error');
-        $this->assertSame('delivered', $d->fresh()->status);
+        $this->actingAs($admin)->postJson(route('admin.logistics.deliveries.update-status', $d), ['status' => 'delivered', 'remarks' => self::REASON])->assertForbidden();
     }
 
-    public function test_admin_assign_only_for_a_sorted_parcel_and_an_active_rider(): void
+    public function test_admins_cannot_assign_pick_up_sort_or_approve_pickups(): void
     {
         $admin = $this->account('admin', 'ops.admin@example.com', 'Ops Admin');
-        $atHub = $this->parcel('picked_up');
-        $this->actingAs($admin)->post(route('admin.logistics.deliveries.assign', $atHub), ['rider_id' => $this->rider1->id])->assertSessionHas('error');
-
         $sorted = $this->parcel('sorted');
-        $this->actingAs($admin)->post(route('admin.logistics.deliveries.assign', $sorted), ['rider_id' => $this->rider3->id])->assertSessionHas('error');   // suspended
-        $this->actingAs($admin)->post(route('admin.logistics.deliveries.assign', $sorted), ['rider_id' => $this->agilaRider->id])->assertSessionHas('error'); // other company
-        $this->actingAs($admin)->post(route('admin.logistics.deliveries.assign', $sorted), ['rider_id' => $this->rider1->id])->assertSessionHas('success');
-        $this->actingAs($admin)->post(route('admin.logistics.deliveries.assign', $sorted), ['rider_id' => $this->rider2->id])->assertSessionHas('error');   // already assigned
+        $this->actingAs($admin)->post(route('admin.logistics.deliveries.assign', $sorted), ['rider_id' => $this->rider1->id])
+            ->assertSessionHas('error', \App\Http\Middleware\AdminCannotChangeShipmentStatus::MESSAGE);
+        $this->assertSame(0, ParcelDelivery::where('parcel_id', $sorted->id)->count());
 
-        $this->assertSame(1, ParcelDelivery::where('parcel_id', $sorted->id)->count());
-        $this->assertEquals(490, (float) ParcelDelivery::where('parcel_id', $sorted->id)->sole()->cod_amount);
-        $this->assertSame(0, ParcelDelivery::where('parcel_id', $atHub->id)->count());
+        $pending = $this->parcel('pending_pickup');
+        foreach ([route('admin.logistics.pickup-requests.approve', $pending), route('admin.logistics.parcels.mark-picked-up', $pending), route('admin.logistics.parcels.sort', $pending)] as $url) {
+            $this->actingAs($admin)->post($url)->assertSessionHas('error');
+        }
+        $this->assertSame('pending_pickup', $pending->fresh()->status);
     }
 
     public function test_commission_is_rounded_once_per_order(): void

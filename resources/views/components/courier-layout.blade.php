@@ -69,7 +69,10 @@
 
         <div class="cx-foot">
             <div class="cx-user">
-                <span class="cx-avatar">{{ strtoupper(substr($u->name ?? 'C', 0, 1)) }}</span>
+                <span class="cx-avatar" style="overflow:hidden;">
+                    <img data-photo-preview src="{{ $u?->profile_photo_url }}" alt="" style="width:100%;height:100%;object-fit:cover;{{ $u?->profile_photo_url ? '' : 'display:none;' }}">
+                    @unless ($u?->profile_photo_url)<span data-photo-initial>{{ strtoupper(substr($u->name ?? 'C', 0, 1)) }}</span>@endunless
+                </span>
                 <div class="min-w-0">
                     <div class="cx-user-name">{{ $u->name ?? 'Courier' }}</div>
                     <div class="cx-user-mail">{{ $u->email ?? '' }}</div>
@@ -159,5 +162,6 @@ document.querySelectorAll('.cx-table').forEach(function (table) {
 @stack('scripts')
 <script src="{{ asset('js/prevent-back.js') }}"></script>
 <script src="{{ asset('js/logout-confirm.js') }}?v={{ filemtime(public_path('js/logout-confirm.js')) }}"></script>
+<script src="{{ asset('js/upload-progress.js') }}?v={{ filemtime(public_path('js/upload-progress.js')) }}" defer></script>
 </body>
 </html>

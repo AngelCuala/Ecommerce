@@ -57,8 +57,9 @@
 
         /* Log In / Sign Up: plain text tabs with an underline on the current page */
         .auth-tabs { display:flex; justify-content:center; gap:2rem; border-bottom:1px solid #F0E4DC; }
-        .auth-tab { position:relative; display:block; cursor:default; user-select:none; padding:.6rem .25rem; font-size:.9rem; font-weight:600; color:#a39890; }
-        .auth-tab.is-active { color:#222; }
+        .auth-tab { position:relative; display:block; cursor:pointer; user-select:none; padding:.6rem .25rem; font-size:.9rem; font-weight:600; color:#a39890; transition:color .15s; }
+        .auth-tab:hover { color:#fa4e1c; }
+        .auth-tab.is-active { color:#222; cursor:default; }
         .auth-tab.is-active::after { content:""; position:absolute; left:0; right:0; bottom:-1px; height:2px; border-radius:2px; background:#fa4e1c; }
 
         .auth-progress { position:fixed; top:0; left:0; height:3px; width:0; z-index:60;
@@ -115,11 +116,11 @@
                     </div>
 
                     @if ($tab)
-                        {{-- Labels only; each page links to the other in its own footer. --}}
-                        <div class="auth-tabs mx-auto mt-6 max-w-xs" aria-hidden="true">
-                            <span class="auth-tab {{ $tab === 'login' ? 'is-active' : '' }}">Log In</span>
-                            <span class="auth-tab {{ $tab === 'signup' ? 'is-active' : '' }}">Sign Up</span>
-                        </div>
+                        {{-- Log In → the login page; Sign Up → the same sign-up page as "Create account". --}}
+                        <nav class="auth-tabs mx-auto mt-6 max-w-xs" aria-label="Log in or sign up">
+                            <a href="{{ route('login') }}" class="auth-tab {{ $tab === 'login' ? 'is-active' : '' }}" @if ($tab === 'login') aria-current="page" @endif data-auth-tab="login">Log In</a>
+                            <a href="{{ route('register') }}" class="auth-tab {{ $tab === 'signup' ? 'is-active' : '' }}" @if ($tab === 'signup') aria-current="page" @endif data-auth-tab="signup">Sign Up</a>
+                        </nav>
                     @endif
                 </div>
 
@@ -152,5 +153,6 @@
 {{ $scripts ?? '' }}
 <script src="{{ asset('js/prevent-back.js') }}"></script>
 <script src="{{ asset('js/logout-confirm.js') }}?v={{ filemtime(public_path('js/logout-confirm.js')) }}"></script>
+<script src="{{ asset('js/upload-progress.js') }}?v={{ filemtime(public_path('js/upload-progress.js')) }}" defer></script>
 </body>
 </html>

@@ -84,7 +84,7 @@
                                 </form>
                             </div>
                         @elseif($parcel->status === 'pickup_approved')
-                            <a href="{{ route('sc.incoming-parcels',['tab'=>'pickup_approved']) }}" class="btn btn-ghost btn-sm">Receive</a>
+                            <a href="{{ route('sc.tracking') }}" class="btn btn-ghost btn-sm">Receive</a>
                         @else
                             <span class="text-muted text-sm">—</span>
                         @endif

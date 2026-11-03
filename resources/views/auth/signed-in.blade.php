@@ -3,8 +3,12 @@
 <x-auth-shell title="Already signed in — ALVY" heading="You're still logged in" subtitle="Do you want to log out?">
     <div class="px-6 pb-8 pt-6 sm:px-10 sm:pb-10">
         <div class="mb-6 flex items-center gap-3 rounded-xl border p-4" style="border-color:#F0E4DC;background:#FCFAF8;">
-            <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-base font-bold text-white" style="background:linear-gradient(135deg,#fa4e1c,#ff7a45);">
-                {{ mb_strtoupper(mb_substr($user->name, 0, 1)) }}
+            <div class="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full text-base font-bold text-white" style="background:linear-gradient(135deg,#fa4e1c,#ff7a45);">
+                @if ($user->profile_photo_url)
+                    <img src="{{ $user->profile_photo_url }}" alt="" class="h-full w-full object-cover">
+                @else
+                    {{ mb_strtoupper(mb_substr($user->name, 0, 1)) }}
+                @endif
             </div>
             <div class="min-w-0">
                 <p class="truncate text-sm font-semibold" style="color:#222;">{{ $user->name }}</p>

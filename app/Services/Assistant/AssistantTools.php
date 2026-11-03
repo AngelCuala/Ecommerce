@@ -2,7 +2,6 @@
 
 namespace App\Services\Assistant;
 
-use App\Http\Controllers\CheckoutController;
 use App\Http\Controllers\OrderController;
 use App\Models\CartItem;
 use App\Models\FlashSale;
@@ -537,7 +536,7 @@ class AssistantTools
         }
 
         return $this->action('cancel_order', 'Cancel order ' . $o->number() . ' (' . $reason . ')', ['order_id' => $o->id, 'reason' => $reason])
-            + ['consequence' => 'The order is cancelled for good. ' . ($o->isPaidOnline() ? 'The online payment is refunded.' : ($o->isGcashReceipt() ? 'For a GCash payment, the seller returns the money.' : 'Nothing was paid yet (COD).'))];
+            + ['consequence' => 'The order is cancelled for good. ' . ($o->isPaidOnline() ? 'The online payment is refunded.' : ($o->isGcashReceipt() ? 'GCash payments are not refunded.' : 'Nothing was paid yet (COD).'))];
     }
 
     private function prepareSupport(User $user, string $topic, string $message, ?string $orderNumber): array
@@ -583,12 +582,12 @@ class AssistantTools
     /** Store facts for the system prompt (from the real settings). */
     public static function storeFacts(): string
     {
-        $gcash = CheckoutController::gcashAccount();
+        $gcash = \App\Support\AlvyGcash::enabled();
         $area = ServiceArea::enabled() ? ServiceArea::label() : 'the Philippines';
 
         return "- Delivery area: ALVY delivers only within {$area}. Addresses outside it can't be used at checkout.\n"
             . '- Payment methods: Cash on delivery (pay the rider when the parcel arrives)'
-            . ($gcash ? '; GCash (send the total to ALVY\'s GCash number shown at checkout and upload the receipt screenshot; the seller checks it before shipping, so the payment shows "For verification" until then)' : '') . ".\n"
+            . ($gcash ? '; GCash (at checkout, scan ALVY\'s GCash QR, send the total shown, and upload the receipt screenshot with its Ref No.; ALVY checks it before the seller sees the order, so it waits in To Pay showing "For verification" until then; if it can\'t be confirmed the order is cancelled)' : '') . ".\n"
             . "- Shipping fee: from the parcel's weight and the distance between the seller and the buyer's address, shown at checkout. Vouchers can lower it.\n"
             . '- Order steps: Pending (seller hasn\'t accepted) → Processing (accepted, being packed) → Shipped (picked up; it passes through ALVY sorting centers, possibly a transfer between hubs) → Out for delivery → Delivered → Completed (the buyer taps "Order Received", or after ' . Order::RETURN_DAYS . " days).\n"
             . "- Cancelling: until the seller books the pickup. After that, message the seller.\n"

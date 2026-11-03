@@ -26,6 +26,7 @@ class SellerApplication extends Model
         'description', 'status', 'rejection_reason', 'id_check_status', 'id_check_note',
         'shop_name_changes_this_month', 'shop_name_last_changed_at',
         'logo_path', 'banner_path', 'is_on_vacation',
+        'gcash_qr_path', 'gcash_name', 'gcash_number',
     ];
 
     protected $casts = [
@@ -36,6 +37,26 @@ class SellerApplication extends Model
     ];
 
     public function user(): BelongsTo { return $this->belongsTo(User::class); }
+
+    /** The store's GCash for checkout (QR, name, number), or null when the seller hasn't uploaded a QR. */
+    public function gcash(): ?array
+    {
+        if (! $this->gcash_qr_path) {
+            return null;
+        }
+
+        return [
+            'qr_url' => asset('storage/' . $this->gcash_qr_path),
+            'name'   => $this->gcash_name ?: $this->shop_name,
+            'number' => $this->gcash_number,
+        ];
+    }
+
+    /** Whether any store takes GCash (for the assistant's payment answers). */
+    public static function anyGcash(): bool
+    {
+        return static::where('status', 'approved')->whereNotNull('gcash_qr_path')->exists();
+    }
 
     public function isUnverified(): bool { return $this->status === 'unverified'; }
     public function isPending(): bool  { return $this->status === 'pending'; }

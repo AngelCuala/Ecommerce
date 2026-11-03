@@ -39,12 +39,11 @@ class GoogleSignInTest extends TestCase
         Socialite::shouldReceive('driver')->with('google')->andReturn($provider);
     }
 
-    public function test_login_page_offers_google_and_email(): void
+    public function test_login_page_no_longer_offers_google(): void
     {
         $this->get('/login')->assertOk()
-            ->assertSee('Continue with Google')
-            ->assertSee('or log in with email')
-            ->assertSee(route('auth.google'), false);
+            ->assertDontSee('Continue with Google')
+            ->assertDontSee(route('auth.google'), false);
     }
 
     public function test_google_button_explains_when_not_configured(): void

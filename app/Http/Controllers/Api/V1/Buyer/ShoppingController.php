@@ -72,8 +72,9 @@ class ShoppingController extends Controller
             'address_id' => $d['address']?->id,
             'payment_methods' => collect($d['paymentMethods'])->map(fn ($m, $key) => ['key' => $key] + (is_array($m) ? $m : ['label' => $m]))->values(),
             'checkout_token'  => $d['token'],
-            // Pay by GCash and upload the receipt (payment_method=gcash_receipt, payment_proof, payment_reference).
-            'gcash_account'   => $d['gcashAccount'] ?? null,
+            // GCash to ALVY (as on the website): the QR to scan and the exact amount (its centavos mark this checkout).
+            // null when no QR is set. The order is placed with payment_proof (image) + payment_reference (13 digits).
+            'gcash_account'   => $d['gcash'] ? $d['gcash'] + ['amount' => (float) $d['gcashTotal'], 'orders_total' => (float) $d['gcashOrders']] : null,
             'prices'    => $d['prices'],
             'platform_voucher' => $q['platform_voucher']?->code,
             'shipping_voucher' => $q['shipping_voucher']?->code,
@@ -159,6 +160,12 @@ class ShoppingController extends Controller
         $d = $this->pageData($this->web(ProfileController::class, 'orderShow', ['id' => $id]));
 
         return response()->json(['order' => ApiJson::orderDetail($d['order'])]);
+    }
+
+    /** A rejected GCash payment: upload the right receipt (payment_proof) and its Ref No. (payment_reference). */
+    public function gcashResubmit(int $id): JsonResponse
+    {
+        return $this->actionJson($this->web(\App\Http\Controllers\GcashResubmitController::class, 'store', ['id' => $id]));
     }
 
     public function cancel(int $id): JsonResponse

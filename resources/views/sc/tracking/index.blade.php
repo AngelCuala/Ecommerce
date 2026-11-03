@@ -116,5 +116,40 @@
         </table>
         @if ($parcels->hasPages())<div style="padding:12px 16px;">{{ $parcels->links() }}</div>@endif
     </div>
+
+    {{-- This center's recent waybill scans (moved here from the old Incoming Parcels page). --}}
+    @php $recentScans = \App\Models\ActivityLog::where('action', 'sc_scan')->where('admin_id', auth()->id())->latest('id')->limit(15)->get(); @endphp
+    @if ($recentScans->isNotEmpty())
+    <div class="card" style="padding:4px 16px 12px;margin-top:16px;">
+        @if ($recentScans->isNotEmpty())
+            <details style="margin-top:8px;" data-scan-history>
+                <summary style="cursor:pointer;font-size:12.5px;font-weight:600;">Recent scans ({{ $recentScans->count() }})</summary>
+                <table class="data-table" style="margin-top:8px;">
+                    <thead><tr><th>Time</th><th>Scanned</th><th>Result</th><th>Parcel status</th></tr></thead>
+                    <tbody>
+                    @foreach ($recentScans as $scan)
+                        @php
+                            [$label, $badge] = match ($scan->status) {
+                                'found'     => ['Found', 'badge-green'],
+                                'duplicate' => ['Already received', 'badge-orange'],
+                                'not_found' => ['Not found', 'badge-red'],
+                                default     => ['Invalid code', 'badge-gray'],
+                            };
+                        @endphp
+                        <tr data-scan-row="{{ $scan->status }}">
+                            <td style="white-space:nowrap;">{{ $scan->created_at->tz(config('app.business_timezone'))->format('M j, g:i:s A') }}</td>
+                            <td style="font-family:'SF Mono',Consolas,monospace;font-size:12px;">
+                                @if ($scan->subject_type === 'Parcel' && $scan->subject_id)<a href="{{ route('sc.tracking.show', $scan->subject_id) }}">{{ $scan->old_value }}</a>@else{{ $scan->old_value }}@endif
+                            </td>
+                            <td><span class="badge {{ $badge }}">{{ $label }}</span></td>
+                            <td>{{ $scan->new_value ?? '—' }}</td>
+                        </tr>
+                    @endforeach
+                    </tbody>
+                </table>
+            </details>
+        @endif
+    </div>
+    @endif
 </div>
 @endsection

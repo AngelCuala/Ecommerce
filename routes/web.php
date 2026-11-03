@@ -127,7 +127,8 @@ Route::middleware(['auth', 'is_sc', 'prevent.back'])->prefix('sc')->name('sc.')-
     Route::post('/dispatch/bulk',             [\App\Http\Controllers\SortingCenter\LogisticsController::class, 'bulkAssign'])->name('dispatch.bulk');
     Route::post('/dispatch/{parcel}/reassign', [\App\Http\Controllers\SortingCenter\LogisticsController::class, 'reassign'])->name('dispatch.reassign');
     Route::post('/parcels/{parcel}/exception', [\App\Http\Controllers\SortingCenter\LogisticsController::class, 'markException'])->name('parcels.exception');
-    Route::get('/rts',                        [\App\Http\Controllers\SortingCenter\LogisticsController::class, 'rtsQueue'])->name('rts');
+    // Return to Sender was removed: undeliverable parcels cancel the order and stay at the hub (old links land on Shipments).
+    Route::get('/rts',                        fn () => redirect()->route('sc.shipments'))->name('rts');
     Route::post('/rts/{parcel}/assign',     [\App\Http\Controllers\SortingCenter\LogisticsController::class, 'assignRts'])->name('rts.assign');
     Route::get('/rates',                      [\App\Http\Controllers\SortingCenter\LogisticsController::class, 'rates'])->name('rates');
     Route::post('/rates',                     [\App\Http\Controllers\SortingCenter\LogisticsController::class, 'updateRate'])->name('rates.update');
@@ -148,7 +149,9 @@ Route::middleware(['auth', 'is_sc', 'prevent.back'])->prefix('sc')->name('sc.')-
     Route::post('/pickup-requests/{parcel}/reject',  [\App\Http\Controllers\SortingCenterController::class, 'rejectPickup'])->name('pickup-requests.reject');
 
     // Incoming parcels
-    Route::get('/incoming-parcels',     [\App\Http\Controllers\SortingCenterController::class, 'incomingParcels'])->name('incoming-parcels');
+    // Incoming Parcels was removed from the web portal: parcels are received on the Shipment Board (old links land there).
+    // (The logistics app still reads SortingCenterController::incomingParcels through the API.)
+    Route::get('/incoming-parcels',     fn () => redirect()->route('sc.tracking'))->name('incoming-parcels');
     // Printable waybills (one parcel, or several: ?ids[]=1&ids[]=2)
     Route::get('/parcels/{parcel}/waybill', [\App\Http\Controllers\SortingCenterController::class, 'waybill'])->name('parcels.waybill');
     Route::get('/waybills',          [\App\Http\Controllers\SortingCenterController::class, 'waybills'])->name('waybills');
@@ -274,6 +277,10 @@ Route::post('/register',[RegisteredUserController::class, 'store'])->middleware(
 Route::post('/logout', [AuthenticatedSessionController::class, 'destroy'])
     ->middleware('auth')->name('logout');
 
+// Profile photo for every role (buyer, seller, courier): saved as soon as it is chosen.
+Route::post('/account/photo', [\App\Http\Controllers\ProfilePhotoController::class, 'update'])
+    ->middleware(['auth', 'throttle:20,1'])->name('account.photo');
+
 // ── Authenticated (buyer-only) ────────────────────────────────
 Route::middleware(['auth', 'buyer_only', 'prevent.back'])->group(function () {
 
@@ -318,6 +325,7 @@ Route::middleware(['auth', 'buyer_only', 'prevent.back'])->group(function () {
 
     // Buyer cancel order
     Route::post('/orders/{id}/cancel', [\App\Http\Controllers\OrderController::class, 'cancelByBuyer'])->name('orders.cancel');
+    Route::post('/orders/{id}/gcash-receipt', [\App\Http\Controllers\GcashResubmitController::class, 'store'])->whereNumber('id')->middleware('throttle:10,1')->name('orders.gcash-resubmit');
 
     // ── Buyer modules (B1–B14) ──
     Route::get('/profile/orders/{id}',            [ProfileController::class, 'orderShow'])->whereNumber('id')->name('profile.orders.show');
@@ -401,6 +409,7 @@ Route::middleware(['auth', 'role:seller,admin', 'seller.approved', 'prevent.back
 
     Route::get('/',                          [SellerDashboardController::class, 'index'])->name('dashboard');
     Route::get('/notifications',             [SellerDashboardController::class, 'notifications'])->name('notifications');
+    Route::post('/violations/{violation}/acknowledge', [SellerDashboardController::class, 'acknowledgeViolation'])->whereNumber('violation')->name('violations.acknowledge');
     Route::get('/notifications/{id}/open',   [SellerDashboardController::class, 'openNotification'])->whereNumber('id')->name('notifications.open');
     Route::post('/notifications/read-all',   [SellerDashboardController::class, 'readAllNotifications'])->name('notifications.read-all');
     Route::get('/books',                     [SellerBookController::class, 'index'])->name('books.index');
@@ -505,9 +514,17 @@ Route::middleware(['auth', 'role:admin', 'prevent.back'])
     Route::put('/categories/{id}',       [AdminCategoryController::class, 'update'])->name('categories.update');
     Route::delete('/categories/{id}',    [AdminCategoryController::class, 'destroy'])->name('categories.destroy');
 
+    // GCash paid to ALVY: check receipts, send refunds, set ALVY's QR
+    Route::get('/gcash-payments',                      [\App\Http\Controllers\Admin\GcashPaymentController::class, 'index'])->name('gcash.index');
+    Route::post('/gcash-payments/{group}/approve',     [\App\Http\Controllers\Admin\GcashPaymentController::class, 'approve'])->whereUuid('group')->name('gcash.approve');
+    Route::post('/gcash-payments/{group}/reject',      [\App\Http\Controllers\Admin\GcashPaymentController::class, 'reject'])->whereUuid('group')->name('gcash.reject');
+    Route::post('/gcash-payments/refunds/{order}',     [\App\Http\Controllers\Admin\GcashPaymentController::class, 'refunded'])->whereNumber('order')->name('gcash.refunded');
+    Route::post('/gcash-payments/account',             [\App\Http\Controllers\Admin\GcashPaymentController::class, 'updateAccount'])->name('gcash.account');
+
     Route::get('/orders',                [AdminOrderController::class, 'index'])->name('orders.index');
     Route::get('/orders/{id}',           [AdminOrderController::class, 'show'])->name('orders.show');
-    Route::patch('/orders/{id}',         [AdminOrderController::class, 'update'])->name('orders.update');
+    // Statuses follow seller → logistics → rider: these admin routes only answer "not allowed" (AdminCannotChangeShipmentStatus).
+    Route::patch('/orders/{id}',         [AdminOrderController::class, 'update'])->name('orders.update')->middleware(\App\Http\Middleware\AdminCannotChangeShipmentStatus::class);
     Route::post('/orders/{id}/dispute',  [AdminOrderController::class, 'resolveDispute'])->name('orders.dispute');
 
     // Buyer management
@@ -610,20 +627,20 @@ Route::middleware(['auth', 'role:admin', 'prevent.back'])
         Route::post('/riders/{rider}/toggle-active',     [\App\Http\Controllers\Admin\Logistics\RiderController::class, 'toggleActive'])->name('riders.toggle-active');
 
         Route::get('/pickup-requests',                   [\App\Http\Controllers\Admin\Logistics\PickupRequestController::class, 'index'])->name('pickup-requests.index');
-        Route::post('/pickup-requests/{parcel}/approve', [\App\Http\Controllers\Admin\Logistics\PickupRequestController::class, 'approve'])->name('pickup-requests.approve');
-        Route::post('/pickup-requests/{parcel}/reject',  [\App\Http\Controllers\Admin\Logistics\PickupRequestController::class, 'reject'])->name('pickup-requests.reject');
+        Route::post('/pickup-requests/{parcel}/approve', [\App\Http\Controllers\Admin\Logistics\PickupRequestController::class, 'approve'])->name('pickup-requests.approve')->middleware(\App\Http\Middleware\AdminCannotChangeShipmentStatus::class);
+        Route::post('/pickup-requests/{parcel}/reject',  [\App\Http\Controllers\Admin\Logistics\PickupRequestController::class, 'reject'])->name('pickup-requests.reject')->middleware(\App\Http\Middleware\AdminCannotChangeShipmentStatus::class);
 
         Route::get('/parcels',                           [\App\Http\Controllers\Admin\Logistics\ParcelController::class, 'index'])->name('parcels.index');
         // Must come before /parcels/{parcel}, or "sorting" is treated as a parcel ID.
         Route::get('/parcels/sorting',                   [\App\Http\Controllers\Admin\Logistics\ParcelController::class, 'sorting'])->name('parcels.sorting');
         Route::get('/parcels/{parcel}',                 [\App\Http\Controllers\Admin\Logistics\ParcelController::class, 'show'])->name('parcels.show');
-        Route::post('/parcels/{parcel}/mark-picked-up',  [\App\Http\Controllers\Admin\Logistics\ParcelController::class, 'markPickedUp'])->name('parcels.mark-picked-up');
-        Route::post('/parcels/{parcel}/sort',            [\App\Http\Controllers\Admin\Logistics\ParcelController::class, 'sort'])->name('parcels.sort');
+        Route::post('/parcels/{parcel}/mark-picked-up',  [\App\Http\Controllers\Admin\Logistics\ParcelController::class, 'markPickedUp'])->name('parcels.mark-picked-up')->middleware(\App\Http\Middleware\AdminCannotChangeShipmentStatus::class);
+        Route::post('/parcels/{parcel}/sort',            [\App\Http\Controllers\Admin\Logistics\ParcelController::class, 'sort'])->name('parcels.sort')->middleware(\App\Http\Middleware\AdminCannotChangeShipmentStatus::class);
 
         Route::get('/deliveries/assign',                 [\App\Http\Controllers\Admin\Logistics\DeliveryController::class, 'assignmentIndex'])->name('deliveries.assign-index');
-        Route::post('/deliveries/{parcel}/assign',       [\App\Http\Controllers\Admin\Logistics\DeliveryController::class, 'assign'])->name('deliveries.assign');
+        Route::post('/deliveries/{parcel}/assign',       [\App\Http\Controllers\Admin\Logistics\DeliveryController::class, 'assign'])->name('deliveries.assign')->middleware(\App\Http\Middleware\AdminCannotChangeShipmentStatus::class);
         Route::get('/deliveries/monitor',                [\App\Http\Controllers\Admin\Logistics\DeliveryController::class, 'monitor'])->name('deliveries.monitor');
-        Route::post('/deliveries/{delivery}/status',     [\App\Http\Controllers\Admin\Logistics\DeliveryController::class, 'updateStatus'])->name('deliveries.update-status');
+        Route::post('/deliveries/{delivery}/status',     [\App\Http\Controllers\Admin\Logistics\DeliveryController::class, 'updateStatus'])->name('deliveries.update-status')->middleware(\App\Http\Middleware\AdminCannotChangeShipmentStatus::class);
 
         Route::get('/reports',                           [\App\Http\Controllers\Admin\Logistics\ReportController::class, 'index'])->name('reports.index');
         Route::get('/reports/export',                    [\App\Http\Controllers\Admin\Logistics\ReportController::class, 'export'])->name('reports.export');

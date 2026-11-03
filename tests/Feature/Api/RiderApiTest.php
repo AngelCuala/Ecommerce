@@ -130,14 +130,9 @@ class RiderApiTest extends TestCase
         $this->api('POST', "/rider/deliveries/{$d->id}/fail", ['reason' => 'Lost'])->assertStatus(422)
             ->assertJsonValidationErrors(['reason' => 'Choose a reason from the list.']);
         $this->api('POST', "/rider/deliveries/{$d->id}/fail", ['reason' => 'Refused'])->assertOk()
-            ->assertJsonPath('message', $d->parcel->tracking_number . ' is Return to Sender. No further attempt.')
+            ->assertJsonPath('message', $d->parcel->tracking_number . ' could not be delivered, so the order was cancelled. Bring the parcel back to the hub.')
             ->assertJsonPath('delivery.actions.fail', false);
-
-        $parcel = $d->parcel->fresh();
-        $parcel->update(['rts_rider_id' => $this->rider1->id, 'rts_assigned_at' => now()]);
-        $this->assertSame($parcel->tracking_number, $this->api('GET', '/rider/jobs')->json('returns.0.tracking'));
-        $this->api('POST', "/rider/returns/{$parcel->id}/returned")->assertOk()
-            ->assertJsonPath('message', "{$parcel->tracking_number} handed back to the seller.")->assertJsonCount(0, 'returns');
+        $this->assertSame('cancelled', $d->parcel->fresh()->status);
     }
 
     public function test_profile_documents_and_suspended_rider(): void

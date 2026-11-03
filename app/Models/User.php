@@ -103,6 +103,12 @@ class User extends Authenticatable
         return $this->name ?? '';
     }
 
+    /** Public URL of the profile photo, or null (pages then show the first letter of the name). */
+    public function getProfilePhotoUrlAttribute(): ?string
+    {
+        return $this->profile_photo_path ? asset('storage/' . $this->profile_photo_path) : null;
+    }
+
     // ── Relationships ─────────────────────────────────────────
     public function orders(): HasMany
     {

@@ -26,16 +26,7 @@
                 <td>{{ $parcel->receiver_name }}<br><span class="text-muted" style="font-size:12px;">{{ $parcel->dropoff_address }}</span></td>
                 <td>{{ $parcel->area->name ?? '—' }}</td>
                 <td>
-                    <form method="POST" action="{{ route('admin.logistics.deliveries.assign', $parcel) }}" style="display:flex;gap:8px;">
-                        @csrf
-                        <select name="rider_id" required style="width:auto;">
-                            <option value="">— Select Rider —</option>
-                            @foreach($riders as $rider)
-                                <option value="{{ $rider->id }}">{{ $rider->full_name }} ({{ $rider->area->name ?? 'no area' }})</option>
-                            @endforeach
-                        </select>
-                        <button class="btn btn--primary btn--sm">Assign</button>
-                    </form>
+                    <span class="text-xs" style="color:#6b90aa;" data-status-locked>Follows the seller → logistics → rider process</span>
                 </td>
             </tr>
             @endforeach

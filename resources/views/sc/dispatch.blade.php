@@ -114,7 +114,7 @@
             @forelse($withRiders as $pu)
                 <tr><td>{{ $pu->parcel->tracking_number ?? '—' }}</td><td>{{ $pu->rider->full_name ?? '—' }}</td><td>{{ $pu->statusLabel() }}</td><td>{{ $pu->picked_up_at?->format('M j, g:i A') ?? '—' }}</td></tr>
             @empty
-                <tr><td colspan="4" style="text-align:center;padding:24px;color:var(--text-muted);">No pickups in progress. Riders' parcels are received under Incoming Parcels.</td></tr>
+                <tr><td colspan="4" style="text-align:center;padding:24px;color:var(--text-muted);">No pickups in progress. Riders' parcels are received on the Shipment Board.</td></tr>
             @endforelse
             </tbody>
         </table>

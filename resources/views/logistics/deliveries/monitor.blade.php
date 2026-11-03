@@ -38,18 +38,7 @@
                 <td>
                     @php $next = \App\Services\ParcelService::DELIVERY_FLOW[$d->status] ?? []; @endphp
                     @if($next)
-                    <form method="POST" action="{{ route('admin.logistics.deliveries.update-status', $d) }}" style="display:flex;flex-direction:column;gap:4px;">
-                        @csrf
-                        <div style="display:flex;gap:6px;">
-                            <select name="status" style="width:auto;" aria-label="New status">
-                                @foreach($next as $s)
-                                    <option value="{{ $s }}">{{ \App\Models\ParcelDelivery::STATUS_LABELS[$s] ?? $s }}</option>
-                                @endforeach
-                            </select>
-                            <button class="btn btn--sm btn--primary">Update</button>
-                        </div>
-                        <input type="text" name="remarks" placeholder="Override reason (10–300, logged)" minlength="10" maxlength="300" required aria-label="Override reason">
-                    </form>
+                    <span class="text-xs" style="color:#6b90aa;" data-status-locked>Follows the seller → logistics → rider process</span>
                     @else
                         <span class="text-muted">—</span>
                     @endif

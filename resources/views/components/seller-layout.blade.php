@@ -200,8 +200,17 @@ $navSections = [
 </div>
 
 {{-- Toast notifications (single pop-up, auto-dismiss) --}}
-@if (session('success') || session('error'))
+@if (session('success') || session('error') || session('warning'))
     <div id="toast-stack" class="fixed right-4 top-6 z-[100] flex w-full max-w-sm flex-col gap-2 px-2 sm:px-0">
+        @if (session('warning'))
+            {{-- Done in part (e.g. a bulk delete that skipped products with unfinished orders). --}}
+            <div class="toast flex items-start gap-3 rounded-xl border p-4 shadow-lg"
+                 style="background:#fff;border-color:rgba(217,119,6,.35);">
+                <svg class="mt-0.5 h-5 w-5 shrink-0" fill="none" stroke="#D97706" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v4m0 4h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>
+                <p class="flex-1 text-sm font-semibold" style="color:#92400E;">{{ session('warning') }}</p>
+                <button type="button" data-toast-close class="shrink-0 text-lg leading-none btn-hover-danger" style="color:#9CA3AF;" aria-label="Dismiss">&times;</button>
+            </div>
+        @endif
         @if (session('success'))
             <div class="toast flex items-start gap-3 rounded-xl border p-4 shadow-lg"
                  style="background:#fff;border-color:rgba(250,78,28,.30);">
@@ -226,5 +235,6 @@ $navSections = [
 <script src="{{ asset('js/Seller.js') }}"></script>
 <script src="{{ asset('js/prevent-back.js') }}"></script>
 <script src="{{ asset('js/logout-confirm.js') }}?v={{ filemtime(public_path('js/logout-confirm.js')) }}"></script>
+<script src="{{ asset('js/upload-progress.js') }}?v={{ filemtime(public_path('js/upload-progress.js')) }}" defer></script>
 </body>
 </html>

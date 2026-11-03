@@ -101,12 +101,10 @@ class OrderController extends Controller
         if ($order->sellerStep() !== 'new') {
             return back()->with('error', 'Only a new order can be accepted.');
         }
-        // GCash with a receipt: accepting means the seller saw the money arrive.
-        $gcash = $order->isGcashReceipt() && $order->payment_status === 'For verification';
-        $order->update(['status' => Order::PROCESSING, 'accepted_at' => now()] + ($gcash ? ['payment_status' => 'Paid'] : []));
-        \App\Models\ActivityLog::note('Order ' . $order->number() . ' accepted' . ($gcash ? ' · GCash payment confirmed' : ''), $order);
+        $order->update(['status' => Order::PROCESSING, 'accepted_at' => now()]);
+        \App\Models\ActivityLog::note('Order ' . $order->number() . ' accepted', $order);
 
-        return back()->with('success', 'Order ' . $order->number() . ' accepted' . ($gcash ? ' and its GCash payment marked as received' : '') . '. Pack it next.');
+        return back()->with('success', 'Order ' . $order->number() . ' accepted. Pack it next.');
     }
 
     /** Step 2: Accepted → Packed. */
@@ -128,7 +126,9 @@ class OrderController extends Controller
     {
         $order = $this->ownOrder($id);
         if (! $order->isCancellableBySeller()) {
-            return back()->with('error', 'This order has already been handed to the courier, so it can no longer be cancelled.');
+            return back()->with('error', $order->isGcashReceipt()
+                ? 'This order was paid to ALVY by GCash, so only ALVY can cancel it. Please message ALVY.'
+                : 'This order has already been handed to the courier, so it can no longer be cancelled.');
         }
         $data = $request->validate([
             'reason' => ['required', 'string', 'max:200'],

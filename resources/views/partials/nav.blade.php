@@ -126,9 +126,13 @@
                             onmouseover="this.style.background='rgba(255,255,255,.15)';"
                             onmouseout="this.style.background='';"
                             aria-haspopup="true" aria-expanded="false">
-                        <span class="flex h-7 w-7 items-center justify-center rounded-full text-[11px] font-bold"
-                              style="background:#fff;color:#fa4e1c;">
-                            {{ strtoupper(substr(auth()->user()->name, 0, 1)) }}
+                        <span class="flex h-7 w-7 items-center justify-center overflow-hidden rounded-full text-[11px] font-bold"
+                              style="background:#fff;color:#fa4e1c;" data-nav-avatar>
+                            <img data-photo-preview src="{{ auth()->user()->profile_photo_url }}" alt=""
+                                 class="h-full w-full object-cover" @unless (auth()->user()->profile_photo_url) style="display:none;" @endunless>
+                            @unless (auth()->user()->profile_photo_url)
+                                <span data-photo-initial>{{ strtoupper(substr(auth()->user()->name, 0, 1)) }}</span>
+                            @endunless
                         </span>
                         <span class="hidden max-w-[100px] truncate sm:inline">{{ auth()->user()->name }}</span>
                         <svg class="h-3.5 w-3.5 opacity-80" fill="currentColor" viewBox="0 0 20 20">

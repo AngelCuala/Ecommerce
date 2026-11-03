@@ -178,32 +178,21 @@ class L05TrackingAndReturnsTest extends TestCase
         $this->assertSame($this->rider2->id, (int) $parcel->fresh()->rts_rider_id);
     }
 
-    /** LOG-RTS-001 */
-    public function test_log_rts_001_rts_queue_after_three_failed_attempts(): void
+    /** LOG-RTS-001 (Return to Sender removed): the third failed attempt cancels the order; the parcel stays at the hub. */
+    public function test_log_rts_001_third_failed_attempt_cancels_the_order(): void
     {
         $parcel = $this->failedThreeTimes();
-        $this->assertSame('Return to Sender', $parcel->statusLabel());
-
-        $this->actingAs($this->logistics1)->get(route('sc.rts'))->assertOk()
-            ->assertSee('data-rts="' . $parcel->tracking_number . '"', false)
-            ->assertSeeInOrder(['Attempt 1: Buyer not home', 'Attempt 2: Wrong address', 'Attempt 3: Buyer not home']);
+        $this->assertSame('cancelled', $parcel->status);
+        $this->assertSame(Order::CANCELLED, $parcel->order->fresh()->status);
+        $this->assertStringContainsString('kept at', $parcel->order->fresh()->cancellation_reason);
+        $this->assertSame(20, $this->p02->fresh()->stock);   // the order's unit is back on the shelf
     }
 
-    /** LOG-RTS-002 */
-    public function test_log_rts_002_deliver_back_to_the_seller(): void
+    /** LOG-RTS-002: the Return to Sender page is gone; the menu has no link and old links land on Shipments. */
+    public function test_log_rts_002_return_to_sender_page_is_gone(): void
     {
-        $parcel = $this->failedThreeTimes();
-        $this->handBack($parcel);
-
-        $this->assertSame('Returned to Seller', $parcel->fresh()->statusLabel());
-        $order = $parcel->order->fresh();
-        $this->assertSame(Order::CANCELLED, $order->status);
-        $this->assertStringContainsString('Parcel returned to seller', $order->cancellation_reason);
-
-        $this->actingAs($this->buyer1)->get(route('profile.orders.show', $order->id))->assertOk()->assertSee('Order cancelled');
-        $this->actingAs($this->seller1)->get(route('seller.orders.show', $order->id))->assertOk()->assertSee('Returned, awaiting confirmation');
-        $this->actingAs($this->logistics1)->get(route('sc.rts'))->assertOk()->assertDontSee('data-rts="' . $parcel->tracking_number . '"', false)
-            ->assertSee($parcel->tracking_number);   // in the awaiting-confirmation list
+        $this->actingAs($this->logistics1)->get(route('sc.rts'))->assertRedirect(route('sc.shipments'));
+        $this->actingAs($this->logistics1)->get(route('sc.shipments'))->assertOk()->assertDontSee('Return to Sender</a>', false);
     }
 
     /** LOG-RTS-003 */

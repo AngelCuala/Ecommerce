@@ -251,18 +251,15 @@ class SharedRulesA25A37Test extends TestCase
     }
 
     /** A3: a Return-to-Sender parcel's stock comes back when the seller confirms receipt. */
-    public function test_a3_return_to_sender_restocks_on_seller_receipt(): void
+    public function test_a3_undeliverable_parcel_cancels_the_order_and_restocks(): void
     {
+        // Return to Sender was removed: a refused parcel cancels the order and stays at the hub for the seller.
         $d = $this->deliveryFor($this->rider1, 'out_for_delivery');
         $this->assertSame(19, $this->p02->fresh()->stock);
         $this->actingAs($this->rider1->user)->post(route('courier.rider.deliveries.fail', $d->id), ['reason' => 'Refused']);
-        $this->assertSame(19, $this->p02->fresh()->stock);   // not yet: the parcel is on its way back
 
-        $order = $d->parcel->order;
-        $this->actingAs($this->seller1)->get(route('seller.orders.show', $order->id))->assertSee('Confirm returned parcel received');
-        $this->actingAs($this->seller1)->post(route('seller.orders.returned-received', $order->id))->assertSessionHas('success');
-        $this->assertSame('returned', $d->parcel->fresh()->status);
-        $this->assertSame(Order::CANCELLED, $order->fresh()->status);
+        $this->assertSame('cancelled', $d->parcel->fresh()->status);
+        $this->assertSame(Order::CANCELLED, $d->parcel->order->fresh()->status);
         $this->assertSame(20, $this->p02->fresh()->stock);
     }
 
@@ -277,17 +274,18 @@ class SharedRulesA25A37Test extends TestCase
         $log = \App\Models\ActivityLog::where('action', 'sc.deliveries.update-status')->where('status', 'success')->latest('id')->first();
         $this->assertSame(['Assigned', 'Out for Delivery', 'Rider phone is broken, updating for him'], [$log->old_value, $log->new_value, $log->reason]);
 
+        // Admins can't change an order's status by hand: it follows seller → logistics → rider.
         $admin = $this->account('admin', 'admin@alvy.test', 'Admin');
         $order = $d->parcel->order;
-        $this->actingAs($admin)->patch(route('admin.orders.update', $order->id), ['status' => 'Delivered'])->assertSessionHasErrors('reason');
-        $this->actingAs($admin)->patch(route('admin.orders.update', $order->id), ['status' => 'Delivered', 'reason' => 'Buyer confirmed by phone call'])->assertSessionHas('success');
-        $log = \App\Models\ActivityLog::where('action', 'admin.orders.update')->latest('id')->first();
-        $this->assertSame([Order::SHIPPED, 'Delivered', 'Buyer confirmed by phone call'], [$log->old_value, $log->new_value, $log->reason]);
+        $this->actingAs($admin)->patch(route('admin.orders.update', $order->id), ['status' => 'Delivered', 'reason' => 'Buyer confirmed by phone call'])
+            ->assertSessionHas('error', \App\Http\Middleware\AdminCannotChangeShipmentStatus::MESSAGE);
+        $this->assertSame(Order::SHIPPED, $order->fresh()->status);
+        $this->actingAs($admin)->get(route('admin.orders.show', $order->id))->assertOk()->assertSee('data-status-locked', false);
 
         // The log has no edit or delete routes.
         $this->assertFalse(\Illuminate\Support\Facades\Route::has('admin.activity.destroy'));
         $this->assertFalse(\Illuminate\Support\Facades\Route::has('admin.activity.update'));
-        $this->actingAs($admin)->get(route('admin.activity.index'))->assertOk()->assertSee('Buyer confirmed by phone call');
+        $this->actingAs($admin)->get(route('admin.activity.index'))->assertOk()->assertSee('Rider phone is broken, updating for him');
     }
 
     /** A36: the admin seller-sales report exports as CSV and XLSX. */

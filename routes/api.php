@@ -57,6 +57,7 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
     });
     Route::middleware(['auth:sanctum', 'api.seller', 'api.session'])->prefix('seller')->name('seller.')->group(function () {
         Route::get('/dashboard',                     [Seller\PanelController::class, 'dashboard'])->name('dashboard');
+        Route::post('/violations/{violation}/acknowledge', [Seller\PanelController::class, 'acknowledgeViolation'])->whereNumber('violation')->name('violations.acknowledge');
         Route::get('/reports',                       [Seller\PanelController::class, 'reports'])->name('reports');
         Route::get('/reports/export',                [Seller\PanelController::class, 'exportReport'])->name('reports.export');
         Route::get('/commissions',                   [Seller\PanelController::class, 'commissions'])->name('commissions');
@@ -326,6 +327,7 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         Route::get('/orders/{id}/payment-proof',  [\App\Http\Controllers\Api\V1\OrderFilesController::class, 'paymentProof'])->whereNumber('id')->name('orders.payment-proof');
         Route::get('/orders/{id}/proof-of-delivery', [\App\Http\Controllers\Api\V1\OrderFilesController::class, 'proofOfDelivery'])->whereNumber('id')->name('orders.pod');
         Route::post('/orders/{id}/cancel',        [Buyer\ShoppingController::class, 'cancel'])->name('orders.cancel');
+        Route::post('/orders/{id}/gcash-receipt', [Buyer\ShoppingController::class, 'gcashResubmit'])->whereNumber('id')->middleware('throttle:10,1')->name('orders.gcash-resubmit');
         Route::post('/orders/{id}/received',      [Buyer\ShoppingController::class, 'confirmReceived'])->name('orders.received');
         Route::post('/orders/{id}/return',        [Buyer\ShoppingController::class, 'requestReturn'])->name('orders.return');
         Route::post('/orders/{id}/escalate',      [Buyer\ShoppingController::class, 'escalate'])->name('orders.escalate');

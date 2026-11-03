@@ -118,10 +118,39 @@
 
                     <div class="mt-5 border-t pt-4" style="border-color:#F2EEEA;">
                         <label class="pf-label" for="video">Video <span class="opt">— optional, MP4, MOV or WebM up to 20 MB</span></label>
-                        <input type="file" id="video" name="video" accept="video/mp4,video/quicktime,video/webm" class="file-input">
+                        <input type="file" id="video" name="video" accept="video/mp4,video/quicktime,video/webm" class="file-input" data-video-input>
+                        @error('video')<p class="pf-error" style="color:#B91C1C;font-size:.8rem;margin-top:.25rem;">{{ $message }}</p>@enderror
+                        <p class="pf-note" data-video-status style="display:none;"></p>
+                        {{-- Preview: the saved video, or the one just chosen (replaces it on Save). --}}
+                        <video data-video-preview controls playsinline preload="metadata" class="mt-2 w-full max-w-sm rounded-lg border bg-black"
+                               style="border-color:#E7E5E4;max-height:240px;{{ $isEdit && $book->video_path ? '' : 'display:none;' }}"
+                               @if ($isEdit && $book->video_path) src="{{ asset('storage/' . $book->video_path) }}" @endif></video>
                         @if ($isEdit && $book->video_path)
-                            <p class="pf-note">Current video: {{ basename($book->video_path) }}</p>
+                            <label class="mt-2 flex items-center gap-2 text-sm" style="color:#57534E;" data-video-remove>
+                                <input type="checkbox" name="remove_video" value="1" class="h-4 w-4"> Remove this video
+                            </label>
                         @endif
+                        <script>
+                        (function () {
+                            // Check the size before uploading (the server refuses over 20 MB) and preview the chosen video.
+                            var input = document.querySelector('[data-video-input]'), preview = document.querySelector('[data-video-preview]'),
+                                status = document.querySelector('[data-video-status]'), saved = preview.getAttribute('src');
+                            input.addEventListener('change', function () {
+                                var f = input.files && input.files[0];
+                                status.style.display = 'none';
+                                if (!f) { if (saved) { preview.src = saved; } else { preview.style.display = 'none'; } return; }
+                                if (f.size > 20 * 1024 * 1024) {
+                                    input.value = '';
+                                    status.textContent = 'This video is ' + (f.size / 1048576).toFixed(1) + ' MB. The limit is 20 MB: trim or compress it first.';
+                                    status.style.color = '#B91C1C'; status.style.display = '';
+                                    return;
+                                }
+                                preview.src = URL.createObjectURL(f); preview.style.display = '';
+                                status.textContent = 'New video: ' + f.name + ' (' + (f.size / 1048576).toFixed(1) + ' MB). It uploads when you save.';
+                                status.style.color = ''; status.style.display = '';
+                            });
+                        })();
+                        </script>
                     </div>
                 </section>
 

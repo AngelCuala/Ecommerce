@@ -126,7 +126,7 @@ class SellerJson
                 'price' => (float) $i->price, 'quantity' => (int) $i->quantity, 'image_url' => ApiJson::file($i->product?->image),
                 'refunded' => $i->refunded_at ? (float) $i->refund_amount : null,
             ])->values(),
-            // The website's Shipment tracking card, and GCash paid by receipt (accepting the order confirms the money arrived).
+            // The website's Shipment tracking card, and GCash paid to ALVY (an admin confirmed it before the seller saw the order).
             'tracking' => ApiJson::tracking($order),
             'payment' => ['method' => $order->paymentMethodLabel(), 'status' => $order->payment_status],
             'gcash' => $order->isGcashReceipt() ? [
@@ -160,7 +160,7 @@ class SellerJson
                 'pack'            => in_array($order->status, ['Pending', 'Processing'], true) && $step === 'accepted',
                 'book_pickup'     => ! in_array($order->status, Order::LOGISTICS_DONE, true) && $canBook,
                 'waybill'         => $order->canPrintWaybill(),
-                'accept_label'    => $order->isGcashReceipt() && $order->payment_status === 'For verification' ? 'Payment received · Accept order' : 'Accept order',
+                'accept_label'    => 'Accept order',
                 'cancel'          => in_array($order->status, ['Pending', 'Processing'], true) && $order->isCancellableBySeller(),
                 'cancel_reasons'  => Order::SELLER_CANCEL_REASONS,
                 'handed_over'     => ! in_array($order->status, Order::LOGISTICS_DONE, true) && $delivery?->status === 'accepted',

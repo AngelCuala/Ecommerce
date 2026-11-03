@@ -184,6 +184,7 @@
                         <div class="co-row co-off {{ ($q['seller_discounts'][$sellerId] ?? 0) > 0 ? '' : 'hidden' }}" data-store-discount-row="{{ $sellerId }}">
                             <span>Store voucher</span><span data-store-discount="{{ $sellerId }}">−{{ $peso($q['seller_discounts'][$sellerId] ?? 0) }}</span>
                         </div>
+
                     </div>
                 </section>
             @endforeach
@@ -198,52 +199,65 @@
                         <span class="block text-xs" style="color:#8a7f78;">Pay in cash when each parcel arrives. No advance payment needed.</span>
                     </span>
                 </label>
-                @if ($gcashAccount)
+                @if ($gcash)
                     <label class="co-addr mb-2">
                         <input type="radio" name="payment_method" value="gcash_receipt" class="mt-1 accent-orange-600" @checked(old('payment_method') === 'gcash_receipt') data-gcash-radio>
                         <span class="text-sm">
                             <span class="font-semibold" style="color:#222;">GCash</span>
-                            <span class="block text-xs" style="color:#8a7f78;">Send the total to our GCash, then upload a screenshot of the receipt. The seller checks it before shipping.</span>
+                            <span class="block text-xs" style="color:#8a7f78;">Scan ALVY's GCash QR, send the total, then upload the receipt and its Ref No. ALVY checks the payment, then the {{ count($summary['groups']) > 1 ? 'sellers prepare' : 'seller prepares' }} your order.</span>
                         </span>
                     </label>
+
+                    {{-- GCash (shown when GCash is chosen): ALVY's QR, the total, and the receipt for it. --}}
                     <div class="mb-2 hidden rounded-xl border p-4" style="border-color:#BFDBFE;background:#F5F9FF;" data-gcash-box>
-                        <div class="flex flex-wrap items-center gap-3">
-                            <span class="flex h-10 w-10 items-center justify-center rounded-xl font-display text-sm font-extrabold" style="color:#fff;background:#007DFE;" aria-hidden="true">G</span>
-                            <div class="min-w-0 flex-1 text-sm">
-                                <p style="color:#1E3A8A;">Send <strong data-gcash-amount>{{ $peso($q['total']) }}</strong> to</p>
-                                <p class="font-mono text-base font-bold" style="color:#0B2A5B;">{{ $gcashAccount['number'] }}
-                                    <button type="button" class="ml-1 rounded px-1.5 py-0.5 align-middle font-sans text-[11px] font-semibold" style="color:#007DFE;background:#E0EDFF;"
-                                            onclick="navigator.clipboard && navigator.clipboard.writeText('{{ $gcashAccount['number'] }}').then(() => { this.textContent = 'Copied'; setTimeout(() => this.textContent = 'Copy', 1500); })">Copy</button>
-                                </p>
-                                <p class="text-xs" style="color:#3B5B8C;">{{ $gcashAccount['name'] }}</p>
+                        <p class="mb-3 flex items-center gap-2 text-sm font-bold" style="color:#0B2A5B;">
+                            <span class="flex h-6 w-6 items-center justify-center rounded-md text-xs font-extrabold" style="color:#fff;background:#007DFE;" aria-hidden="true">G</span>
+                            Pay ALVY with GCash
+                        </p>
+                        <div class="grid gap-4 sm:grid-cols-[150px_1fr]">
+                            <a href="{{ $gcash['qr_url'] }}" target="_blank" rel="noopener" title="Open the QR bigger">
+                                <img src="{{ $gcash['qr_url'] }}" alt="ALVY GCash QR" class="w-full rounded-lg border bg-white object-contain" style="border-color:#BFDBFE;" data-gcash-qr>
+                            </a>
+                            <div class="min-w-0 space-y-3">
+                                <div class="text-sm" style="color:#1E3A8A;">
+                                    <p>Scan the QR in your GCash app and send exactly</p>
+                                    <p class="font-display text-2xl font-extrabold" style="color:#0B2A5B;" data-gcash-pay>{{ $peso($gcashTotal) }}</p>
+                                    <p class="text-xs" style="color:#3B5B8C;">to {{ $gcash['name'] }}@if ($gcash['number']) · <span class="font-mono">{{ $gcash['number'] }}</span>
+                                        <button type="button" class="ml-1 rounded px-1.5 py-0.5 font-sans text-[11px] font-semibold" style="color:#007DFE;background:#E0EDFF;"
+                                                onclick="navigator.clipboard && navigator.clipboard.writeText('{{ $gcash['number'] }}').then(() => { this.textContent = 'Copied'; setTimeout(() => this.textContent = 'Copy', 1500); })">Copy</button>@endif
+                                    </p>
+                                    <p class="mt-1 text-xs" style="color:#3B5B8C;" data-gcash-exact>Send this exact amount, centavos included: they mark your payment so ALVY finds it fast. ALVY covers the centavos below your total (<span data-gcash-orders>₱{{ number_format($gcashOrders, 2) }}</span>).</p>
+                                    @if (count($summary['groups']) > 1)
+                                        <p class="mt-1 text-xs" style="color:#3B5B8C;">One payment for all {{ count($summary['groups']) }} stores, shipping included.</p>
+                                    @endif
+                                </div>
+                                <div>
+                                    <label class="mb-1 block text-xs font-semibold" style="color:#1E3A8A;" for="gcash-proof">Screenshot of the GCash receipt *</label>
+                                    <input type="file" id="gcash-proof" name="payment_proof" accept="image/jpeg,image/png,image/webp" data-gcash-file
+                                           class="block w-full rounded-lg border bg-white px-3 py-2 text-xs" style="border-color:#BFDBFE;">
+                                    @error('payment_proof')<p class="mt-1 text-xs font-medium" style="color:#B91C1C;">{{ $message }}</p>@else<p class="mt-1 text-[11px]" style="color:#5B7BA8;">JPG, PNG or WebP, up to 5 MB. The amount and Ref No. must be visible.</p>@enderror
+                                    <img alt="Receipt preview" class="mt-2 hidden max-h-40 rounded-lg border" style="border-color:#BFDBFE;" data-gcash-preview>
+                                </div>
+                                <div>
+                                    <label class="mb-1 block text-xs font-semibold" style="color:#1E3A8A;" for="gcash-ref">GCash Ref No. *</label>
+                                    {{-- Numbers only: anything else is removed as it is typed or pasted. --}}
+                                    <input type="text" id="gcash-ref" name="payment_reference" value="{{ old('payment_reference') }}" inputmode="numeric" maxlength="13" pattern="\d{13}"
+                                           title="The 13 numbers of the GCash Ref No." data-gcash-ref oninput="this.value = this.value.replace(/\D/g, '').slice(0, 13)"
+                                           placeholder="13 numbers, e.g. 1012345678901" autocomplete="off" class="block w-full rounded-lg border bg-white px-3 py-2 font-mono text-sm" style="border-color:#BFDBFE;">
+                                    @error('payment_reference')<p class="mt-1 text-xs font-medium" style="color:#B91C1C;">{{ $message }}</p>@enderror
+                                </div>
                             </div>
                         </div>
-                        <div class="mt-4 grid gap-3 sm:grid-cols-[1fr_200px]">
-                            <div>
-                                <label class="mb-1 block text-xs font-semibold" style="color:#1E3A8A;" for="payment_proof">Screenshot of the GCash receipt</label>
-                                <input type="file" id="payment_proof" name="payment_proof" accept="image/jpeg,image/png,image/webp" data-gcash-file
-                                       class="block w-full rounded-lg border bg-white px-3 py-2 text-xs" style="border-color:#BFDBFE;">
-                                <p class="mt-1 text-[11px]" style="color:#5B7BA8;">JPG, PNG or WebP, up to 5 MB. Make sure the amount and Ref No. are visible.</p>
-                                @error('payment_proof')<p class="mt-1 text-xs font-medium" style="color:#B91C1C;">{{ $message }}</p>@enderror
-                            </div>
-                            <div>
-                                <label class="mb-1 block text-xs font-semibold" style="color:#1E3A8A;" for="payment_reference">Ref No. <span class="font-normal">(optional)</span></label>
-                                <input type="text" id="payment_reference" name="payment_reference" value="{{ old('payment_reference') }}" inputmode="numeric" maxlength="20"
-                                       placeholder="e.g. 1012 345 678901" class="block w-full rounded-lg border bg-white px-3 py-2 text-sm" style="border-color:#BFDBFE;">
-                                @error('payment_reference')<p class="mt-1 text-xs font-medium" style="color:#B91C1C;">{{ $message }}</p>@enderror
-                            </div>
-                        </div>
-                        <img alt="Receipt preview" class="mt-3 hidden max-h-48 rounded-lg border" style="border-color:#BFDBFE;" data-gcash-preview>
                     </div>
                     <script>
                     (function () {
-                        var box = document.querySelector('[data-gcash-box]'), file = document.querySelector('[data-gcash-file]');
-                        var preview = document.querySelector('[data-gcash-preview]'), amount = document.querySelector('[data-gcash-amount]');
-                        var total = document.querySelector('[data-total="total"]');
+                        // GCash chosen: show ALVY's QR box; the receipt and Ref No. become required.
+                        var box = document.querySelector('[data-gcash-box]');
+                        var file = box.querySelector('[data-gcash-file]'), preview = box.querySelector('[data-gcash-preview]');
                         function sync() {
                             var on = document.querySelector('[data-gcash-radio]').checked;
                             box.classList.toggle('hidden', !on);
-                            file.required = on;   // the receipt is needed only for GCash
+                            box.querySelectorAll('[data-gcash-file], [data-gcash-ref]').forEach(function (i) { i.required = on; });
                         }
                         document.querySelectorAll('input[name="payment_method"]').forEach(function (r) { r.addEventListener('change', sync); });
                         file.addEventListener('change', function () {
@@ -251,8 +265,6 @@
                             if (!f) { preview.classList.add('hidden'); return; }
                             preview.src = URL.createObjectURL(f); preview.classList.remove('hidden');
                         });
-                        // The amount to send follows the order total (vouchers, address changes).
-                        if (total) new MutationObserver(function () { amount.textContent = total.textContent; }).observe(total, { childList: true, characterData: true, subtree: true });
                         sync();
                     })();
                     </script>
@@ -341,6 +353,6 @@
 
 </div>
 
-<script src="{{ asset('js/checkout.js') }}?v=7"></script>
+<script src="{{ asset('js/checkout.js') }}?v=10"></script>
 <script src="{{ asset('js/voucher-picker.js') }}?v=2"></script>
 </x-layout>

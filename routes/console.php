@@ -25,3 +25,6 @@ Schedule::command('products:thumbs')->everyTenMinutes()->withoutOverlapping();
 
 // Hub-to-hub transfers not received in time are flagged for investigation (also checked when boards open).
 Schedule::command('shipments:flag-delayed')->everyFifteenMinutes();
+
+// GCash payments to ALVY: the AI reads new receipts for the admin; payments unchecked for 24 hours get a reminder.
+Schedule::command('gcash:check')->everyMinute()->withoutOverlapping();

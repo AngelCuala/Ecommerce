@@ -24,9 +24,11 @@ class OrderController extends Controller
         $order = Order::where('user_id', auth()->id())->findOrFail($id);
 
         if (! $order->isCancellableByBuyer()) {
-            return back()->with('error', $order->isReadyForPickup()
+            return back()->with('error', $order->isGcashReceipt()
+                ? 'GCash orders cannot be cancelled here because GCash payments are not refunded. Please message ALVY if there is a problem.'
+                : ($order->isReadyForPickup()
                 ? 'This order is already ready for pickup, so it can no longer be cancelled. Please message the seller.'
-                : 'This order can no longer be cancelled.');
+                : 'This order can no longer be cancelled.'));
         }
 
         $request->validate([

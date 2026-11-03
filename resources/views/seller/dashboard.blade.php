@@ -31,6 +31,21 @@
     .db-dot { width:.5rem; height:.5rem; border-radius:999px; display:inline-block; margin-right:.5rem; }
 </style>
 
+{{-- Warnings from ALVY (Admin → Reports & Complaints) stay here until the seller acknowledges them. --}}
+@foreach (\App\Models\SellerViolation::where('seller_id', $me->id)->where('acknowledged', false)->with('product:id,title')->latest()->get() as $v)
+    <div class="mb-4 flex flex-wrap items-start gap-3 rounded-xl border p-4" style="background:#FEF2F2;border-color:#FCA5A5;" data-violation-warning>
+        <svg class="mt-0.5 h-5 w-5 shrink-0" style="color:#DC2626;" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v4m0 4h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>
+        <div class="min-w-0 flex-1 text-sm">
+            <p class="font-bold" style="color:#991B1B;">{{ \App\Models\SellerViolation::actionLabels()[$v->action] ?? 'Warning' }} from ALVY · {{ \App\Models\SellerViolation::typeLabels()[$v->type] ?? $v->type }}</p>
+            <p class="mt-0.5" style="color:#7F1D1D;">@if ($v->product)"{{ $v->product->title }}": @endif{{ $v->note }}</p>
+            <p class="mt-1 text-xs" style="color:#B91C1C;">{{ $v->created_at->format('M j, Y g:i A') }} · Repeated violations can lead to suspension.</p>
+        </div>
+        <form method="POST" action="{{ route('seller.violations.acknowledge', $v->id) }}">@csrf
+            <button class="rounded-lg px-3 py-1.5 text-xs font-semibold text-white" style="background:#DC2626;">I understand</button>
+        </form>
+    </div>
+@endforeach
+
 <div class="mx-auto max-w-6xl space-y-5" x-data="{ custom: {{ $range->period === 'custom' ? 'true' : 'false' }} }">
 
     {{-- Header + period --}}

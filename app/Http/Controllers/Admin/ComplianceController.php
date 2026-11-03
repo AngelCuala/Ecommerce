@@ -67,9 +67,24 @@ class ComplianceController extends Controller
 
         $data['admin_id'] = auth()->id();
 
-        SellerViolation::create($data);
+        $violation = SellerViolation::create($data);
 
         $seller = User::findOrFail($data['seller_id']);
+
+        // The seller is told right away (notification) and sees it on their dashboard until they acknowledge it.
+        $what = SellerViolation::typeLabels()[$data['type']] ?? 'Policy violation';
+        $product = $violation->product?->title;
+        \App\Models\UserNotification::create([
+            'user_id' => $seller->id, 'type' => 'warning',
+            'title'   => $data['action'] === 'warning' ? 'Warning from ALVY: ' . $what : 'ALVY took action on your account: ' . $what,
+            'body'    => ($product ? '"' . $product . '": ' : '') . $data['note']
+                . match ($data['action']) {
+                    'account_suspended'   => ' Your account is suspended.',
+                    'account_deactivated' => ' Your account is deactivated.',
+                    default               => ' Please fix this to avoid further action.',
+                },
+            'link'    => route('seller.dashboard', [], false),
+        ]);
 
         // Execute the action
         match ($data['action']) {
@@ -79,7 +94,7 @@ class ComplianceController extends Controller
         };
 
         return back()->with('success',
-            ucfirst($data['action']) . ' applied to ' . $seller->name . '.'
+            (SellerViolation::actionLabels()[$data['action']] ?? ucfirst($data['action'])) . ' sent to ' . $seller->name . '. They were notified and see it on their dashboard.'
         );
     }
 

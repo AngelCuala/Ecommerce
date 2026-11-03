@@ -105,6 +105,7 @@ class RiderJson
         return [
             'id' => $d->id, 'tracking' => $p?->tracking_number, 'waybill' => $p?->waybill_number, 'status' => $d->status, 'status_label' => $d->statusLabel(),
             'receiver' => $p?->receiver_name, 'address' => $p?->dropoff_address,
+            'maps_url' => $p?->mapsUrl(), 'has_pin' => (bool) $p?->hasMapPin(),
             'attempt' => (int) $d->attempt, 'max_attempts' => ParcelDelivery::MAX_ATTEMPTS,
             'acknowledged' => (bool) $d->acknowledged_at, 'updated_at' => $d->updated_at?->toIso8601String(),
         ];

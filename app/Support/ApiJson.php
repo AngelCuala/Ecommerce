@@ -149,6 +149,7 @@ class ApiJson
                 'price' => round((float) $upcoming->flash_price, 2), 'quantity' => (int) $upcoming->quantity, 'reminded' => (bool) ($d['reminded'] ?? false)] : null,
             'details'  => $details,
             'specs'    => is_array($product->specs) ? array_filter($product->specs, fn ($v) => $v !== null && $v !== '') : [],
+            'video_url' => $product->video_path ? self::file($product->video_path) : null,
             'rating'   => $product->rating_avg,
             'rating_count'     => $product->rating_count,
             'rating_breakdown' => collect(range(5, 1))->mapWithKeys(fn ($s) => [$s => (int) ($d['ratingBreakdown'][$s] ?? 0)])->all(),
@@ -280,6 +281,34 @@ class ApiJson
         ];
     }
 
+    /**
+     * GCash paid to ALVY, as the order page shows it: being checked, or rejected with why, how to fix it and
+     * the QR/amount to upload the right receipt (POST orders/{id}/gcash-receipt). null for other payments.
+     */
+    public static function gcash(Order $order): ?array
+    {
+        if (! $order->isGcashReceipt()) {
+            return null;
+        }
+        $check = $order->payment_check ?? [];
+        $rejected = $order->status === Order::AWAITING_PAYMENT && $order->payment_status === 'Rejected';
+        $group = Order::where('checkout_group', $order->checkout_group)->get();
+        $account = \App\Support\AlvyGcash::account();
+
+        return [
+            'state'      => $order->status === Order::AWAITING_PAYMENT ? ($rejected ? 'rejected' : 'checking') : strtolower((string) $order->payment_status),
+            'reference'  => $order->payment_reference,
+            'amount'     => (float) ($order->payment_expected ?? $group->sum('total_price')),
+            'orders'     => $group->map->number()->values()->all(),
+            'problems'   => $rejected ? array_map(fn ($p) => ['reason' => $p['reason'], 'fix' => $p['fix']], $check['rejection']['problems'] ?? []) : [],
+            'fix_by'     => $rejected && ! empty($check['fix_by']) ? \Illuminate\Support\Carbon::parse($check['fix_by'])->toIso8601String() : null,
+            'try'        => (int) ($check['tries'] ?? 1),
+            'max_tries'  => \App\Services\GcashChecks::MAX_TRIES,
+            'can_resubmit' => $rejected,
+            'account'    => $rejected && $account ? $account : null,
+        ];
+    }
+
     public static function orderDetail(Order $order): array
     {
         $return = $order->returnRequests->first();
@@ -332,6 +361,7 @@ class ApiJson
             ] : null,
             'tracking' => self::tracking($order),
             'payment_proof' => $order->payment_proof_path ? ['reference' => $order->payment_reference, 'has_file' => true] : null,
+            'gcash' => self::gcash($order),
             'timeline' => $order->events->map(fn ($e) => [
                 'label' => self::EVENT_LABELS[$e->status] ?? $e->status, 'note' => $e->note, 'at' => $e->created_at?->toIso8601String(),
             ])->values()->all(),

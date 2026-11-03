@@ -167,15 +167,15 @@ class R05DeliveryFailedAndEarningsTest extends TestCase
     }
 
     /** RID-FAIL-003 (A13) */
-    public function test_rid_fail_003_refused_goes_straight_to_return_to_sender(): void
+    public function test_rid_fail_003_refused_cancels_the_order_at_once(): void
     {
         $d = $this->deliveryFor($this->rider1, 'out_for_delivery');
-        $this->markFailed($d, 'Refused')->assertSessionHas('success', fn ($m) => str_contains($m, 'Return to Sender'));
+        $this->markFailed($d, 'Refused')->assertSessionHas('success', fn ($m) => str_contains($m, 'the order was cancelled'));
         $parcel = $d->parcel->fresh();
-        $this->assertSame('return_to_sender', $parcel->status);
-        $this->assertSame('Return to Sender', $parcel->statusLabel());
+        $this->assertSame('cancelled', $parcel->status);
+        $this->assertSame(\App\Models\Order::CANCELLED, $parcel->order->fresh()->status);
         $this->actingAs($this->logistics1)->post(route('sc.deliveries.reschedule', $d->id))->assertSessionHas('error');
-        $this->assertSame('return_to_sender', $parcel->fresh()->status);
+        $this->assertSame('cancelled', $parcel->fresh()->status);
     }
 
     /** RID-FAIL-004 (A13) */
@@ -199,7 +199,7 @@ class R05DeliveryFailedAndEarningsTest extends TestCase
     }
 
     /** RID-FAIL-005 (A13) */
-    public function test_rid_fail_005_return_to_sender_after_the_third_attempt(): void
+    public function test_rid_fail_005_the_third_failed_attempt_cancels_the_order(): void
     {
         $this->online($this->rider1);
         $parcel = $this->parcel('sorted');
@@ -212,11 +212,11 @@ class R05DeliveryFailedAndEarningsTest extends TestCase
             }
         }
 
-        $this->assertSame('return_to_sender', $parcel->fresh()->status);
+        $this->assertSame('cancelled', $parcel->fresh()->status);
         $this->actingAs($this->logistics1)->post(route('sc.deliveries.reschedule', $d->id))->assertSessionHas('error');
         $this->assertNull(app(\App\Services\RiderDispatch::class)->jobKind($parcel->fresh()));   // no 4th attempt
-        $this->assertTrue(UserNotification::where('user_id', $this->buyer1->id)->where('title', 'Returning to seller')->exists());
-        $this->assertTrue(UserNotification::where('user_id', $this->seller1->id)->where('title', 'Parcel returning to you')->exists());
+        $this->assertTrue(UserNotification::where('user_id', $this->buyer1->id)->where('title', 'Order cancelled')->exists());
+        $this->assertTrue(UserNotification::where('user_id', $this->seller1->id)->where('title', 'like', '%cancelled')->exists());
     }
 
     // ── R7 History, Earnings & COD Remittance ───────────────────

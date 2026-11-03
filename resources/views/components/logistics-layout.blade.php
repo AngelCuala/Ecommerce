@@ -56,5 +56,6 @@
 <script src="{{ asset('js/Logistics.js') }}"></script>
 <script src="{{ asset('js/prevent-back.js') }}"></script>
 <script src="{{ asset('js/logout-confirm.js') }}?v={{ filemtime(public_path('js/logout-confirm.js')) }}"></script>
+<script src="{{ asset('js/upload-progress.js') }}?v={{ filemtime(public_path('js/upload-progress.js')) }}" defer></script>
 </body>
 </html>

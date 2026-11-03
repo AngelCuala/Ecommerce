@@ -3,7 +3,6 @@
 namespace App\Services\Assistant;
 
 use App\Http\Controllers\CartController;
-use App\Http\Controllers\CheckoutController;
 use App\Http\Controllers\OrderController;
 use App\Models\Message;
 use App\Models\Order;
@@ -368,9 +367,9 @@ PROMPT;
             return $lines->isEmpty() ? 'There are no promotions running right now. Check back soon!' : "Here's what's on promo now:\n" . $lines->take(8)->implode("\n") . "\n\nClaim vouchers at /my-vouchers.";
         }
         if ($has(['pay', 'gcash', 'cod', 'cash', 'bayad', 'checkout'])) {
-            $gcash = CheckoutController::gcashAccount();
+            $gcash = \App\Support\AlvyGcash::enabled();
             return 'You can pay with **Cash on Delivery**: pay the rider when your parcel arrives.'
-                . ($gcash ? ' You can also pay with **GCash**: send the total to the GCash number shown at checkout, then upload a screenshot of the receipt. The seller checks it before shipping.' : '');
+                . ($gcash ? ' You can also pay with **GCash**: at checkout, scan ALVY\'s GCash QR, send the total shown, then upload the receipt screenshot and its Ref No. ALVY checks it, then the seller prepares your order.' : '');
         }
         if ($has(['return', 'refund', 'damaged', 'sira', 'wrong item', 'ibalik'])) {
             return Order::returnsEnabled()

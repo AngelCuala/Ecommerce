@@ -9,7 +9,8 @@ use Illuminate\Support\Facades\Storage;
 
 /**
  * Store Settings: what buyers see on the store page (name, description, logo, banner),
- * the contact number and pickup address used on waybills, and vacation mode.
+ * the contact number and pickup address used on waybills, vacation mode, and the store's GCash QR
+ * (buyers scan it at checkout and upload the receipt).
  */
 class StoreSettingsController extends Controller
 {
@@ -58,6 +59,11 @@ class StoreSettingsController extends Controller
             'logo'              => self::IMAGE_RULES,
             'banner'            => self::IMAGE_RULES,
             'is_on_vacation'    => 'nullable|boolean',
+            // GCash at checkout: the store's permanent QR (a screenshot from the GCash app works).
+            'gcash_qr'          => ['nullable', 'file', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
+            'gcash_name'        => 'nullable|string|max:60',
+            'gcash_number'      => ['nullable', 'regex:/^09\d{9}$/'],
+            'remove_gcash_qr'   => 'nullable|boolean',
         ], [
             'shop_name.required' => 'Please enter your store name.',
             'shop_name.min'      => 'Store name must be 3 to 30 characters.',
@@ -80,6 +86,10 @@ class StoreSettingsController extends Controller
             'banner.mimes'       => 'The banner must be a JPG or PNG image.',
             'banner.mimetypes'   => 'The banner must be a JPG or PNG image.',
             'banner.max'         => 'The banner must be 5 MB or smaller.',
+            'gcash_qr.image'     => 'The GCash QR must be a JPG, PNG or WebP image.',
+            'gcash_qr.mimes'     => 'The GCash QR must be a JPG, PNG or WebP image.',
+            'gcash_qr.max'       => 'The GCash QR must be 5 MB or smaller.',
+            'gcash_number.regex' => 'Please enter the GCash number: 11 digits starting with 09 (e.g. 09171234567).',
         ]);
 
         // Store name: still at most 3 changes per calendar month.
@@ -105,6 +115,27 @@ class StoreSettingsController extends Controller
                 }
                 $updates[$field . '_path'] = $request->file($field)->store($dir, 'public');
             }
+        }
+
+        // GCash QR: a new upload replaces the old one; "Remove" turns GCash off for this store.
+        // The old file is deleted only when no other store uses it (the demo stores share one sample QR).
+        $dropOldQr = function () use ($application) {
+            $old = $application->gcash_qr_path;
+            if ($old && ! SellerApplication::where('gcash_qr_path', $old)->where('id', '!=', $application->id)->exists()) {
+                Storage::disk('public')->delete($old);
+            }
+        };
+        if ($request->hasFile('gcash_qr')) {
+            $dropOldQr();
+            $updates['gcash_qr_path'] = $request->file('gcash_qr')->store('gcash-qr', 'public');
+        } elseif ($request->boolean('remove_gcash_qr') && $application->gcash_qr_path) {
+            $dropOldQr();
+            $updates['gcash_qr_path'] = null;
+        }
+        // Only a form that has the GCash fields changes them (the app's Store Settings doesn't send them yet).
+        if ($request->has('gcash_name') || $request->has('gcash_number')) {
+            $updates['gcash_name']   = trim((string) ($data['gcash_name'] ?? '')) ?: null;
+            $updates['gcash_number'] = $data['gcash_number'] ?? null;
         }
 
         $application->update($updates + [

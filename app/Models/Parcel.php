@@ -88,8 +88,10 @@ class Parcel extends Model
         'missing_in_transit' => ['picked_up', 'lost'],
         'in_transfer'       => ['picked_up', 'lost', 'damaged'],
         'assigned'          => ['in_transit', 'sorted', 'failed', 'return_to_sender', 'lost', 'damaged'],
-        'in_transit'        => ['delivered', 'failed', 'return_to_sender', 'lost', 'damaged'],
-        'failed'            => ['sorted', 'assigned', 'return_to_sender', 'lost', 'damaged'],
+        'in_transit'        => ['delivered', 'failed', 'return_to_sender', 'cancelled', 'lost', 'damaged'],
+        // 'cancelled': could not be delivered (3rd failed attempt or refused): the order is cancelled and
+        // the parcel stays at the hub for the seller to collect (Return to Sender is no longer used).
+        'failed'            => ['sorted', 'assigned', 'return_to_sender', 'cancelled', 'lost', 'damaged'],
         'return_to_sender'  => ['returned', 'lost', 'damaged'],
         'delivered'         => [],
         'returned'          => [],
@@ -156,6 +158,27 @@ class Parcel extends Model
     }
 
     public function order(): BelongsTo       { return $this->belongsTo(Order::class); }
+
+    /**
+     * Google Maps directions to the buyer: to the map pin they dropped on their address, or a search for
+     * the written address when there is no pin. Opens the Maps app on a phone.
+     */
+    public function mapsUrl(): string
+    {
+        $addr = $this->order?->deliveryAddress;
+        if ($addr && $addr->latitude && $addr->longitude) {
+            return 'https://www.google.com/maps/dir/?api=1&destination=' . round($addr->latitude, 7) . ',' . round($addr->longitude, 7);
+        }
+
+        return 'https://www.google.com/maps/search/?api=1&query=' . rawurlencode((string) $this->dropoff_address);
+    }
+
+    /** The buyer pinned their house on the map (so the directions are exact). */
+    public function hasMapPin(): bool
+    {
+        $addr = $this->order?->deliveryAddress;
+        return (bool) ($addr && $addr->latitude && $addr->longitude);
+    }
     public function seller(): BelongsTo      { return $this->belongsTo(User::class, 'seller_id'); }
     public function area(): BelongsTo        { return $this->belongsTo(DeliveryArea::class, 'area_id'); }
     public function verifiedBy(): BelongsTo  { return $this->belongsTo(User::class, 'verified_by'); }

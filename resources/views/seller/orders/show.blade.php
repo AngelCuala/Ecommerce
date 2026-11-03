@@ -156,35 +156,17 @@
         {{-- ═══ Right ═══ --}}
         <div class="space-y-5">
 
-            {{-- GCash paid outside ALVY: the receipt the buyer uploaded. Accepting the order confirms the money arrived. --}}
+            {{-- GCash paid to ALVY and checked by an admin before the order reached the seller: nothing to collect. --}}
             @if ($order->isGcashReceipt())
-                @php $checking = $order->payment_status === 'For verification'; @endphp
                 <section class="pl-card overflow-hidden" data-gcash-proof>
                     <div class="flex items-center justify-between gap-2 border-b px-4 py-3" style="border-color:#DBEAFE;background:#F5F9FF;">
                         <h2 class="flex items-center gap-2 text-sm font-bold" style="color:#1E3A8A;">
                             <span class="flex h-6 w-6 items-center justify-center rounded-md text-[11px] font-extrabold text-white" style="background:#007DFE;">G</span>
-                            GCash payment
+                            Paid with GCash
                         </h2>
-                        <span class="rounded-full px-2.5 py-0.5 text-[11px] font-bold" style="{{ $order->payment_status === 'Paid' ? 'background:#ECFDF5;color:#047857;' : ($checking ? 'background:#FFFBEB;color:#B45309;' : 'background:#F5F5F4;color:#57534E;') }}">{{ $checking ? 'Check the receipt' : $order->payment_status }}</span>
+                        <span class="rounded-full px-2.5 py-0.5 text-[11px] font-bold" style="{{ $order->payment_status === 'Paid' ? 'background:#ECFDF5;color:#047857;' : 'background:#F5F5F4;color:#57534E;' }}">{{ $order->payment_status }}</span>
                     </div>
-                    <div class="space-y-3 px-4 py-4 text-sm">
-                        @if ($order->payment_proof_path)
-                            @php $proofUrl = \App\Support\Portal::route('orders.payment-proof', $order); @endphp
-                            <a href="{{ $proofUrl }}" target="_blank" rel="noopener" class="group relative block overflow-hidden rounded-lg border" style="border-color:#DBEAFE;" title="Open the full receipt">
-                                <img src="{{ $proofUrl }}" alt="GCash receipt from the buyer" class="max-h-72 w-full bg-white object-contain">
-                                <span class="absolute inset-x-0 bottom-0 py-1 text-center text-[11px] font-semibold text-white" style="background:linear-gradient(0deg,rgba(0,0,0,.55),transparent);">Open full receipt</span>
-                            </a>
-                        @else
-                            <p class="text-xs pl-muted">No receipt was uploaded.</p>
-                        @endif
-                        <dl class="grid grid-cols-2 gap-2 text-xs">
-                            <div><dt class="pl-muted">Amount to receive</dt><dd class="font-bold" style="color:#222;">₱{{ number_format($order->total_price, 2) }}</dd></div>
-                            <div><dt class="pl-muted">Ref No.</dt><dd class="font-mono font-semibold" style="color:#222;">{{ $order->payment_reference ?: 'not given' }}</dd></div>
-                        </dl>
-                        @if ($checking)
-                            <p class="rounded-md px-3 py-2 text-xs" style="background:#FFFBEB;color:#92400E;">Open your GCash app and check that ₱{{ number_format($order->total_price, 2) }} arrived{{ $order->payment_reference ? ' with this Ref No.' : '' }}. Accepting the order marks it as paid. Didn't receive it? Cancel the order with "GCash payment not received".</p>
-                        @endif
-                    </div>
+                    <p class="px-4 py-3 text-xs" style="color:#1E3A8A;">The buyer paid ₱{{ number_format($order->total_price, 2) }} to ALVY's GCash and ALVY confirmed it. No cash to collect on delivery: your share goes to your Earnings when the order is completed.</p>
                 </section>
             @endif
 
@@ -198,7 +180,7 @@
                         @endforeach
                     </ol>
                     @if ($sellerStep === 'new')
-                        <form method="POST" action="{{ route('seller.orders.accept', $order->id) }}">@csrf<button class="pl-btn w-full">{{ $order->isGcashReceipt() && $order->payment_status === 'For verification' ? 'Payment received · Accept order' : 'Accept order' }}</button></form>
+                        <form method="POST" action="{{ route('seller.orders.accept', $order->id) }}">@csrf<button class="pl-btn w-full">Accept order</button></form>
                     @elseif ($sellerStep === 'accepted')
                         <form method="POST" action="{{ route('seller.orders.pack', $order->id) }}">@csrf<button class="pl-btn w-full">Mark as packed</button></form>
                     @elseif ($sellerStep === 'packed')

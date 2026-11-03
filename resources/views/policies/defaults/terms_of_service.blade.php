@@ -79,8 +79,10 @@
     <h2>5. Payment</h2>
     <ul>
         <li><strong>Cash on delivery (COD).</strong> Pay the rider the exact amount shown on your order when the parcel arrives.</li>
-        <li><strong>GCash.</strong> Send the payment to the account shown at checkout, then upload your receipt and reference
-            number. The seller checks the payment before shipping. An order whose payment is not received may be cancelled.</li>
+        <li><strong>GCash.</strong> Scan ALVY's GCash QR shown at checkout, send the total shown, then upload your receipt and
+            reference number. ALVY checks the payment before the sellers prepare your order. If the payment cannot be confirmed,
+            the order is cancelled; money that did arrive is sent back to your GCash. Once a GCash payment is confirmed, the
+            order can't be cancelled from your account and isn't refunded; message ALVY if there is a problem.</li>
         <li><strong>Other online payments</strong>, when offered at checkout, are processed by the payment provider under its own
             terms.</li>
         <li>Never pay a seller outside ALVY or by any method not shown at checkout. ALVY cannot protect payments made outside

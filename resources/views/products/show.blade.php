@@ -93,9 +93,14 @@
                 @endif
                 <img id="main-img" src="{{ $mainImage }}" alt="{{ $product->title }}"
                      class="absolute inset-0 h-full w-full object-contain p-6">
+                @if ($product->video_path)
+                    {{-- The seller's product video: shown in the same box when its thumbnail is chosen. --}}
+                    <video id="main-video" src="{{ asset('storage/' . $product->video_path) }}" controls playsinline preload="metadata"
+                           class="absolute inset-0 hidden h-full w-full bg-black object-contain" data-product-video></video>
+                @endif
             </div>
 
-            @if ($allImages->count() > 1)
+            @if ($allImages->count() > 1 || $product->video_path)
                 <div class="mt-3 grid grid-cols-5 gap-2 sm:grid-cols-6">
                     @foreach ($allImages as $i => $img)
                         <button type="button" class="pd-thumb {{ $i === 0 ? 'is-active' : '' }}" data-src="{{ $img->url }}"
@@ -103,6 +108,16 @@
                             <img src="{{ $img->url }}" alt="" class="aspect-square w-full object-contain p-1" loading="lazy">
                         </button>
                     @endforeach
+                    @if ($product->video_path)
+                        <button type="button" class="pd-thumb relative" data-video aria-label="Play the product video">
+                            <img src="{{ $mainImage }}" alt="" class="aspect-square w-full object-contain p-1 opacity-60" loading="lazy">
+                            <span class="absolute inset-0 flex items-center justify-center">
+                                <span class="flex h-8 w-8 items-center justify-center rounded-full" style="background:rgba(0,0,0,.6);">
+                                    <svg class="ml-0.5 h-4 w-4" fill="#fff" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                                </span>
+                            </span>
+                        </button>
+                    @endif
                 </div>
             @endif
         </div>
@@ -386,10 +401,19 @@ window.PD = { variants: @json($variantData), groups: {{ count($groups) }}, lowAt
 // Gallery thumbnails and quantity stepper
 (function () {
     var main = document.getElementById('main-img');
+    var video = document.getElementById('main-video');
     document.querySelectorAll('.pd-thumb').forEach(function (btn) {
         btn.addEventListener('click', function () {
             document.querySelectorAll('.pd-thumb').forEach(function (b) { b.classList.remove('is-active'); });
             btn.classList.add('is-active');
+            if (video) {
+                // The video thumbnail plays the video in the main box; a photo thumbnail stops it.
+                var isVideo = btn.hasAttribute('data-video');
+                video.classList.toggle('hidden', !isVideo);
+                main.classList.toggle('invisible', isVideo);
+                if (isVideo) { video.play().catch(function () {}); return; }
+                video.pause();
+            }
             main.style.opacity = 0;
             setTimeout(function () { main.src = btn.dataset.src; main.style.opacity = 1; }, 150);
         });

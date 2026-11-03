@@ -95,7 +95,7 @@
 
     {{-- Bulk actions on the ticked products --}}
     <form method="POST" action="{{ route('seller.books.bulk') }}" id="bulk-form" class="mb-2 flex flex-wrap items-center gap-2 text-sm"
-          onsubmit="if (!this.querySelector('select').value) { return false; } return this.querySelector('select').value !== 'delete' || confirm('Delete the selected products? Products with unfinished orders are skipped.');">
+          onsubmit="return bulkCheck(this);">
         @csrf
         <select name="action" class="rounded-md border px-2 py-1.5 text-sm" style="border-color:#E7E5E4;" aria-label="Bulk action">
             <option value="">Bulk action…</option>
@@ -104,7 +104,22 @@
             <option value="delete">Delete</option>
         </select>
         <button class="rounded-md border px-3 py-1.5 font-semibold" style="border-color:#E7E5E4;color:#44403C;">Apply to selected</button>
+        <span class="hidden text-xs font-semibold" style="color:#B91C1C;" data-bulk-msg></span>
     </form>
+    <script>
+    // Say what's missing instead of doing nothing: an action and at least one ticked product.
+    function bulkCheck(form) {
+        var msg = form.querySelector('[data-bulk-msg]');
+        var action = form.querySelector('select').value;
+        var ticked = document.querySelectorAll('[data-bulk]:checked').length;
+        var problem = !action ? 'Choose an action first (Deactivate, Reactivate or Delete).'
+            : !ticked ? 'Tick at least one product.' : '';
+        msg.textContent = problem;
+        msg.classList.toggle('hidden', !problem);
+        if (problem) return false;
+        return action !== 'delete' || confirm('Delete the ' + ticked + ' selected product(s)? Products with unfinished orders are skipped.');
+    }
+    </script>
 
     {{-- Products --}}
     <div class="overflow-hidden rounded-xl border bg-white" style="border-color:#ECE7E3;">

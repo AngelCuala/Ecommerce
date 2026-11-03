@@ -237,8 +237,13 @@ class BookController extends Controller
             if ($request->hasFile('cover_image')) {
                 $payload['image'] = $request->file('cover_image')->store('products', 'public');
             }
-            if ($request->hasFile('video')) {
-                $payload['video_path'] = $request->file('video')->store('products/videos', 'public');
+            // A new video replaces the old one; "Remove video" takes it off.
+            if ($request->hasFile('video') || ($request->boolean('remove_video') && $book->video_path)) {
+                $payload['video_path'] = $request->hasFile('video') ? $request->file('video')->store('products/videos', 'public') : null;
+                if ($book->video_path) {
+                    $old = $book->video_path;
+                    DB::afterCommit(fn () => \Illuminate\Support\Facades\Storage::disk('public')->delete($old));
+                }
             }
 
             // Editing an approved product needs no new approval; fixing a rejected one
@@ -343,6 +348,13 @@ class BookController extends Controller
     /** Bulk Deactivate / Bulk Delete on selected products. Products with unfinished orders are never deleted. */
     public function bulk(Request $request)
     {
+        // Shown as a pop-up: the product list has no field to put a validation error under.
+        if (! in_array($request->input('action'), ['deactivate', 'activate', 'delete'], true)) {
+            return back()->with('error', 'Choose an action first (Deactivate, Reactivate or Delete).');
+        }
+        if (! array_filter((array) $request->input('ids', []), 'is_numeric')) {
+            return back()->with('error', 'Tick at least one product.');
+        }
         $data = $request->validate([
             'action' => 'required|in:deactivate,activate,delete',
             'ids'    => 'required|array|min:1',
@@ -582,6 +594,9 @@ class BookController extends Controller
         $stockMsg = 'Stock must be a whole number from 0 to 99,999.';
         $messages = [
             'title.required'        => 'Please enter a product name.',
+            'video.mimetypes'       => 'The video must be an MP4, MOV or WebM file.',
+            'video.max'             => 'The video can be at most 20 MB.',
+            'video.uploaded'        => 'The video could not be uploaded. It must be at most 20 MB.',
             'title.min'             => 'The product name must be 5 to 120 characters.',
             'title.max'             => 'The product name must be 5 to 120 characters.',
             'description.required'  => 'Please describe the product (20 to 3,000 characters).',

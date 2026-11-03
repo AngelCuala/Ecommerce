@@ -9,7 +9,13 @@
 <div class="card" style="padding:18px 20px;margin-bottom:20px;">
     <dl class="cx-dl">
         <dt>Buyer</dt><dd>{{ $p->receiver_name }} · {{ $p->receiver_phone }}</dd>
-        <dt>Address</dt><dd>{{ $p->dropoff_address }}</dd>
+        <dt>Address</dt><dd>{{ $p->dropoff_address }}
+            <a href="{{ $p->mapsUrl() }}" target="_blank" rel="noopener" class="cx-btn cx-btn-outline cx-btn-sm" style="margin-top:8px;display:inline-flex;gap:6px;" data-maps-link>
+                <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                {{ $p->hasMapPin() ? 'Directions to the buyer\'s pin' : 'Find the address in Maps' }}
+            </a>
+            @unless($p->hasMapPin())<span style="display:block;font-size:12px;color:#6b7280;margin-top:4px;">The buyer didn't pin this address on the map; call them if you can't find it.</span>@endunless
+        </dd>
         <dt>Payment</dt><dd data-cod>{{ $cod ? 'COD — collect ₱' . number_format($delivery->cod_amount, 2) : '₱0.00 · Paid (no cash to collect)' }}</dd>
         <dt>Assigned</dt><dd>{{ $delivery->created_at->format('M j, g:i A') }}</dd>
         @if($delivery->picked_up_at)<dt>Out for delivery</dt><dd>{{ $delivery->picked_up_at->format('M j, g:i A') }}</dd>@endif
