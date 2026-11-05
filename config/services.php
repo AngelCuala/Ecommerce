@@ -24,6 +24,12 @@ return [
     // Runs on Google Gemini by default (GEMINI_API_KEY from https://aistudio.google.com/apikey); set
     // ASSISTANT_PROVIDER=claude to use Anthropic instead. Until the provider's key is set, the chat
     // answers with Quick help only. `php artisan assistant:check` confirms the model exists for the key.
+    // Push notifications to the app (Firebase Cloud Messaging): the project's service-account key file.
+    // Keep it out of git; without it no push is sent (App\Services\FcmPush).
+    'fcm' => [
+        'credentials' => env('FCM_CREDENTIALS', storage_path('app/private/firebase-service-account.json')),
+    ],
+
     'assistant' => [
         'enabled'     => env('ASSISTANT_ENABLED', true),
         'provider'    => env('ASSISTANT_PROVIDER', 'gemini'),

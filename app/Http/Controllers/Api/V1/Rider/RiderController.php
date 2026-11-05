@@ -188,10 +188,12 @@ class RiderController extends Controller
             'company'  => $d['rider']->companyName(),
             'balance'  => round((float) $d['balance'], 2),
             'pending'  => round((float) $d['pending'], 2),
+            // The next remittance, worked out: COD on hand − unpaid pay kept = cash to hand over.
+            'next'     => $d['next'],
             'orders'   => $d['orders']->map(fn (ParcelDelivery $x) => ['delivered_at' => $x->delivered_at?->toIso8601String(),
                 'tracking' => $x->parcel?->tracking_number, 'order_number' => $x->parcel?->order?->number(), 'cod' => (float) $x->cod_collected])->values(),
             'remittances' => $d['remittances']->map(fn (RiderRemittance $r) => ['id' => $r->id, 'created_at' => $r->created_at?->toIso8601String(),
-                'amount' => (float) $r->amount, 'status' => $r->status, 'shortfall' => $r->shortfall()])->values(),
+                'amount' => (float) $r->amount, 'pay_kept' => (float) $r->pay_kept, 'status' => $r->status, 'shortfall' => $r->shortfall()])->values(),
             'request_token' => $d['token'],
         ]);
     }
@@ -217,7 +219,7 @@ class RiderController extends Controller
         return response()->json(['receipt' => [
             'id' => $r->id, 'reference' => 'REM-' . str_pad((string) $r->id, 6, '0', STR_PAD_LEFT),
             'rider' => $d['rider']->full_name, 'company' => $d['rider']->companyName(),
-            'amount' => (float) $r->amount, 'expected' => (float) $r->expected_amount, 'shortfall' => $r->shortfall(),
+            'amount' => (float) $r->amount, 'pay_kept' => (float) $r->pay_kept, 'expected' => (float) $r->expected_amount, 'shortfall' => $r->shortfall(),
             'status' => $r->status, 'sent_at' => $r->created_at?->toIso8601String(),
             'confirmed_at' => $r->confirmed_at?->toIso8601String(), 'confirmed_by' => $r->confirmer?->name,
             'carried_over' => (float) $d['carriedOver'],

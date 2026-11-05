@@ -102,26 +102,18 @@ class RemittanceReceiptTest extends TestCase
             ->assertSee(route('courier.rider.cod.receipt', $remit), false)->assertSee($remit->receiptNumber());
     }
 
-    public function test_a_short_remittance_and_the_next_one_add_up(): void
+    public function test_the_receipt_shows_the_pay_the_rider_kept(): void
     {
-        Carbon::setTestNow(Carbon::parse('2026-10-26 09:00', 'Asia/Manila'));
-        $first = $this->deliveredCod(500, now()->subHour());
-        $this->remit('450.00');
-        $r1 = RiderRemittance::sole();
-        $this->actingAs($this->logistics1)->post(route('sc.remittances.confirm', $r1));
-        $this->actingAs($this->rider1->user)->get(route('courier.rider.cod.receipt', $r1))->assertSee('data-receipt-shortfall>₱50.00', false);
+        Carbon::setTestNow(Carbon::parse('2026-11-05 09:00', 'Asia/Manila'));
+        $d = $this->deliveredCod(500, now()->subHour());
+        \App\Models\ParcelDelivery::whereKey($d->id)->update(['status' => 'delivered']);
+        $this->remit('500.00');
+        $r = RiderRemittance::sole();
 
-        Carbon::setTestNow(Carbon::parse('2026-10-26 17:00', 'Asia/Manila'));
-        $second = $this->deliveredCod(300, now()->subHour());
-        $this->remit('350.00');
-        $r2 = RiderRemittance::latest('id')->first();
-
-        // Only the new delivery is listed; the ₱50 left from before is shown as carried over: 300 + 50 = 350.
-        $this->actingAs($this->rider1->user)->get(route('courier.rider.cod.receipt', $r2))->assertOk()
-            ->assertSee('data-receipt-line="' . $second->parcel->tracking_number . '"', false)
-            ->assertDontSee('data-receipt-line="' . $first->parcel->tracking_number . '"', false)
-            ->assertSee('Balance carried over from earlier remittances')->assertSee('data-receipt-amount>₱350.00', false);
-        $this->assertNotSame($r1->receiptNumber(), $r2->receiptNumber());
+        $this->actingAs($this->rider1->user)->get(route('courier.rider.cod.receipt', $r))->assertOk()
+            ->assertSee('data-receipt-pay-kept>− ₱' . number_format($r->pay_kept, 2), false)
+            ->assertSee('data-receipt-amount>₱' . number_format(500 - $r->pay_kept, 2), false);
+        $this->assertGreaterThan(0, (float) $r->pay_kept);
     }
 
     public function test_only_the_rider_who_sent_it_can_open_the_receipt(): void

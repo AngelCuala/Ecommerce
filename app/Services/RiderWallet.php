@@ -13,9 +13,15 @@ use Illuminate\Support\Collection;
  * A rider's job history, pay and COD cash (A24, A33):
  * ₱30 per completed pickup, ₱50 per successful delivery, ₱0 per failed attempt.
  * COD collected stays on the rider until the logistics company confirms a remittance.
+ *
+ * Pay is kept out of the COD cash: a remittance hands over the COD minus the rider's unpaid pay (earned since
+ * NETTING_SINCE, when this started; older pay was settled by the companies directly). Pay above the COD
+ * on hand stays owed to the rider and is kept from the next remittance.
  */
 class RiderWallet
 {
+    public const NETTING_SINCE = '2026-11-04 11:00:00';
+
     /** Every job once: ['at', 'type', 'tracking', 'order', 'result', 'pay', 'cod'] newest first. */
     public function history(Rider $rider, ?CarbonInterface $from = null, ?CarbonInterface $to = null): Collection
     {
@@ -48,11 +54,33 @@ class RiderWallet
         return round((float) ParcelDelivery::where('rider_id', $rider->id)->where('status', 'delivered')->sum('cod_collected'), 2);
     }
 
-    /** COD cash still with the rider: collected minus confirmed remittances. */
+    /** COD cash still with the rider: collected minus confirmed remittances (cash handed over + pay kept from it). */
     public function codBalance(Rider $rider): float
     {
-        $confirmed = (float) RiderRemittance::where('rider_id', $rider->id)->where('status', 'confirmed')->sum('amount');
-        return round($this->codCollected($rider) - $confirmed, 2);
+        $confirmed = RiderRemittance::where('rider_id', $rider->id)->where('status', 'confirmed');
+        return round($this->codCollected($rider) - (float) (clone $confirmed)->sum('amount') - (float) $confirmed->sum('pay_kept'), 2);
+    }
+
+    /** Pay earned since netting began that hasn't been kept out of a remittance yet (pending ones count as kept). */
+    public function unpaidPay(Rider $rider): float
+    {
+        $earned = $this->pay($rider, \Illuminate\Support\Carbon::parse(self::NETTING_SINCE, config('app.business_timezone')), now()->addMinute());
+        $kept = (float) RiderRemittance::where('rider_id', $rider->id)->whereIn('status', ['pending', 'confirmed'])->sum('pay_kept');
+
+        return round(max(0, $earned - $kept), 2);
+    }
+
+    /**
+     * The next remittance, worked out: ['cod' => COD on hand, 'pay' => pay kept out of it, 'remit' => cash to hand over,
+     * 'owed' => pay still owed to the rider after this one].
+     */
+    public function toRemit(Rider $rider): array
+    {
+        $cod = $this->codBalance($rider);
+        $unpaid = $this->unpaidPay($rider);
+        $pay = round(min($unpaid, max(0, $cod)), 2);
+
+        return ['cod' => $cod, 'pay' => $pay, 'remit' => round(max(0, $cod - $pay), 2), 'owed' => round($unpaid - $pay, 2)];
     }
 
     public function pendingRemittance(Rider $rider): float

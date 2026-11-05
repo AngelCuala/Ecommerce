@@ -15,6 +15,7 @@ class Rider extends Model
 {
     /** A rider counts as Online only while seen within this many minutes (session timeout, A22). */
     public const ONLINE_MINUTES = 30;
+    public const ONLINE_MINUTES_WITH_PUSH = 720;   // 12 hours
 
     protected $fillable = [
         'user_id', 'sorting_center_id', 'full_name', 'phone',
@@ -56,9 +57,18 @@ class Rider extends Model
     public function isSuspended(): bool { return $this->isApproved() && ! $this->is_active; }
 
     /** Online and seen recently (a timed-out session counts as Offline). */
+    /**
+     * Online and recently seen. A rider whose phone gets push notifications stays Online while the app is in
+     * the background (offers reach the phone anyway) until they go Offline, log out, or 12 hours pass unseen.
+     */
     public function isOnlineNow(): bool
     {
-        return $this->is_online && $this->last_seen_at && $this->last_seen_at->gt(now()->subMinutes(self::ONLINE_MINUTES));
+        if (! $this->is_online || ! $this->last_seen_at) {
+            return false;
+        }
+        $push = $this->user_id && \App\Models\PushDevice::where('user_id', $this->user_id)->exists();
+
+        return $this->last_seen_at->gt(now()->subMinutes($push ? self::ONLINE_MINUTES_WITH_PUSH : self::ONLINE_MINUTES));
     }
 
     public function statusLabel(): string

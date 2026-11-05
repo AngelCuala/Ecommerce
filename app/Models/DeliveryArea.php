@@ -10,7 +10,10 @@ class DeliveryArea extends Model
     protected $fillable = [
         'name', 'code', 'description',
         'sorting_center_id', 'municipality', 'region_code', 'province_code', 'municipality_code', 'barangay_code',
+        'latitude', 'longitude', 'located_at',   // map location (App\Services\NearestRiders)
     ];
+
+    protected $casts = ['latitude' => 'float', 'longitude' => 'float', 'located_at' => 'datetime'];
 
     public function sortingCenter(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {

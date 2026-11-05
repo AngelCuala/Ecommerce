@@ -146,16 +146,18 @@ class L07RatesAndCodTest extends TestCase
             ->assertDontSee('data-day-shortfall', false);
     }
 
-    /** LOG-COD-002 */
-    public function test_log_cod_002_short_remittance_is_flagged(): void
+    /** LOG-COD-002: the amount is worked out (COD − the rider's pay), so a rider can't hand over less. */
+    public function test_log_cod_002_the_rider_hands_over_the_cod_minus_their_pay(): void
     {
         $this->codDelivered(900);
         $this->codDelivered(900);
-        $this->remit(1750)->assertSessionHasNoErrors();
+        $this->remit(1750)->assertSessionHasNoErrors();   // a typed amount is ignored
 
+        $r = RiderRemittance::sole();
+        $this->assertEquals([1700, 100, 1800, 0], [(float) $r->amount, (float) $r->pay_kept, (float) $r->expected_amount, $r->shortfall()]);
         $res = $this->reconciliation();
-        $this->assertSame(-50.0, $res->viewData('daily')->firstWhere('rider.id', $this->rider1->id)['difference']);
-        $res->assertSee('data-day-shortfall', false)->assertSee('−₱50.00 shortfall')->assertSee('Short ₱50.00');
+        $this->assertSame(0.0, $res->viewData('daily')->firstWhere('rider.id', $this->rider1->id)['difference']);
+        $res->assertDontSee('data-day-shortfall', false)->assertSee('₱1,700.00')->assertSee('₱100.00');
     }
 
     /** LOG-COD-003 */
@@ -163,20 +165,19 @@ class L07RatesAndCodTest extends TestCase
     {
         $this->codDelivered(900);
         $this->codDelivered(900);
-        $this->remit(1750);
+        $this->remit(0);
         $remittance = RiderRemittance::sole();
         $wallet = app(RiderWallet::class);
         $this->assertEquals(1800, $wallet->codBalance($this->rider1));
 
         $this->actingAs($this->logistics1)->from(route('sc.remittances'))->post(route('sc.remittances.confirm', $remittance))
-            ->assertSessionHas('success', 'Remittance confirmed. Shortfall of ₱50.00 flagged.');
+            ->assertSessionHas('success', 'Remittance confirmed.');
         $this->assertSame('confirmed', $remittance->fresh()->status);
-        $this->assertEquals(50, $wallet->codBalance($this->rider1->fresh()));
-        $this->actingAs($this->rider1->user)->get(route('courier.rider.cod'))->assertOk()->assertSee('₱50.00');
+        $this->assertEquals(0, $wallet->codBalance($this->rider1->fresh()));   // ₱1,700 cash + ₱100 pay kept
+        $this->assertEquals(0, $wallet->unpaidPay($this->rider1->fresh()));
 
-        $log = ActivityLog::where('description', 'like', 'Confirmed ₱1,750.00 COD from Pedro Jose Garcia%')->sole();
-        $this->assertSame(['Pending ₱1,750.00', 'Confirmed ₱1,750.00', 'Short by ₱50.00', $this->logistics1->id],
-            [$log->old_value, $log->new_value, $log->reason, (int) $log->admin_id]);
+        $log = ActivityLog::where('description', 'like', 'Confirmed ₱1,700.00 COD from Pedro Jose Garcia%')->sole();
+        $this->assertSame(['Pending ₱1,700.00', 'Confirmed ₱1,700.00', $this->logistics1->id], [$log->old_value, $log->new_value, (int) $log->admin_id]);
 
         // Only once.
         $this->actingAs($this->logistics1)->post(route('sc.remittances.confirm', $remittance))->assertSessionHas('error', 'This remittance is already confirmed.');

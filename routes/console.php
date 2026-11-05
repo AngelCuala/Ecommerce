@@ -28,3 +28,6 @@ Schedule::command('shipments:flag-delayed')->everyFifteenMinutes();
 
 // GCash payments to ALVY: the AI reads new receipts for the admin; payments unchecked for 24 hours get a reminder.
 Schedule::command('gcash:check')->everyMinute()->withoutOverlapping();
+
+// Barangays placed on the map once (for the nearest rider when a barangay has none).
+Schedule::command('areas:locate --limit=20')->hourly()->withoutOverlapping();

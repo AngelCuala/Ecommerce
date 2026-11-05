@@ -769,7 +769,7 @@ class SortingCenterController extends Controller
         $myAreas = $this->myAreaIds();
 
         // Parcels this SC sorted into one of its barangays.
-        $parcels = $this->myParcels()->with(['area', 'order'])
+        $parcels = $this->myParcels()->with(['area', 'order.deliveryAddress'])
             ->where('status', 'sorted')
             ->whereIn('area_id', $myAreas ?: [0])
             ->when($request->area_id, fn($q) => $q->where('area_id', $request->area_id))
@@ -813,9 +813,18 @@ class SortingCenterController extends Controller
             return back()->with('error', "{$rider->full_name} is not an active rider.");
         }
 
-        // The rider must cover the parcel's destination area.
+        // The rider must cover the parcel's barangay, unless none of the company's active riders does:
+        // then any of its riders may take it (the page lists the nearest first).
+        $outside = null;
         if ((int) $rider->area_id !== (int) $parcel->area_id) {
-            return back()->with('error', "{$rider->full_name} is not assigned to {$parcel->area->name}. Choose a rider for that area.");
+            $areaHasRider = Rider::where('sorting_center_id', auth()->id())->where('application_status', 'approved')
+                ->where('is_active', true)->where('area_id', $parcel->area_id)->exists();
+            if ($areaHasRider) {
+                return back()->with('error', "{$rider->full_name} is not assigned to {$parcel->area->name}. Choose a rider for that area.");
+            }
+            $km = \App\Services\NearestRiders::ranked($parcel, collect([$rider->load('area')]))->first()['km'] ?? null;
+            $outside = " No rider covers {$parcel->area->name}, so it went to {$rider->full_name} of " . ($rider->area->name ?? 'another barangay')
+                . ($km !== null ? " (about {$km} km away)" : '') . '.';
         }
 
         // Riders are only dispatched by sorting centers inside the service area (Laguna).
@@ -837,7 +846,11 @@ class SortingCenterController extends Controller
         });
         $this->parcels()->syncOrder($parcel);
 
-        return back()->with('success', "{$parcel->tracking_number} assigned to {$rider->full_name}."
+        if ($outside) {
+            \App\Models\ActivityLog::note("Assigned {$parcel->tracking_number} outside the rider's barangay:" . $outside, $parcel);
+        }
+
+        return back()->with('success', "{$parcel->tracking_number} assigned to {$rider->full_name}." . ($outside ?? '')
             . ($notice ? ' The rider was notified.' : ' The rider could not be notified in the app; please tell them directly.'));
     }
 

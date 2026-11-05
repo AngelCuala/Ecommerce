@@ -331,6 +331,10 @@ class AuthController extends Controller
         }
         // Same as the web: a rider who signs out is Offline and gets no more job offers.
         \App\Models\Rider::where('user_id', $user->id)->update(['is_online' => false]);
+        // This phone stops getting push notifications for the account.
+        if ($tokenId = $user->currentAccessToken()?->id) {
+            \App\Models\PushDevice::where('access_token_id', $tokenId)->delete();
+        }
         $user->currentAccessToken()?->delete();
 
         return response()->json(['message' => 'You have been signed out.']);

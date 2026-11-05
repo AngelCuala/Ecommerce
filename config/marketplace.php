@@ -18,11 +18,12 @@ return [
     | Sorting Center Commission Rate
     |--------------------------------------------------------------------------
     | The percentage ALVY keeps from a sorting center's share of each parcel's
-    | shipping fee (App\Services\SortingCenterCommission). e.g. 10 = 10%.
+    | shipping fee (App\Services\SortingCenterCommission). 0: ALVY's commission is
+    | on the items only; the whole shipping fee belongs to the hubs and their riders.
     | Earnings are worked out live, so a new rate applies to every parcel shown.
     |
     */
-    'sorting_center_commission_rate' => env('SORTING_CENTER_COMMISSION', 10),
+    'sorting_center_commission_rate' => env('SORTING_CENTER_COMMISSION', 0),
 
     /*
     |--------------------------------------------------------------------------

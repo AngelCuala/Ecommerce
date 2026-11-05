@@ -73,6 +73,13 @@ class AppServiceProvider extends ServiceProvider
             }
         });
 
+        // Add to cart / wishlist pressed while signed out: done as soon as the buyer is signed in (App\Support\PendingShopAction).
+        \Illuminate\Support\Facades\Event::listen(\Illuminate\Auth\Events\Authenticated::class, function ($event) {
+            if (request()->hasSession() && request()->session()->has('pending_shop_action')) {
+                \App\Support\PendingShopAction::run($event->user);
+            }
+        });
+
         // A rider who logs out is Offline and gets no more job offers.
         \Illuminate\Support\Facades\Event::listen(\Illuminate\Auth\Events\Logout::class, function ($event) {
             if ($event->user) {

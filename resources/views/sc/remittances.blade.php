@@ -40,7 +40,7 @@
     <div class="card" style="margin-bottom:16px;">
         <div style="padding:14px 18px;font-weight:700;">COD per rider</div>
         <table class="data-table">
-            <thead><tr><th>Rider</th><th>Collected</th><th>Pending remittance</th><th>Outstanding</th></tr></thead>
+            <thead><tr><th>Rider</th><th>Collected</th><th>Pending remittance</th><th>Outstanding COD</th><th>Next: pay kept / cash to you</th></tr></thead>
             <tbody>
             @forelse($riders as $row)
                 <tr data-rider-cod="{{ $row['rider']->full_name }}">
@@ -48,9 +48,10 @@
                     <td>₱{{ number_format($row['collected'], 2) }}</td>
                     <td>₱{{ number_format($row['pending'], 2) }}</td>
                     <td>@if($row['balance'] > 0)<span class="badge badge-yellow">₱{{ number_format($row['balance'], 2) }}</span>@else ₱0.00 @endif</td>
+                    <td data-next-remit>₱{{ number_format($row['next']['pay'], 2) }} / <strong>₱{{ number_format($row['next']['remit'], 2) }}</strong>@if($row['next']['owed'] > 0)<span class="text-muted text-sm" style="display:block;">+ ₱{{ number_format($row['next']['owed'], 2) }} pay still owed to the rider</span>@endif</td>
                 </tr>
             @empty
-                <tr><td colspan="4" style="text-align:center;padding:24px;color:var(--text-muted);">No riders yet.</td></tr>
+                <tr><td colspan="5" style="text-align:center;padding:24px;color:var(--text-muted);">No riders yet.</td></tr>
             @endforelse
             </tbody>
         </table>
@@ -59,13 +60,14 @@
     <div class="card">
         <div style="padding:14px 18px;font-weight:700;">Remittances</div>
         <table class="data-table">
-            <thead><tr><th>Sent</th><th>Rider</th><th>Amount</th><th>COD balance then</th><th>Reconciliation</th><th>Status</th></tr></thead>
+            <thead><tr><th>Sent</th><th>Rider</th><th>Cash handed over</th><th>Rider's pay kept</th><th>COD balance then</th><th>Reconciliation</th><th>Status</th></tr></thead>
             <tbody>
             @forelse($remittances as $rm)
                 <tr data-remittance="{{ $rm->id }}">
                     <td>{{ $rm->created_at->format('M j, g:i A') }}</td>
                     <td>{{ $rm->rider->full_name ?? '—' }}</td>
-                    <td>₱{{ number_format($rm->amount, 2) }}</td>
+                    <td style="font-weight:700;">₱{{ number_format($rm->amount, 2) }}</td>
+                    <td>{{ (float) $rm->pay_kept > 0 ? '₱' . number_format($rm->pay_kept, 2) : '—' }}</td>
                     <td>₱{{ number_format($rm->expected_amount, 2) }}</td>
                     <td>@if($rm->shortfall() > 0)<span class="badge badge-red" data-shortfall>Short ₱{{ number_format($rm->shortfall(), 2) }}</span>@else <span class="badge badge-green">Matches</span>@endif</td>
                     <td>
@@ -77,7 +79,7 @@
                     </td>
                 </tr>
             @empty
-                <tr><td colspan="6" style="text-align:center;padding:24px;color:var(--text-muted);">No remittances yet.</td></tr>
+                <tr><td colspan="7" style="text-align:center;padding:24px;color:var(--text-muted);">No remittances yet.</td></tr>
             @endforelse
             </tbody>
         </table>

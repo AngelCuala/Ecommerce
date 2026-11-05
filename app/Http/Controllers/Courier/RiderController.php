@@ -522,6 +522,7 @@ class RiderController extends Controller
         return view('courier.rider.cod', [
             'rider'       => $rider,
             'balance'     => $this->wallet->codBalance($rider),
+            'next'        => $this->wallet->toRemit($rider),   // COD − the rider's unpaid pay = what to hand over
             'pending'     => $this->wallet->pendingRemittance($rider),
             'orders'      => $this->wallet->codOrders($rider),
             'remittances' => RiderRemittance::where('rider_id', $rider->id)->latest()->take(20)->get(),
@@ -529,13 +530,14 @@ class RiderController extends Controller
         ]);
     }
 
-    /** Hand COD cash to the logistics company; it stays Pending until they confirm (A24, A37). */
+    /**
+     * Hand COD cash to the logistics company; it stays Pending until they confirm (A24, A37). The amount is worked
+     * out, not typed: the COD on hand minus the rider's unpaid pay, which the rider keeps out of the cash.
+     */
     public function remit(Request $request)
     {
         $rider = $this->rider();
-        $data = $request->validate(['amount' => 'required|numeric|min:0.01|decimal:0,2', 'request_token' => 'required|uuid'], [
-            'amount.min' => 'Enter the amount you are handing over.',
-        ]);
+        $data = $request->validate(['request_token' => 'required|uuid']);
 
         return Cache::lock('rider-remit:' . $rider->id, 10)->block(8, function () use ($rider, $data) {
             if ($sent = RiderRemittance::where('request_token', $data['request_token'])->first()) {
@@ -544,19 +546,20 @@ class RiderController extends Controller
             if ($this->wallet->pendingRemittance($rider) > 0) {
                 return back()->withErrors(['amount' => 'You already have a remittance waiting for confirmation.']);
             }
-            $balance = $this->wallet->codBalance($rider);
-            if (round((float) $data['amount'], 2) > $balance) {
-                return back()->withInput()->withErrors(['amount' => 'You can remit up to your COD balance of ₱' . number_format($balance, 2) . '.']);
+            $next = $this->wallet->toRemit($rider);
+            if ($next['cod'] <= 0) {
+                return back()->withErrors(['amount' => 'You have no COD to remit.']);
             }
 
             $remit = RiderRemittance::create(['rider_id' => $rider->id, 'sorting_center_id' => $rider->sorting_center_id,
-                'amount' => round((float) $data['amount'], 2), 'expected_amount' => $balance, 'status' => 'pending', 'request_token' => $data['request_token']]);
+                'amount' => $next['remit'], 'pay_kept' => $next['pay'], 'expected_amount' => $next['cod'], 'status' => 'pending', 'request_token' => $data['request_token']]);
             UserNotification::create(['user_id' => $rider->sorting_center_id, 'title' => 'COD remittance to confirm',
-                'body' => "{$rider->full_name} remitted ₱" . number_format($remit->amount, 2) . ' of ₱' . number_format($balance, 2) . ' COD.'
-                    . ($remit->shortfall() > 0 ? ' Shortfall ₱' . number_format($remit->shortfall(), 2) . '.' : ''), 'type' => 'info', 'link' => route('sc.remittances')]);
-            \App\Models\ActivityLog::note('COD remittance ₱' . number_format($remit->amount, 2), $remit);
+                'body' => "{$rider->full_name} remitted ₱" . number_format($remit->amount, 2) . ' of ₱' . number_format($next['cod'], 2) . ' COD'
+                    . ($next['pay'] > 0 ? ', keeping ₱' . number_format($next['pay'], 2) . ' as their pay' : '') . '.', 'type' => 'info', 'link' => route('sc.remittances')]);
+            \App\Models\ActivityLog::note('COD remittance ₱' . number_format($remit->amount, 2) . ($next['pay'] > 0 ? ' (pay kept ₱' . number_format($next['pay'], 2) . ')' : ''), $remit);
 
-            return redirect()->route('courier.rider.cod.receipt', $remit)->with('success', 'Remittance of ₱' . number_format($remit->amount, 2) . ' sent. It stays Pending until ' . $rider->companyName() . ' confirms it.');
+            return redirect()->route('courier.rider.cod.receipt', $remit)->with('success', 'Remittance of ₱' . number_format($remit->amount, 2) . ' sent'
+                . ($next['pay'] > 0 ? ' (you kept ₱' . number_format($next['pay'], 2) . ' as your pay)' : '') . '. It stays Pending until ' . $rider->companyName() . ' confirms it.');
         });
     }
 

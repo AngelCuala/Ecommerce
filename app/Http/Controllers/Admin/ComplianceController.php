@@ -29,7 +29,7 @@ class ComplianceController extends Controller
             ->get();
 
         // Flagged products: products whose category doesn't match seller's registered line of business
-        $flagged = Product::with(['seller.sellerApplication', 'category'])
+        $flagged = Product::with(['seller.sellerApplication', 'category', 'images'])
             ->whereHas('seller', fn($q) => $q->where('role', 'seller'))
             ->get()
             ->filter(fn($book) => $this->isCategoryMismatch($book));
@@ -41,7 +41,7 @@ class ComplianceController extends Controller
     public function show(int $sellerId)
     {
         $seller = User::where('role', 'seller')
-            ->with(['sellerApplication', 'products.category'])
+            ->with(['sellerApplication', 'products.category', 'products.images'])
             ->findOrFail($sellerId);
 
         $violations = SellerViolation::where('seller_id', $sellerId)

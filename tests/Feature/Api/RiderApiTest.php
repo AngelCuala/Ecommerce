@@ -117,11 +117,10 @@ class RiderApiTest extends TestCase
 
         $cod = $this->api('GET', '/rider/cod')->assertOk();
         $this->assertSame(490.0, (float) $cod->json('balance'));
-        $this->api('POST', '/rider/cod/remit', ['amount' => 600, 'request_token' => $cod->json('request_token')])->assertStatus(422)
-            ->assertJsonValidationErrors(['amount' => 'You can remit up to your COD balance of ₱490.00.']);
-        $this->api('POST', '/rider/cod/remit', ['amount' => 490, 'request_token' => $cod->json('request_token')])->assertOk()
-            ->assertJsonPath('message', 'Remittance of ₱490.00 sent. It stays Pending until Bilis Hatid Express Inc. confirms it.')
-            ->assertJsonPath('pending', 490);
+        $this->assertEquals(['cod' => 490, 'pay' => 50, 'remit' => 440, 'owed' => 0], $cod->json('next'));   // the rider keeps the ₱50 earned
+        $this->api('POST', '/rider/cod/remit', ['amount' => 600, 'request_token' => $cod->json('request_token')])->assertOk()   // a typed amount is ignored
+            ->assertJsonPath('message', 'Remittance of ₱440.00 sent (you kept ₱50.00 as your pay). It stays Pending until Bilis Hatid Express Inc. confirms it.')
+            ->assertJsonPath('pending', 440);
     }
 
     public function test_failed_delivery_and_return_to_sender(): void

@@ -83,11 +83,11 @@
         <span class="truncate" style="color:#222;">{{ $product->title }}</span>
     </nav>
 
-    <div class="grid gap-8 lg:grid-cols-[minmax(0,1fr)_440px] lg:gap-10">
+    <div class="grid gap-8 lg:grid-cols-[minmax(0,480px)_minmax(0,1fr)] lg:gap-10">
 
         {{-- Gallery --}}
         <div class="lg:sticky lg:top-24 lg:self-start">
-            <div class="pd-card relative aspect-square overflow-hidden">
+            <div class="pd-card relative mx-auto aspect-square w-full overflow-hidden" style="max-width:min(480px,70vh);">
                 @if ($hasDiscount)
                     <span class="absolute left-3 top-3 z-10 rounded px-2 py-0.5 text-xs font-bold" style="background:#FFF1EB;color:#E0431A;">-{{ $pct }}%</span>
                 @endif
@@ -101,7 +101,7 @@
             </div>
 
             @if ($allImages->count() > 1 || $product->video_path)
-                <div class="mt-3 grid grid-cols-5 gap-2 sm:grid-cols-6">
+                <div class="mx-auto mt-3 grid w-full grid-cols-5 gap-2 sm:grid-cols-6" style="max-width:min(480px,70vh);">
                     @foreach ($allImages as $i => $img)
                         <button type="button" class="pd-thumb {{ $i === 0 ? 'is-active' : '' }}" data-src="{{ $img->url }}"
                                 aria-label="Show photo {{ $i + 1 }}">

@@ -161,7 +161,7 @@ class AuthenticatedSessionController extends Controller
      * Second half of a successful login (after password and, if needed, OTP checks):
      * record the login and send the user to their dashboard.
      */
-    public function completeLogin(Request $request, User $user)
+    public function completeLogin(Request $request, User $user, ?string $welcome = null)
     {
         $request->session()->forget('url.intended');
 
@@ -210,7 +210,11 @@ class AuthenticatedSessionController extends Controller
                 ->with('success', 'Welcome back, ' . $user->name . '!');
         }
 
-        return redirect()->intended(route('home'))->with('success', 'Welcome back, ' . Auth::user()->name . '!');
+        // Add to cart / wishlist pressed before logging in: back to that product, with what happened to it.
+        $welcome ??= 'Welcome back, ' . Auth::user()->name . '!';
+
+        return \App\Support\PendingShopAction::redirect($welcome)
+            ?? redirect()->intended(route('home'))->with('success', $welcome);
     }
 
     // ── One-time code (OTP) step ─────────────────────────────
@@ -298,7 +302,7 @@ class AuthenticatedSessionController extends Controller
             Auth::login($user, $remember);
             $request->session()->regenerate();
 
-            return $this->completeLogin($request, $user)->with('success', $verified . ' Welcome to ALVY, ' . ($user->first_name ?: $user->name) . '!');
+            return $this->completeLogin($request, $user, $verified . ' Welcome to ALVY, ' . ($user->first_name ?: $user->name) . '!');
         }
 
         // Sellers can watch their application on the status page.

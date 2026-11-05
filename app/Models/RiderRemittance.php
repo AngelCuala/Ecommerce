@@ -8,9 +8,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 /** COD cash a rider hands to their logistics company; only the company can confirm it. */
 class RiderRemittance extends Model
 {
-    protected $fillable = ['rider_id', 'sorting_center_id', 'amount', 'expected_amount', 'status', 'request_token', 'confirmed_by', 'confirmed_at'];
+    protected $fillable = ['rider_id', 'sorting_center_id', 'amount', 'pay_kept', 'expected_amount', 'status', 'request_token', 'confirmed_by', 'confirmed_at'];
 
-    protected $casts = ['amount' => 'decimal:2', 'expected_amount' => 'decimal:2', 'confirmed_at' => 'datetime'];
+    protected $casts = ['amount' => 'decimal:2', 'pay_kept' => 'decimal:2', 'expected_amount' => 'decimal:2', 'confirmed_at' => 'datetime'];
 
     public function rider(): BelongsTo { return $this->belongsTo(Rider::class); }
     public function sortingCenter(): BelongsTo { return $this->belongsTo(User::class, 'sorting_center_id'); }
@@ -36,9 +36,9 @@ class RiderRemittance extends Model
             ->with('parcel.order')->orderBy('delivered_at')->get();
     }
 
-    /** Less cash than the COD balance at the time. */
+    /** Less than the COD balance at the time, counting the pay the rider kept out of it. */
     public function shortfall(): float
     {
-        return round(max(0, (float) $this->expected_amount - (float) $this->amount), 2);
+        return round(max(0, (float) $this->expected_amount - (float) $this->amount - (float) $this->pay_kept), 2);
     }
 }

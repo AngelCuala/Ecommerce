@@ -186,6 +186,7 @@
                             <div class="min-w-0">
                                 <p class="truncate font-semibold" style="color:#002b4d;max-width:280px;">{{ $p->title }}</p>
                                 <p class="text-xs" style="color:#6b90aa;">{{ $p->product_code ?: 'No code' }} · added {{ $p->created_at->format('M d, Y') }}</p>
+                                @include('admin.partials.product-media', ['product' => $p])
                             </div>
                         </div>
                     </td>

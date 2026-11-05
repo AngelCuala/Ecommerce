@@ -117,6 +117,9 @@
             </tbody>
             <tfoot>
                 <tr><td colspan="3">COD balance at the time</td><td class="r">{{ $peso($remittance->expected_amount) }}</td></tr>
+                @if ((float) $remittance->pay_kept > 0)
+                    <tr><td colspan="3">Rider's pay kept from the cash</td><td class="r" data-receipt-pay-kept>− {{ $peso($remittance->pay_kept) }}</td></tr>
+                @endif
                 <tr><td colspan="3">Amount remitted</td><td class="r">{{ $peso($remittance->amount) }}</td></tr>
                 @if ($remittance->shortfall() > 0)
                     <tr class="short"><td colspan="3">Short (stays on the rider's COD balance)</td><td class="r" data-receipt-shortfall>{{ $peso($remittance->shortfall()) }}</td></tr>

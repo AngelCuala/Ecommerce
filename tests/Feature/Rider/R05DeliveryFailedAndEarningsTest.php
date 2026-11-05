@@ -289,7 +289,8 @@ class R05DeliveryFailedAndEarningsTest extends TestCase
         $remit = RiderRemittance::sole();
         $this->assertSame('pending', $remit->status);
         $this->assertEquals(1800, $this->wallet()->codBalance($this->rider1));
-        $this->assertEquals(1800, $this->wallet()->pendingRemittance($this->rider1));
+        $this->assertEquals([1700, 100], [(float) $remit->amount, (float) $remit->pay_kept]);   // the rider kept their ₱100 pay
+        $this->assertEquals(1700, $this->wallet()->pendingRemittance($this->rider1));
 
         $this->actingAs($this->logistics1)->post(route('sc.remittances.confirm', $remit))->assertSessionHas('success', 'Remittance confirmed.');
         $this->assertEquals(0, $this->wallet()->codBalance($this->rider1));
@@ -304,19 +305,20 @@ class R05DeliveryFailedAndEarningsTest extends TestCase
         $this->assertSame(2, RiderRemittance::count());
     }
 
-    /** RID-EARN-005 (A24) */
-    public function test_rid_earn_005_short_remittance(): void
+    /** RID-EARN-005: pay above the COD on hand is kept from the next COD. */
+    public function test_rid_earn_005_pay_above_the_cod_carries_over(): void
     {
-        $this->deliveredCod(500);
-        $this->deliveredCod(1300);
-        $this->actingAs($this->rider1->user)->post(route('courier.rider.cod.remit'), ['amount' => '1750.00', 'request_token' => (string) Str::uuid()])->assertSessionHas('success');
-        $remit = RiderRemittance::sole();
-        $this->assertEquals(50, $remit->shortfall());
+        $this->deliveredCod(30);   // ₱30 COD, ₱50 pay
+        $this->actingAs($this->rider1->user)->get(route('courier.rider.cod'))->assertOk()
+            ->assertSee('data-remit-breakdown', false)->assertSee('₱20.00 more of your pay is kept from your next COD.');
+        $this->actingAs($this->rider1->user)->post(route('courier.rider.cod.remit'), ['request_token' => (string) Str::uuid()])->assertSessionHas('success');
+        $first = RiderRemittance::sole();
+        $this->assertEquals([0, 30], [(float) $first->amount, (float) $first->pay_kept]);
+        $this->actingAs($this->logistics1)->post(route('sc.remittances.confirm', $first))->assertSessionHas('success');
 
-        $this->actingAs($this->logistics1)->get(route('sc.remittances'))->assertOk()->assertSee('data-shortfall', false)->assertSee('Short ₱50.00');
-        $this->actingAs($this->logistics1)->post(route('sc.remittances.confirm', $remit))->assertSessionHas('success', fn ($m) => str_contains($m, 'Shortfall of ₱50.00'));
-        $this->assertEquals(50, $this->wallet()->codBalance($this->rider1));
-        $this->actingAs($this->rider1->user)->get(route('courier.rider.cod'))->assertSee('₱50.00');
+        $this->deliveredCod(500);   // another ₱50 earned: ₱70 still unpaid
+        $this->assertEquals(['cod' => 500, 'pay' => 70, 'remit' => 430, 'owed' => 0], $this->wallet()->toRemit($this->rider1));
+        $this->actingAs($this->logistics1)->get(route('sc.remittances'))->assertOk()->assertSee('data-next-remit', false)->assertSee('₱430.00');
     }
 
     /** RID-EARN-006 (A22, A24) */

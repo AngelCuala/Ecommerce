@@ -153,7 +153,8 @@ class RiderWorkController extends Controller
 
         $remittances = RiderRemittance::where('sorting_center_id', $this->scId())->with('rider')->latest()->paginate(20);
         $approved = Rider::where('sorting_center_id', $this->scId())->where('application_status', 'approved')->orderBy('full_name')->get();
-        $riders = $approved->map(fn ($r) => ['rider' => $r, 'collected' => $this->wallet->codCollected($r), 'balance' => $this->wallet->codBalance($r), 'pending' => $this->wallet->pendingRemittance($r)]);
+        $riders = $approved->map(fn ($r) => ['rider' => $r, 'collected' => $this->wallet->codCollected($r), 'balance' => $this->wallet->codBalance($r),
+            'pending' => $this->wallet->pendingRemittance($r), 'next' => $this->wallet->toRemit($r)]);
 
         // L8: the day's reconciliation — COD each rider collected on the date vs what they remitted that day.
         $day = [$date->copy()->startOfDay(), $date->copy()->endOfDay()];
@@ -161,7 +162,8 @@ class RiderWorkController extends Controller
             $orders = \App\Models\ParcelDelivery::where('rider_id', $r->id)->where('status', 'delivered')->where('cod_collected', '>', 0)
                 ->whereBetween('delivered_at', $day)->with('parcel.order')->orderBy('delivered_at')->get();
             $collected = round((float) $orders->sum('cod_collected'), 2);
-            $remitted  = round((float) RiderRemittance::where('rider_id', $r->id)->whereBetween('created_at', $day)->sum('amount'), 2);
+            $sent = RiderRemittance::where('rider_id', $r->id)->whereBetween('created_at', $day);
+            $remitted  = round((float) (clone $sent)->sum('amount') + (float) $sent->sum('pay_kept'), 2);   // cash + pay the rider kept from it
             return ['rider' => $r, 'orders' => $orders, 'collected' => $collected, 'remitted' => $remitted, 'difference' => round($remitted - $collected, 2)];
         })->filter(fn ($row) => $row['collected'] > 0 || $row['remitted'] > 0)->values();
 

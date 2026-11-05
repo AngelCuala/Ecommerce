@@ -28,6 +28,9 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
     Route::middleware('auth:sanctum')->group(function () {
         Route::get('/me',           [AuthController::class, 'me'])->name('me');
         Route::post('/auth/logout', [AuthController::class, 'logout'])->name('auth.logout');
+        // Push notifications: the phone's Firebase token (every role).
+        Route::post('/devices',     [\App\Http\Controllers\Api\V1\PushDeviceController::class, 'store'])->middleware('throttle:30,1')->name('devices.store');
+        Route::delete('/devices',   [\App\Http\Controllers\Api\V1\PushDeviceController::class, 'destroy'])->name('devices.destroy');
     });
 
     // Chat, for every role (the web decides who may message whom).
