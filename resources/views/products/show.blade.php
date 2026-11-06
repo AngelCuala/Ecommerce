@@ -67,6 +67,12 @@
     .variation-btn.is-active { border-color: #fa4e1c; background: #FFF5F1; color: #fa4e1c; }
     .variation-btn:disabled { opacity: .45; cursor: not-allowed; }
     #main-img { transition: opacity .2s ease; }
+    .pd-nav { position: absolute; top: 50%; z-index: 20; transform: translateY(-50%); display: flex; align-items: center; justify-content: center;
+              width: 36px; height: 36px; border-radius: 999px; background: rgba(255,255,255,.92); color: #222; box-shadow: 0 1px 4px rgba(0,0,0,.18); }
+    .pd-nav:hover { background: #fff; color: #fa4e1c; }
+    .pd-count { position: absolute; right: .6rem; bottom: .6rem; z-index: 20; padding: 1px 8px; border-radius: 999px;
+                background: rgba(0,0,0,.55); color: #fff; font-size: 11px; font-weight: 600; pointer-events: none; }
+    [data-gallery-box] { touch-action: pan-y; }
 </style>
 
 <div class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
@@ -87,7 +93,7 @@
 
         {{-- Gallery --}}
         <div class="lg:sticky lg:top-24 lg:self-start">
-            <div class="pd-card relative mx-auto aspect-square w-full overflow-hidden" style="max-width:min(480px,70vh);">
+            <div class="pd-card relative mx-auto aspect-square w-full overflow-hidden" style="max-width:min(480px,70vh);" data-gallery-box>
                 @if ($hasDiscount)
                     <span class="absolute left-3 top-3 z-10 rounded px-2 py-0.5 text-xs font-bold" style="background:#FFF1EB;color:#E0431A;">-{{ $pct }}%</span>
                 @endif
@@ -97,6 +103,16 @@
                     {{-- The seller's product video: shown in the same box when its thumbnail is chosen. --}}
                     <video id="main-video" src="{{ asset('storage/' . $product->video_path) }}" controls playsinline preload="metadata"
                            class="absolute inset-0 hidden h-full w-full bg-black object-contain" data-product-video></video>
+                @endif
+                @if ($allImages->count() + ($product->video_path ? 1 : 0) > 1)
+                    {{-- Swipe, or tap the arrows, to go through the photos and the video. --}}
+                    <button type="button" class="pd-nav left-2" data-gallery-step="-1" aria-label="Previous">
+                        <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m15 6-6 6 6 6"/></svg>
+                    </button>
+                    <button type="button" class="pd-nav right-2" data-gallery-step="1" aria-label="Next">
+                        <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m9 6 6 6-6 6"/></svg>
+                    </button>
+                    <span class="pd-count" data-gallery-count>1 / {{ $allImages->count() + ($product->video_path ? 1 : 0) }}</span>
                 @endif
             </div>
 
@@ -251,7 +267,7 @@
                                class="h-11 w-12 border-0 bg-transparent text-center text-sm font-semibold focus:outline-none" style="color:#222;">
                         <button type="button" aria-label="Increase" data-qty="1">+</button>
                     </div>
-                    <button type="button" id="pd-wish" onclick="document.getElementById('pd-wish-form').submit()"
+                    <button type="button" id="pd-wish" onclick="document.getElementById('pd-wish-form').requestSubmit()"
                             class="flex h-11 items-center gap-1.5 rounded-lg border px-3 text-sm font-medium" style="border-color:#E7E5E4;color:{{ $wished ? '#fa4e1c' : '#57534E' }};"
                             aria-pressed="{{ $wished ? 'true' : 'false' }}">
                         <svg class="h-4 w-4" fill="{{ $wished ? '#fa4e1c' : 'none' }}" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 000-7.78z"/></svg>
@@ -273,7 +289,8 @@
                     </button>
                 </div>
             </form>
-            <form id="pd-wish-form" action="{{ route('wishlist.toggle', $product->id) }}" method="POST" class="hidden">@csrf
+            <form id="pd-wish-form" action="{{ route('wishlist.toggle', $product->id) }}" method="POST" class="hidden"
+                  @if ($wished) data-confirm-remove="Remove from wishlist?|&quot;{{ $product->title }}&quot; will be taken out of your wishlist." @endif>@csrf
                 <input type="hidden" name="state" value="{{ $wished ? 'off' : 'on' }}">
             </form>
 
@@ -402,22 +419,50 @@ window.PD = { variants: @json($variantData), groups: {{ count($groups) }}, lowAt
 (function () {
     var main = document.getElementById('main-img');
     var video = document.getElementById('main-video');
-    document.querySelectorAll('.pd-thumb').forEach(function (btn) {
-        btn.addEventListener('click', function () {
-            document.querySelectorAll('.pd-thumb').forEach(function (b) { b.classList.remove('is-active'); });
-            btn.classList.add('is-active');
-            if (video) {
-                // The video thumbnail plays the video in the main box; a photo thumbnail stops it.
-                var isVideo = btn.hasAttribute('data-video');
-                video.classList.toggle('hidden', !isVideo);
-                main.classList.toggle('invisible', isVideo);
-                if (isVideo) { video.play().catch(function () {}); return; }
-                video.pause();
-            }
-            main.style.opacity = 0;
-            setTimeout(function () { main.src = btn.dataset.src; main.style.opacity = 1; }, 150);
-        });
+    var thumbs = Array.prototype.slice.call(document.querySelectorAll('.pd-thumb'));
+    var count = document.querySelector('[data-gallery-count]');
+    var current = 0;
+    // One slide per photo, then the video: thumbnails, arrows and swipes all go through show().
+    function show(i, play) {
+        if (!thumbs.length) return;
+        current = (i + thumbs.length) % thumbs.length;
+        var btn = thumbs[current];
+        thumbs.forEach(function (b) { b.classList.toggle('is-active', b === btn); });
+        if (count) count.textContent = (current + 1) + ' / ' + thumbs.length;
+        if (video) {
+            // The video slide shows the video in the main box; a photo stops it.
+            var isVideo = btn.hasAttribute('data-video');
+            video.classList.toggle('hidden', !isVideo);
+            main.classList.toggle('invisible', isVideo);
+            if (isVideo) { if (play) video.play().catch(function () {}); return; }
+            video.pause();
+        }
+        main.style.opacity = 0;
+        setTimeout(function () { main.src = btn.dataset.src; main.style.opacity = 1; }, 150);
+    }
+    thumbs.forEach(function (btn, i) { btn.addEventListener('click', function () { show(i, true); }); });
+    document.querySelectorAll('[data-gallery-step]').forEach(function (b) {
+        b.addEventListener('click', function () { show(current + (+b.dataset.galleryStep)); });
     });
+    // Swipe left / right on the big picture (not while scrubbing the video's own controls).
+    var box = document.querySelector('[data-gallery-box]'), x0 = null, y0 = null;
+    if (box && thumbs.length > 1) {
+        box.addEventListener('touchstart', function (e) {
+            if (e.target === video && e.touches[0].clientY > box.getBoundingClientRect().bottom - 60) { x0 = null; return; }
+            x0 = e.touches[0].clientX; y0 = e.touches[0].clientY;
+        }, { passive: true });
+        box.addEventListener('touchend', function (e) {
+            if (x0 === null) return;
+            var dx = e.changedTouches[0].clientX - x0, dy = e.changedTouches[0].clientY - y0;
+            x0 = null;
+            if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy)) show(current + (dx < 0 ? 1 : -1));
+        });
+        document.addEventListener('keydown', function (e) {
+            if (/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) return;
+            if (e.key === 'ArrowRight') show(current + 1);
+            if (e.key === 'ArrowLeft') show(current - 1);
+        });
+    }
     document.querySelectorAll('[data-qty]').forEach(function (btn) {
         btn.addEventListener('click', function () {
             var input = btn.parentElement.querySelector('input');

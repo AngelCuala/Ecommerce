@@ -1,5 +1,7 @@
 <x-admin-layout title="Product Approvals" active="product-approvals">
 
+@include('partials.page-tabs', ['tabs' => [['Products', 'admin.product-approvals.index', 'admin.product-approvals.*'], ['Sellers', 'admin.seller-applications.index', 'admin.seller-applications.*'], ['Sorting centers', 'admin.sc-applications.index', 'admin.sc-applications.*']]])
+
 <div class="mb-5">
     <p class="text-sm" style="color:#6b90aa;">
         New products from sellers stay hidden from the shop until you approve them. Editing an approved product does not need a new approval.

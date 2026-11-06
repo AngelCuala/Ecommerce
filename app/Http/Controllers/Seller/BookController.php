@@ -42,6 +42,12 @@ class BookController extends Controller
         ];
     }
 
+    /** The product video limit in MB: 50, or less when the server (PHP) takes smaller uploads. */
+    public static function videoLimitMb(): int
+    {
+        return max(1, min(50, intdiv(\Illuminate\Http\UploadedFile::getMaxFilesize(), 1048576)));
+    }
+
     /** Resolve the spec field list for a given category name. */
     public static function specsForCategory(?string $categoryName): array
     {
@@ -556,7 +562,7 @@ class BookController extends Controller
                     }
                 }],
             'images.*'         => 'nullable|image|mimes:jpg,jpeg,png|max:5120',
-            'video'            => 'nullable|mimetypes:video/mp4,video/quicktime,video/webm|max:20480',
+            'video'            => 'nullable|mimetypes:video/mp4,video/quicktime,video/webm|max:' . (self::videoLimitMb() * 1024),   // up to 50 MB: a phone video
 
             // Specs (free-form key/value from category schema)
             'specs'            => 'nullable|array',
@@ -595,8 +601,8 @@ class BookController extends Controller
         $messages = [
             'title.required'        => 'Please enter a product name.',
             'video.mimetypes'       => 'The video must be an MP4, MOV or WebM file.',
-            'video.max'             => 'The video can be at most 20 MB.',
-            'video.uploaded'        => 'The video could not be uploaded. It must be at most 20 MB.',
+            'video.max'             => 'The video can be at most ' . self::videoLimitMb() . ' MB.',
+            'video.uploaded'        => 'The video could not be uploaded. It must be at most ' . self::videoLimitMb() . ' MB.',
             'title.min'             => 'The product name must be 5 to 120 characters.',
             'title.max'             => 'The product name must be 5 to 120 characters.',
             'description.required'  => 'Please describe the product (20 to 3,000 characters).',
@@ -754,6 +760,8 @@ class BookController extends Controller
             return $validator->validate();
         } catch (\Illuminate\Validation\ValidationException $e) {
             $request->merge($typedSale);
+            // Which fields stopped a seller's save (messages only, not what was typed), to help with "it won't save".
+            \Illuminate\Support\Facades\Log::info('Product form not saved', ['seller' => auth()->id(), 'product' => $bookId, 'errors' => $e->errors()]);
             throw $e;
         }
     }

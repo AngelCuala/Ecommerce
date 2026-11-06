@@ -1,4 +1,6 @@
 <x-admin-layout title="Seller Applications" active="seller-applications">
+
+@include('partials.page-tabs', ['tabs' => [['Products', 'admin.product-approvals.index', 'admin.product-approvals.*'], ['Sellers', 'admin.seller-applications.index', 'admin.seller-applications.*'], ['Sorting centers', 'admin.sc-applications.index', 'admin.sc-applications.*']]])
 @include('partials.panel.plain')
 <style>
     .sa-tab { position: relative; padding: .6rem .25rem; margin-right: 1.25rem; font-size: .875rem; font-weight: 600; color: #8a7f78; transition: color .15s; white-space: nowrap; }

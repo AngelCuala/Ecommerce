@@ -72,6 +72,19 @@ return Application::configure(basePath: dirname(__DIR__))
                 ->with('error', 'Your session expired, so that was not saved. Please try again.');
         });
 
+        // A button's address opened as a link (e.g. GET /cart/12 from a crawler or an old tab): the product page,
+        // or the home page, instead of the bare "405 Method Not Allowed. Something is broken".
+        $exceptions->render(function (\Symfony\Component\HttpKernel\Exception\MethodNotAllowedHttpException $e, \Illuminate\Http\Request $request) {
+            if ($request->is('api/*') || $request->expectsJson() || ! $request->isMethod('GET')) {
+                return null;
+            }
+            if (preg_match('#^(cart|wishlist)/(\d+)$#', $request->path(), $m)) {
+                return redirect()->route('products.show', $m[2]);
+            }
+
+            return redirect('/');
+        });
+
         // The app's login ended because it is older than a week (config sanctum.expiration): say so, like the
         // website does, instead of a bare "Unauthenticated.".
         // Add to cart / Buy now / wishlist heart while signed out: remember it, log in, then it is done (App\Support\PendingShopAction).

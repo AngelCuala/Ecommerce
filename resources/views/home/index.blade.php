@@ -1,16 +1,12 @@
 <x-layout title="ALVY — Online Shopping">
 @php
-    // Side tiles link to the two categories with the most items (fallback: first two).
-    $promoCats = $shortcuts->sortByDesc('count')->take(2)->values();
+    // Side tiles: two categories that have items, picked at random each time the page opens (fallback: first two).
+    $withItems = $shortcuts->filter(fn ($c) => $c->count > 0);
+    $promoCats = ($withItems->count() >= 2 ? $withItems : $shortcuts)->shuffle()->take(2)->values();
     // Category photos (Unsplash License) in public/images/categories: <slug>.jpg square, <slug>-wide.jpg for the banner tiles.
-    $photo = fn ($slug, $wide = false) => asset('images/categories/' . $slug . ($wide ? '-wide' : '') . '.jpg');
-    // Banner carousel slides (photos: Unsplash License, public/images/banners).
-    $slides = [
-        ['img' => 'shop',    'pos' => 'center 30%', 'eyebrow' => 'Shop local', 'title' => 'Bringing more to your', 'mark' => 'cart', 'sub' => 'Everyday finds from local sellers, delivered to your barangay.', 'url' => route('categories.page')],
-        ['img' => 'fashion', 'pos' => 'center 50%', 'eyebrow' => 'Apparel', 'title' => 'Refresh your', 'mark' => 'wardrobe', 'sub' => 'Tops, dresses and outerwear from shops near you.', 'url' => route('categories.show', 'womens-apparel')],
-        ['img' => 'tech',    'pos' => 'center 60%', 'eyebrow' => 'Electronics', 'title' => 'Gadgets for', 'mark' => 'every day', 'sub' => 'Laptops, phones, audio and the accessories that go with them.', 'url' => route('categories.show', 'electronics-and-gadgets')],
-        ['img' => 'home',    'pos' => 'center 60%', 'eyebrow' => 'Home & Garden', 'title' => 'Make home a little', 'mark' => 'cozier', 'sub' => 'Furniture, decor and plants to make a space your own.', 'url' => route('categories.show', 'home-and-garden')],
-    ];
+    $photo = fn ($slug, $wide = false) => \App\Http\Controllers\CategoryPageController::photo($slug, $wide);
+    // Banner carousel: the admin's event slides (Admin → Home Banners) first, then ALVY's own.
+    $slides = array_map(fn ($sl) => $sl + ['url' => \App\Models\HomeBanner::urlFor($sl['slug'])], \App\Models\HomeBanner::slides());
 @endphp
 <style>
     .hm-section-title { font-family: 'Nunito', ui-sans-serif, system-ui; font-size: 1.125rem; font-weight: 800; color: #222; }
@@ -95,16 +91,16 @@
             @foreach ($slides as $n => $sl)
                 <a href="{{ $sl['url'] }}" class="hm-slide {{ $n === 0 ? 'is-active' : '' }}" data-slide
                    aria-roledescription="slide" aria-label="{{ $n + 1 }} of {{ count($slides) }}" @if ($n) tabindex="-1" aria-hidden="true" @endif>
-                    <img src="{{ asset('images/banners/' . $sl['img'] . '.jpg') }}" alt="" style="object-position:{{ $sl['pos'] }};">
+                    <img src="{{ $sl['img'] }}" alt="" style="object-position:{{ $sl['pos'] }};" @if ($n) loading="lazy" @endif>
                     <div class="hm-car-shade"></div>
                     <div class="absolute bottom-10 left-5 max-w-[20rem] sm:bottom-12 sm:left-8 sm:max-w-sm">
-                        <p data-c style="--c:0;color:#ffcbb8;" class="text-xs font-semibold uppercase tracking-wider">{{ $sl['eyebrow'] }}</p>
+                        @if ($sl['eyebrow'])<p data-c style="--c:0;color:#ffcbb8;" class="text-xs font-semibold uppercase tracking-wider">{{ $sl['eyebrow'] }}</p>@endif
                         <{{ $n === 0 ? 'h1' : 'p' }} data-c style="--c:1;color:#fff;" class="mt-1 font-display text-2xl font-extrabold leading-tight sm:text-3xl">
-                            {{ $sl['title'] }} <span class="hm-mark">{{ $sl['mark'] }}<svg viewBox="0 0 100 10" preserveAspectRatio="none" aria-hidden="true"><path d="M2 7 C 25 2, 60 2, 98 5" fill="none" stroke="#fa4e1c" stroke-width="3.5" stroke-linecap="round"/></svg></span>
+                            {{ $sl['title'] }} @if ($sl['mark'])<span class="hm-mark">{{ $sl['mark'] }}<svg viewBox="0 0 100 10" preserveAspectRatio="none" aria-hidden="true"><path d="M2 7 C 25 2, 60 2, 98 5" fill="none" stroke="#fa4e1c" stroke-width="3.5" stroke-linecap="round"/></svg></span>@endif
                         </{{ $n === 0 ? 'h1' : 'p' }}>
-                        <p data-c style="--c:2;color:rgba(255,255,255,.88);" class="mt-3 text-sm">{{ $sl['sub'] }}</p>
+                        @if ($sl['sub'])<p data-c style="--c:2;color:rgba(255,255,255,.88);" class="mt-3 text-sm">{{ $sl['sub'] }}</p>@endif
                         <span data-c style="--c:3;background:#fa4e1c;" class="hm-cta mt-4 inline-flex w-max items-center gap-1.5 rounded-md px-4 py-2 text-sm font-semibold text-white">
-                            Shop now
+                            {{ $sl['button'] }}
                             <svg class="hm-arrow h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M13 6l6 6-6 6"/></svg>
                         </span>
                     </div>

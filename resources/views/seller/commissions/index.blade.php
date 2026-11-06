@@ -1,4 +1,6 @@
 <x-seller-layout title="Commission" active="commissions">
+
+@include('partials.page-tabs', ['tabs' => [['Sales reports', 'seller.reports', 'seller.reports*'], ['Commission', 'seller.commissions', 'seller.commissions*']]])
 @include('partials.panel.plain')
 @php
     $peso = fn ($v) => '₱' . number_format((float) $v, 2);

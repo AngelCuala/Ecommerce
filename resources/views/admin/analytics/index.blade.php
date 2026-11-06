@@ -1,4 +1,6 @@
 <x-admin-layout title="Analytics & Reports" active="analytics">
+
+@include('partials.page-tabs', ['tabs' => [['Sales Reports', 'admin.reports.index', 'admin.reports.*'], ['Analytics', 'admin.analytics.index', 'admin.analytics.*']]])
 @php
     $total = max(1, (int) $accountStats['total']);
     $icons = [

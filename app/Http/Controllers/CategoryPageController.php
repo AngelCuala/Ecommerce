@@ -26,7 +26,39 @@ class CategoryPageController extends Controller
         return array_merge([$shopCategory], self::LEGACY_NAMES[$shopCategory] ?? []);
     }
 
+    /**
+     * The shop's categories, A to Z: the built-in ones (with subcategories and photos) plus any category an
+     * admin added under Admin → Categories once it has products in the shop.
+     */
     public static function catalog(): array
+    {
+        static $catalog = null;
+        if ($catalog !== null && ! app()->runningUnitTests()) {
+            return $catalog;
+        }
+
+        $list = self::builtIn();
+        $known = collect($list)->pluck('name')->flatMap(fn ($n) => self::categoryNames($n))->all();
+        foreach (\App\Models\Category::whereNotIn('name', $known)->whereHas('products', fn ($q) => $q->published())->orderBy('name')->get() as $c) {
+            $list[] = ['name' => $c->name, 'slug' => \Illuminate\Support\Str::slug(str_replace('&', 'and', $c->name)), 'icon' => '', 'color' => '#fa4e1c', 'subs' => []];
+        }
+        usort($list, fn ($a, $b) => strcasecmp($a['name'], $b['name']));
+
+        return $catalog = $list;
+    }
+
+    /** A category's photo (public/images/categories/<slug>.jpg), or ALVY's logo for a category without one. */
+    public static function photo(string $slug, bool $wide = false): string
+    {
+        $file = 'images/categories/' . $slug . ($wide ? '-wide' : '') . '.jpg';
+        if (is_file(public_path($file))) {
+            return asset($file);
+        }
+        return $wide && is_file(public_path('images/categories/' . $slug . '.jpg')) ? asset('images/categories/' . $slug . '.jpg') : asset('images/logo-mark.png');
+    }
+
+    /** The built-in categories with their subcategories (the order here doesn't matter: catalog() sorts A to Z). */
+    private static function builtIn(): array
     {
         return [
             [

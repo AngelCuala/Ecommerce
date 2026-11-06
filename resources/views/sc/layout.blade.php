@@ -60,10 +60,6 @@
                 <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M21 16V8l-9-5-9 5v8l9 5 9-5z"/><path d="M3.3 7L12 12l8.7-5M12 22V12"/></svg>
                 Shipments
             </a>
-            <a href="{{ route('sc.delivery-monitoring') }}" class="nav-link {{ request()->routeIs('sc.delivery-monitoring') ? 'active' : '' }}">
-                <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                Delivery Monitoring
-            </a>
             <p class="nav-section">Parcels</p>
             <a href="{{ route('sc.pickup-requests') }}" class="nav-link {{ request()->routeIs('sc.pickup-requests') ? 'active' : '' }}">
                 <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M20 7H4a2 2 0 00-2 2v10a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2z"/><path d="M16 3l-4 4-4-4"/></svg>
@@ -73,13 +69,9 @@
                 <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M3 6h18M7 12h10M11 18h2"/></svg>
                 Parcel Sorting
             </a>
-            <a href="{{ route('sc.delivery-assignment') }}" class="nav-link {{ request()->routeIs('sc.delivery-assignment') ? 'active' : '' }}">
+            <a href="{{ route('sc.delivery-assignment') }}" class="nav-link {{ request()->routeIs('sc.delivery-assignment', 'sc.dispatch*', 'sc.delivery-monitoring') ? 'active' : '' }}">
                 <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
-                Delivery Assignment
-            </a>
-            <a href="{{ route('sc.dispatch') }}" class="nav-link {{ request()->routeIs('sc.dispatch*') ? 'active' : '' }}">
-                <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
-                Rider Dispatch
+                Deliveries
             </a>
             <a href="{{ route('sc.transfers') }}" class="nav-link {{ request()->routeIs('sc.transfers*') ? 'active' : '' }}">
                 @php $pendingIncoming = \App\Models\ParcelTransfer::where('to_sorting_center_id', auth()->id())->where('status','in_transit')->count(); @endphp
@@ -90,16 +82,12 @@
                 @endif
             </a>
             <p class="nav-section">Riders</p>
-            <a href="{{ route('sc.riders') }}" class="nav-link {{ request()->routeIs('sc.riders') ? 'active' : '' }}">
+            <a href="{{ route('sc.riders') }}" class="nav-link {{ request()->routeIs('sc.riders', 'sc.courier-applications.*') ? 'active' : '' }}">
                 <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
-                Rider Management
-            </a>
-            <a href="{{ route('sc.courier-applications.index') }}" class="nav-link {{ request()->routeIs('sc.courier-applications.*') ? 'active' : '' }}">
                 @php $pendingCouriers = \App\Models\Courier::where('sorting_center_id', auth()->id())->where('status', 'pending')->count(); @endphp
-                <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><rect x="1" y="3" width="15" height="13" rx="1"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
-                Courier Applications
+                Riders
                 @if($pendingCouriers > 0)
-                    <span style="margin-left:auto;background:var(--accent-orange);color:#fff;border-radius:999px;padding:1px 7px;font-size:10px;font-weight:700;">{{ $pendingCouriers }}</span>
+                    <span style="margin-left:auto;background:var(--accent-orange);color:#fff;border-radius:999px;padding:1px 7px;font-size:10px;font-weight:700;" title="Courier applications waiting">{{ $pendingCouriers }}</span>
                 @endif
             </a>
             <p class="nav-section">Money</p>
@@ -120,21 +108,13 @@
                 <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
                 Coverage Areas
             </a>
-            <a href="{{ route('sc.reports') }}" class="nav-link {{ request()->routeIs('sc.reports') ? 'active' : '' }}">
+            <a href="{{ route('sc.reports') }}" class="nav-link {{ request()->routeIs('sc.reports', 'sc.activity') ? 'active' : '' }}">
                 <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
                 Reports
-            </a>
-            <a href="{{ route('sc.activity') }}" class="nav-link {{ request()->routeIs('sc.activity') ? 'active' : '' }}">
-                <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M9 5h11M9 12h11M9 19h11M4 5h.01M4 12h.01M4 19h.01"/></svg>
-                Activity Log
             </a>
             <a href="{{ route('sc.chat') }}" class="nav-link {{ request()->routeIs('sc.chat') ? 'active' : '' }}">
                 <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
                 Chat / Messaging
-            </a>
-            <a href="{{ route('sc.account') }}" class="nav-link {{ request()->routeIs('sc.account') ? 'active' : '' }}">
-                <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
-                Account Management
             </a>
         </nav>
 

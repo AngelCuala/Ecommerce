@@ -1,5 +1,7 @@
 <x-admin-layout title="Sales Reports" active="reports">
 
+@include('partials.page-tabs', ['tabs' => [['Sales Reports', 'admin.reports.index', 'admin.reports.*'], ['Analytics', 'admin.analytics.index', 'admin.analytics.*']]])
+
 {{-- ── Date range + type filter ─────────────────────────────────── --}}
 <form method="GET" class="flex flex-wrap items-end gap-3 mb-6">
     <div>

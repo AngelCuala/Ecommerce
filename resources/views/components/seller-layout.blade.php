@@ -98,19 +98,15 @@ $navSections = [
             'Store' => [
                 'dashboard' => ['route' => 'seller.dashboard',    'label' => 'Dashboard',        'icon' => 'grid'],
                 'orders'    => ['route' => 'seller.orders.index', 'label' => 'Order Management', 'icon' => 'orders'],
-                'products'  => ['route' => 'seller.books.index',  'label' => 'Inventory',        'icon' => 'box'],
-                'store-categories' => ['route' => 'seller.store-categories.index', 'label' => 'Store Categories', 'icon' => 'file'],
+                'products'  => ['route' => 'seller.books.index',  'label' => 'Products',         'icon' => 'box', 'also' => ['store-categories']],
                 'reviews'   => ['route' => 'seller.reviews.index', 'label' => 'Reviews',         'icon' => 'chat'],
             ],
             'Marketing' => [
-                'vouchers'  => ['route' => 'seller.vouchers.index', 'label' => 'Vouchers',       'icon' => 'ticket'],
-                'flash'     => ['route' => 'seller.flash-sales.index', 'label' => 'Flash sales', 'icon' => 'ticket'],
-                'promotions'=> ['route' => 'seller.promotions.index', 'label' => 'Bundles & Promos', 'icon' => 'bag'],
+                'vouchers'  => ['route' => 'seller.vouchers.index', 'label' => 'Vouchers & Promos', 'icon' => 'ticket', 'also' => ['flash', 'promotions']],
             ],
             'Finance' => [
-                'reports'   => ['route' => 'seller.reports',      'label' => 'Sales Reports',    'icon' => 'chart'],
+                'reports'   => ['route' => 'seller.reports',      'label' => 'Reports',          'icon' => 'chart', 'also' => ['commissions']],
                 'earnings'  => ['route' => 'seller.earnings',     'label' => 'Earnings & Payouts', 'icon' => 'activity'],
-                'commissions' => ['route' => 'seller.commissions', 'label' => 'Commission',      'icon' => 'file'],
             ],
             'General' => [
                 'notifications' => ['route' => 'seller.notifications', 'label' => 'Notifications', 'icon' => 'bell'],

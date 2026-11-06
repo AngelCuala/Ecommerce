@@ -33,12 +33,13 @@
     ];
     // Riders of a logistics company also get the hub jobs (pickups and deliveries) from the app.
     if (auth()->check() && \App\Models\Rider::where('user_id', auth()->id())->where('application_status', 'approved')->exists()) {
+        // A hub rider's own pages; the direct-courier pages (Delivery History, Earnings) only if they also did direct deliveries.
+        $direct = \App\Models\Delivery::whereHas('courier', fn ($q) => $q->where('user_id', auth()->id()))->exists();
         $links = array_slice($links, 0, 1, true) + [
             'rider'          => ['route' => 'courier.rider',          'label' => 'Hub Jobs',       'icon' => 'parcel'],
             'rider-history'  => ['route' => 'courier.rider.history',  'label' => 'Job History',    'icon' => 'history'],
-            'rider-earnings' => ['route' => 'courier.rider.earnings', 'label' => 'Rider Pay',      'icon' => 'earnings'],
-            'rider-cod'      => ['route' => 'courier.rider.cod',      'label' => 'COD Remittance', 'icon' => 'truck'],
-        ] + array_slice($links, 1, null, true);
+            'rider-earnings' => ['route' => 'courier.rider.earnings', 'label' => 'Pay & COD',      'icon' => 'earnings', 'also' => ['rider-cod']],
+        ] + array_diff_key(array_slice($links, 1, null, true), $direct ? [] : ['history' => 1, 'profit' => 1]);
     }
 @endphp
 
@@ -57,7 +58,7 @@
 
         <nav class="cx-nav">
             @foreach ($links as $key => $link)
-                <a href="{{ route($link['route']) }}" class="cx-nav-link {{ $active === $key ? 'active' : '' }}">
+                <a href="{{ route($link['route']) }}" class="cx-nav-link {{ $active === $key || in_array($active, $link['also'] ?? [], true) ? 'active' : '' }}">
                     @include('courier.partials.icon', ['name' => $link['icon'], 'size' => 17])
                     <span>{{ $link['label'] }}</span>
                     @if ($key === 'notifications' && $courierUnread > 0)
@@ -93,7 +94,7 @@
         </div>
         <nav class="cx-nav">
             @foreach ($links as $key => $link)
-                <a href="{{ route($link['route']) }}" class="cx-nav-link {{ $active === $key ? 'active' : '' }}">
+                <a href="{{ route($link['route']) }}" class="cx-nav-link {{ $active === $key || in_array($active, $link['also'] ?? [], true) ? 'active' : '' }}">
                     @include('courier.partials.icon', ['name' => $link['icon'], 'size' => 17])
                     <span>{{ $link['label'] }}</span>
                     @if ($key === 'notifications' && $courierUnread > 0)

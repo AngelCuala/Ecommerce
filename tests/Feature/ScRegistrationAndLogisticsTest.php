@@ -183,7 +183,8 @@ class ScRegistrationAndLogisticsTest extends TestCase
         $this->actingAs($admin)->get(route('admin.sc-applications.document', [$app, 'id']))->assertOk();
         $this->actingAs($admin)->get(route('admin.sc-applications.document', [$app, 'permit']))->assertOk();
         $this->actingAs($admin)->get('/admin/sc-applications/'.$app->id.'/document/other')->assertNotFound();
-        $this->actingAs($admin)->get(route('admin.dashboard'))->assertSee('Sorting Center Registrations');
+        $this->actingAs($admin)->get(route('admin.dashboard'))->assertSee(route('admin.product-approvals.index'), false);   // Approvals in the menu
+        $this->actingAs($admin)->get(route('admin.product-approvals.index'))->assertSee('data-page-tabs', false)->assertSee(route('admin.sc-applications.index'), false);   // its Sorting centers tab
     }
 
     public function test_admin_approves_unlocks_portal_sends_email(): void

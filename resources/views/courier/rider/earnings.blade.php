@@ -1,4 +1,6 @@
 <x-courier-layout title="Rider Pay" active="rider-earnings">
+
+@include('partials.page-tabs', ['tabs' => [['Rider pay', 'courier.rider.earnings', 'courier.rider.earnings'], ['COD remittance', 'courier.rider.cod', 'courier.rider.cod*']]])
 @php
     $peso = fn ($v) => '₱' . number_format((float) $v, 2);
     $periods = \App\Http\Controllers\Courier\RiderController::PAY_PERIODS;

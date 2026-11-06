@@ -1,4 +1,6 @@
 <x-seller-layout title="Store Categories" active="store-categories">
+
+@include('partials.page-tabs', ['tabs' => [['Products', 'seller.books.index', 'seller.books.index'], ['Store categories', 'seller.store-categories.index', 'seller.store-categories.*']]])
 <style>
     .sc-card { background:#fff; border:1px solid #ECE7E3; border-radius:.75rem; }
     .sc-row { display:flex; flex-wrap:wrap; align-items:center; gap:.5rem; padding:.7rem 1rem; border-top:1px solid #F2EEEA; }

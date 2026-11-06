@@ -115,27 +115,24 @@
 $navSections = [
             'Overview' => [
                 'dashboard'           => ['route' => 'admin.dashboard',                 'label' => 'Dashboard',                    'icon' => 'grid'],
-                'analytics'           => ['route' => 'admin.analytics.index',           'label' => 'Analytics & Reports',          'icon' => 'chart'],
-                'reports'             => ['route' => 'admin.reports.index',             'label' => 'Sales Reports',                'icon' => 'orders'],
+                'reports'             => ['route' => 'admin.reports.index',             'label' => 'Reports',                      'icon' => 'chart', 'also' => ['analytics']],
             ],
             'Catalog' => [
+                'categories'          => ['route' => 'admin.categories.index',          'label' => 'Categories',                   'icon' => 'box'],
                 'vouchers'            => ['route' => 'admin.vouchers.index',            'label' => 'Vouchers',                     'icon' => 'ticket'],
+                'banners'             => ['route' => 'admin.banners.index',             'label' => 'Home Banners',                 'icon' => 'image'],
             ],
             'People' => [
-                'customers'           => ['route' => 'admin.customers.index',           'label' => 'Buyers',                       'icon' => 'bag'],
-                'sellers'             => ['route' => 'admin.sellers.index',             'label' => 'Sellers',                      'icon' => 'store'],
-                'people-riders'       => ['route' => 'admin.riders.index',              'label' => 'Riders',                       'icon' => 'truck'],
-                'users'               => ['route' => 'admin.users.index',               'label' => 'All User Accounts',            'icon' => 'users'],
+                'customers'           => ['route' => 'admin.customers.index',           'label' => 'Accounts',                     'icon' => 'users', 'also' => ['sellers', 'people-riders', 'users']],
             ],
             'Approvals' => [
                 'gcash'               => ['route' => 'admin.gcash.index',               'label' => 'GCash Payments',               'icon' => 'wallet',
                                           'badge' => \App\Models\Order::where('status', \App\Models\Order::AWAITING_PAYMENT)->where('payment_method', \App\Models\Order::GCASH_RECEIPT)
                                               ->where('payment_status', 'For verification')->distinct()->count('checkout_group')
                                               + \App\Models\Order::where('payment_method', \App\Models\Order::GCASH_RECEIPT)->where('payment_status', 'Refund pending')->count()],
-                'product-approvals'   => ['route' => 'admin.product-approvals.index',   'label' => 'Product Approvals',            'icon' => 'box',
+                'product-approvals'   => ['route' => 'admin.product-approvals.index',   'label' => 'Approvals',                    'icon' => 'box',
+                                          'also' => ['seller-applications', 'sc-applications'],
                                           'badge' => \App\Models\Product::awaitingApproval()->where('is_archived', false)->count()],
-                'seller-applications' => ['route' => 'admin.seller-applications.index', 'label' => 'Seller Applications',          'icon' => 'file'],
-                'sc-applications'     => ['route' => 'admin.sc-applications.index',     'label' => 'Sorting Center Registrations', 'icon' => 'truck'],
                 'compliance'          => ['route' => 'admin.compliance.index',          'label' => 'Reports & Complaints',         'icon' => 'flag'],
             ],
             'System' => [

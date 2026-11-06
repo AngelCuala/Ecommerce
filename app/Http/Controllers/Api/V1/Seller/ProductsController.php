@@ -61,6 +61,7 @@ class ProductsController extends Controller
             'store_categories' => $d['storeCategories']->map(fn ($c) => ['id' => $c->id, 'name' => $c->name,
                 'children' => $c->children->map(fn ($s) => ['id' => $s->id, 'name' => $s->name])->values()])->values(),
             'max_images'      => Product::MAX_IMAGES,
+            'max_video_mb'    => BookController::videoLimitMb(),
             'max_variation_types' => \App\Models\ProductVariation::MAX_TYPES,
             'max_variation_options' => \App\Models\ProductVariation::MAX_OPTIONS,
         ];

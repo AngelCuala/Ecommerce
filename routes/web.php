@@ -503,6 +503,16 @@ Route::middleware(['auth', 'role:admin', 'prevent.back'])
     Route::patch('/vouchers/{voucher}/toggle', [\App\Http\Controllers\Admin\VoucherController::class, 'toggle'])->name('vouchers.toggle');
     Route::delete('/vouchers/{voucher}',       [\App\Http\Controllers\Admin\VoucherController::class, 'destroy'])->name('vouchers.destroy');
 
+    // Home page banner: the admin's slides for events and sales (website and app)
+    Route::get('/banners',                   [\App\Http\Controllers\Admin\HomeBannerController::class, 'index'])->name('banners.index');
+    Route::get('/banners/create',            [\App\Http\Controllers\Admin\HomeBannerController::class, 'create'])->name('banners.create');
+    Route::post('/banners',                  [\App\Http\Controllers\Admin\HomeBannerController::class, 'store'])->name('banners.store');
+    Route::post('/banners/settings',         [\App\Http\Controllers\Admin\HomeBannerController::class, 'settings'])->name('banners.settings');
+    Route::get('/banners/{banner}/edit',     [\App\Http\Controllers\Admin\HomeBannerController::class, 'edit'])->name('banners.edit');
+    Route::put('/banners/{banner}',          [\App\Http\Controllers\Admin\HomeBannerController::class, 'update'])->name('banners.update');
+    Route::patch('/banners/{banner}/toggle', [\App\Http\Controllers\Admin\HomeBannerController::class, 'toggle'])->name('banners.toggle');
+    Route::delete('/banners/{banner}',       [\App\Http\Controllers\Admin\HomeBannerController::class, 'destroy'])->name('banners.destroy');
+
     // New seller products waiting for approval
     Route::get('/product-approvals',                      [\App\Http\Controllers\Admin\ProductApprovalController::class, 'index'])->name('product-approvals.index');
     Route::patch('/product-approvals/{product}/approve',  [\App\Http\Controllers\Admin\ProductApprovalController::class, 'approve'])->name('product-approvals.approve');

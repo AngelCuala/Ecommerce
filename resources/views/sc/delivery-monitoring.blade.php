@@ -22,6 +22,8 @@
 @endphp
 
 @section('content')
+
+@include('partials.page-tabs', ['tabs' => [['Delivery assignment', 'sc.delivery-assignment', 'sc.delivery-assignment'], ['Rider dispatch', 'sc.dispatch', 'sc.dispatch*'], ['Delivery monitoring', 'sc.delivery-monitoring', 'sc.delivery-monitoring']]])
 <style>
     .dm-stats { display: grid; gap: 12px; grid-template-columns: repeat(5, minmax(0, 1fr)); margin-bottom: 18px; }
     @media (max-width: 1000px) { .dm-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); } }

@@ -53,7 +53,8 @@
 <div class="pc-card group">
 
     {{-- Wishlist (signed-out buyers are sent to sign in) --}}
-    <form action="{{ route('wishlist.toggle', $product->id) }}" method="POST" class="absolute right-1.5 top-1.5 z-20">
+    <form action="{{ route('wishlist.toggle', $product->id) }}" method="POST" class="absolute right-1.5 top-1.5 z-20"
+          @if ($wished) data-confirm-remove="Remove from wishlist?|&quot;{{ $product->title }}&quot; will be taken out of your wishlist." @endif>
         @csrf
         <input type="hidden" name="state" value="{{ $wished ? 'off' : 'on' }}">
         <button type="submit"

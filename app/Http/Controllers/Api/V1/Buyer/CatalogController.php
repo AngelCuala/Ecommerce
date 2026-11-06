@@ -28,7 +28,19 @@ class CatalogController extends Controller
             'featured'   => $d['featured']->map(fn ($p) => ApiJson::productCard($p))->values(),
             'trending'   => $d['trending']->map(fn ($p) => ApiJson::productCard($p))->values(),
             'categories' => $d['shortcuts']->map(fn ($c) => ['name' => $c->name, 'slug' => $c->slug, 'count' => $c->count,
-                'image_url' => asset('images/categories/' . $c->slug . '.jpg')])->values(),
+                'image_url' => CategoryPageController::photo($c->slug), 'wide_image_url' => CategoryPageController::photo($c->slug, true)])->values(),
+            // The big banner: the admin's event slides (Admin → Home Banners) first, then ALVY's own — as on the website.
+            'banners'    => collect(\App\Models\HomeBanner::slides())->map(fn ($s) => [
+                'image_url'     => $s['img'],
+                'focus'         => $s['pos'],
+                'eyebrow'       => $s['eyebrow'],
+                'title'         => $s['title'],
+                'highlight'     => $s['mark'],
+                'subtitle'      => $s['sub'],
+                'button'        => $s['button'],
+                'category_slug' => $s['slug'],
+                'category_name' => \App\Models\HomeBanner::categoryName($s['slug']),
+            ])->values(),
         ]);
     }
 
@@ -62,7 +74,8 @@ class CatalogController extends Controller
     {
         return response()->json(['categories' => collect(CategoryPageController::catalog())->map(fn ($c) => [
             'name' => $c['name'], 'slug' => $c['slug'], 'subcategories' => $c['subs'] ?? $c['subcategories'] ?? [],
-            'image_url' => asset('images/categories/' . $c['slug'] . '.jpg'),   // the same picture as the home shortcuts
+            'image_url' => CategoryPageController::photo($c['slug']),   // the same picture as the home shortcuts
+            'wide_image_url' => CategoryPageController::photo($c['slug'], true),
         ])->values()]);
     }
 
@@ -74,6 +87,8 @@ class CatalogController extends Controller
         return response()->json([
             'category'    => ['name' => $d['active']['name'], 'slug' => $d['active']['slug']],
             'subcategory' => $d['activeSub'],
+            // Its subcategories, for the app's pills on the category page.
+            'subcategories' => array_values($d['active']['subs'] ?? $d['active']['subcategories'] ?? []),
             'data'        => $d['products']->map(fn ($p) => ApiJson::productCard($p))->values(),
             'category_page' => $d['active']['slug'],
         ]);

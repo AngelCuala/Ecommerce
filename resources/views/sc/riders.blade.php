@@ -7,6 +7,8 @@
 @endsection
 
 @section('content')
+
+@include('partials.page-tabs', ['tabs' => [['Riders', 'sc.riders', 'sc.riders'], ['Courier applications', 'sc.courier-applications.index', 'sc.courier-applications.*']]])
 <div class="page-header"><h1>Rider Management</h1></div>
 <div class="page-body">
 

@@ -3,6 +3,8 @@
 @section('icon', 'rider')
 
 @section('content')
+
+@include('partials.page-tabs', ['tabs' => [['Delivery assignment', 'sc.delivery-assignment', 'sc.delivery-assignment'], ['Rider dispatch', 'sc.dispatch', 'sc.dispatch*'], ['Delivery monitoring', 'sc.delivery-monitoring', 'sc.delivery-monitoring']]])
 <div class="page-header"><h1>Rider Dispatch</h1></div>
 <div class="page-body">
     <p class="text-muted" style="margin:-4px 0 16px;font-size:13px;">

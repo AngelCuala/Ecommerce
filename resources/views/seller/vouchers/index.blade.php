@@ -1,5 +1,7 @@
 <x-seller-layout title="Vouchers" active="vouchers">
 
+@include('partials.page-tabs', ['tabs' => [['Vouchers', 'seller.vouchers.index', 'seller.vouchers.*'], ['Flash sales', 'seller.flash-sales.index', 'seller.flash-sales.*'], ['Bundles & Promos', 'seller.promotions.index', 'seller.promotions.*']]])
+
 <div class="mb-5 flex flex-wrap items-start justify-between gap-3">
     <div>
         <h1 class="text-xl font-bold" style="color:#222;">Store vouchers</h1>

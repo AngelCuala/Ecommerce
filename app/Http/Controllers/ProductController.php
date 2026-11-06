@@ -21,12 +21,7 @@ class ProductController extends Controller
             return response()->view('products.unavailable', ['product' => $product], 404);
         }
 
-        $related = Product::with(['category', 'images'])->withAvg('reviews', 'rating')
-            ->published()
-            ->where('category_id', $product->category_id)
-            ->where('id', '!=', $product->id)
-            ->take(4)
-            ->get();
+        $related = $this->related($product);
 
         $reviews = $product->reviews()->with('user')->latest()->paginate(10, ['*'], 'reviews_page');
         $ratingBreakdown = $product->reviews()->selectRaw('rating, COUNT(*) as n')->groupBy('rating')->pluck('n', 'rating');
@@ -50,5 +45,49 @@ class ProductController extends Controller
 
         return view('products.show', compact('product', 'related', 'reviews', 'ratingBreakdown', 'sold',
             'vouchers', 'claimed', 'wished', 'allowance', 'flash', 'upcoming', 'reminded'));
+    }
+
+    /**
+     * "You may also like" (website and app): items like this one first — same category and sharing words of its
+     * name (a word must start a word of the other title, so "glass" finds "glasses" but not "fiberglass") — then
+     * the rest of its category, then very close names from other categories; the same shop breaks ties.
+     */
+    private function related(Product $product, int $limit = 8)
+    {
+        $stop = ['the', 'and', 'for', 'with', 'from', 'new', 'set', 'pcs', 'pc', 'of', 'ang', 'mga', 'para', 'sa', 'na', 'ng'];
+        $words = collect(preg_split('/[^\pL\pN]+/u', mb_strtolower($product->title)))
+            ->filter(fn ($w) => mb_strlen($w) >= 3 && ! in_array($w, $stop, true) && ! ctype_digit($w))
+            ->unique()->take(6)->values();
+
+        $score = ['CASE WHEN category_id = ? THEN 4 ELSE 0 END', 'CASE WHEN seller_id = ? THEN 1 ELSE 0 END'];
+        $bindings = [$product->category_id, $product->seller_id];
+        foreach ($words as $w) {
+            $score[] = '(CASE WHEN LOWER(title) LIKE ? OR LOWER(title) LIKE ? THEN 3 ELSE 0 END)';
+            array_push($bindings, ...self::wordStart($w));
+        }
+
+        return Product::select('products.*')
+            ->selectRaw('(' . implode(' + ', $score) . ') AS related_score', $bindings)
+            ->with(['category', 'images'])->withAvg('reviews', 'rating')
+            ->published()
+            ->where('id', '!=', $product->id)
+            ->where(function ($q) use ($product, $words) {
+                $q->where('category_id', $product->category_id);
+                foreach ($words as $w) {
+                    $q->orWhereRaw('(LOWER(title) LIKE ? OR LOWER(title) LIKE ?)', self::wordStart($w));
+                }
+            })
+            ->orderByDesc('related_score')
+            ->latest('id')
+            ->take($limit)
+            ->get();
+    }
+
+    /** LIKE patterns for a title that has a word starting with $w: at the very start, or after a space. */
+    private static function wordStart(string $w): array
+    {
+        $w = addcslashes($w, '%_\\');
+
+        return [$w . '%', '% ' . $w . '%'];
     }
 }

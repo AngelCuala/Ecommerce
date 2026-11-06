@@ -1,4 +1,6 @@
 <x-seller-layout title="Sales Reports" active="reports">
+
+@include('partials.page-tabs', ['tabs' => [['Sales reports', 'seller.reports', 'seller.reports*'], ['Commission', 'seller.commissions', 'seller.commissions*']]])
 @php
     $presets = [
         'Today'        => [now()->toDateString(), now()->toDateString()],

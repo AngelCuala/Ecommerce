@@ -117,7 +117,7 @@
                     @endif
 
                     <div class="mt-5 border-t pt-4" style="border-color:#F2EEEA;">
-                        <label class="pf-label" for="video">Video <span class="opt">— optional, MP4, MOV or WebM up to 20 MB</span></label>
+                        <label class="pf-label" for="video">Video <span class="opt">— optional, MP4, MOV or WebM up to {{ \App\Http\Controllers\Seller\BookController::videoLimitMb() }} MB</span></label>
                         <input type="file" id="video" name="video" accept="video/mp4,video/quicktime,video/webm" class="file-input" data-video-input>
                         @error('video')<p class="pf-error" style="color:#B91C1C;font-size:.8rem;margin-top:.25rem;">{{ $message }}</p>@enderror
                         <p class="pf-note" data-video-status style="display:none;"></p>
@@ -132,16 +132,17 @@
                         @endif
                         <script>
                         (function () {
-                            // Check the size before uploading (the server refuses over 20 MB) and preview the chosen video.
+                            // Check the size before uploading (the server's limit) and preview the chosen video.
+                            var limitMb = {{ \App\Http\Controllers\Seller\BookController::videoLimitMb() }};
                             var input = document.querySelector('[data-video-input]'), preview = document.querySelector('[data-video-preview]'),
                                 status = document.querySelector('[data-video-status]'), saved = preview.getAttribute('src');
                             input.addEventListener('change', function () {
                                 var f = input.files && input.files[0];
                                 status.style.display = 'none';
                                 if (!f) { if (saved) { preview.src = saved; } else { preview.style.display = 'none'; } return; }
-                                if (f.size > 20 * 1024 * 1024) {
+                                if (f.size > limitMb * 1024 * 1024) {
                                     input.value = '';
-                                    status.textContent = 'This video is ' + (f.size / 1048576).toFixed(1) + ' MB. The limit is 20 MB: trim or compress it first.';
+                                    status.textContent = 'This video is ' + (f.size / 1048576).toFixed(1) + ' MB. The limit is ' + limitMb + ' MB: trim or compress it first.';
                                     status.style.color = '#B91C1C'; status.style.display = '';
                                     return;
                                 }

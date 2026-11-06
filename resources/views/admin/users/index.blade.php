@@ -1,4 +1,6 @@
 <x-admin-layout title="User Management" active="users">
+
+@include('partials.page-tabs', ['tabs' => [['Buyers', 'admin.customers.index', 'admin.customers.*'], ['Sellers', 'admin.sellers.index', 'admin.sellers.*'], ['Riders', 'admin.riders.index', 'admin.riders.*'], ['All accounts', 'admin.users.index', 'admin.users.*']]])
 @include('partials.panel.plain')
 <style>
     .role-tab { position: relative; padding: .6rem .25rem; margin-right: 1.25rem; font-size: .875rem; font-weight: 600; white-space: nowrap; color: #8a7f78; transition: color .15s; }

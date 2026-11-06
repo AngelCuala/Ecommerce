@@ -80,7 +80,8 @@
                                                 <p class="mt-1 inline-block rounded px-1.5 py-0.5 text-[11px] font-semibold" style="background:#FEF2F2;color:#B91C1C;">{{ $problem }}</p>
                                             @endif
                                         </div>
-                                        <form action="{{ route('cart.destroy', $item->id) }}" method="POST">
+                                        <form action="{{ route('cart.destroy', $item->id) }}" method="POST"
+                                              data-confirm-remove="Remove from cart?|&quot;{{ $item->product->title ?? 'This item' }}&quot; will be taken out of your cart.">
                                             @csrf @method('DELETE')
                                             <button type="submit" class="text-xs font-semibold hover:underline" style="color:#DC2626;">Delete</button>
                                         </form>

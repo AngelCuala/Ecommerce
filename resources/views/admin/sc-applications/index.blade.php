@@ -1,5 +1,7 @@
 <x-admin-layout title="Sorting Center Registrations" active="sc-applications">
 
+@include('partials.page-tabs', ['tabs' => [['Products', 'admin.product-approvals.index', 'admin.product-approvals.*'], ['Sellers', 'admin.seller-applications.index', 'admin.seller-applications.*'], ['Sorting centers', 'admin.sc-applications.index', 'admin.sc-applications.*']]])
+
 @if(session('success'))
     <div class="mb-6 rounded-xl border p-4 text-sm" role="status" style="background:rgba(250,78,28,.10);border-color:rgba(250,78,28,.35);color:#d93d0e;">
         ✓ {{ session('success') }}

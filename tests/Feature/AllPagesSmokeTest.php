@@ -82,7 +82,12 @@ class AllPagesSmokeTest extends TestCase
                     auth()->logout();
                 }
                 try {
-                    $status = $client->get('/' . ltrim($uri, '/'))->getStatusCode();
+                    $res = $client->get('/' . ltrim($uri, '/'));
+                    $status = $res->getStatusCode();
+                    // Say why a page failed (the exception the handler turned into a 500).
+                    if ($status >= 500 && $res->exception) {
+                        $status .= ' ' . class_basename($res->exception) . ': ' . \Illuminate\Support\Str::limit($res->exception->getMessage(), 200) . ' @ ' . basename($res->exception->getFile()) . ':' . $res->exception->getLine();
+                    }
                 } catch (\Throwable $e) {
                     $status = 'EXC ' . class_basename($e) . ': ' . \Illuminate\Support\Str::limit($e->getMessage(), 160);
                 }

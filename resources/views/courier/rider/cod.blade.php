@@ -1,4 +1,6 @@
 <x-courier-layout title="COD Remittance" active="rider-cod">
+
+@include('partials.page-tabs', ['tabs' => [['Rider pay', 'courier.rider.earnings', 'courier.rider.earnings'], ['COD remittance', 'courier.rider.cod', 'courier.rider.cod*']]])
 <div class="cx-page-head"><h1 class="font-display">COD Remittance</h1>
     <p>Hand the COD you collected to {{ $rider->companyName() }} by the end of the day. Only they can confirm it.</p></div>
 

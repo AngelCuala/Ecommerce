@@ -237,6 +237,7 @@
     <script src="{{ asset('js/toast.js') }}"></script>
 @endif
 
+@include('partials.confirm-remove')
 <script src="{{ asset('js/Buyer.js') }}"></script>
 
 <main class="flex-1">{{ $slot }}</main>

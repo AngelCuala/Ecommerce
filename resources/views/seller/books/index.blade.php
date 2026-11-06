@@ -1,4 +1,6 @@
 <x-seller-layout title="Products" active="products">
+
+@include('partials.page-tabs', ['tabs' => [['Products', 'seller.books.index', 'seller.books.index'], ['Store categories', 'seller.store-categories.index', 'seller.store-categories.*']]])
 @php
     $statuses = [
         'active'       => ['label' => 'Active',       'count' => $counts['active']],
