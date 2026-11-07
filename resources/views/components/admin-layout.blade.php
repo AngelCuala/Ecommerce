@@ -123,7 +123,7 @@ $navSections = [
                 'banners'             => ['route' => 'admin.banners.index',             'label' => 'Home Banners',                 'icon' => 'image'],
             ],
             'People' => [
-                'customers'           => ['route' => 'admin.customers.index',           'label' => 'Accounts',                     'icon' => 'users', 'also' => ['sellers', 'people-riders', 'users']],
+                'customers'           => ['route' => 'admin.customers.index',           'label' => 'Accounts',                     'icon' => 'users', 'also' => ['sellers', 'people-riders', 'people-sorting-centers', 'users']],
             ],
             'Approvals' => [
                 'gcash'               => ['route' => 'admin.gcash.index',               'label' => 'GCash Payments',               'icon' => 'wallet',

@@ -182,44 +182,58 @@ class BookController extends Controller
             return $blocked;
         }
         // The same form sent twice (double click, Enter twice, Back and resubmit) creates one product.
-        if ($token = $request->input('form_token')) {
-            if (! \Illuminate\Support\Facades\Cache::add('product-form:' . auth()->id() . ':' . $token, true, now()->addHour())) {
-                return redirect()->route('seller.books.index')->with('success', 'This product was already saved.');
-            }
+        $tokenKey = ($token = $request->input('form_token')) ? 'product-form:' . auth()->id() . ':' . $token : null;
+        if ($tokenKey && ! \Illuminate\Support\Facades\Cache::add($tokenKey, true, now()->addHour())) {
+            return $this->saved($request, route('seller.books.index'), 'This product was already saved.');
         }
-        $data = $this->validateProduct($request);
+        try {
+            $data = $this->validateProduct($request);
 
-        $book = DB::transaction(function () use ($request, $data) {
-            $payload = $this->buildPayload($request, $data);
-            $payload['seller_id'] = auth()->id();
-            // New products wait for an admin before they appear in the shop.
-            $payload['approval_status'] = 'pending';
+            $book = DB::transaction(function () use ($request, $data) {
+                $payload = $this->buildPayload($request, $data);
+                $payload['seller_id'] = auth()->id();
+                // New products wait for an admin before they appear in the shop.
+                $payload['approval_status'] = 'pending';
 
-            if ($request->hasFile('cover_image')) {
-                $payload['image'] = $request->file('cover_image')->store('products', 'public');
+                if ($request->hasFile('cover_image')) {
+                    $payload['image'] = $request->file('cover_image')->store('products', 'public');
+                }
+                if ($request->hasFile('video')) {
+                    $payload['video_path'] = $request->file('video')->store('products/videos', 'public');
+                }
+
+                $book = Product::create($payload);
+
+                // Auto product code once we have an id.
+                $book->product_code = 'ALVY-' . str_pad((string) $book->id, 6, '0', STR_PAD_LEFT);
+                $book->save();
+
+                $this->syncImages($request, $book);
+                $this->syncVariations($request, $book);
+                $this->syncStoreCategories($request, $book);
+
+                return $book;
+            });
+        } catch (\Throwable $e) {
+            // Nothing was saved: the same form can be sent again.
+            if ($tokenKey) {
+                \Illuminate\Support\Facades\Cache::forget($tokenKey);
             }
-            if ($request->hasFile('video')) {
-                $payload['video_path'] = $request->file('video')->store('products/videos', 'public');
-            }
-
-            $book = Product::create($payload);
-
-            // Auto product code once we have an id.
-            $book->product_code = 'ALVY-' . str_pad((string) $book->id, 6, '0', STR_PAD_LEFT);
-            $book->save();
-
-            $this->syncImages($request, $book);
-            $this->syncVariations($request, $book);
-            $this->syncStoreCategories($request, $book);
-
-            return $book;
-        });
+            throw $e;
+        }
 
         \App\Models\ActivityLog::note('"' . $book->title . '" (' . $book->product_code . ') · ₱' . number_format((float) $book->price, 2)
             . ' · stock ' . $book->stock . ($book->status === 'draft' ? ' · draft' : ' · sent for approval'), $book);
 
-        return redirect()->route('seller.books.index')
-            ->with('success', $this->successMessage($book, $request));
+        return $this->saved($request, route('seller.books.index'), $this->successMessage($book, $request));
+    }
+
+    /** After a save: the form page sends in the background and goes to the given address itself. */
+    private function saved(Request $request, string $url, string $message)
+    {
+        session()->flash('success', $message);
+
+        return $request->expectsJson() ? response()->json(['redirect' => $url]) : redirect($url);
     }
 
     public function edit(Product $book)
@@ -275,8 +289,7 @@ class BookController extends Controller
         \App\Models\ActivityLog::note('"' . $saved->title . '" (' . $saved->product_code . ') · ₱' . number_format((float) $saved->price, 2)
             . ' · stock ' . $saved->stock, $saved);
 
-        return redirect()->route('seller.books.index', session('seller_inventory_query', []))
-            ->with('success', $this->successMessage($saved, $request));
+        return $this->saved($request, route('seller.books.index', session('seller_inventory_query', [])), $this->successMessage($saved, $request));
     }
 
     public function destroy(Product $book)
@@ -478,7 +491,7 @@ class BookController extends Controller
             return null;
         }
 
-        return back()->withInput()->withErrors(['publish' => 'Your store must be verified before you can publish products. You can save this product as a draft for now.']);
+        throw \Illuminate\Validation\ValidationException::withMessages(['publish' => 'Your store must be verified before you can publish products. You can save this product as a draft for now.']);
     }
 
     private function validateProduct(Request $request, ?int $bookId = null, ?Product $book = null): array
@@ -507,6 +520,12 @@ class BookController extends Controller
         // The sale dates are Philippine time (stored as UTC, like vouchers); a failed form gets back what was typed.
         $typedSale = $request->only('sale_starts_at', 'sale_ends_at');
         $request->merge(array_map(fn ($v) => \App\Support\VoucherRules::toUtc($v), $typedSale));
+
+        // With variations the stock is their total (syncVariations saves it). The form's box is locked then, so it sends nothing.
+        $rows = collect((array) $request->input('variations', []))->filter(fn ($v) => trim((string) ($v['name'] ?? '')) !== '');
+        if ($rows->isNotEmpty()) {
+            $request->merge(['stock' => min(99999, $rows->sum(fn ($v) => (int) ($v['stock'] ?? 0)))]);
+        }
 
         // "20.00" from a saved sale is the whole percentage 20.
         if (is_string($pct = $request->input('discount_percent')) && preg_match('/^\d+\.0+$/', $pct)) {

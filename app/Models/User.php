@@ -209,6 +209,12 @@ class User extends Authenticatable
         return $this->hasMany(\App\Models\DeliveryArea::class, 'sorting_center_id');
     }
 
+    /** Sorting center (logistics company) applications of this account. */
+    public function sortingCenterApplications(): HasMany
+    {
+        return $this->hasMany(\App\Models\SortingCenterApplication::class);
+    }
+
     /** Riders managed by this sorting center. */
     public function riders(): HasMany
     {

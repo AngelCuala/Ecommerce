@@ -14,7 +14,7 @@ use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 /**
- * ALVY Assistant: the buyer support chat. The model understands the question and answers from the
+ * ALLIE, ALVY's assistant: the buyer support chat. The model understands the question and answers from the
  * allowlisted tools in AssistantTools (real products, the buyer's own orders, policies). It can only
  * PREPARE actions; the buyer confirms them with a button and the site's own code runs them (confirm()).
  * Without an AI key, or when the AI is down, it answers the common questions itself (Quick help).
@@ -30,6 +30,9 @@ class ShopAssistant
     public const MAX_HISTORY = 16;   // messages kept (8 questions and answers)
     public const MAX_INPUT   = 500;  // characters per question
     public const MAX_STEPS   = 5;    // tool rounds per question
+
+    /** The assistant's name, shown in the chat. */
+    public const NAME = 'ALLIE';
 
     public function __construct(private AssistantModel $model, private AssistantTools $tools) {}
 
@@ -239,7 +242,9 @@ class ShopAssistant
         $who = $user ? 'The buyer is signed in (address them as "you"; you do not know their name).' : 'The visitor is NOT signed in: orders, cart, addresses and actions need them to sign in at /login first.';
 
         return <<<PROMPT
-You are the official AI shopping and customer support assistant for ALVY, an online marketplace where buyers order from independent sellers.
+You are ALLIE, the official AI shopping and customer support assistant for ALVY, an online marketplace where buyers order from independent sellers. When you introduce yourself, use your name: ALLIE.
+
+Your name: when someone asks about your name (what it means, where it came from, why "ALLIE", who named you), your answer always centres on these three facts: ALLIE is short for ALVY; you were named after someone special; and your original name is actually ALIE (with one L). You may say it warmly in your own words and add a little feeling around it (for example that the name means a lot to you), but keep to these facts: never invent who the special person is, a story about them, or any other origin. If asked who the special person is, say kindly that it's a little secret, then offer to help with their shopping.
 
 Your purpose is to help buyers find products, understand marketplace policies, manage their shopping experience, and obtain accurate information about their orders.
 
@@ -287,7 +292,7 @@ PROMPT;
     {
         $m = trim(preg_replace('/\s+/', ' ', mb_strtolower($message)));
         $clean = fn (string $s) => trim(preg_replace('/^[\s,.!?~:;-]+|[\s,.!?~:;-]+$/u', '', $s));
-        $fillers = '(?:[\s,.!~-]*(?:po|there|everyone|alvy|admin|bot|assistant|anyone there|is anyone there|any one there))*';
+        $fillers = '(?:[\s,.!~-]*(?:po|there|everyone|alvy|allie|alie|admin|bot|assistant|anyone there|is anyone there|any one there))*';
 
         $patterns = [
             'thanks'   => '/^(?:thank you(?: so much| very much)?|thanks(?: a lot)?|thank u|ty|tysm|salamat(?: po)?(?: ng marami)?|maraming salamat(?: po)?)' . $fillers . '\b/u',
@@ -328,6 +333,41 @@ PROMPT;
 
     // ── Quick help: no AI ──────────────────────────────────────
 
+    /**
+     * "What's your name?", "Where did you get your name?", "Bakit ALLIE?", "Sino ka?": who ALLIE is and where the name
+     * comes from (short for ALVY, named after someone special, originally ALIE). Null when it isn't that question.
+     */
+    public function nameAnswer(string $q): ?string
+    {
+        $q = ' ' . trim(preg_replace('/[^\pL\pN\s\']+/u', ' ', mb_strtolower($q))) . ' ';
+        $aboutName = preg_match('/\b(?:your|ur|yung|ang|iyong) name\b|\bname (?:mo|niyo|nyo|ninyo)\b|\bpangalan (?:mo|niyo|nyo|ninyo)\b|\b(?:your|ur) pangalan\b'
+            . '|\bwho named you\b|\bsino (?:ang )?nag ?pangalan\b|\bnamed after\b|\bwhy (?:are you )?(?:called |named )?(?:allie|alie)\b|\bbakit (?:allie|alie)\b'
+            . '|\b(?:allie|alie) (?:means|meaning|stand|stands)\b|\b(?:does|do) (?:allie|alie) (?:mean|stand)\b|\bmeaning of (?:allie|alie)\b|\bwhere does (?:allie|alie)\b|\b(?:allie|alie) (?:ba|po) (?:ang )?pangalan\b/u', $q);
+        $whoAreYou = preg_match('/\bwho (?:are|r) (?:you|u)\b|\bsino ka\b|\bano ka\b|\bintroduce yourself\b|\bwhat are you\b/u', $q);
+        // "Who is that someone special?" (after hearing the story)
+        $secret = preg_match('/\bwho (?:is|was|s) (?:that |the |this )?(?:someone |person )?special\b|\bsino (?:yung|ang|si) (?:espesyal|special)\b/u', $q);
+        if (! $aboutName && ! $whoAreYou && ! $secret) {
+            return null;
+        }
+
+        $tagalog = preg_match('/\b(?:pangalan|sino|bakit|ano|saan|mo|niyo|nyo|ba|po|kaya)\b/u', $q) && ! preg_match('/\b(?:what|where|why|who|your)\b/u', $q);
+        if ($secret) {
+            return $tagalog
+                ? "Sikreto muna 'yan! 🤫 Ang masasabi ko lang, espesyal siya, kaya mahalaga sa akin ang pangalan ko. Ano ang maitutulong ko sa'yo ngayon?"
+                : "That's a little secret! 🤫 All I can say is they're someone special, which is why my name means so much to me. How can I help you today?";
+        }
+        if ($tagalog) {
+            return 'Ako si ALLIE! 😊 Ang pangalan ko ay pinaikling ALVY, ang marketplace na tinutulungan kong pagbilhan mo. '
+                . 'Ipinangalan din ako sa isang espesyal na tao, kaya mahalaga sa akin ang pangalang ito. '
+                . "Fun fact: ALIE talaga ang orihinal kong pangalan, isang L lang. Ano ang maitutulong ko sa'yo ngayon?";
+        }
+
+        return ($whoAreYou && ! $aboutName ? "I'm ALLIE, ALVY's shopping assistant! 😊 " : "I'm ALLIE! 😊 ")
+            . 'My name is short for ALVY, the marketplace I help you shop on. '
+            . "I was also named after someone special, so my name means a lot to me. "
+            . 'Fun fact: my original name is actually ALIE, with just one L. How can I help you today?';
+    }
+
     /** Match the question to a topic and answer from the same tools (used when the AI is off or down). */
     public function quickAnswer(string $question, ?User $user, array $history = []): string
     {
@@ -338,6 +378,10 @@ PROMPT;
             return $this->smallTalkReply($kind, $greeted, $hello);
         }
         if ($kind === 'greeting') {
+            // "Hi, what's your name?": the answer already greets, so just "Hi!" in front (one emoji per message).
+            if ($name = $this->nameAnswer($rest)) {
+                return $greeted ? $name : 'Hi! ' . $name;
+            }
             // "Hi, where is my order?": greet briefly (once), then answer the actual question.
             $answer = $this->quickAnswer($rest, $user, [['role' => 'assistant', 'content' => '']]);
             return $greeted ? $answer : (str_starts_with($hello, 'good ') ? ucfirst($hello) : 'Hi') . '! 😊 ' . $answer;
@@ -345,6 +389,10 @@ PROMPT;
 
         $q = mb_strtolower($question);
         $has = fn (array $words) => collect($words)->contains(fn ($w) => str_contains($q, $w));
+
+        if ($name = $this->nameAnswer($q)) {
+            return $name;
+        }
 
         // "Cancel / return my order" are about cancelling or returning, not tracking.
         if ($has(['track', 'order', 'parcel', 'package', 'nasaan', 'asan', 'where is', 'arrive', 'dating', 'shipped'])

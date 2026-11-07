@@ -29,6 +29,8 @@
         return el;
     }
 
+    var timer;
+
     function show(form) {
         var el = overlay();
         el.style.display = 'flex';
@@ -43,7 +45,8 @@
             Array.prototype.forEach.call(i.files || [], function (f) { bytes += f.size; });
         });
         var seconds = Math.max(2, bytes / (400 * 1024)), start = Date.now();
-        var timer = setInterval(function () {
+        clearInterval(timer);
+        timer = setInterval(function () {
             var pct = Math.min(90, Math.round((Date.now() - start) / 1000 / seconds * 90));
             bar.style.width = pct + '%';
             title.textContent = pct < 90 ? 'Uploading… ' + pct + '%' : 'Saving…';
@@ -52,6 +55,16 @@
         // Back from the browser cache (e.g. the user pressed Back): hide it again.
         window.addEventListener('pageshow', function (e) { if (e.persisted) { clearInterval(timer); el.style.display = 'none'; } });
     }
+
+    // For a form that sends itself in the background and stays on the page if the server says no.
+    window.UploadOverlay = {
+        show: function (form) { if (hasFiles(form)) show(form); },
+        hide: function () {
+            clearInterval(timer);
+            var el = document.getElementById('upload-overlay');
+            if (el) el.style.display = 'none';
+        },
+    };
 
     document.addEventListener('submit', function (e) {
         var form = e.target;

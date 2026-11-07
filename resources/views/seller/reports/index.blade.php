@@ -11,6 +11,13 @@
         'This year'    => [now()->startOfYear()->toDateString(), now()->toDateString()],
     ];
     $rangeLabel = \Carbon\Carbon::parse($from)->format('M j, Y') . ' – ' . \Carbon\Carbon::parse($to)->format('M j, Y');
+    $rangeDays = (int) \Carbon\Carbon::parse($from)->diffInDays(\Carbon\Carbon::parse($to)) + 1;
+    // Ranges can cover the same dates (on the 7th, "Last 7 days" is "This month"): the one clicked is the one lit,
+    // and a page opened without a click lights the first match in this order.
+    $isRange = fn (string $label) => isset($presets[$label]) && [$from, $to] === $presets[$label];
+    $activePreset = $isRange((string) request('preset'))
+        ? request('preset')
+        : collect(['Today', 'This month', 'Last month', 'Last 7 days', 'Last 30 days', 'This year'])->first($isRange);
     // Chart scale: a round top value (₱100, ₱250, ₱500, ₱1,000 …) with lines at quarters.
     $peak   = (float) $byDate->max();
     $maxVal = 100;
@@ -22,11 +29,29 @@
     $bestLabel = $byDateUnit === 'month' ? 'Best month' : 'Best day';
 @endphp
 <style>
-    .rp-card { background: #fff; border: 1px solid #ECE7E3; border-radius: .75rem; }
+    .rp-card { background: #fff; border: 1px solid #ECE7E3; border-radius: 1rem; box-shadow: 0 1px 2px rgba(34, 34, 34, .04); }
     .rp-label { font-size: .7rem; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: #a39890; }
-    .rp-preset { border: 1px solid #E7E5E4; border-radius: .375rem; padding: .35rem .7rem; font-size: .8125rem; font-weight: 500; color: #57534E; background: #fff; transition: border-color .15s, color .15s; }
-    .rp-preset:hover { border-color: #fa4e1c; color: #fa4e1c; }
-    .rp-preset.is-active { border-color: #fa4e1c; color: #fa4e1c; background: #FFF7F4; }
+    .rp-export { display: inline-flex; align-items: center; gap: .4rem; flex: none; border: 1px solid #E7E5E4; border-radius: .5rem; padding: .5rem .875rem; background: #fff; font-size: .8125rem; font-weight: 600; color: #44403C; transition: border-color .15s, color .15s; }
+    .rp-export:hover { border-color: #fa4e1c; color: #fa4e1c; }
+    .rp-seg { display: inline-flex; flex-wrap: wrap; gap: .125rem; padding: .1875rem; border-radius: .625rem; background: #F5F2EF; }
+    .rp-seg-item { padding: .35rem .75rem; border-radius: .5rem; font-size: .8125rem; font-weight: 500; white-space: nowrap; color: #57534E; transition: color .15s, background .15s; }
+    a.rp-seg-item:hover { color: #fa4e1c; }
+    .rp-seg-item.is-active { background: #fff; font-weight: 600; color: #fa4e1c; box-shadow: 0 1px 2px rgba(34, 34, 34, .12); }
+    .rp-dates { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; }
+    .rp-date { display: inline-flex; align-items: center; gap: .5rem; }
+    .rp-date label { font-size: .8125rem; font-weight: 500; color: #8a7f78; }
+    @media (max-width: 480px) {
+        .rp-date { width: 100%; }
+        .rp-date label { width: 2.5rem; flex: none; }
+        .rp-dates .input { width: 100%; flex: 1; }
+        .rp-apply { width: 100%; }
+    }
+    .rp-dates .input { width: 9.5rem; padding-top: .375rem; padding-bottom: .375rem; }
+    .rp-apply { border-radius: .5rem; padding: .45rem 1rem; background: #222; font-size: .8125rem; font-weight: 600; color: #fff; transition: opacity .15s; }
+    .rp-apply:hover { opacity: .9; }
+    .rp-apply:disabled { background: #F5F2EF; color: #a39890; opacity: 1; cursor: default; }
+    .rp-link { font-size: .8125rem; font-weight: 600; color: #fa4e1c; }
+    .rp-link:hover { text-decoration: underline; }
     .rp-table th { padding: .65rem 1rem; font-size: .7rem; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: #a39890; border-bottom: 1px solid #ECE7E3; background: #FCFBFA; }
     .rp-table td { padding: .75rem 1rem; border-bottom: 1px solid #F2EEEA; }
     .rp-table tbody tr:hover { background: #FCFBFA; }
@@ -36,41 +61,62 @@
 
 <div class="mx-auto max-w-6xl">
 
-    <div class="mb-5">
-        <h1 class="font-display text-2xl font-bold" style="color:#222;">Sales Reports</h1>
-        <p class="mt-0.5 text-sm" style="color:#8a7f78;">{{ $rangeLabel }}</p>
+    <div class="mb-5 flex flex-wrap items-start justify-between gap-3">
+        <div>
+            <h1 class="font-display text-2xl font-bold" style="color:#222;">Sales Reports</h1>
+            <p class="mt-0.5 text-sm" style="color:#8a7f78;">{{ $rangeLabel }} · {{ $rangeDays }} {{ \Illuminate\Support\Str::plural('day', $rangeDays) }}</p>
+        </div>
+        <a href="{{ route('seller.reports', ['from' => $from, 'to' => $to, 'export' => 'pdf']) }}" class="rp-export" data-export-pdf>
+            <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path stroke-linecap="round" stroke-linejoin="round" d="M14 2v6h6M12 18v-6M9 15l3 3 3-3"/></svg>
+            Export PDF
+        </a>
     </div>
 
     @if ($errors->any())<div class="mb-4 rounded-lg px-4 py-2.5 text-sm" style="background:#FEF2F2;color:#B91C1C;">{{ $errors->first() }}</div>@endif
 
     {{-- Date range --}}
-    <form method="GET" class="rp-card mb-5 flex flex-wrap items-end gap-3 px-5 py-4">
-        <div>
-            <label for="from" class="rp-label">From</label>
-            <input type="date" id="from" name="from" value="{{ $from }}" class="input mt-1 !py-1.5 text-sm">
-        </div>
-        <div>
-            <label for="to" class="rp-label">To</label>
-            <input type="date" id="to" name="to" value="{{ $to }}" class="input mt-1 !py-1.5 text-sm">
-        </div>
-        <button type="submit" class="rounded-md px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90" style="background:#222;">Apply</button>
-        <a href="{{ route('seller.reports', ['from' => $from, 'to' => $to, 'export' => 'pdf']) }}" class="rp-preset inline-flex items-center gap-1.5" data-export-pdf>
-            <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path stroke-linecap="round" stroke-linejoin="round" d="M14 2v6h6M12 18v-6M9 15l3 3 3-3"/></svg>
-            Export PDF
-        </a>
-        <div class="ml-auto flex flex-wrap gap-2">
+    <form method="GET" class="rp-card mb-5 flex flex-wrap items-center justify-between gap-x-6 gap-y-3 px-5 py-4" data-report-range>
+        <div class="rp-seg" role="group" aria-label="Quick date ranges">
             @foreach ($presets as $label => [$pFrom, $pTo])
-                <a href="{{ route('seller.reports', ['from' => $pFrom, 'to' => $pTo]) }}"
-                   class="rp-preset {{ $from === $pFrom && $to === $pTo ? 'is-active' : '' }}">{{ $label }}</a>
+                <a href="{{ route('seller.reports', ['from' => $pFrom, 'to' => $pTo, 'preset' => $label]) }}"
+                   class="rp-seg-item {{ $activePreset === $label ? 'is-active' : '' }}" @if ($activePreset === $label) aria-current="true" @endif>{{ $label }}</a>
             @endforeach
+            @unless ($activePreset)
+                <span class="rp-seg-item is-active" aria-current="true">Custom</span>
+            @endunless
+        </div>
+        <div class="rp-dates">
+            <span class="rp-date">
+                <label for="from">From</label>
+                <input type="date" id="from" name="from" value="{{ $from }}" max="{{ $to }}" class="input text-sm">
+            </span>
+            <span class="rp-date">
+                <label for="to">To</label>
+                <input type="date" id="to" name="to" value="{{ $to }}" min="{{ $from }}" class="input text-sm">
+            </span>
+            <button type="submit" class="rp-apply" data-range-apply>Apply</button>
         </div>
     </form>
+    <script>
+    (function () {
+        var form = document.querySelector('[data-report-range]'), from = form.elements.from, to = form.elements.to,
+            apply = form.querySelector('[data-range-apply]'), start = [from.value, to.value].join();
+        function sync() {
+            from.max = to.value;
+            to.min = from.value;
+            apply.disabled = [from.value, to.value].join() === start || !from.value || !to.value;
+        }
+        form.addEventListener('input', sync);
+        form.addEventListener('change', sync);
+        sync();
+    })();
+    </script>
 
     {{-- Summary --}}
     <div class="rp-card mb-5 grid grid-cols-2 lg:grid-cols-4">
         @foreach ([
             ['Gross sales',   '₱' . number_format($totalRevenue, 2),    'Cancelled & refunded orders excluded',       '#222'],
-            ['Fees & discounts', '−₱' . number_format($totalCommission + $totalSellerFunded, 2), '₱' . number_format($totalCommission, 2) . ' fees (' . $commissionRate . '%) · ₱' . number_format($totalSellerFunded, 2) . ' store vouchers & promos', '#57534E'],
+            ['Fees & discounts', (($totalCommission + $totalSellerFunded) > 0 ? '−' : '') . '₱' . number_format($totalCommission + $totalSellerFunded, 2), '₱' . number_format($totalCommission, 2) . ' fees (' . $commissionRate . '%) · ₱' . number_format($totalSellerFunded, 2) . ' store vouchers & promos', '#57534E'],
             ['Net earnings',  '₱' . number_format($totalEarnings, 2),   'What you take home',                         '#047857'],
             ['Orders',        number_format($totalOrders),               $byProduct->sum('qty') . ' units sold',       '#222'],
         ] as $i => [$label, $value, $note, $color])
@@ -84,7 +130,7 @@
 
     {{-- Daily earnings --}}
     <div class="rp-card mb-5 px-5 py-4">
-        <div class="mb-4 flex items-baseline justify-between">
+        <div class="mb-4 flex flex-wrap items-baseline justify-between gap-x-3">
             <h2 class="font-semibold" style="color:#222;">{{ $byDateUnit === 'month' ? 'Monthly' : 'Daily' }} net earnings</h2>
             @if ($byDate->count())
                 <span class="text-xs" style="color:#8a7f78;">{{ $bestLabel }}: {{ $byDate->sortDesc()->keys()->first() }} · ₱{{ number_format($peak, 2) }}</span>
@@ -122,7 +168,12 @@
                 </div>
             </div>
         @else
-            <p class="py-10 text-center text-sm" style="color:#8a7f78;">No sales in this period.</p>
+            <div class="py-10 text-center">
+                <p class="text-sm" style="color:#8a7f78;">No sales in this period.</p>
+                @if ($activePreset !== 'This year')
+                    <a href="{{ route('seller.reports', ['from' => $presets['This year'][0], 'to' => $presets['This year'][1], 'preset' => 'This year']) }}" class="rp-link mt-1 inline-block">See this year</a>
+                @endif
+            </div>
         @endif
     </div>
 

@@ -1,4 +1,18 @@
 <x-admin-layout title="Product Approvals" active="product-approvals">
+@php
+    // Common reasons for turning a listing down. The admin can still edit the message before sending it.
+    // Short label in the list => the message the seller gets.
+    $rejectReasons = [
+        'Unclear photos'          => 'The photos are blurry, too dark or don\'t show the actual product.',
+        'Misleading title or description' => 'The title or description doesn\'t match the product.',
+        'Wrong category'          => 'The product is in the wrong category.',
+        'Wrong or misleading price' => 'The price looks wrong or misleading.',
+        'Missing details'         => 'Important details are missing, like size, weight or materials.',
+        'Prohibited item'         => 'This item isn\'t allowed on ALVY. Please see the Prohibited Items Policy.',
+        'Counterfeit or copied brand' => 'This looks like a counterfeit or copies another brand.',
+        'Duplicate listing'       => 'This is a duplicate of another listing.',
+    ];
+@endphp
 
 @include('partials.page-tabs', ['tabs' => [['Products', 'admin.product-approvals.index', 'admin.product-approvals.*'], ['Sellers', 'admin.seller-applications.index', 'admin.seller-applications.*'], ['Sorting centers', 'admin.sc-applications.index', 'admin.sc-applications.*']]])
 
@@ -103,17 +117,26 @@
                             <span class="block text-xs opacity-80">It comes back here when the seller edits and saves it.</span>
                         </div>
                     @else
-                        <div class="mt-4 grid gap-3 border-t pt-4 md:grid-cols-[auto,1fr]" style="border-color:#F3E8E0;">
+                        <div class="mt-4 grid items-start gap-3 border-t pt-4 md:grid-cols-[auto,1fr]" style="border-color:#F3E8E0;">
                             <form method="POST" action="{{ route('admin.product-approvals.approve', $product) }}">
                                 @csrf @method('PATCH')
                                 <button class="btn-gold w-full !py-2 text-sm md:w-auto" style="background:#16a34a;border-color:#16a34a;color:#fff;">✓ Approve</button>
                             </form>
-                            <form method="POST" action="{{ route('admin.product-approvals.reject', $product) }}" class="flex flex-col gap-2 sm:flex-row">
+                            <form method="POST" action="{{ route('admin.product-approvals.reject', $product) }}" class="grid grid-cols-[1fr_auto] gap-2" data-reject-form>
                                 @csrf @method('PATCH')
-                                <input type="text" name="approval_note" maxlength="500" required
-                                       placeholder="Reason for rejecting (shown to the seller)…"
-                                       class="input flex-1 py-2 text-sm" style="border-color:#FFDCC2;">
+                                {{-- Picking a reason writes it in the box below, where it can still be edited. --}}
+                                <select class="input py-2 text-sm" data-reject-reason aria-label="Reason for rejecting {{ $product->title }}">
+                                    <option value="">Reason for rejecting…</option>
+                                    @foreach ($rejectReasons as $label => $message)
+                                        <option value="{{ $message }}">{{ $label }}</option>
+                                    @endforeach
+                                    <option value="other">Other (write the reason)</option>
+                                </select>
                                 <button class="btn-outline !py-2 text-sm" style="border-color:#DC2626;color:#DC2626;">Reject</button>
+                                <textarea name="approval_note" maxlength="500" required rows="2"
+                                          placeholder="Message to the seller: pick a reason above or write your own…"
+                                          aria-label="Message to the seller"
+                                          class="input col-span-2 py-2 text-sm" style="border-color:#FFDCC2;resize:vertical;"></textarea>
                             </form>
                         </div>
                     @endif
@@ -129,4 +152,22 @@
 
 <div class="mt-5">{{ $products->links() }}</div>
 
+<script>
+(function () {
+    document.addEventListener('change', function (e) {
+        var select = e.target.closest('[data-reject-reason]');
+        if (!select) return;
+        var note = select.form.elements.approval_note;
+        if (select.value === 'other') {
+            note.value = '';
+            note.placeholder = 'Write the reason for the seller…';
+        } else if (select.value) {
+            note.value = select.value;
+            note.placeholder = 'Message to the seller: pick a reason above or write your own…';
+        }
+        note.focus();
+        note.setSelectionRange(note.value.length, note.value.length);
+    });
+})();
+</script>
 </x-admin-layout>

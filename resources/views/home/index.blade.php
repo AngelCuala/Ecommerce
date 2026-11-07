@@ -16,13 +16,22 @@
     .hm-tile img { width: 100%; height: 100%; object-fit: cover; transition: transform .4s ease; }
     .hm-tile:hover img { transform: scale(1.03); }
     .hm-shade { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0,0,0,0) 35%, rgba(0,0,0,.55) 100%); }
-    .hm-cat { display: flex; flex-direction: column; align-items: center; gap: .5rem; padding: .75rem .25rem; border-radius: .75rem; text-align: center; transition: background .15s; }
+    /* 18 categories: 9 a row (2 rows) on wide screens, 6 on tablets, a 2-row strip that scrolls sideways on phones. */
+    .hm-cats { display: grid; grid-template-columns: repeat(9, minmax(0, 1fr)); gap: .125rem; }
+    @media (max-width: 1023px) { .hm-cats { grid-template-columns: repeat(6, minmax(0, 1fr)); } }
+    @media (max-width: 640px) {
+        .hm-cats { grid-template-columns: none; grid-template-rows: repeat(2, auto); grid-auto-flow: column; grid-auto-columns: 5rem;
+                   overflow-x: auto; scroll-snap-type: x proximity; scrollbar-width: none; margin: 0 -1rem; padding: 0 1rem; }
+        .hm-cats::-webkit-scrollbar { display: none; }
+        .hm-cat { scroll-snap-align: start; }
+    }
+    .hm-cat { display: flex; flex-direction: column; align-items: center; gap: .4rem; padding: .5rem .25rem; border-radius: .75rem; text-align: center; transition: background .15s; }
     .hm-cat:hover { background: #fff; }
-    .hm-cat-img { display: block; width: 4.75rem; height: 4.75rem; overflow: hidden; border-radius: 9999px; background: #F5F2EF; border: 1px solid #ECE7E3; transition: transform .25s cubic-bezier(.2,.7,.2,1), box-shadow .25s, border-color .25s; }
+    .hm-cat-img { display: block; flex: none; width: 3.5rem; height: 3.5rem; overflow: hidden; border-radius: 9999px; background: #F5F2EF; border: 1px solid #ECE7E3; transition: transform .25s cubic-bezier(.2,.7,.2,1), box-shadow .25s, border-color .25s; }
     .hm-cat-img img { width: 100%; height: 100%; object-fit: cover; transition: transform .4s cubic-bezier(.2,.7,.2,1); }
     .hm-cat:hover .hm-cat-img { transform: translateY(-4px); border-color: #fff; box-shadow: 0 0 0 2px #fa4e1c, 0 8px 18px rgba(28,25,23,.12); }
     .hm-cat:hover .hm-cat-img img { transform: scale(1.12); }
-    .hm-cat-name { transition: color .15s; }
+    .hm-cat-name { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: .75rem; transition: color .15s; }
     .hm-cat:hover .hm-cat-name { color: #fa4e1c !important; }
     .hm-link .hm-arrow { display: inline-block; }
     .hm-link:hover .hm-arrow { transform: translateX(3px); }
@@ -137,13 +146,13 @@
             <h2 class="hm-section-title">Categories</h2>
             <a href="{{ route('categories.page') }}" class="hm-link">All categories <span class="hm-arrow">&rarr;</span></a>
         </div>
-        <div class="grid grid-cols-3 gap-1 sm:grid-cols-4 md:grid-cols-6" data-rv-items>
+        <div class="hm-cats" data-rv-items>
             @foreach ($shortcuts as $cat)
                 <a href="{{ route('categories.show', $cat->slug) }}" class="hm-cat">
                     <span class="hm-cat-img">
                         <img src="{{ $photo($cat->slug) }}" alt="" loading="lazy">
                     </span>
-                    <span class="hm-cat-name text-xs font-medium leading-tight sm:text-sm" style="color:#222;">{{ $cat->name }}</span>
+                    <span class="hm-cat-name font-medium leading-tight" style="color:#222;">{{ $cat->name }}</span>
                 </a>
             @endforeach
         </div>

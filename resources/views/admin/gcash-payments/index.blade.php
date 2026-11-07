@@ -19,6 +19,39 @@
     <div class="mb-5 rounded-xl border p-3 text-sm" style="background:#FEF2F2;border-color:rgba(220,38,38,.25);color:#DC2626;">{{ $errors->first() }}</div>
 @endif
 
+@php
+    // A failed save opens the tab it came from.
+    $errorTab = $errors->hasAny(['qr', 'name', 'number']) ? 'account' : ($errors->has('refund_reference') ? 'refunds' : null);
+    $tabs = [
+        'check'   => ['To check', $waiting->count() + $fixing->count(), $waiting->count() > 0],
+        'refunds' => ['Refunds to send', $refunds->count(), $refunds->isNotEmpty()],
+        'history' => ['Last 14 days', $recent->count(), false],
+        'account' => ["ALVY's GCash account", null, ! $account['qr_url']],
+    ];
+@endphp
+<style>
+    .gc-tabs { display: flex; flex-wrap: wrap; gap: .25rem 1.5rem; margin-bottom: 1.25rem; border-bottom: 1px solid #E5EDF3; }
+    .gc-tab { display: inline-flex; align-items: center; gap: .45rem; margin-bottom: -1px; padding: .7rem .125rem; border-bottom: 2px solid transparent; font-size: .9rem; font-weight: 700; color: #6b90aa; transition: color .15s; }
+    .gc-tab:hover { color: #222; }
+    .gc-tab[aria-selected="true"] { border-color: #fa4e1c; color: #222; }
+    .gc-count { min-width: 1.35rem; padding: .05rem .45rem; border-radius: 9999px; background: #EEF3F7; font-size: .72rem; font-weight: 700; text-align: center; color: #47657c; }
+    .gc-count.is-due { background: #fa4e1c; color: #fff; }
+    .gc-dot { height: .5rem; width: .5rem; border-radius: 9999px; background: #DC2626; }
+</style>
+<div class="gc-tabs" role="tablist" aria-label="GCash payments" data-gcash-tabs data-error-tab="{{ $errorTab }}">
+    @foreach ($tabs as $key => [$label, $count, $due])
+        <button type="button" role="tab" id="gc-tab-{{ $key }}" aria-controls="gc-panel-{{ $key }}" aria-selected="{{ $loop->first ? 'true' : 'false' }}" class="gc-tab" data-tab="{{ $key }}">
+            {{ $label }}
+            @if ($count !== null)
+                <span class="gc-count {{ $due ? 'is-due' : '' }}">{{ $count }}</span>
+            @elseif ($due)
+                <span class="gc-dot" title="No QR yet: GCash is hidden at checkout"></span><span class="sr-only">(needs a QR)</span>
+            @endif
+        </button>
+    @endforeach
+</div>
+
+<div role="tabpanel" id="gc-panel-check" aria-labelledby="gc-tab-check" data-gcash-panel="check">
 {{-- ── To check ── --}}
 <h2 class="mb-3 font-display text-lg font-bold" style="color:#222;">To check <span class="text-sm font-semibold" style="color:#6b90aa;">({{ $waiting->count() }})</span></h2>
 <div class="mb-8 space-y-4" data-gcash-waiting>
@@ -134,6 +167,9 @@
     </div>
 @endif
 
+</div>
+
+<div role="tabpanel" id="gc-panel-refunds" aria-labelledby="gc-tab-refunds" data-gcash-panel="refunds">
 {{-- ── Refunds to send ── --}}
 <h2 class="mb-3 font-display text-lg font-bold" style="color:#222;">Refunds to send <span class="text-sm font-semibold" style="color:#6b90aa;">({{ $refunds->count() }})</span></h2>
 <div class="card mb-8 overflow-x-auto" data-gcash-refunds>
@@ -164,6 +200,36 @@
     @endif
 </div>
 
+</div>
+
+<div role="tabpanel" id="gc-panel-history" aria-labelledby="gc-tab-history" data-gcash-panel="history">
+{{-- ── Recently checked ── --}}
+@if ($recent->isNotEmpty())
+    <h2 class="mb-3 font-display text-lg font-bold" style="color:#222;">Last 14 days</h2>
+    <div class="card overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead><tr class="text-left text-xs" style="color:#6b90aa;"><th class="px-4 py-2">Order</th><th class="px-4 py-2">Buyer</th><th class="px-4 py-2">Ref No.</th><th class="px-4 py-2 text-right">Total</th><th class="px-4 py-2">Payment</th></tr></thead>
+            <tbody>
+                @foreach ($recent as $o)
+                    <tr class="border-t" style="border-color:#F0E4DC;">
+                        <td class="px-4 py-2"><a href="{{ route('admin.orders.show', $o->id) }}" class="font-semibold hover:underline" style="color:#fa4e1c;">{{ $o->number() }}</a></td>
+                        <td class="px-4 py-2">{{ $o->user->name ?? $o->full_name }}</td>
+                        <td class="px-4 py-2 font-mono text-xs">{{ $o->payment_reference ?: '—' }}</td>
+                        <td class="px-4 py-2 text-right">{{ $peso($o->payment_expected ?? $o->total_price) }}</td>
+                        <td class="px-4 py-2 text-xs font-semibold">{{ $o->payment_status }}</td>
+                    </tr>
+                @endforeach
+            </tbody>
+        </table>
+    </div>
+@endif
+@if ($recent->isEmpty())
+    <h2 class="mb-3 font-display text-lg font-bold" style="color:#222;">Last 14 days</h2>
+    <div class="card p-6 text-center text-sm" style="color:#6b90aa;">No GCash payments were checked in the last 14 days.</div>
+@endif
+</div>
+
+<div role="tabpanel" id="gc-panel-account" aria-labelledby="gc-tab-account" data-gcash-panel="account">
 {{-- ── ALVY's GCash ── --}}
 <h2 class="mb-3 font-display text-lg font-bold" style="color:#222;">ALVY's GCash account</h2>
 <div class="card mb-8 p-5" data-gcash-account>
@@ -196,25 +262,44 @@
     </form>
 </div>
 
-{{-- ── Recently checked ── --}}
-@if ($recent->isNotEmpty())
-    <h2 class="mb-3 font-display text-lg font-bold" style="color:#222;">Last 14 days</h2>
-    <div class="card overflow-x-auto">
-        <table class="w-full text-sm">
-            <thead><tr class="text-left text-xs" style="color:#6b90aa;"><th class="px-4 py-2">Order</th><th class="px-4 py-2">Buyer</th><th class="px-4 py-2">Ref No.</th><th class="px-4 py-2 text-right">Total</th><th class="px-4 py-2">Payment</th></tr></thead>
-            <tbody>
-                @foreach ($recent as $o)
-                    <tr class="border-t" style="border-color:#F0E4DC;">
-                        <td class="px-4 py-2"><a href="{{ route('admin.orders.show', $o->id) }}" class="font-semibold hover:underline" style="color:#fa4e1c;">{{ $o->number() }}</a></td>
-                        <td class="px-4 py-2">{{ $o->user->name ?? $o->full_name }}</td>
-                        <td class="px-4 py-2 font-mono text-xs">{{ $o->payment_reference ?: '—' }}</td>
-                        <td class="px-4 py-2 text-right">{{ $peso($o->payment_expected ?? $o->total_price) }}</td>
-                        <td class="px-4 py-2 text-xs font-semibold">{{ $o->payment_status }}</td>
-                    </tr>
-                @endforeach
-            </tbody>
-        </table>
-    </div>
-@endif
 
+
+</div>
+
+<script>
+(function () {
+    // Without this script every section simply shows, one under the other.
+    var bar = document.querySelector('[data-gcash-tabs]');
+    var tabs = Array.prototype.slice.call(bar.querySelectorAll('[data-tab]'));
+    var key = 'admin-gcash-tab';
+    function show(name, focus) {
+        if (!document.querySelector('[data-gcash-panel="' + name + '"]')) name = 'check';
+        tabs.forEach(function (t) {
+            var on = t.dataset.tab === name;
+            t.setAttribute('aria-selected', on ? 'true' : 'false');
+            t.tabIndex = on ? 0 : -1;
+            if (on && focus) t.focus();
+        });
+        document.querySelectorAll('[data-gcash-panel]').forEach(function (p) { p.hidden = p.dataset.gcashPanel !== name; });
+        try { sessionStorage.setItem(key, name); } catch (e) {}
+        if (history.replaceState) history.replaceState(null, '', '#' + name);
+    }
+    bar.addEventListener('click', function (e) {
+        var t = e.target.closest('[data-tab]');
+        if (t) show(t.dataset.tab);
+    });
+    bar.addEventListener('keydown', function (e) {
+        var i = tabs.indexOf(document.activeElement);
+        if (i < 0 || (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft')) return;
+        e.preventDefault();
+        show(tabs[(i + (e.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length].dataset.tab, true);
+    });
+    // A link to another tab of this page (#refunds) only changes the address, so follow it here.
+    window.addEventListener('hashchange', function () { show(location.hash.slice(1)); });
+    // After approving, refunding or saving, the page comes back to the tab that was open.
+    var stored = null;
+    try { stored = sessionStorage.getItem(key); } catch (e) {}
+    show(bar.dataset.errorTab || location.hash.slice(1) || stored || 'check');
+})();
+</script>
 </x-admin-layout>

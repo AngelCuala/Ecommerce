@@ -11,124 +11,146 @@
     </div>
 @endif
 
-<div class="mb-6">
-    <a href="{{ route('admin.users.index') }}"
-       class="text-sm font-semibold transition" style="color:#fa4e1c;"
-       onmouseover="this.style.color='#d93d0e';" onmouseout="this.style.color='#fa4e1c';">
-        ← Back to Users
-    </a>
+@php
+    $roleKey = strtolower($user->role ?? 'buyer');
+    $isDisabled = in_array($roleKey, ['suspended', 'deactivated'], true);
+    $roleLabel = [
+        'buyer' => 'Buyer', 'seller' => 'Seller', 'courier' => 'Rider', 'courier_pending' => 'Rider (pending)',
+        'sorting_center' => 'Sorting center', 'sorting_center_pending' => 'Sorting center (pending)', 'admin' => 'Admin',
+    ][$roleKey] ?? null;
+    $isCenter = in_array($roleKey, ['sorting_center', 'sorting_center_pending'], true) || ($isDisabled && $user->sortingCenterApplications()->exists());
+    $scApp = $isCenter ? $user->sortingCenterApplications()->latest('id')->first() : null;
+    $rider = in_array($roleKey, ['courier', 'courier_pending'], true) ? \App\Models\Rider::with('sortingCenter:id,name')->where('user_id', $user->id)->first() : null;
+
+    // Back to the list this account belongs to.
+    [$backUrl, $backLabel] = match (true) {
+        $isCenter                                          => [route('admin.sorting-centers.index'), 'Sorting centers'],
+        $roleKey === 'seller'                              => [route('admin.sellers.index'), 'Sellers'],
+        in_array($roleKey, ['courier', 'courier_pending']) => [route('admin.riders.index'), 'Riders'],
+        $roleKey === 'buyer'                               => [route('admin.customers.index'), 'Buyers'],
+        default                                            => [route('admin.users.index'), 'All accounts'],
+    };
+
+    [$statusLabel, $statusBg, $statusText] = match ($roleKey) {
+        'suspended'   => ['Suspended', '#FFFBEB', '#B45309'],
+        'deactivated' => ['Deactivated', '#F3F4F6', '#4B5563'],
+        default       => str_ends_with($roleKey, '_pending') ? ['Waiting for approval', '#FFFBEB', '#B45309'] : ['Active', '#ECFDF5', '#047857'],
+    };
+
+    // What is worth counting depends on the kind of account.
+    $stats = match (true) {
+        $isCenter => [
+            ['Hubs', \Illuminate\Support\Facades\DB::table('logistics_hubs')->where('sorting_center_id', $user->id)->count()],
+            ['Barangays', $user->deliveryAreas()->count()],
+            ['Riders', $user->riders()->where('application_status', 'approved')->where('is_active', true)->count() . ' / ' . $user->riders()->count()],
+        ],
+        $roleKey === 'seller' => [['Products', $user->books_count ?? 0], ['Orders placed', $user->orders_count ?? 0]],
+        $rider !== null       => [['Sorting center', $rider->sortingCenter?->sortingCenterApplications()->latest('id')->value('business_name') ?: ($rider->sortingCenter->name ?? '—')], ['Vehicle', ucfirst($rider->vehicle_type ?: '—')]],
+        default               => [['Orders', $user->orders_count ?? 0]],
+    };
+    $stats[] = ['Joined', $user->created_at->format('M d, Y')];
+    $stats[] = ['Last sign-in', $user->last_login_at ? $user->last_login_at->diffForHumans() : 'Never'];
+
+    $address = collect([$user->house_number, $user->street, $user->barangay ? 'Brgy. ' . $user->barangay : null, $user->municipality, $user->province])->filter()->implode(', ');
+    $phone = $user->contact_no ?: $user->phone;
+    $svg = fn (string $d) => '<svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" aria-hidden="true">' . $d . '</svg>';
+@endphp
+<style>
+    .up-pill { display: inline-flex; align-items: center; gap: .3rem; padding: .2rem .65rem; border-radius: 9999px; font-size: .75rem; font-weight: 700; }
+    .up-link { display: inline-flex; align-items: center; gap: .35rem; padding: .45rem .8rem; border: 1px solid #dce8f0; border-radius: .6rem; background: #fff; font-size: .8125rem; font-weight: 600; color: #002b4d; transition: border-color .15s, color .15s; }
+    .up-link:hover { border-color: #fa4e1c; color: #fa4e1c; }
+    .up-stat { padding: .75rem .9rem; border-radius: .75rem; background: #F6F9FB; }
+    .up-stat dt { font-size: .72rem; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: #6b90aa; }
+    .up-stat dd { margin-top: .15rem; font-size: .95rem; font-weight: 700; color: #222; overflow-wrap: anywhere; }
+    .up-act { display: flex; width: 100%; align-items: center; gap: .6rem; padding: .7rem .85rem; border: 1px solid; border-radius: .75rem; text-align: left; transition: background .15s, color .15s; }
+    .up-act-title { display: block; font-size: .875rem; font-weight: 700; }
+    .up-act-sub { display: block; font-size: .75rem; font-weight: 500; opacity: .85; }
+    .up-field { padding: .75rem 0; border-bottom: 1px solid #F1F4F7; }
+    .up-field dt { font-size: .75rem; color: #6b90aa; }
+    .up-field dd { margin-top: .1rem; font-size: .875rem; font-weight: 600; color: #222; overflow-wrap: anywhere; }
+    .up-field dd.is-empty { font-weight: 500; color: #a7b8c6; }
+</style>
+
+<div class="mb-5">
+    <a href="{{ $backUrl }}" class="text-sm font-semibold hover:underline" style="color:#fa4e1c;">&larr; Back to {{ $backLabel }}</a>
+</div>
+
+{{-- ── Header ── --}}
+<div class="card mb-6 flex flex-wrap items-center gap-5 p-6" data-user-header>
+    @if ($user->profile_photo_url)
+        <img src="{{ $user->profile_photo_url }}" alt="" class="h-16 w-16 shrink-0 rounded-full object-cover">
+    @else
+        <span class="flex h-16 w-16 shrink-0 items-center justify-center rounded-full font-display text-2xl font-bold" style="background:#002b4d;color:#fff;">{{ strtoupper(mb_substr($user->name ?? 'U', 0, 1)) }}</span>
+    @endif
+    <div class="min-w-0 flex-1">
+        <div class="flex flex-wrap items-center gap-2">
+            <h1 class="font-display text-xl font-bold" style="color:#222;">{{ $scApp->business_name ?? $user->name }}</h1>
+            @if ($roleLabel)<span class="up-pill" style="background:#EEF3F7;color:#002b4d;">{{ $roleLabel }}</span>@endif
+            <span class="up-pill" style="background:{{ $statusBg }};color:{{ $statusText }};" data-account-status>{{ $statusLabel }}</span>
+        </div>
+        <p class="mt-1 text-sm" style="color:#6b90aa;">
+            @if ($scApp){{ $user->name }} · @endif{{ $user->email }}@if ($phone) · {{ $phone }}@endif
+            @if ($user->username) · @{{ $user->username }}@endif
+        </p>
+    </div>
+    <div class="flex flex-wrap gap-2">
+        @if ($scApp)
+            <a href="{{ route('admin.sc-applications.show', $scApp->id) }}" class="up-link">{!! $svg('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6Zm0 0v6h6"/>') !!} Application</a>
+        @endif
+        @if ($isCenter && $user->riders()->exists())
+            <a href="{{ route('admin.riders.index', ['center' => $user->id]) }}" class="up-link">{!! $svg('<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6"/>') !!} Riders</a>
+        @endif
+        @if ($user->sellerApplication)
+            <a href="{{ route('admin.seller-applications.show', $user->sellerApplication->id) }}" class="up-link">{!! $svg('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6Zm0 0v6h6"/>') !!} Seller application</a>
+        @endif
+    </div>
 </div>
 
 <div class="grid gap-6 lg:grid-cols-[320px_1fr]">
 
-    {{-- ── Profile card ── --}}
     <div class="space-y-5">
-        <div class="card p-6 text-center">
-            <div class="mx-auto flex h-20 w-20 items-center justify-center rounded-full font-display text-3xl font-bold"
-                 style="color:#fff;background:#002b4d;">
-                {{ strtoupper(substr($user->name ?? 'U', 0, 1)) }}
-            </div>
-            <p class="mt-4 font-bold text-lg" style="color:#222222;">{{ $user->name }}</p>
-            <p class="text-sm" style="color:#6b90aa;">{{ $user->email }}</p>
-            @if ($user->username)
-                <p class="text-xs mt-0.5" style="color:#BBBBBB;">@{{ $user->username }}</p>
-            @endif
-
-            {{-- Role badge --}}
-            @php
-                $roleKey = strtolower($user->role ?? 'buyer');
-                $rc = match($roleKey) {
-                    'admin'       => ['bg'=>'#EEF2FF','text'=>'#4338CA'],
-                    'seller'      => ['bg'=>'rgba(250,78,28,.12)','text'=>'#fa4e1c'],
-                    'suspended'   => ['bg'=>'#FEF2F2','text'=>'#DC2626'],
-                    'deactivated' => ['bg'=>'#F3F4F6','text'=>'#6B7280'],
-                    default       => ['bg'=>'#F0FDF4','text'=>'#059669'],
-                };
-            @endphp
-            <span class="mt-3 inline-block rounded-full px-4 py-1.5 text-sm font-bold"
-                  style="background:{{ $rc['bg'] }};color:{{ $rc['text'] }};">
-                {{ ucfirst($user->role ?? 'buyer') }}
-            </span>
-
-            <div class="mt-5 border-t pt-5 text-left space-y-2 text-sm" style="border-color:#dce8f0;">
-                <div class="flex justify-between">
-                    <span style="color:#6b90aa;">Joined</span>
-                    <span style="color:#222;">{{ $user->created_at->format('M d, Y') }}</span>
-                </div>
-                <div class="flex justify-between">
-                    <span style="color:#6b90aa;">Products</span>
-                    <span style="color:#222;">{{ $user->books_count ?? 0 }}</span>
-                </div>
-                <div class="flex justify-between">
-                    <span style="color:#6b90aa;">Orders</span>
-                    <span style="color:#222;">{{ $user->orders_count ?? 0 }}</span>
-                </div>
-                @if ($user->phone)
-                    <div class="flex justify-between">
-                        <span style="color:#6b90aa;">Phone</span>
-                        <span style="color:#222;">{{ $user->phone }}</span>
-                    </div>
-                @endif
-                @if ($user->address)
-                    <div class="flex justify-between">
-                        <span style="color:#6b90aa;">Address</span>
-                        <span style="color:#222;text-align:right;max-width:160px;">{{ $user->address }}</span>
-                    </div>
-                @endif
-                @if ($user->sex)
-                    <div class="flex justify-between">
-                        <span style="color:#6b90aa;">Sex</span>
-                        <span style="color:#222;">{{ $user->sex }}</span>
-                    </div>
-                @endif
-                @if ($user->birthday)
-                    <div class="flex justify-between">
-                        <span style="color:#6b90aa;">Birthday</span>
-                        <span style="color:#222;">{{ \Carbon\Carbon::parse($user->birthday)->format('M d, Y') }}</span>
-                    </div>
-                @endif
-            </div>
+        {{-- Overview --}}
+        <div class="card p-5">
+            <h2 class="mb-3 text-sm font-bold" style="color:#222;">Overview</h2>
+            <dl class="grid grid-cols-2 gap-2" data-user-stats>
+                @foreach ($stats as [$label, $value])
+                    <div class="up-stat {{ strlen((string) $value) > 14 ? 'col-span-2' : '' }}"><dt>{{ $label }}</dt><dd>{{ $value }}</dd></div>
+                @endforeach
+            </dl>
         </div>
 
         {{-- Account actions --}}
         @if (! $user->isAdmin())
-            <div class="card p-5 space-y-3">
-                <h3 class="text-sm font-bold" style="color:#222222;">Account Actions</h3>
+            <div class="card space-y-2 p-5">
+                <h2 class="mb-1 text-sm font-bold" style="color:#222;">Account actions</h2>
 
-                @if (in_array($roleKey, ['suspended','deactivated']))
-                    <form action="{{ route('admin.users.activate', $user->id) }}" method="POST">
+                @if ($isDisabled)
+                    <form action="{{ route('admin.users.activate', $user->id) }}" method="POST"
+                          data-confirm="{{ $user->name }} can sign in again with the same kind of account." data-confirm-title="Activate this account?" data-confirm-ok="Activate">
                         @csrf @method('PATCH')
-                        <button class="w-full rounded-xl py-2.5 text-sm font-bold transition"
-                                style="background:#ECFDF5;color:#059669;border:1px solid #A7F3D0;"
-                                onmouseover="this.style.background='#059669';this.style.color='#fff';"
-                                onmouseout="this.style.background='#ECFDF5';this.style.color='#059669';">
-                            ✓ Activate Account
+                        <button class="up-act" style="border-color:#A7F3D0;background:#ECFDF5;color:#047857;">
+                            {!! $svg('<path d="M20 6 9 17l-5-5"/>') !!}
+                            <span><span class="up-act-title">Activate Account</span><span class="up-act-sub">Let them sign in again</span></span>
                         </button>
                     </form>
-                @endif
-
-                @if (! in_array($roleKey, ['suspended','deactivated']))
+                @else
                     <form action="{{ route('admin.users.suspend', $user->id) }}" method="POST"
-                          onsubmit="return confirm('Suspend {{ addslashes($user->name) }}?')">
+                          data-confirm="{{ $user->name }} is signed out and can't sign in until you activate the account again." data-confirm-title="Suspend this account?" data-confirm-ok="Suspend">
                         @csrf @method('PATCH')
-                        <button class="w-full rounded-xl py-2.5 text-sm font-bold transition"
-                                style="background:#FFFBEB;color:#D97706;border:1px solid #FDE68A;"
-                                onmouseover="this.style.background='#D97706';this.style.color='#fff';"
-                                onmouseout="this.style.background='#FFFBEB';this.style.color='#D97706';">
-                            ⏸ Suspend Account
+                        <button class="up-act" style="border-color:#FDE68A;background:#FFFBEB;color:#B45309;">
+                            {!! $svg('<rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/>') !!}
+                            <span><span class="up-act-title">Suspend Account</span><span class="up-act-sub">Pause it for now; you can undo this</span></span>
                         </button>
                     </form>
                 @endif
 
                 @if ($roleKey !== 'deactivated')
                     <form action="{{ route('admin.users.deactivate', $user->id) }}" method="POST"
-                          onsubmit="return confirm('Permanently deactivate this account? The user will not be able to log in.')">
+                          data-confirm="{{ $user->name }} is signed out of every device and can't sign in. You can still activate the account later." data-confirm-title="Deactivate this account?" data-confirm-ok="Deactivate">
                         @csrf @method('PATCH')
-                        <button class="w-full rounded-xl py-2.5 text-sm font-bold transition"
-                                style="background:#FEF2F2;color:#DC2626;border:1px solid #FECACA;"
-                                onmouseover="this.style.background='#DC2626';this.style.color='#fff';"
-                                onmouseout="this.style.background='#FEF2F2';this.style.color='#DC2626';">
-                            🚫 Deactivate Account
+                        <button class="up-act" style="border-color:#FECACA;background:#FEF2F2;color:#B91C1C;">
+                            {!! $svg('<circle cx="12" cy="12" r="9"/><path d="m5.6 5.6 12.8 12.8"/>') !!}
+                            <span><span class="up-act-title">Deactivate Account</span><span class="up-act-sub">Close it and sign them out everywhere</span></span>
                         </button>
                     </form>
                 @endif
@@ -138,7 +160,7 @@
         {{-- Sorting Center municipality assignment --}}
         @if ($roleKey === 'sorting_center')
             <div class="card p-5">
-                <h3 class="text-sm font-bold mb-1" style="color:#222222;">Sorting Center Coverage</h3>
+                <h3 class="text-sm font-bold mb-1" style="color:#222222;">Sorting center coverage</h3>
                 <p class="text-xs mb-3" style="color:#6b90aa;">
                     This center can only manage riders and deliveries within its assigned municipality.
                 </p>
@@ -261,7 +283,7 @@
         @if ($user->sellerApplication)
             @php $app = $user->sellerApplication; @endphp
             <div class="card p-5">
-                <h3 class="text-sm font-bold mb-3" style="color:#222222;">Seller Application</h3>
+                <h3 class="text-sm font-bold mb-3" style="color:#222222;">Seller application</h3>
                 <div class="space-y-2 text-sm">
                     <div class="flex justify-between">
                         <span style="color:#6b90aa;">Shop</span>
@@ -305,29 +327,22 @@
 
         {{-- Personal details --}}
         <div class="card p-6">
-            <h2 class="font-display text-base font-bold mb-4" style="color:#222222;">Personal Information</h2>
-            <dl class="grid gap-y-0 text-sm">
-                @php
-                    $details = [
-                        'Full Name'    => $user->name,
-                        'Email'        => $user->email,
-                        'Username'     => $user->username ?? '—',
-                        'Sex'          => $user->sex ?? '—',
-                        'Birthday'     => $user->birthday ? \Carbon\Carbon::parse($user->birthday)->format('M d, Y').' (Age '.$user->age.')' : '—',
-                        'Contact No.'  => $user->contact_no ?? $user->phone ?? '—',
-                        'Province'     => $user->province ?? '—',
-                        'Municipality' => $user->municipality ?? '—',
-                        'Barangay'     => $user->barangay ?? '—',
-                        'Street'       => $user->street ?? '—',
-                        'House No.'    => $user->house_number ?? '—',
-                    ];
-                @endphp
+            <h2 class="font-display text-base font-bold" style="color:#222222;">Personal information</h2>
+            @php
+                $details = [
+                    'Full name'   => $user->name,
+                    'Username'    => $user->username,
+                    'Email'       => $user->email,
+                    'Contact no.' => $phone,
+                    'Sex'         => $user->sex,
+                    'Birthday'    => $user->birthday ? \Carbon\Carbon::parse($user->birthday)->format('M d, Y') . ($user->age ? ' (age ' . $user->age . ')' : '') : null,
+                ];
+            @endphp
+            <dl class="grid gap-x-8 sm:grid-cols-2" data-user-details>
                 @foreach ($details as $label => $val)
-                    <div class="flex items-center justify-between border-b py-2.5" style="border-color:#F5F5F5;">
-                        <dt style="color:#6b90aa;">{{ $label }}</dt>
-                        <dd class="font-medium text-right" style="color:#222222;">{{ $val }}</dd>
-                    </div>
+                    <div class="up-field"><dt>{{ $label }}</dt><dd class="{{ filled($val) ? '' : 'is-empty' }}">{{ filled($val) ? $val : 'Not provided' }}</dd></div>
                 @endforeach
+                <div class="up-field sm:col-span-2" style="border-bottom:0;"><dt>Address</dt><dd class="{{ $address ? '' : 'is-empty' }}">{{ $address ?: 'Not provided' }}</dd></div>
             </dl>
         </div>
 

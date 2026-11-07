@@ -5,7 +5,7 @@
 <div class="card mb-6 p-5" id="seller-box">
     <div class="mb-3 flex flex-wrap items-end justify-between gap-3">
         <div>
-            <h2 class="font-display text-2xl font-extrabold" style="color:#002b4d;">Sellers Sales Reports</h2>
+            <h2 class="font-display text-base font-semibold" style="color:#002b4d;">Sellers Sales Reports</h2>
             <p class="text-xs" style="color:#6b90aa;">
                 {{ \Carbon\Carbon::parse($from)->format('M d, Y') }} – {{ \Carbon\Carbon::parse($to)->format('M d, Y') }}
                 · {{ $sellerBox->where('units', '>', 0)->count() }} of {{ $sellerBox->count() }} sellers made sales

@@ -82,12 +82,85 @@
         @endforeach
     </div>
 
-    <div class="grid gap-5 lg:grid-cols-[1fr_24rem] lg:items-start">
+        {{-- Post new announcement --}}
+        <section class="pl-card mb-5" data-announcement-compose>
+            <div class="pl-head"><h2>Post new announcement</h2></div>
+            <form action="{{ route('admin.settings.announcements.store') }}" method="POST" class="pl-body grid gap-x-6 gap-y-4 lg:grid-cols-2" id="an-form"
+                  data-confirm="It will be sent to the notifications of everyone in the audience you chose." data-confirm-title="Post this announcement?" data-confirm-ok="Post">
+                @csrf
+                <div class="space-y-4">
+                    <div>
+                        <label class="pl-label" for="an-title">Title *</label>
+                        <input id="an-title" type="text" name="title" value="{{ old('title') }}" class="input" required maxlength="255"
+                               placeholder="e.g. Platform Maintenance Notice">
+                    </div>
+                    <div>
+                        <div class="flex items-baseline justify-between"><label class="pl-label" for="an-body">Message *</label><span class="text-[11px] pl-muted" data-count>0 / 5000</span></div>
+                        <textarea id="an-body" name="body" rows="5" class="input" required maxlength="5000"
+                                  placeholder="Write your announcement here…">{{ old('body') }}</textarea>
+                    </div>
+                    <div>
+                        <label class="pl-label" for="an-expires">Expires on (optional)</label>
+                        <div class="mb-1.5 flex flex-wrap gap-1.5">
+                            @foreach (['24' => '24 hours', '72' => '3 days', '168' => '1 week', '' => 'No expiry'] as $h => $l)
+                                <button type="button" class="an-quick" data-expire="{{ $h }}">{{ $l }}</button>
+                            @endforeach
+                        </div>
+                        <input id="an-expires" type="datetime-local" name="expires_at" value="{{ old('expires_at') }}" class="input">
+                    </div>
+                </div>
+                <div class="space-y-4">
+                    <fieldset>
+                        <legend class="pl-label">Audience *</legend>
+                        <div class="space-y-1.5">
+                            @foreach ($audiences as $k => [$l, $hint, $d])
+                                <label class="an-choice">
+                                    <input type="radio" name="audience" value="{{ $k }}" @checked($oldAudience === $k) required data-reach="{{ $reach[$k] ?? 0 }}">
+                                    <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg" style="background:#F5F2EF;color:#57534E;">{!! $icon($d) !!}</span>
+                                    <span class="min-w-0 flex-1"><span class="block text-sm font-bold" style="color:#222;">{{ $l }}</span><span class="block text-[11px] pl-muted">{{ $hint }}</span></span>
+                                    <span class="text-xs font-bold" style="color:#6b5e55;">{{ number_format($reach[$k] ?? 0) }}</span>
+                                </label>
+                            @endforeach
+                        </div>
+                    </fieldset>
+                    <fieldset>
+                        <legend class="pl-label">Type *</legend>
+                        <div class="grid grid-cols-2 gap-1.5">
+                            @foreach ($types as $k => [$l, $c, $bg, $d])
+                                <label class="an-choice" style="--tone:{{ $c }};--soft:{{ $bg }};">
+                                    <input type="radio" name="type" value="{{ $k }}" @checked($oldType === $k) required>
+                                    <span style="color:{{ $c }};">{!! $icon($d) !!}</span>
+                                    <span class="text-sm font-semibold" style="color:#222;">{{ $l }}</span>
+                                </label>
+                            @endforeach
+                        </div>
+                    </fieldset>
+                </div>
+                <div class="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-end lg:col-span-2" style="border-color:#F2EEEA;">
+                    {{-- Live preview of the notification users get --}}
+                    <div class="an-preview min-w-0 flex-1" aria-live="polite">
+                        <p class="mb-2 text-[11px] font-bold uppercase tracking-wider pl-muted">Preview</p>
+                        <div class="flex gap-2.5 rounded-xl bg-white p-3" style="box-shadow:0 4px 14px -10px rgba(0,0,0,.4);">
+                            <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg" data-preview-icon></span>
+                            <div class="min-w-0">
+                                <p class="truncate text-sm font-bold" style="color:#222;" data-preview-title>Your title</p>
+                                <p class="line-clamp-2 text-xs" style="color:#57534E;" data-preview-body>Your message shows here.</p>
+                            </div>
+                        </div>
+                        <p class="mt-2 text-xs font-semibold" style="color:#6b5e55;" data-preview-reach></p>
+                    </div>
+                    <button type="submit" class="pl-btn flex w-full items-center justify-center gap-2 sm:w-auto sm:px-6">
+                        {!! $icon('<path d="m22 2-7 20-4-9-9-4z"/><path d="M22 2 11 13"/>') !!} Post announcement
+                    </button>
+                </div>
+            </form>
+        </section>
+    <div>
 
         {{-- Existing announcements --}}
         <div>
             <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
-                <h2 class="font-display text-base font-extrabold" style="color:#222;">Announcements</h2>
+                <h2 class="font-display text-base font-extrabold" style="color:#222;">Posted announcements</h2>
                 @if ($announcements->isNotEmpty())
                     <div class="flex flex-wrap gap-1.5" data-announcement-filters>
                         @foreach (['all' => 'All', 'active' => 'Active', 'expired' => 'Expired', 'inactive' => 'Inactive'] as $k => $l)
@@ -147,88 +220,16 @@
                         </div>
                     </article>
                 @empty
-                    <div class="rounded-2xl border px-6 py-12 text-center" style="border-color:#ECE7E3;background:#fff;">
-                        <span class="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl" style="background:#FFF1EB;color:#fa4e1c;">{!! $icon('<path d="M3 11l18-8v18l-18-8z"/><path d="M11 13v6a2 2 0 0 1-4 0v-7"/>', 'h-7 w-7') !!}</span>
-                        <p class="mt-3 font-bold" style="color:#222;">No announcements yet</p>
-                        <p class="mt-1 text-sm pl-muted">Post one on the right. It goes to everyone in the audience you choose.</p>
+                    <div class="flex items-center gap-3 rounded-2xl border px-5 py-4" style="border-color:#ECE7E3;background:#fff;">
+                        <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl" style="background:#FFF1EB;color:#fa4e1c;">{!! $icon('<path d="M3 11l18-8v18l-18-8z"/><path d="M11 13v6a2 2 0 0 1-4 0v-7"/>', 'h-5 w-5') !!}</span>
+                        <div><p class="text-sm font-bold" style="color:#222;">No announcements yet</p>
+                        <p class="text-sm pl-muted">Post one above. It goes to everyone in the audience you choose.</p></div>
                     </div>
                 @endforelse
                 <p class="hidden rounded-xl border px-4 py-6 text-center text-sm pl-muted" style="border-color:#ECE7E3;background:#fff;" data-filter-empty>No announcements here.</p>
             </div>
         </div>
 
-        {{-- Post new announcement --}}
-        <section class="pl-card h-fit lg:sticky lg:top-24" data-announcement-compose>
-            <div class="pl-head"><h2>Post new announcement</h2></div>
-            <form action="{{ route('admin.settings.announcements.store') }}" method="POST" class="pl-body space-y-4" id="an-form"
-                  data-confirm="It will be sent to the notifications of everyone in the audience you chose." data-confirm-title="Post this announcement?" data-confirm-ok="Post">
-                @csrf
-                <div>
-                    <label class="pl-label" for="an-title">Title *</label>
-                    <input id="an-title" type="text" name="title" value="{{ old('title') }}" class="input" required maxlength="255"
-                           placeholder="e.g. Platform Maintenance Notice">
-                </div>
-                <div>
-                    <div class="flex items-baseline justify-between"><label class="pl-label" for="an-body">Message *</label><span class="text-[11px] pl-muted" data-count>0 / 5000</span></div>
-                    <textarea id="an-body" name="body" rows="4" class="input" required maxlength="5000"
-                              placeholder="Write your announcement here…">{{ old('body') }}</textarea>
-                </div>
-
-                <fieldset>
-                    <legend class="pl-label">Audience *</legend>
-                    <div class="space-y-1.5">
-                        @foreach ($audiences as $k => [$l, $hint, $d])
-                            <label class="an-choice">
-                                <input type="radio" name="audience" value="{{ $k }}" @checked($oldAudience === $k) required data-reach="{{ $reach[$k] ?? 0 }}">
-                                <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg" style="background:#F5F2EF;color:#57534E;">{!! $icon($d) !!}</span>
-                                <span class="min-w-0 flex-1"><span class="block text-sm font-bold" style="color:#222;">{{ $l }}</span><span class="block text-[11px] pl-muted">{{ $hint }}</span></span>
-                                <span class="text-xs font-bold" style="color:#6b5e55;">{{ number_format($reach[$k] ?? 0) }}</span>
-                            </label>
-                        @endforeach
-                    </div>
-                </fieldset>
-
-                <fieldset>
-                    <legend class="pl-label">Type *</legend>
-                    <div class="grid grid-cols-2 gap-1.5">
-                        @foreach ($types as $k => [$l, $c, $bg, $d])
-                            <label class="an-choice" style="--tone:{{ $c }};--soft:{{ $bg }};">
-                                <input type="radio" name="type" value="{{ $k }}" @checked($oldType === $k) required>
-                                <span style="color:{{ $c }};">{!! $icon($d) !!}</span>
-                                <span class="text-sm font-semibold" style="color:#222;">{{ $l }}</span>
-                            </label>
-                        @endforeach
-                    </div>
-                </fieldset>
-
-                <div>
-                    <label class="pl-label" for="an-expires">Expires on (optional)</label>
-                    <div class="mb-1.5 flex flex-wrap gap-1.5">
-                        @foreach (['24' => '24 hours', '72' => '3 days', '168' => '1 week', '' => 'No expiry'] as $h => $l)
-                            <button type="button" class="an-quick" data-expire="{{ $h }}">{{ $l }}</button>
-                        @endforeach
-                    </div>
-                    <input id="an-expires" type="datetime-local" name="expires_at" value="{{ old('expires_at') }}" class="input">
-                </div>
-
-                {{-- Live preview of the notification users get --}}
-                <div class="an-preview" aria-live="polite">
-                    <p class="mb-2 text-[11px] font-bold uppercase tracking-wider pl-muted">Preview</p>
-                    <div class="flex gap-2.5 rounded-xl bg-white p-3" style="box-shadow:0 4px 14px -10px rgba(0,0,0,.4);">
-                        <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg" data-preview-icon></span>
-                        <div class="min-w-0">
-                            <p class="truncate text-sm font-bold" style="color:#222;" data-preview-title>Your title</p>
-                            <p class="line-clamp-2 text-xs" style="color:#57534E;" data-preview-body>Your message shows here.</p>
-                        </div>
-                    </div>
-                    <p class="mt-2 text-xs font-semibold" style="color:#6b5e55;" data-preview-reach></p>
-                </div>
-
-                <button type="submit" class="pl-btn flex w-full items-center justify-center gap-2">
-                    {!! $icon('<path d="m22 2-7 20-4-9-9-4z"/><path d="M22 2 11 13"/>') !!} Post announcement
-                </button>
-            </form>
-        </section>
     </div>
 </div>
 

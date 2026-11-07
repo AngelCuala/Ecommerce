@@ -1,6 +1,6 @@
 <x-admin-layout title="Seller Management" active="sellers">
 
-@include('partials.page-tabs', ['tabs' => [['Buyers', 'admin.customers.index', 'admin.customers.*'], ['Sellers', 'admin.sellers.index', 'admin.sellers.*'], ['Riders', 'admin.riders.index', 'admin.riders.*'], ['All accounts', 'admin.users.index', 'admin.users.*']]])
+@include('admin.partials.people-tabs')
 @include('partials.panel.plain')
 <style>
     .adm-avatar { display: flex; flex-shrink: 0; align-items: center; justify-content: center; width: 2rem; height: 2rem; border-radius: 9999px; font-size: .8125rem; font-weight: 600; background: #F5F2EF; color: #57534E; }

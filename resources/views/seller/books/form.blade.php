@@ -26,7 +26,7 @@
 @endphp
 <style>
     [x-cloak] { display: none !important; }
-    .pf-section { background: #fff; border: 1px solid #ECE7E3; border-radius: .75rem; padding: 1.25rem 1.5rem; }
+    .pf-section { background: #fff; border: 1px solid #ECE7E3; border-radius: 1rem; padding: 1.5rem; box-shadow: 0 1px 2px rgba(34, 34, 34, .04); }
     .pf-section h2 { font-size: 1rem; font-weight: 600; color: #222; }
     .pf-hint { font-size: .8125rem; color: #8a7f78; }
     .pf-label { display: block; margin-bottom: .3rem; font-size: .8125rem; font-weight: 500; color: #44403C; }
@@ -40,7 +40,30 @@
     .photo-tile:hover .remove-btn, .photo-tile .remove-btn:focus { opacity: 1; }
     .photo-tile.ex-img { cursor: grab; }
     .photo-add { display: flex; aspect-ratio: 1; flex-direction: column; align-items: center; justify-content: center; gap: .25rem; border: 1.5px dashed #D6D3D1; border-radius: .5rem; color: #78716C; font-size: .75rem; font-weight: 500; cursor: pointer; transition: border-color .15s, color .15s; }
-    .photo-add:hover { border-color: #fa4e1c; color: #fa4e1c; }
+    .photo-add:hover { border-color: #fa4e1c; color: #fa4e1c; background: #FFF7F4; }
+    .photo-tile:first-child { border-color: #fa4e1c; box-shadow: 0 0 0 1px #fa4e1c; }
+    @media (hover: none) { .photo-tile .remove-btn { opacity: 1; } }
+    .pf-count { padding: .1rem .6rem; border-radius: 9999px; background: #F5F2EF; font-size: .75rem; font-weight: 600; color: #57534E; }
+
+    .video-pick { display: flex; align-items: center; gap: .875rem; padding: .875rem 1rem; border: 1.5px dashed #D6D3D1; border-radius: .75rem; cursor: pointer; transition: border-color .15s, background .15s; }
+    .video-pick:hover, #video:focus-visible + .video-pick { border-color: #fa4e1c; background: #FFF7F4; }
+    .video-pick-icon { display: flex; flex: none; height: 2.5rem; width: 2.5rem; align-items: center; justify-content: center; border-radius: .625rem; background: #FFF1EC; color: #fa4e1c; }
+
+    .pf-invalid { border-color: #DC2626 !important; box-shadow: 0 0 0 3px rgba(220, 38, 38, .12) !important; }
+    .pf-field-error { margin-top: .3rem; font-size: .75rem; font-weight: 500; color: #B91C1C; }
+    .pf-alert { display: flex; gap: .875rem; margin-bottom: 1.25rem; padding: 1rem 1.25rem; border: 1px solid #FECACA; border-radius: 1rem; background: #FEF2F2; }
+    .pf-alert-icon { display: flex; flex: none; height: 2.25rem; width: 2.25rem; align-items: center; justify-content: center; border-radius: 9999px; background: #FEE2E2; color: #B91C1C; }
+    .pf-alert-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .25rem .75rem; padding: .3rem 0; font-size: .875rem; color: #991B1B; }
+    .pf-alert-go { flex: none; font-size: .8125rem; font-weight: 600; color: #B91C1C; text-decoration: underline; text-underline-offset: 2px; }
+    .pf-alert-go:hover { color: #7F1D1D; }
+
+    .pf-check { display: flex; width: 100%; align-items: center; gap: .5rem; padding: .3rem .25rem; border-radius: .375rem; font-size: .8125rem; text-align: left; color: #44403C; }
+    .pf-check:hover { background: #FAFAF9; }
+    .pf-check.done { color: #8a7f78; }
+    .pf-check-mark { display: flex; flex: none; height: 1.125rem; width: 1.125rem; align-items: center; justify-content: center; border: 1.5px solid #D6D3D1; border-radius: 9999px; }
+    .pf-check.done .pf-check-mark { border-color: #16A34A; background: #16A34A; color: #fff; }
+    .pf-meter { height: .375rem; overflow: hidden; border-radius: 9999px; background: #F5F2EF; }
+    .pf-meter span { display: block; height: 100%; border-radius: 9999px; background: #16A34A; transition: width .2s; }
 
     .file-input { width: 100%; font-size: .8125rem; color: #57534E; }
     .file-input::file-selector-button { margin-right: .75rem; border: 1px solid #E7E5E4; border-radius: .375rem; background: #fff; padding: .4rem .8rem; font-size: .8125rem; font-weight: 500; color: #44403C; cursor: pointer; }
@@ -48,6 +71,8 @@
 
     .btn-solid { display: block; width: 100%; border-radius: .375rem; padding: .6rem 1rem; font-size: .875rem; font-weight: 600; color: #fff; background: #fa4e1c; transition: opacity .15s; }
     .btn-solid:hover { opacity: .9; }
+    .btn-solid:focus-visible, .btn-line:focus-visible { outline: 2px solid #fa4e1c; outline-offset: 2px; }
+    .btn-solid:disabled, .btn-line:disabled { cursor: wait; }
     .btn-line { display: block; width: 100%; border: 1px solid #E7E5E4; border-radius: .375rem; padding: .55rem 1rem; font-size: .875rem; font-weight: 500; color: #44403C; background: #fff; transition: background .15s; }
     .btn-line:hover { background: #FAFAF9; }
 </style>
@@ -64,17 +89,24 @@
         </div>
     </div>
 
-    @if ($errors->any())
-        <div class="mb-5 rounded-md border px-4 py-3 text-sm" style="background:#FEF2F2;border-color:#FECACA;color:#B91C1C;">
-            <p class="font-medium">Please fix the following:</p>
-            <ul class="mt-1 list-inside list-disc space-y-0.5">
-                @foreach ($errors->all() as $e)<li>{{ $e }}</li>@endforeach
-            </ul>
+    <div x-ref="errors" x-show="formErrors.length > 0" x-cloak role="alert" class="pf-alert">
+        <span class="pf-alert-icon" aria-hidden="true">
+            <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v5m0 3.5h.01M10.3 3.9 2.6 17.2A2 2 0 0 0 4.3 20h15.4a2 2 0 0 0 1.7-2.8L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>
+        </span>
+        <div class="min-w-0 flex-1">
+            <p class="text-sm font-semibold" style="color:#7F1D1D;" x-text="formErrors.length === 1 ? '1 thing to fix before saving' : formErrors.length + ' things to fix before saving'"></p>
+            <p class="mb-1 text-xs" style="color:#991B1B;">Everything you entered is still here.</p>
+            <template x-for="e in formErrors" :key="e.message">
+                <div class="pf-alert-row">
+                    <span x-text="e.message"></span>
+                    <button type="button" class="pf-alert-go" x-show="fieldFor(e.key)" @click="goTo(e.key)">Go to field</button>
+                </div>
+            </template>
         </div>
-    @endif
+    </div>
 
     <form action="{{ $isEdit ? route('seller.books.update', $book->id) : route('seller.books.store') }}"
-          method="POST" enctype="multipart/form-data" id="product-form">
+          method="POST" enctype="multipart/form-data" id="product-form" @submit.prevent="save($event.target)" @input="clearError($event.target)" @change="clearError($event.target)">
         @csrf
         @if ($isEdit) @method('PUT') @endif
         <input type="hidden" name="action" x-model="action">
@@ -87,7 +119,7 @@
                 <section class="pf-section">
                     <div class="mb-3 flex flex-wrap items-baseline justify-between gap-2">
                         <h2>Photos</h2>
-                        <span class="pf-hint"><span id="photo-count">{{ $existingImgs->count() }}</span> of {{ $maxPhotos }}</span>
+                        <span class="pf-count"><span id="photo-count">{{ $existingImgs->count() }}</span> of {{ $maxPhotos }}</span>
                     </div>
                     <p class="pf-hint mb-4">
                         The first photo is the cover buyers see first. Drag photos to reorder.
@@ -117,10 +149,20 @@
                     @endif
 
                     <div class="mt-5 border-t pt-4" style="border-color:#F2EEEA;">
-                        <label class="pf-label" for="video">Video <span class="opt">— optional, MP4, MOV or WebM up to {{ \App\Http\Controllers\Seller\BookController::videoLimitMb() }} MB</span></label>
-                        <input type="file" id="video" name="video" accept="video/mp4,video/quicktime,video/webm" class="file-input" data-video-input>
+                        <p class="pf-label">Video <span class="opt">— optional</span></p>
+                        <input type="file" id="video" name="video" accept="video/mp4,video/quicktime,video/webm" class="sr-only" data-video-input>
+                        <label for="video" class="video-pick" id="video-pick">
+                            <span class="video-pick-icon" aria-hidden="true">
+                                <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 10l4.55-2.28A1 1 0 0 1 21 8.62v6.76a1 1 0 0 1-1.45.9L15 14M5 18h8a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2Z"/></svg>
+                            </span>
+                            <span class="min-w-0">
+                                <span class="block truncate text-sm font-semibold" style="color:#222;" data-video-title>{{ $isEdit && $book->video_path ? 'Replace video' : 'Add a video' }}</span>
+                                <span class="block text-xs" style="color:#8a7f78;" data-video-sub>MP4, MOV or WebM, up to {{ \App\Http\Controllers\Seller\BookController::videoLimitMb() }} MB</span>
+                            </span>
+                        </label>
                         @error('video')<p class="pf-error" style="color:#B91C1C;font-size:.8rem;margin-top:.25rem;">{{ $message }}</p>@enderror
                         <p class="pf-note" data-video-status style="display:none;"></p>
+                        <button type="button" data-video-clear class="mt-2 text-xs font-semibold hover:underline" style="display:none;color:#B91C1C;">Remove this video</button>
                         {{-- Preview: the saved video, or the one just chosen (replaces it on Save). --}}
                         <video data-video-preview controls playsinline preload="metadata" class="mt-2 w-full max-w-sm rounded-lg border bg-black"
                                style="border-color:#E7E5E4;max-height:240px;{{ $isEdit && $book->video_path ? '' : 'display:none;' }}"
@@ -135,20 +177,29 @@
                             // Check the size before uploading (the server's limit) and preview the chosen video.
                             var limitMb = {{ \App\Http\Controllers\Seller\BookController::videoLimitMb() }};
                             var input = document.querySelector('[data-video-input]'), preview = document.querySelector('[data-video-preview]'),
-                                status = document.querySelector('[data-video-status]'), saved = preview.getAttribute('src');
+                                status = document.querySelector('[data-video-status]'), saved = preview.getAttribute('src'),
+                                title = document.querySelector('[data-video-title]'), sub = document.querySelector('[data-video-sub]'),
+                                clear = document.querySelector('[data-video-clear]'), emptyTitle = title.textContent, emptySub = sub.textContent;
+                            function reset() {
+                                title.textContent = emptyTitle; sub.textContent = emptySub; clear.style.display = 'none';
+                                if (saved) { preview.src = saved; } else { preview.removeAttribute('src'); preview.style.display = 'none'; }
+                            }
+                            clear.addEventListener('click', function () { input.value = ''; status.style.display = 'none'; reset(); });
                             input.addEventListener('change', function () {
                                 var f = input.files && input.files[0];
                                 status.style.display = 'none';
-                                if (!f) { if (saved) { preview.src = saved; } else { preview.style.display = 'none'; } return; }
+                                if (!f) { reset(); return; }
                                 if (f.size > limitMb * 1024 * 1024) {
                                     input.value = '';
                                     status.textContent = 'This video is ' + (f.size / 1048576).toFixed(1) + ' MB. The limit is ' + limitMb + ' MB: trim or compress it first.';
                                     status.style.color = '#B91C1C'; status.style.display = '';
+                                    reset();
                                     return;
                                 }
                                 preview.src = URL.createObjectURL(f); preview.style.display = '';
-                                status.textContent = 'New video: ' + f.name + ' (' + (f.size / 1048576).toFixed(1) + ' MB). It uploads when you save.';
-                                status.style.color = ''; status.style.display = '';
+                                title.textContent = f.name;
+                                sub.textContent = (f.size / 1048576).toFixed(1) + ' MB. Uploads when you save. Click to replace.';
+                                clear.style.display = '';
                             });
                         })();
                         </script>
@@ -224,8 +275,8 @@
                         </div>
                         <div>
                             <label class="pf-label" for="stock">Stock</label>
-                            <input type="number" id="stock" min="0" max="99999" step="1" name="stock" x-model="stock" class="input" placeholder="0" :disabled="variations.length > 0">
-                            <p class="pf-note" x-show="variations.length > 0">Total of variations: <span x-text="totalVarStock"></span></p>
+                            <input type="number" id="stock" min="0" max="99999" step="1" name="stock" x-model="stock" class="input" placeholder="0" :disabled="variations.length > 0" x-effect="if (variations.length > 0) stock = String(totalVarStock)">
+                            <p class="pf-note" x-show="variations.length > 0">Total of variations: <span x-text="totalVarStock"></span>. Set each variation's stock under Variations.</p>
                         </div>
                         <div>
                             <label class="pf-label" for="sku">SKU <span class="opt">— optional</span></label>
@@ -375,7 +426,7 @@
                     <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                         <div>
                             <label class="pf-label" for="weight_kg">Weight (kg) *</label>
-                            <input type="number" id="weight_kg" step="0.01" min="0.01" name="weight_kg" value="{{ old('weight_kg', $book->weight_kg ?? '') }}" class="input" placeholder="0.00">
+                            <input type="number" id="weight_kg" step="0.01" min="0.01" name="weight_kg" x-model="weight" class="input" placeholder="0.00">
                         </div>
                         <div>
                             <label class="pf-label" for="length_cm">Length (cm)</label>
@@ -420,15 +471,33 @@
 
                     <div class="mt-5 space-y-2">
                         @if ($canPublish)
-                            <button type="submit" @click="action='publish'" class="btn-solid">
-                                {{ $isEdit ? 'Save changes' : 'Publish product' }}
+                            <button type="submit" @click="action='publish'" :disabled="saving" :style="saving ? 'opacity:.6' : ''" class="btn-solid">
+                                <span x-text="saving && action === 'publish' ? 'Saving…' : @js($isEdit ? 'Save changes' : 'Publish product')">{{ $isEdit ? 'Save changes' : 'Publish product' }}</span>
                             </button>
                         @else
                             <button type="button" disabled class="btn-solid" style="opacity:.5;cursor:not-allowed;" aria-describedby="verify-note">Publish product</button>
                             <p id="verify-note" class="pf-note" style="color:#B45309;">Your store must be verified before you can publish. Save as a draft for now.</p>
                         @endif
-                        <button type="submit" @click="action='draft'" class="btn-line">Save as draft</button>
+                        <button type="submit" @click="action='draft'" :disabled="saving" :style="saving ? 'opacity:.6' : ''" class="btn-line"><span x-text="saving && action === 'draft' ? 'Saving…' : 'Save as draft'">Save as draft</span></button>
                         <button type="button" @click="openPreview()" class="w-full py-1.5 text-sm font-medium hover:underline" style="color:#57534E;">Preview</button>
+                    </div>
+
+                    <div class="mt-5 border-t pt-4" style="border-color:#F2EEEA;">
+                        <div class="mb-2 flex items-baseline justify-between gap-2">
+                            <h3 class="text-sm font-semibold" style="color:#222;">Ready to publish</h3>
+                            <span class="pf-hint" x-text="checklistDone + ' of ' + checklist.length"></span>
+                        </div>
+                        <div class="pf-meter mb-2" aria-hidden="true"><span :style="'width:' + (checklistDone / checklist.length * 100) + '%'"></span></div>
+                        <template x-for="item in checklist" :key="item.label">
+                            <button type="button" class="pf-check" :class="item.done && 'done'" @click="goTo(item.key)">
+                                <span class="pf-check-mark" aria-hidden="true">
+                                    <svg x-show="item.done" class="h-3 w-3" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m5 13 4 4L19 7"/></svg>
+                                </span>
+                                <span x-text="item.label"></span>
+                                <span class="sr-only" x-text="item.done ? '(done)' : '(missing)'"></span>
+                            </button>
+                        </template>
+                        <p class="pf-note">Drafts can be saved at any time.</p>
                     </div>
                 </section>
             </aside>
@@ -581,6 +650,9 @@ function productForm() {
     return {
         action: 'publish',
         preview: false,
+        saving: false,
+        formErrors: [],
+        weight: @json((string) old('weight_kg', $book->weight_kg ?? '')),
         categoryId: @json((string) $selectedCat),
         categoryName: @json($selectedName ?? ''),
         subcategory: @json($currentSub),
@@ -602,10 +674,99 @@ function productForm() {
 
         init() {
             this.refreshCategory();
+            this.showErrors(@json($errors->getMessages()));
             const form = document.getElementById('product-form');
             form.querySelector('[name=title]').addEventListener('input', e => this.title = e.target.value);
             form.querySelector('[name=description]').addEventListener('input', e => this.description = e.target.value);
             form.querySelector('[name=brand]').addEventListener('input', e => this.brand = e.target.value);
+        },
+        /** Sends the form without leaving the page, so a form that needs fixing keeps everything entered, photos included. */
+        async save(form) {
+            if (this.saving) return;
+            this.saving = true;
+            this.formErrors = [];
+            window.UploadOverlay?.show(form);
+            try {
+                // getAttribute: the "action" field hides form.action.
+                const res = await fetch(form.getAttribute('action'), {
+                    method: 'POST',
+                    body: new FormData(form),
+                    headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                });
+                const body = await res.json().catch(() => null);
+                if (res.ok && body?.redirect) {
+                    window.location.href = body.redirect;
+                    return;
+                }
+                this.showErrors(body?.errors || { _: ['The product could not be saved (error ' + res.status + '). Please try again.'] });
+            } catch (e) {
+                this.showErrors({ _: ['Could not reach the server. Please check your connection and try again.'] });
+            }
+            window.UploadOverlay?.hide();
+            this.saving = false;
+            this.$nextTick(() => this.$refs.errors.scrollIntoView({ behavior: 'smooth', block: 'center' }));
+        },
+        /** The element a server error key points at ("variations.0.stock" is the input variations[0][stock]). */
+        fieldFor(key) {
+            const base = String(key).split('.')[0];
+            if (base === 'images') return document.getElementById('photo-add');
+            if (base === 'video') return document.getElementById('video-pick');
+            const name = String(key).replace(/\.(\w+)/g, '[$1]');
+            return document.querySelector('#product-form [name="' + CSS.escape(name) + '"]');
+        },
+        /** Shows the panel at the top and marks each field. The same message on several fields is listed once. */
+        showErrors(errors) {
+            document.querySelectorAll('.pf-field-error').forEach(p => p.remove());
+            document.querySelectorAll('.pf-invalid').forEach(el => el.classList.remove('pf-invalid'));
+            const seen = new Set();
+            const list = Object.entries(errors).map(([key, messages]) => ({ key, message: [].concat(messages)[0] }));
+            this.formErrors = list.filter(e => !seen.has(e.message) && seen.add(e.message));
+            this.$nextTick(() => list.forEach(e => {
+                const el = this.fieldFor(e.key);
+                if (!el) return;
+                el.classList.add('pf-invalid');
+                // Variant rows are a tight grid and the photo tile sits in one: the red outline says enough there.
+                if (el.closest('[data-variant-row]') || el.id === 'photo-add') return;
+                const p = document.createElement('p');
+                p.className = 'pf-field-error';
+                p.dataset.for = e.key;
+                p.textContent = e.message;
+                el.after(p);
+            }));
+        },
+        /** Fixing a field takes its error away, here and in the panel. */
+        clearError(target) {
+            const key = target.id === 'photo-picker' ? 'images' : (target.name || '').replace(/\[(\w+)\]/g, '.$1');
+            if (!key) return;
+            const hit = e => e === key || e.startsWith(key + '.');
+            if (!this.formErrors.some(e => hit(e.key))) return;
+            this.formErrors = this.formErrors.filter(e => !hit(e.key));
+            this.fieldFor(key)?.classList.remove('pf-invalid');
+            document.querySelectorAll('.pf-field-error').forEach(p => { if (hit(p.dataset.for)) p.remove(); });
+        },
+        goTo(key) {
+            const el = this.fieldFor(key);
+            if (!el) return;
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            if (el.focus && !el.disabled) el.focus({ preventScroll: true });
+        },
+        /** A guide to what Publish asks for. The server still decides. */
+        get checklist() {
+            const unfinished = this.variations.findIndex(v => v.stock === '' || v.stock === null);
+            const noPrice = this.variations.findIndex(v => v.price === '' || v.price === null);
+            const hasRows = this.variations.length > 0;
+            return [
+                { key: 'images', label: 'At least 1 photo', done: !!this.previewImage },
+                { key: 'title', label: 'Product name', done: this.title.trim().length >= 5 },
+                { key: 'category_id', label: 'Category', done: !!this.categoryName },
+                { key: 'description', label: 'Description (20+ characters)', done: this.description.trim().length >= 20 },
+                { key: noPrice >= 0 ? 'variations.' + noPrice + '.price' : 'price', label: 'Price', done: Number(this.price) >= 1 && noPrice < 0 },
+                { key: unfinished >= 0 ? 'variations.' + unfinished + '.stock' : 'stock', label: 'Stock', done: hasRows ? unfinished < 0 : this.stock !== '' && this.stock !== null },
+                { key: 'weight_kg', label: 'Weight', done: Number(this.weight) >= 0.01 },
+            ];
+        },
+        get checklistDone() {
+            return this.checklist.filter(i => i.done).length;
         },
         get totalVarStock() {
             return this.variations.reduce((s, v) => s + (parseInt(v.stock) || 0), 0);
