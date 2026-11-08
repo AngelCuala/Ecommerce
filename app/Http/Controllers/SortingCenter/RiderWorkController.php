@@ -167,7 +167,11 @@ class RiderWorkController extends Controller
             return ['rider' => $r, 'orders' => $orders, 'collected' => $collected, 'remitted' => $remitted, 'difference' => round($remitted - $collected, 2)];
         })->filter(fn ($row) => $row['collected'] > 0 || $row['remitted'] > 0)->values();
 
-        return view('sc.remittances', compact('remittances', 'riders', 'daily', 'date'));
+        $pendingCount = RiderRemittance::where('sorting_center_id', $this->scId())->where('status', 'pending')->count();
+        $tab = in_array($request->tab, ['remittances', 'riders', 'daily'], true) ? $request->tab : ($request->filled('date') ? 'daily' : 'remittances');
+        $remittances->appends(['tab' => 'remittances']);
+
+        return view('sc.remittances', compact('remittances', 'riders', 'daily', 'date', 'pendingCount', 'tab'));
     }
 
     /** Only the logistics company confirms a remittance; any shortfall stays on the rider's balance. */

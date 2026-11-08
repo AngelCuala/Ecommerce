@@ -12,7 +12,7 @@
 @endphp
 
 {{-- Main header --}}
-<header class="sticky top-0 z-50" style="background:#002b4d;">
+<header class="sticky top-0 z-50" style="background:#002b4d;" data-keep-colors>
 
     <div class="mx-auto flex max-w-7xl items-center gap-4 px-4 py-3 sm:px-6 lg:px-8">
 
@@ -99,6 +99,9 @@
                     </svg>
                 </a>
             @endauth
+
+            {{-- Light / dark mode --}}
+            <div style="color:#fff;">@include('partials.theme-toggle')</div>
 
             {{-- Cart --}}
             <a href="{{ route('cart.index') }}" title="Cart" aria-label="Cart"

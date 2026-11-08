@@ -47,6 +47,17 @@
     .pc-card:hover .pc-tag { animation: pc-nudge .4s ease; }
     @keyframes pc-nudge { 50% { transform: translateY(-2px); } }
     @media (prefers-reduced-motion: reduce) { .pc-card, .pc-card:hover, .pc-card:hover .pc-media img { transform: none; } .wishlist-btn.is-wished svg, .pc-card:hover .pc-tag { animation: none; } }
+    /* Dark mode (partials/theme flips the page): these light colours come out as a lifted slate card with a
+       visible edge, a softer photo area, and an orange outline on hover instead of a shadow (which would glow). */
+    @media screen {
+        /* Cool greys here come out as a neutral slate after the flip (warm ones turn brown). */
+        html[data-theme="dark"] .pc-card { background: #D5DAE0; border-color: #B8C0C9; }
+        html[data-theme="dark"] .pc-card:hover { border-color: #fa4e1c; box-shadow: 0 0 0 1px #fa4e1c; }
+        html[data-theme="dark"] .pc-media { background: #CBD1D8; border-bottom-color: #B8C0C9; }
+        html[data-theme="dark"] .pc-media img { filter: invert(1) hue-rotate(180deg) brightness(.9) !important; }
+        html[data-theme="dark"] .pc-cart { border-color: #AEB6C0; }
+        html[data-theme="dark"] .pc-card .wishlist-btn { background: rgba(213,218,224,.92); }
+    }
 </style>
 @endonce
 

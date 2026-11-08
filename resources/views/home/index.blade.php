@@ -95,7 +95,7 @@
 
     {{-- ═══ Banner ═══ --}}
     <section class="grid gap-3 lg:h-[22rem] lg:grid-cols-3 lg:grid-rows-2">
-        <div class="hm-tile hm-car h-64 sm:h-72 lg:col-span-2 lg:row-span-2 lg:h-auto" data-carousel
+        <div data-keep-colors class="hm-tile hm-car h-64 sm:h-72 lg:col-span-2 lg:row-span-2 lg:h-auto" data-carousel
              role="region" aria-roledescription="carousel" aria-label="Featured">
             @foreach ($slides as $n => $sl)
                 <a href="{{ $sl['url'] }}" class="hm-slide {{ $n === 0 ? 'is-active' : '' }}" data-slide
@@ -129,7 +129,7 @@
             </div>
         </div>
         @foreach ($promoCats as $i => $cat)
-            <a href="{{ route('categories.show', $cat->slug) }}" class="hm-tile hm-in hidden h-40 sm:block lg:h-auto" style="--d:{{ .25 + $i * .1 }}s;">
+            <a href="{{ route('categories.show', $cat->slug) }}" data-keep-colors class="hm-tile hm-in hidden h-40 sm:block lg:h-auto" style="--d:{{ .25 + $i * .1 }}s;">
                 <img src="{{ $photo($cat->slug, true) }}" alt="{{ $cat->name }}">
                 <div class="hm-shade" style="background:linear-gradient(180deg,rgba(0,0,0,0) 30%,rgba(0,0,0,.65) 100%);"></div>
                 <div class="absolute bottom-4 left-4">

@@ -29,6 +29,25 @@
     .db-count { display:flex; align-items:center; justify-content:space-between; gap:.75rem; padding:.7rem 1.25rem; border-bottom:1px solid #F2EEEA; font-size:.875rem; }
     .db-count:last-child { border-bottom:0; }
     .db-dot { width:.5rem; height:.5rem; border-radius:999px; display:inline-block; margin-right:.5rem; }
+
+    /* Softer, rounder cards with room between them */
+    .db-wrap .pl-card { border-radius:1rem; box-shadow:0 1px 2px rgba(34,34,34,.04); }
+    .db-wrap .pl-head { padding:1rem 1.25rem; }
+    .db-stats { display:grid; gap:1rem; grid-template-columns:repeat(2, minmax(0, 1fr)); }
+    @media (min-width:1024px) { .db-stats { grid-template-columns:repeat(4, minmax(0, 1fr)); } }
+    .db-stat { display:flex; align-items:flex-start; justify-content:space-between; gap:.75rem; padding:1.1rem 1.25rem; transition:transform .15s, box-shadow .15s; }
+    .db-stat:hover { transform:translateY(-2px); box-shadow:0 10px 24px -14px rgba(34,34,34,.25); }
+    .db-stat .ic { display:flex; flex:none; height:2.5rem; width:2.5rem; align-items:center; justify-content:center; border-radius:.75rem; }
+    .db-stat.is-main { border-color:#A7F3D0; background:linear-gradient(180deg,#F0FDF4 0,#FFFFFF 70%); }
+    .db-stat.is-main p.v { color:#047857; }
+    @media (max-width:420px) { .db-stat { padding:.9rem 1rem; } .db-stat p.v { font-size:1.25rem; } .db-stat .ic { display:none; } }
+    .db-chart-grid { position:absolute; inset:0 0 0 0; display:flex; flex-direction:column; justify-content:space-between; pointer-events:none; }
+    .db-chart-grid span { border-top:1px dashed #F2EEEA; }
+    .db-tiles { display:grid; grid-template-columns:1fr 1fr; gap:.6rem; padding:1rem 1.25rem; border-bottom:1px solid #F2EEEA; }
+    .db-tile { display:block; border-radius:.75rem; padding:.8rem; text-align:center; transition:transform .15s; }
+    .db-tile:hover { transform:translateY(-1px); }
+    .db-rank { display:inline-flex; height:1.4rem; width:1.4rem; flex:none; align-items:center; justify-content:center; margin-right:.6rem; border-radius:999px; background:#FFF1EB; color:#d93d0e; font-size:.72rem; font-weight:700; }
+    .db-rank.top { background:#fa4e1c; color:#fff; }
 </style>
 
 {{-- Warnings from ALVY (Admin → Reports & Complaints) stay here until the seller acknowledges them. --}}
@@ -46,7 +65,7 @@
     </div>
 @endforeach
 
-<div class="mx-auto max-w-6xl space-y-5" x-data="{ custom: {{ $range->period === 'custom' ? 'true' : 'false' }} }">
+<div class="db-wrap mx-auto max-w-6xl space-y-6" x-data="{ custom: {{ $range->period === 'custom' ? 'true' : 'false' }} }">
 
     {{-- Header + period --}}
     <div class="flex flex-wrap items-end justify-between gap-3">
@@ -82,27 +101,41 @@
         <p class="rounded-lg px-4 py-2.5 text-sm" style="background:#FEF2F2;color:#B91C1C;">{{ $errors->first() }}</p>
     @endif
 
-    {{-- Money --}}
-    <div class="pl-card grid grid-cols-2 lg:grid-cols-4">
+    {{-- Money: one card each --}}
+    @php
+        $statIcons = [
+            'Sales'        => ['#FFF1EB', '#fa4e1c', '<path d="M6 7h15l-1.5 9h-12L6 7Zm0 0L5 3H2"/><circle cx="9" cy="20" r="1"/><circle cx="18" cy="20" r="1"/>'],
+            'Commission'   => ['#EEF3F7', '#002b4d', '<path d="M19 5 5 19"/><circle cx="7" cy="7" r="2.5"/><circle cx="17" cy="17" r="2.5"/>'],
+            'Net earnings' => ['#DCFCE7', '#047857', '<path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/>'],
+            'Orders'       => ['#FEF3C7', '#B45309', '<path d="M21 8 12 3 3 8m18 0-9 5m9-5v8l-9 5m0-8L3 8m9 5v8M3 8v8l9 5"/>'],
+        ];
+    @endphp
+    <div class="db-stats">
         @foreach ([
             ['Sales',        $peso($money['gross']),      $money['refunds'] > 0 ? $peso($money['refunds']) . ' refunded' : 'What buyers paid for your items'],
             ['Commission',   $peso($money['commission']), 'ALVY fee (' . rtrim(rtrim(number_format($commissionRate, 2), '0'), '.') . '% per sale)'],
             ['Net earnings', $peso($money['net']),        'Sales minus commission'],
             ['Orders',       number_format($orderCounts['total']), $toShip ? $toShip . ' waiting to ship' : 'Nothing to ship'],
         ] as $i => [$label, $value, $note])
-            <div class="db-stat px-5 py-4 {{ $i > 0 ? 'border-l' : '' }} {{ $i === 2 ? 'max-lg:border-l-0 max-lg:border-t' : '' }} {{ $i === 3 ? 'max-lg:border-t' : '' }}" style="border-color:#F2EEEA;" data-stat="{{ \Illuminate\Support\Str::slug($label) }}">
-                <p class="k">{{ $label }}</p>
-                <p class="v">{{ $value }}</p>
-                @if ($i === 3 && $toShip)
-                    <a href="{{ route('seller.orders.index') }}" class="mt-0.5 inline-block text-xs font-medium hover:underline" style="color:#C2410C;">{{ $note }}</a>
-                @else
-                    <p class="mt-0.5 text-xs pl-muted">{{ $note }}</p>
-                @endif
+            @php [$tint, $tone, $path] = $statIcons[$label]; @endphp
+            <div class="pl-card db-stat {{ $label === 'Net earnings' ? 'is-main' : '' }}" data-stat="{{ \Illuminate\Support\Str::slug($label) }}">
+                <div class="min-w-0">
+                    <p class="k">{{ $label }}</p>
+                    <p class="v">{{ $value }}</p>
+                    @if ($i === 3 && $toShip)
+                        <a href="{{ route('seller.orders.index') }}" class="mt-0.5 inline-block text-xs font-medium hover:underline" style="color:#C2410C;">{{ $note }}</a>
+                    @else
+                        <p class="mt-0.5 text-xs pl-muted">{{ $note }}</p>
+                    @endif
+                </div>
+                <span class="ic" style="background:{{ $tint }};color:{{ $tone }};" aria-hidden="true">
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">{!! $path !!}</svg>
+                </span>
             </div>
         @endforeach
     </div>
 
-    <div class="grid items-start gap-5 lg:grid-cols-3">
+    <div class="grid items-start gap-6 lg:grid-cols-3">
         {{-- Earnings by month --}}
         <section class="pl-card lg:col-span-2">
             <div class="pl-head">
@@ -110,14 +143,18 @@
                 <a href="{{ route('seller.commissions', $q) }}" class="pl-link">Commission details</a>
             </div>
             <div class="px-5 pb-4 pt-5">
-                <div class="flex h-36 items-end gap-2 border-b" style="border-color:#ECE7E3;">
+                <div class="relative flex h-40 items-end gap-2 border-b" style="border-color:#ECE7E3;">
+                    <div class="db-chart-grid" aria-hidden="true"><span></span><span></span><span></span></div>
+                    @if ($earningsChart->sum('value') <= 0)
+                        <p class="absolute inset-0 flex items-center justify-center text-sm pl-muted">No earnings yet. Your first sale will show up here.</p>
+                    @endif
                     @foreach ($earningsChart as $m)
                         @php $pct = $m->value > 0 ? max(3, round($m->value / $maxBar * 100)) : 0; @endphp
                         <div class="flex h-full flex-1 flex-col items-center justify-end" title="{{ $m->label }}: {{ $peso($m->value) }}">
                             @if ($m->value > 0)
                                 <span class="mb-1 text-[11px] tabular-nums" style="color:#57534E;">₱{{ number_format($m->value, 0) }}</span>
                             @endif
-                            <div class="w-full max-w-[2.5rem] rounded-t-sm" style="height:{{ $pct }}%;background:{{ $loop->last ? '#fa4e1c' : '#FDBA9F' }};"></div>
+                            <div class="w-full max-w-[2.5rem] rounded-t-md" style="height:{{ $pct }}%;background:{{ $loop->last ? '#fa4e1c' : '#FDBA9F' }};"></div>
                         </div>
                     @endforeach
                 </div>
@@ -149,7 +186,7 @@
         </section>
     </div>
 
-    <div class="grid items-start gap-5 lg:grid-cols-3">
+    <div class="grid items-start gap-6 lg:grid-cols-3">
         {{-- Best sellers --}}
         <section class="pl-card lg:col-span-2 overflow-hidden">
             <div class="pl-head"><h2>Best sellers</h2><span class="text-xs pl-muted">{{ $range->label() }}</span></div>
@@ -158,7 +195,7 @@
                 <tbody>
                     @forelse ($bestSellers as $b)
                         <tr data-best-seller="{{ $b->product_id }}">
-                            <td class="max-w-[16rem] truncate font-medium" style="color:#222;">{{ $b->title }}</td>
+                            <td class="max-w-[18rem] truncate font-medium" style="color:#222;"><span class="db-rank {{ $loop->first ? 'top' : '' }}">{{ $loop->iteration }}</span>{{ $b->title }}</td>
                             <td class="text-right tabular-nums">{{ number_format($b->units) }}</td>
                             <td class="text-right tabular-nums">{{ $peso($b->sales) }}</td>
                         </tr>
@@ -175,12 +212,12 @@
                 <h2>Products</h2>
                 <a href="{{ route('seller.books.index') }}" class="pl-link">Inventory</a>
             </div>
-            <div class="grid grid-cols-2 border-b text-center" style="border-color:#F2EEEA;">
-                <a href="{{ route('seller.books.index', ['status' => 'active']) }}" class="px-3 py-3 hover:bg-stone-50">
-                    <p class="text-lg font-semibold" style="color:#222;" data-products="active">{{ $productCounts['active'] }}</p><p class="text-xs pl-muted">Active</p>
+            <div class="db-tiles">
+                <a href="{{ route('seller.books.index', ['status' => 'active']) }}" class="db-tile" style="background:#F0FDF4;">
+                    <p class="text-xl font-bold" style="color:#047857;" data-products="active">{{ $productCounts['active'] }}</p><p class="text-xs font-medium" style="color:#15803D;">Active</p>
                 </a>
-                <a href="{{ route('seller.books.index', ['status' => 'archived']) }}" class="border-l px-3 py-3 hover:bg-stone-50" style="border-color:#F2EEEA;">
-                    <p class="text-lg font-semibold" style="color:#222;" data-products="inactive">{{ $productCounts['inactive'] }}</p><p class="text-xs pl-muted">Inactive / draft</p>
+                <a href="{{ route('seller.books.index', ['status' => 'archived']) }}" class="db-tile" style="background:#F5F2EF;">
+                    <p class="text-xl font-bold" style="color:#44403C;" data-products="inactive">{{ $productCounts['inactive'] }}</p><p class="text-xs font-medium pl-muted">Inactive / draft</p>
                 </a>
             </div>
             @forelse ($lowStock as $p)

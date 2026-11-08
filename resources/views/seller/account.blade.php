@@ -25,7 +25,16 @@
 @endphp
 <style>
     .ac-section { background: #fff; border: 1px solid #ECE7E3; border-radius: 1rem; box-shadow: 0 1px 2px rgba(34, 34, 34, .04); }
-    .ac-head { padding: 1.25rem 1.5rem; border-bottom: 1px solid #F2EEEA; }
+    .ac-head { display: flex; align-items: flex-start; gap: .75rem; padding: 1.15rem 1.5rem; border-bottom: 1px solid #F2EEEA; }
+    .ac-head-ic { display: flex; flex: none; height: 2.4rem; width: 2.4rem; align-items: center; justify-content: center; border-radius: .75rem; }
+    /* Profile header: a cover with the photo overlapping it */
+    .ac-cover { height: 6.5rem; border-radius: 1rem 1rem 0 0; background: linear-gradient(120deg,#fa4e1c 0%,#ff8a5b 45%,#002b4d 130%); }
+    .ac-hero { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 1rem; padding: 0 1.5rem 1.25rem; margin-top: -2.75rem; }
+    .ac-hero-text { min-width: 0; flex: 1; padding-top: 3rem; }
+    .ac-field { position: relative; }
+    .ac-field > svg { position: absolute; left: .85rem; top: 50%; transform: translateY(-50%); height: 1rem; width: 1rem; color: #a39890; pointer-events: none; }
+    .ac-field > .input { padding-left: 2.4rem; }
+    .ac-field:has(+ .ac-error) > .input { border-color: #DC2626; box-shadow: 0 0 0 3px rgba(220, 38, 38, .12); }
     .ac-head h2 { font-size: 1rem; font-weight: 600; color: #222; }
     .ac-head p { margin-top: .15rem; font-size: .8125rem; color: #8a7f78; }
     .ac-body { padding: 1.25rem 1.5rem; }
@@ -72,33 +81,43 @@
 
         {{-- ── Profile ─────────────────────────────────────── --}}
         <section class="ac-section">
-            <div class="ac-head">
-                <h2>Profile</h2>
-                <p>How you appear to buyers and the ALVY team.</p>
+            <div class="ac-cover" aria-hidden="true"></div>
+            <div class="ac-hero" data-account-hero>
+                <button type="button" id="avatar-box" onclick="document.getElementById('avatar-input').click()"
+                            class="group relative flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-full"
+                            style="background:#FFF1EB;box-shadow:0 0 0 4px #fff,0 6px 16px -6px rgba(0,0,0,.3);" aria-label="Change profile photo">
+                        <img id="avatar-preview" data-photo-preview src="{{ $u->profile_photo_path ? asset('storage/' . $u->profile_photo_path) : '' }}"
+                             class="{{ $u->profile_photo_path ? '' : 'hidden' }} h-full w-full object-cover" alt="">
+                        @unless ($u->profile_photo_path)
+                            <span id="avatar-initial" data-photo-initial class="font-display text-3xl font-bold" style="color:#d93d0e;">{{ strtoupper(mb_substr($u->name, 0, 1)) }}</span>
+                        @endunless
+                        <span class="absolute inset-0 hidden items-center justify-center text-[11px] font-medium text-white group-hover:flex" style="background:rgba(0,0,0,.45);">Change</span>
+                    </button>
+                <div class="ac-hero-text">
+                    <p class="truncate font-display text-xl font-bold" style="color:#222;" data-hero-name>{{ old('name', $u->name) }}</p>
+                    <p class="mt-0.5 flex flex-wrap items-center gap-2 text-sm" style="color:#8a7f78;">
+                        @if ($application)<span class="font-medium" style="color:#57534E;">{{ $application->shop_name }}</span>@endif
+                        @if ($application)
+                            <span class="ac-pill" style="{{ $application->isApproved() ? 'background:#ECFDF5;color:#047857;' : 'background:#F5F5F4;color:#57534E;' }}">{{ $application->isApproved() ? 'Approved seller' : ucfirst($application->status) }}</span>
+                        @endif
+                        <span>Seller since {{ $u->created_at->format('M Y') }}</span>
+                    </p>
+                </div>
+                <div class="min-w-0 pb-1">
+                    <input id="avatar-input" type="file" accept="image/jpeg,image/png,image/webp" class="hidden" data-photo-upload data-photo-url="{{ route('account.photo') }}">
+                        <label for="avatar-input" class="ac-btn">
+                            <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3 9a2 2 0 0 1 2-2h1.2a2 2 0 0 0 1.7-.9l.7-1.2A2 2 0 0 1 10.3 4h3.4a2 2 0 0 1 1.7.9l.7 1.2a2 2 0 0 0 1.7.9H19a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9Z"/><circle cx="12" cy="13" r="3.5"/></svg>
+                            {{ $u->profile_photo_path ? 'Change photo' : 'Upload photo' }}
+                        </label>
+                        <p id="avatar-filename" class="ac-note" data-photo-status>JPG, PNG or WebP, up to 5 MB. Saved as soon as you choose it.</p>
+                        @error('avatar')<p class="ac-error">{{ $message }}</p>@enderror
+                </div>
+            </div>
+            <div class="ac-head" style="border-top:1px solid #F2EEEA;">
+                <span class="ac-head-ic" style="background:#FFF1EB;color:#fa4e1c;"><svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/></svg></span>
+                <div><h2>Profile</h2><p>How you appear to buyers and the ALVY team.</p></div>
             </div>
             <div class="ac-body space-y-5">
-                <div class="flex items-center gap-4">
-                    <button type="button" id="avatar-box" onclick="document.getElementById('avatar-input').click()"
-                            class="group relative flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-full"
-                            style="background:#FFF1EB;box-shadow:0 0 0 3px #fff,0 0 0 4px #ECE7E3;" aria-label="Change profile photo">
-                        <img id="avatar-preview" data-photo-preview src="{{ $u->profile_photo_path ? asset('storage/' . $u->profile_photo_path) : '' }}"
-                             class="{{ $u->profile_photo_path ? '' : 'hidden' }} h-full w-full object-cover" alt="">
-                        @unless ($u->profile_photo_path)
-                            <span id="avatar-initial" data-photo-initial class="font-display text-2xl font-bold" style="color:#d93d0e;">{{ strtoupper(mb_substr($u->name, 0, 1)) }}</span>
-                        @endunless
-                        <span class="absolute inset-0 hidden items-center justify-center text-[11px] font-medium text-white group-hover:flex" style="background:rgba(0,0,0,.45);">Change</span>
-                    </button>
-                    <div class="min-w-0">
-                        <input id="avatar-input" type="file" accept="image/jpeg,image/png,image/webp" class="hidden" data-photo-upload data-photo-url="{{ route('account.photo') }}">
-                        <label for="avatar-input" class="ac-btn">
-                            <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3 9a2 2 0 0 1 2-2h1.2a2 2 0 0 0 1.7-.9l.7-1.2A2 2 0 0 1 10.3 4h3.4a2 2 0 0 1 1.7.9l.7 1.2a2 2 0 0 0 1.7.9H19a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9Z"/><circle cx="12" cy="13" r="3.5"/></svg>
-                            {{ $u->profile_photo_path ? 'Change photo' : 'Upload photo' }}
-                        </label>
-                        <p id="avatar-filename" class="ac-note" data-photo-status>JPG, PNG or WebP, up to 5 MB. Saved as soon as you choose it.</p>
-                        @error('avatar')<p class="ac-error">{{ $message }}</p>@enderror
-                    </div>
-                </div>
-
                 <div class="grid gap-4 sm:grid-cols-2">
                     <div class="sm:col-span-2">
                         <label class="ac-label" for="name">Full name</label>
@@ -107,12 +126,16 @@
                     </div>
                     <div>
                         <label class="ac-label" for="email">Email</label>
+                        <div class="ac-field"><svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg>
                         <input type="email" id="email" name="email" value="{{ old('email', $u->email) }}" class="input" required>
+                        </div>
                         @error('email')<p class="ac-error">{{ $message }}</p>@enderror
                     </div>
                     <div>
                         <label class="ac-label" for="phone">Mobile number</label>
+                        <div class="ac-field"><svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/></svg>
                         <input type="tel" id="phone" name="phone" value="{{ old('phone', $u->phone ?: $u->contact_no) }}" class="input" placeholder="09171234567" maxlength="13" inputmode="tel" autocomplete="tel" data-mobile oninput="this.value=this.value.startsWith('+')?('+'+this.value.slice(1).replace(/\D/g,'')).slice(0,13):this.value.replace(/\D/g,'').slice(0,11)">
+                        </div>
                         @error('phone')<p class="ac-error">{{ $message }}</p>@enderror
                     </div>
                 </div>
@@ -141,7 +164,8 @@
         @if ($application)
             <section class="ac-section">
                 <div class="ac-head flex flex-wrap items-start justify-between gap-2">
-                    <div>
+                    <span class="ac-head-ic" style="background:#EEF3F7;color:#002b4d;"><svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9l1.5-5h15L21 9M3 9h18M3 9a3 3 0 006 0 3 3 0 006 0 3 3 0 006 0M5 12v8h14v-8"/></svg></span>
+                    <div class="min-w-0 flex-1">
                         <h2>Shop</h2>
                         <p>Details from your approved seller application.</p>
                     </div>
@@ -264,6 +288,8 @@
     }
 
     form.addEventListener('input', sync);
+    var heroName = document.querySelector('[data-hero-name]');
+    if (heroName) form.elements.name.addEventListener('input', function () { heroName.textContent = form.elements.name.value.trim() || '—'; });
     discard.addEventListener('click', function () {
         if (failedSave) { window.location.href = window.location.pathname; return; }   // the page's fields hold the failed values
         form.reset();

@@ -24,7 +24,7 @@
     .ft-link { color: rgba(255,255,255,.65); transition: color .12s; }
     .ft-link:hover { color: #fff; text-decoration: underline; text-underline-offset: 3px; }
 </style>
-<footer style="background:#002b4d;color:rgba(255,255,255,.65);">
+<footer style="background:#002b4d;color:rgba(255,255,255,.65);" data-keep-colors>
     <div class="mx-auto grid max-w-7xl grid-cols-2 gap-x-6 gap-y-4 px-4 py-6 sm:grid-cols-3 sm:px-6 md:grid-cols-[1.4fr_1fr_1fr_1fr] lg:px-8">
 
         {{-- Brand --}}

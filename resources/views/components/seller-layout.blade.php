@@ -3,6 +3,7 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
+    @include('partials.theme')
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{ $title }} — ALVY Seller</title>
     <meta name="csrf-token" content="{{ csrf_token() }}">
@@ -141,6 +142,8 @@ $navSections = [
 
         @include('partials.panel.sidebar-nav', ['sections' => $navSections, 'active' => $active])
 
+        <div class="mt-auto shrink-0 border-t px-4 py-3" style="border-color:#EFEFEF;">@include('partials.theme-toggle', ['variant' => 'row'])</div>
+
     </aside>
 
     {{-- ══════════════════════════
@@ -168,6 +171,7 @@ $navSections = [
                 </button>
             </div>
             @include('partials.panel.sidebar-nav', ['sections' => $navSections, 'active' => $active])
+            <div class="mt-auto shrink-0 border-t px-4 py-3" style="border-color:#EFEFEF;">@include('partials.theme-toggle', ['variant' => 'row'])</div>
         </aside>
     </div>
 

@@ -29,6 +29,41 @@
     .inv-table tbody tr:hover { background: #FCFBFA; }
     .inv-action { font-size: .8125rem; font-weight: 600; color: #57534E; }
     .inv-action:hover { color: #222; text-decoration: underline; }
+
+    /* The table fits the page: no sideways scrolling. */
+    .inv-table { table-layout: auto; }
+    .inv-table th, .inv-table td { padding-left: .75rem; padding-right: .75rem; }
+    .inv-cat { max-width: 9.5rem; color: #57534E; }
+    .inv-edit { display: inline-flex; align-items: center; border: 1px solid #E7E5E4; border-radius: .5rem; padding: .3rem .7rem; font-size: .8125rem; font-weight: 600; color: #44403C; background: #fff; }
+    .inv-edit:hover { border-color: #fa4e1c; color: #fa4e1c; }
+    .inv-more { position: relative; display: inline-block; }
+    .inv-more > summary { display: inline-flex; align-items: center; gap: .2rem; cursor: pointer; list-style: none; border: 1px solid #E7E5E4; border-radius: .5rem; padding: .3rem .55rem; font-size: .8125rem; font-weight: 600; color: #57534E; background: #fff; }
+    .inv-more > summary::-webkit-details-marker { display: none; }
+    .inv-more > summary:hover, .inv-more[open] > summary { border-color: #D6CFC9; color: #222; }
+    .inv-menu { position: absolute; right: 0; top: calc(100% + 4px); z-index: 30; min-width: 9rem; padding: .3rem; border-radius: .7rem; background: #fff; border: 1px solid #ECE7E3; box-shadow: 0 14px 30px -12px rgba(0,0,0,.3); text-align: left; }
+    .inv-menu form { display: block; }
+    .inv-menu button { display: block; width: 100%; border-radius: .45rem; padding: .45rem .6rem; text-align: left; font-size: .8125rem; font-weight: 600; color: #44403C; }
+    .inv-menu button:hover { background: #F5F2EF; }
+    .inv-menu button.danger { color: #B91C1C; }
+    .inv-menu button.danger:hover { background: #FEF2F2; }
+
+    /* Narrower screens: each product is a card with labelled lines. */
+    @media (max-width: 1100px) {
+        .inv-table thead { display: none; }
+        .inv-table, .inv-table tbody, .inv-table tr, .inv-table td { display: block; width: 100%; }
+        .inv-table tr { position: relative; padding: .9rem 1rem .9rem 2.6rem; border-bottom: 1px solid #F2EEEA; }
+        .inv-table tbody tr:last-child { border-bottom: 0; }
+        .inv-table td { padding: .2rem 0; border: 0 !important; text-align: left !important; }
+        .inv-table td.inv-check { position: absolute; left: 1rem; top: 1.1rem; width: auto; padding: 0; }
+        .inv-table td[data-label] { display: flex; align-items: center; gap: .75rem; font-size: .8125rem; }
+        .inv-table td[data-label]::before { content: attr(data-label); flex: none; width: 4.5rem; font-size: .7rem; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: #a39890; }
+        .inv-table td[data-label] > * { min-width: 0; }
+        .inv-cat { max-width: none; }
+        .inv-table td.inv-actions { padding-top: .6rem; }
+        .inv-table td.inv-actions > div { justify-content: flex-start; }
+        .inv-menu { left: 0; right: auto; }
+        .inv-table td[colspan] { padding: 2rem 0; }
+    }
 </style>
 
 <div class="mx-auto max-w-6xl">
@@ -125,7 +160,7 @@
 
     {{-- Products --}}
     <div class="overflow-hidden rounded-xl border bg-white" style="border-color:#ECE7E3;">
-        <div class="overflow-x-auto">
+        <div>
             <table class="inv-table w-full text-sm">
                 <thead>
                     <tr>
@@ -141,7 +176,7 @@
                 <tbody>
                     @forelse ($books as $book)
                         <tr>
-                            <td class="!pr-0"><input type="checkbox" name="ids[]" value="{{ $book->id }}" form="bulk-form" data-bulk aria-label="Select {{ $book->title }}"></td>
+                            <td class="inv-check !pr-0"><input type="checkbox" name="ids[]" value="{{ $book->id }}" form="bulk-form" data-bulk aria-label="Select {{ $book->title }}"></td>
                             <td>
                                 <div class="flex items-center gap-3">
                                     @if ($book->image)
@@ -163,8 +198,8 @@
                                     </div>
                                 </div>
                             </td>
-                            <td style="color:#57534E;">{{ $book->category->name ?? '—' }}</td>
-                            <td class="whitespace-nowrap">
+                            <td class="inv-cat" data-label="Category">{{ $book->category->name ?? '—' }}</td>
+                            <td class="whitespace-nowrap" data-label="Price">
                                 <span class="font-medium" style="color:#222;">₱{{ number_format($book->effective_price, 2) }}</span>
                                 @if ($book->hasDiscount())
                                     <span class="block text-xs" style="color:#8a7f78;">
@@ -181,7 +216,8 @@
                                     @endif
                                 @endif
                             </td>
-                            <td>
+                            <td data-label="Stock">
+                                <div>
                                 <form action="{{ route('seller.books.stock', $book->id) }}" method="POST" class="flex items-center gap-1.5">
                                     @csrf @method('PATCH')
                                     <input type="number" name="stock" value="{{ $book->stock }}" min="0" max="99999" step="1" @disabled($book->variations()->exists()) aria-label="Stock for {{ $book->title }}"
@@ -194,8 +230,10 @@
                                 @elseif ($book->isLowStock())
                                     <p class="mt-1 text-xs" style="color:#B45309;">Low stock (alert at {{ $book->lowStockThreshold() }})</p>
                                 @endif
+                                </div>
                             </td>
-                            <td>
+                            <td data-label="Listing">
+                                <div>
                                 @php [$listLabel, $listCss] = $book->is_archived
                                     ? ['Inactive', 'background:#F5F5F4;color:#78716C;']
                                     : ($listingStyle[$book->status] ?? [ucfirst((string) $book->status ?: 'Active'), 'background:#ECFDF5;color:#047857;']); @endphp
@@ -210,31 +248,39 @@
                                         @endif
                                     @endif
                                 @endif
+                                </div>
                             </td>
-                            <td class="text-right" style="min-width:8.5rem;">
-                                <div class="flex flex-wrap justify-end gap-x-3 gap-y-1">
-                                <a href="{{ route('seller.books.edit', $book->id) }}" class="inv-action">Edit</a>
-                                @if ($book->is_archived)
-                                    <form action="{{ route('seller.books.unarchive', $book->id) }}" method="POST" class="inline">
-                                        @csrf @method('PATCH')
-                                        <button class="inv-action">Reactivate</button>
-                                    </form>
-                                @else
-                                    <form action="{{ route('seller.books.archive', $book->id) }}" method="POST" class="inline"
-                                          onsubmit="return confirm('Deactivate this product? Buyers won\'t see it until you reactivate it.')">
-                                        @csrf @method('PATCH')
-                                        <button class="inv-action">Deactivate</button>
-                                    </form>
-                                @endif
-                                <form action="{{ route('seller.books.duplicate', $book->id) }}" method="POST" class="inline">
-                                    @csrf
-                                    <button class="inv-action">Duplicate</button>
-                                </form>
-                                <form action="{{ route('seller.books.destroy', $book->id) }}" method="POST" class="inline"
-                                      onsubmit="return confirm('Permanently delete this product? This can\'t be undone.')">
-                                    @csrf @method('DELETE')
-                                    <button class="inv-action !text-[#B91C1C]">Delete</button>
-                                </form>
+                            <td class="inv-actions text-right">
+                                <div class="flex items-center justify-end gap-1.5">
+                                <a href="{{ route('seller.books.edit', $book->id) }}" class="inv-edit">Edit</a>
+                                <details class="inv-more" data-inv-more>
+                                    <summary aria-label="More actions for {{ $book->title }}">More
+                                        <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m6 9 6 6 6-6"/></svg>
+                                    </summary>
+                                    <div class="inv-menu">
+                                        @if ($book->is_archived)
+                                            <form action="{{ route('seller.books.unarchive', $book->id) }}" method="POST">
+                                                @csrf @method('PATCH')
+                                                <button>Reactivate</button>
+                                            </form>
+                                        @else
+                                            <form action="{{ route('seller.books.archive', $book->id) }}" method="POST"
+                                                  onsubmit="return confirm('Deactivate this product? Buyers won\'t see it until you reactivate it.')">
+                                                @csrf @method('PATCH')
+                                                <button>Deactivate</button>
+                                            </form>
+                                        @endif
+                                        <form action="{{ route('seller.books.duplicate', $book->id) }}" method="POST">
+                                            @csrf
+                                            <button>Duplicate</button>
+                                        </form>
+                                        <form action="{{ route('seller.books.destroy', $book->id) }}" method="POST"
+                                              onsubmit="return confirm('Permanently delete this product? This can\'t be undone.')">
+                                            @csrf @method('DELETE')
+                                            <button class="danger">Delete</button>
+                                        </form>
+                                    </div>
+                                </details>
                                 </div>
                             </td>
                         </tr>
@@ -266,4 +312,12 @@
         @endif
     </div>
 </div>
+<script>
+(function () {
+    var menus = document.querySelectorAll('[data-inv-more]');
+    menus.forEach(function (d) { d.addEventListener('toggle', function () { if (d.open) menus.forEach(function (o) { if (o !== d) o.open = false; }); }); });
+    document.addEventListener('click', function (e) { menus.forEach(function (d) { if (d.open && !d.contains(e.target)) d.open = false; }); });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') menus.forEach(function (d) { if (d.open) { d.open = false; d.querySelector('summary').focus(); } }); });
+})();
+</script>
 </x-seller-layout>

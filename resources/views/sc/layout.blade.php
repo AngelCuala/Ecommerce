@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    @include('partials.theme')
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>@yield('title', 'Dashboard') — LogiSort</title>
@@ -134,7 +135,7 @@
                 <span class="header-icon">@include('sc.partials.icon', ['name' => trim($__env->yieldContent('icon', 'dashboard')), 'size' => 19])</span>
                 @yield('title', 'Dashboard')
             </div>
-            <div class="topbar-right">@yield('topbar-right')</div>
+            <div class="topbar-right" style="display:flex;align-items:center;gap:8px;">@include('partials.theme-toggle')@yield('topbar-right')</div>
         </div>
 
         <div class="content">

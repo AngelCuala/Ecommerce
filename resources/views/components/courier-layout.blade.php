@@ -3,6 +3,7 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
+    @include('partials.theme')
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{ $title }} — Courier</title>
     <meta name="csrf-token" content="{{ csrf_token() }}">
@@ -115,7 +116,7 @@
                 <p class="cx-eyebrow-top">ALVY Courier</p>
                 <p class="cx-title">{{ $title }}</p>
             </div>
-            <div class="cx-topbar-right">{{ $topbar ?? '' }}</div>
+            <div class="cx-topbar-right" style="display:flex;align-items:center;gap:8px;">@include('partials.theme-toggle'){{ $topbar ?? '' }}</div>
         </header>
 
         <main class="cx-content">

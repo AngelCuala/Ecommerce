@@ -3,6 +3,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    @include('partials.theme')
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>{{ $title }} — ParcelOps</title>
@@ -38,7 +39,7 @@
     <div class="main">
         <div class="topbar">
             <h1>{{ $title }}</h1>
-            <div class="text-muted">{{ auth()->user()->name ?? 'Admin' }}</div>
+            <div style="display:flex;align-items:center;gap:8px;">@include('partials.theme-toggle')<span class="text-muted">{{ auth()->user()->name ?? 'Admin' }}</span></div>
         </div>
         <div class="content">
             @if(session('success'))

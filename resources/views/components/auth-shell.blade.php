@@ -22,6 +22,7 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
+    @include('partials.theme')
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>{{ $title }}</title>
@@ -69,6 +70,7 @@
     <link rel="stylesheet" href="{{ asset('css/password-field.css') }}">
 </head>
 <body class="auth-bg min-h-screen">
+<div style="position:fixed;bottom:16px;right:16px;z-index:30;color:#57534E;border-radius:9999px;background:#fff;border:1px solid #F0E4DC;box-shadow:0 8px 20px -10px rgba(0,0,0,.35);">@include('partials.theme-toggle')<style>.auth-bg .theme-menu{top:auto;bottom:calc(100% + 6px);}</style></div>
 
 @if ($progress)
     <div class="auth-progress" id="authProgress"></div>
@@ -83,7 +85,7 @@
     {{-- Top bar --}}
     <header class="mx-auto flex w-full max-w-6xl items-center justify-between px-4 py-5 sm:px-6">
         <a href="{{ $shopLink ? route('home') : '#' }}" class="flex items-center gap-2.5">
-            <span class="inline-flex h-9 w-9 items-center justify-center overflow-hidden rounded-xl bg-white shadow-sm">
+            <span class="inline-flex h-9 w-9 items-center justify-center overflow-hidden rounded-xl bg-white shadow-sm" data-keep-colors>
                 <img src="{{ asset('images/logo-mark.png') }}" alt="" class="h-full w-full object-contain" style="padding:5px;">
             </span>
             <span class="font-display text-xl font-extrabold tracking-tight" style="color:#222;">ALVY</span>
@@ -104,7 +106,7 @@
             <div class="auth-card">
                 <div class="px-6 pt-8 sm:px-10 sm:pt-10 {{ $width === 'wide' ? '' : 'pb-2' }}">
                     <div class="text-center">
-                        <a href="{{ $shopLink ? route('home') : '#' }}" class="auth-logo">
+                        <a href="{{ $shopLink ? route('home') : '#' }}" class="auth-logo" data-keep-colors>
                             <img src="{{ asset('images/logo-mark.png') }}" alt="ALVY" class="h-full w-full object-contain" style="padding:8px;">
                         </a>
                         @if ($heading)
