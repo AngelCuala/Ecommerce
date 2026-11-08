@@ -10,6 +10,28 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
  */
 class AppDownloadController extends Controller
 {
+    /** What was last published with `php artisan app:publish-apk`, kept beside the APK. */
+    public static function versionPath(): string
+    {
+        return dirname(self::apkPath()) . DIRECTORY_SEPARATOR . 'version.json';
+    }
+
+    /**
+     * The app asks this when it opens: a phone with an older build must update before using the app.
+     * Nothing published yet: build 0, so nobody is blocked.
+     */
+    public function version(): \Illuminate\Http\JsonResponse
+    {
+        $v = is_file(self::versionPath()) ? json_decode((string) file_get_contents(self::versionPath()), true) : null;
+
+        return response()->json([
+            'build'         => (int) ($v['build'] ?? 0),
+            'version'       => (string) ($v['version'] ?? ''),
+            'size'          => (int) ($v['size'] ?? 0),
+            'download_path' => '/app/download',
+        ])->header('Cache-Control', 'no-store');
+    }
+
     public static function apkPath(): string
     {
         return config('app.apk_path') ?: storage_path('app/app-releases/ALVY.apk');

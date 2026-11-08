@@ -201,7 +201,9 @@
                 <button type="button" data-q="Where is my latest order?">Track My Order</button>
                 <button type="button" data-q="What promotions, flash sales and vouchers are available right now?">Check Promotions</button>
                 <button type="button" data-q="How does shipping work, where do you deliver and how much is the fee?">Shipping Information</button>
-                <button type="button" data-q="How do returns and refunds work?">Returns and Refunds</button>
+                @if (\App\Models\Order::returnsEnabled())
+                    <button type="button" data-q="How do returns and refunds work?">Returns and Refunds</button>
+                @endif
                 <button type="button" data-q="I need help from ALVY customer support.">Contact Support</button>
             </div>
         </div>

@@ -29,7 +29,7 @@ class RiderJson
             'suspended'      => $rider->isSuspended(),
             'online'         => $rider->isOnlineNow(),
             'active_jobs'    => $rider->activeJobsCount(),
-            'max_active'     => RiderDispatch::MAX_ACTIVE,
+            'max_active'     => null,   // no job limit: riders take every job of their barangay
             'vehicle_type'   => $rider->vehicle_type,
             'plate_number'   => $rider->plate_number,
             'license_number' => $rider->license_number,

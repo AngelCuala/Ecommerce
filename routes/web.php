@@ -112,9 +112,11 @@ Route::middleware(['auth', 'is_sc', 'prevent.back'])->prefix('sc')->name('sc.')-
     Route::get('/riders/{rider}/documents/{document}', [\App\Http\Controllers\SortingCenter\RiderWorkController::class, 'riderDocument'])->whereIn('document', ['license', 'or-cr'])->name('riders.document');
     Route::post('/riders/{rider}/verify',  [\App\Http\Controllers\SortingCenter\RiderWorkController::class, 'verifyRider'])->name('riders.verify');
 
-    // Rider dispatch (auto-assign offers, manual assignment, Unassigned queue) and COD remittances
+    // Rider dispatch (Auto-assign to each barangay's rider, manual assignment) and COD remittances
     Route::get('/dispatch',                  [\App\Http\Controllers\SortingCenter\RiderWorkController::class, 'dispatchBoard'])->name('dispatch');
     Route::post('/dispatch/{parcel}/auto',   [\App\Http\Controllers\SortingCenter\RiderWorkController::class, 'autoAssign'])->name('dispatch.auto');
+    // Auto-assign every waiting pickup or delivery to the rider of its barangay.
+    Route::post('/dispatch/auto-all/{kind}', [\App\Http\Controllers\SortingCenter\RiderWorkController::class, 'autoAssignAll'])->whereIn('kind', ['pickup', 'delivery'])->name('dispatch.auto-all');
     Route::post('/dispatch/{parcel}/assign', [\App\Http\Controllers\SortingCenter\RiderWorkController::class, 'manualAssign'])->name('dispatch.assign');
     Route::get('/remittances',               [\App\Http\Controllers\SortingCenter\RiderWorkController::class, 'remittances'])->name('remittances');
     Route::post('/remittances/{remittance}/confirm', [\App\Http\Controllers\SortingCenter\RiderWorkController::class, 'confirmRemittance'])->name('remittances.confirm');
@@ -193,8 +195,23 @@ Route::middleware(['auth', 'is_sc', 'prevent.back'])->prefix('sc')->name('sc.')-
     // Logout
     Route::post('/logout',              [\App\Http\Controllers\SortingCenterController::class, 'logout'])->name('logout');
 
-    // ── SC-to-SC Transfers ────────────────────────────────────
-    Route::get('/transfers',                                    [\App\Http\Controllers\SortingCenterController::class, 'transfers'])->name('transfers');
+    // ── SC-to-SC Transfers: replaced by Linehaul Trips (the old page opens the trips) ──
+    Route::redirect('/transfers', '/sc/trips')->name('transfers');
+    // Linehaul Trips: hub-to-hub trips of the company's couriers, to its own hubs or another sorting center's hub
+    // (which accepts the trip first). Both companies track it, message each other, and the receiver receives the parcels.
+    Route::get('/trips',                     [\App\Http\Controllers\SortingCenter\TripsController::class, 'index'])->name('trips');
+    Route::post('/trips',                    [\App\Http\Controllers\SortingCenter\TripsController::class, 'store'])->name('trips.store');
+    Route::post('/trips/auto-assign',        [\App\Http\Controllers\SortingCenter\TripsController::class, 'autoAssignAll'])->name('trips.auto-all');
+    Route::get('/trips/{trip}',              [\App\Http\Controllers\SortingCenter\TripsController::class, 'show'])->whereNumber('trip')->name('trips.show');
+    Route::post('/trips/{trip}/parcels',     [\App\Http\Controllers\SortingCenter\TripsController::class, 'addParcels'])->whereNumber('trip')->name('trips.parcels');
+    Route::post('/trips/{trip}/auto',        [\App\Http\Controllers\SortingCenter\TripsController::class, 'autoAdd'])->whereNumber('trip')->name('trips.auto');
+    Route::post('/trips/{trip}/parcels/{parcel}/remove', [\App\Http\Controllers\SortingCenter\TripsController::class, 'removeParcel'])->whereNumber('trip')->name('trips.parcels.remove');
+    Route::post('/trips/{trip}/assign',      [\App\Http\Controllers\SortingCenter\TripsController::class, 'assign'])->whereNumber('trip')->name('trips.assign');
+    Route::post('/trips/{trip}/cancel',      [\App\Http\Controllers\SortingCenter\TripsController::class, 'cancel'])->whereNumber('trip')->name('trips.cancel');
+    Route::post('/trips/{trip}/respond',     [\App\Http\Controllers\SortingCenter\TripsController::class, 'respond'])->whereNumber('trip')->name('trips.respond');
+    Route::post('/trips/{trip}/message',     [\App\Http\Controllers\SortingCenter\TripsController::class, 'message'])->whereNumber('trip')->name('trips.message');
+    Route::post('/trips/{trip}/seal',        [\App\Http\Controllers\SortingCenter\TripsController::class, 'seal'])->whereNumber('trip')->name('trips.seal');
+    Route::post('/trips/{trip}/receive',     [\App\Http\Controllers\SortingCenter\TripsController::class, 'receive'])->whereNumber('trip')->name('trips.receive');
     Route::post('/transfers/initiate',                          [\App\Http\Controllers\SortingCenterController::class, 'initiateTransfer'])->name('transfers.initiate');
     Route::post('/transfers/{transfer}/accept',                 [\App\Http\Controllers\SortingCenterController::class, 'acceptTransfer'])->name('transfers.accept');
     Route::post('/transfers/{transfer}/reject',                 [\App\Http\Controllers\SortingCenterController::class, 'rejectTransfer'])->name('transfers.reject');

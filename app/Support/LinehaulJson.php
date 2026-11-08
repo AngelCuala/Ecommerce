@@ -45,6 +45,14 @@ class LinehaulJson
             'seal_number' => $t->seal_number, 'delayed' => (bool) $t->delayed, 'delay_reason' => $t->delay_reason, 'eta_at' => $t->eta_at?->toIso8601String(),
             'needs_rescan' => (bool) $t->needs_rescan, 'needs_courier_note' => (bool) $t->needs_courier_note, 'courier_note' => $t->courier_note,
             'seal_discrepancy' => (bool) $t->seal_discrepancy, 'received_seal' => $t->received_seal,
+            // Between two sorting centers: the receiver accepts before departure; both track it and message each other.
+            'origin_company' => \App\Support\SortingCenters::nameOf($t->company),
+            'destination_company' => \App\Support\SortingCenters::nameOf($t->destinationCompany ?? $t->company),
+            'cross_company' => $t->crossCompany(),
+            'handover_status' => $t->handover_status, 'handover_note' => $t->handover_note,
+            'handover_responded_at' => $t->handover_responded_at?->toIso8601String(),
+            'direction' => auth()->check() ? ((int) $t->sorting_center_id === (int) auth()->id() ? 'outgoing' : 'incoming') : null,
+            'created_at' => $t->created_at?->toIso8601String(),
         ];
         if ($detail) {
             $row['items'] = $items->map(fn ($i) => [
@@ -55,6 +63,10 @@ class LinehaulJson
             $row['events'] = $t->events()->with(['courier', 'user'])->get()->map(fn (LinehaulTripEvent $e) => [
                 'type' => $e->type, 'courier' => $e->courier?->fullName(), 'by' => $e->user?->name, 'old_value' => $e->old_value,
                 'new_value' => $e->new_value, 'reason' => $e->reason, 'at' => $e->created_at?->toIso8601String(),
+            ])->values();
+            $row['messages'] = $t->messages()->with('user')->get()->map(fn ($m) => [
+                'id' => $m->id, 'body' => $m->body, 'mine' => (int) $m->user_id === (int) auth()->id(),
+                'from' => \App\Support\SortingCenters::nameOf($m->user) ?? $m->user?->name, 'at' => $m->created_at?->toIso8601String(),
             ])->values();
             $last = $t->locations()->reorder('recorded_at', 'desc')->first();
             $row['last_location'] = $last ? ['lat' => $last->lat, 'lng' => $last->lng, 'at' => $last->recorded_at->toIso8601String()] : null;

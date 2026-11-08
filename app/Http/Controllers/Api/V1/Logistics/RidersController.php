@@ -31,7 +31,7 @@ class RidersController extends Controller
         return $json;
     }
 
-    // ── Dispatch board (offers, manual assignment, Unassigned queue, reassign) ──
+    // ── Dispatch board (Auto-assign to the barangay's rider, manual assignment, reassign) ──
 
     public function dispatch(): JsonResponse
     {
@@ -40,6 +40,8 @@ class RidersController extends Controller
             'job_kind' => $p->job_kind,
             'offer' => $p->job_offer ? ['rider' => $p->job_offer->rider?->full_name, 'seconds_left' => $p->job_offer->secondsLeft()] : null,
             'unassigned' => (bool) $p->unassigned,
+            // Who Auto-assign gives it to: the Online rider covering the job's barangay (null: assign manually).
+            'barangay_rider' => $p->barangay_rider ? ['id' => $p->barangay_rider->id, 'name' => $p->barangay_rider->full_name] : null,
         ];
 
         return response()->json([
@@ -54,9 +56,20 @@ class RidersController extends Controller
                 'status' => $x->status, 'status_label' => $x->statusLabel(), 'picked_up_at' => $x->picked_up_at?->toIso8601String()])->values(),
             'not_started' => $d['notStarted']->map(fn ($x) => ['kind' => $x->kind, 'parcel_id' => $x->parcel?->id, 'tracking' => $x->parcel?->tracking_number,
                 'rider' => $x->rider?->full_name, 'rider_id' => $x->rider?->id, 'since' => $x->since?->toIso8601String()])->values(),
-            'max_active'  => RiderDispatch::MAX_ACTIVE,
+            'max_active'  => null,   // no job limit: riders take every job of their barangay
+            // The two Auto-assign buttons: waiting jobs and how many have an Online barangay rider.
+            'auto' => [
+                'pickup'   => ['waiting' => (int) $d['waitingPickups'], 'ready' => (int) $d['readyPickups']],
+                'delivery' => ['waiting' => (int) $d['waitingDeliveries'], 'ready' => (int) $d['readyDeliveries']],
+            ],
             'offer_seconds' => RiderDispatch::OFFER_SECONDS,
         ]);
+    }
+
+    /** kind: pickup / delivery — every waiting job of that kind goes to the rider of its barangay. */
+    public function autoAssignAll(string $kind): JsonResponse
+    {
+        return $this->with($this->web(WebRiderWork::class, 'autoAssignAll', ['kind' => $kind]), fn () => $this->dispatch());
     }
 
     public function autoAssign(int $parcel): JsonResponse

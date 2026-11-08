@@ -755,11 +755,8 @@ class SortingCenterController extends Controller
         $parcel->withTracking(['location_id' => $this->sc()->id])->update(['area_id' => $request->area_id, 'status' => 'sorted', 'sorted_at' => now(), 'sorted_by' => auth()->id()]);
         $this->parcels()->syncOrder($parcel);
 
-        // Ready for last-mile: offer the delivery to this hub's nearest online rider right away.
-        $offer = app(\App\Services\RiderDispatch::class)->offer($parcel->fresh());
-
-        return back()->with('success', "{$parcel->tracking_number} sorted to {$parcel->area->name}. "
-            . ($offer ? "Delivery offered to {$offer->rider->full_name}." : 'No rider is online right now, so the delivery is waiting in Rider Dispatch.'));
+        // Ready for last-mile: the delivery waits in Rider Dispatch for Auto-assign (the barangay's rider) or a manual assignment.
+        return back()->with('success', "{$parcel->tracking_number} sorted to {$parcel->area->name}. The delivery is waiting in Rider Dispatch.");
     }
 
     // ── Delivery Assignment ───────────────────────────────────

@@ -286,8 +286,8 @@ class OrderController extends Controller
 
     /**
      * Ready for Pickup: the seller chooses the logistics company (sorting center); that company's
-     * riders pick the parcel up. The job goes straight to its Rider Dispatch and is offered to
-     * an Online rider right away.
+     * riders pick the parcel up. The job waits in its Rider Dispatch until the company auto-assigns it to the
+     * rider of the seller's barangay (or assigns a rider manually).
      */
     public function handover(Request $request, int $id)
     {
@@ -326,22 +326,19 @@ class OrderController extends Controller
         $sc = \App\Models\User::findOrFail($request->sorting_center_id);
         $svc = app(\App\Services\ParcelService::class);
 
-        $offer = \Illuminate\Support\Facades\DB::transaction(function () use ($order, $sc, $request, $svc) {
+        \Illuminate\Support\Facades\DB::transaction(function () use ($order, $sc, $request, $svc) {
             $parcel = $svc->createForSeller($order, auth()->user(), $request->pickup_scheduled_at, $request->notes, $sc);
             // The seller chose the company, so the pickup is confirmed for it right away.
             $parcel->update(['status' => 'pickup_approved', 'current_sorting_center_id' => $sc->id, 'verified_at' => now(), 'failure_reason' => null]);
             $svc->syncOrder($parcel);
             $svc->notify($sc->id, 'New pickup', "{$parcel->tracking_number} from " . auth()->user()->storeName() . ' is ready for pickup'
                 . ' (' . \Carbon\Carbon::parse($request->pickup_scheduled_at)->tz(config('app.business_timezone'))->format('M j, g:i A') . ').', 'info', route('sc.dispatch'));
-
-            return app(\App\Services\RiderDispatch::class)->offer($parcel->fresh());
         });
 
         $name = \App\Models\SortingCenterApplication::where('user_id', $sc->id)->where('status', 'approved')->value('business_name') ?: $sc->name;
         \App\Models\ActivityLog::note('Order ' . $order->number() . ' ready for pickup by ' . $name, $order);
 
-        return back()->with('success', "Ready for Pickup. A rider from {$name} will pick it up"
-            . ($offer ? ' (offered to ' . $offer->rider->full_name . ').' : '; the job is waiting in their dispatch for an available rider.'));
+        return back()->with('success', "Ready for Pickup. {$name} will assign the rider of your barangay to pick it up.");
     }
 
     /** Mark as handed over to courier → status becomes Shipped */

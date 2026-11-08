@@ -42,7 +42,7 @@ class RiderController extends Controller
                 'status' => $t->status, 'expected_by' => $t->expected_by?->toIso8601String(),
             ])->values(),
             'recent'     => collect($d['recent'] ?? [])->map(fn ($x) => RiderJson::deliveryRow($x))->values(),
-            'decline_reasons' => WebRider::DECLINE_REASONS,
+            'decline_reasons' => [],   // barangay jobs cannot be declined (the hub reassigns them)
             'pay'        => ['pickup' => RiderDispatch::PAY_PICKUP, 'delivery' => RiderDispatch::PAY_DELIVERY],
         ]);
     }
