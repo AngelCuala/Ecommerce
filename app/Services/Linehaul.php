@@ -146,20 +146,19 @@ class Linehaul
     public function createTrip(User $sc, array $data): LinehaulTrip
     {
         $origin = LogisticsHub::where('sorting_center_id', $sc->id)->find($data['origin_hub_id'] ?? 0);
-        $dest = LogisticsHub::where('sorting_center_id', $sc->id)->find($data['destination_hub_id'] ?? 0);
+        // Linehaul is hub to hub between sorting centers: the destination is another sorting center's hub nearer the buyer
+        // (it accepts the trip first).
+        $dest = LogisticsHub::where('sorting_center_id', '!=', $sc->id)->find($data['destination_hub_id'] ?? 0);
         if (! $origin) {
             $this->fail('origin_hub_id', 'Choose one of your hubs as the origin.');
         }
         if (! $dest) {
-            $this->fail('destination_hub_id', 'Choose one of your hubs as the destination.');
+            $this->fail('destination_hub_id', 'Choose the sorting center hub the trip goes to.');
         }
         if ($origin->is($dest)) {
             $this->fail('destination_hub_id', 'The destination must be a different hub.');
         }
         $ids = array_map('intval', (array) ($data['parcel_ids'] ?? []));
-        if (! $ids) {
-            $this->fail('parcel_ids', 'Choose the parcels for this trip.');
-        }
         $eligible = $this->eligibleParcels($sc, $origin)->keyBy('id');
         $wrong = array_diff($ids, $eligible->keys()->all());
         if ($wrong) {
@@ -167,8 +166,10 @@ class Linehaul
         }
 
         return DB::transaction(function () use ($sc, $origin, $dest, $ids, $data) {
+            $cross = (int) $dest->sorting_center_id !== (int) $sc->id;
             $trip = LinehaulTrip::create([
                 'code' => LinehaulTrip::nextCode(), 'sorting_center_id' => $sc->id, 'origin_hub_id' => $origin->id, 'destination_hub_id' => $dest->id,
+                'destination_sorting_center_id' => $dest->sorting_center_id, 'handover_status' => $cross ? 'pending' : null,
                 'status' => 'scheduled', 'scheduled_departure_at' => $data['scheduled_departure_at'] ?? null,
             ]);
             foreach ($ids as $id) {
@@ -176,6 +177,11 @@ class Linehaul
                 Parcel::whereKey($id)->whereNull('current_hub_id')->update(['current_hub_id' => $origin->id]);
             }
             $trip->log('created', null, ['new_value' => $trip->route() . ', ' . count($ids) . ' parcel(s)', 'courier_id' => null]);
+            if ($cross) {
+                $this->notify((int) $dest->sorting_center_id, "Incoming trip {$trip->code} needs your acceptance",
+                    \App\Support\SortingCenters::nameOf($sc) . " is sending trip {$trip->code} to {$dest->code} ({$trip->route()}"
+                    . ($ids ? ', ' . count($ids) . ' parcel(s) so far' : '') . '). Accept or reject it in Linehaul Trips.');
+            }
 
             return $trip;
         });
@@ -274,6 +280,9 @@ class Linehaul
         $trip->update(['status' => 'cancelled']);
         $trip->log('cancelled', $reason);
         $this->notify($courier?->user_id, "{$trip->code} was cancelled", $reason);
+        if ($trip->crossCompany() && $trip->handover_status !== 'rejected') {
+            $this->notify($trip->receiverId(), "Incoming trip {$trip->code} was cancelled", $reason);
+        }
 
         return $trip;
     }
@@ -329,6 +338,7 @@ class Linehaul
         if ($trip->status !== 'accepted') {
             $this->fail('trip', $trip->status === 'assigned' ? "Accept {$trip->code} first." : "{$trip->code} is {$trip->label()}.");
         }
+        $this->handoverAccepted($trip);
         $trip->update(['status' => 'loading', 'loading_at' => now()]);
         $trip->log('loading');
 
@@ -364,6 +374,10 @@ class Linehaul
         $trip = $this->courierTrip($c, $id);
         if ($trip->status !== 'loading') {
             $this->fail('trip', "{$trip->code} is {$trip->label()}: it can depart only while Loading.");
+        }
+        $this->handoverAccepted($trip);
+        if (! $trip->onBoard()->exists()) {
+            $this->fail('trip', "{$trip->code} has no parcels yet. Add parcels before departing.");
         }
         $missing = $trip->onBoard()->where('status', '!=', 'loaded')->with('parcel')->get()->pluck('parcel.tracking_number');
         if ($missing->isNotEmpty()) {
@@ -413,8 +427,8 @@ class Linehaul
         $path = $photo?->store('linehaul-incidents', 'local');
         $trip->update(['delayed' => true, 'eta_at' => $at, 'delay_reason' => $reason]);
         $trip->log($reason === 'Vehicle breakdown' ? 'breakdown' : 'delay', $reason, ['new_value' => $at->toDateTimeString(), 'photo_path' => $path]);
-        $this->notify($trip->sorting_center_id, $reason === 'Vehicle breakdown' ? "Vehicle breakdown on {$trip->code}" : "{$trip->code} is delayed",
-            "{$c->fullName()} ({$trip->route()}): $reason. New ETA " . $at->format('M j, g:i A') . ($reason === 'Vehicle breakdown' ? '. You can reassign the trip to another On Duty courier.' : '.'));
+        $this->notifyBoth($trip, $reason === 'Vehicle breakdown' ? "Vehicle breakdown on {$trip->code}" : "{$trip->code} is delayed",
+            "{$c->fullName()} ({$trip->route()}): $reason. New ETA " . $at->format('M j, g:i A') . ($reason === 'Vehicle breakdown' ? '. The sending company can reassign the trip to another On Duty courier.' : '.'));
 
         return $trip;
     }
@@ -431,7 +445,7 @@ class Linehaul
         $this->at($trip->destination, $lat, $lng, 'mark Arrived');
         $trip->update(['status' => 'arrived', 'arrived_at' => now(), 'delayed' => false]);
         $trip->log('arrived');
-        $this->notify($trip->sorting_center_id, "{$trip->code} arrived at {$trip->destination->code}", "Check the seal ({$trip->seal_number}) and scan the {$trip->onBoard()->count()} parcel(s) in.");
+        $this->notifyBoth($trip, "{$trip->code} arrived at {$trip->destination->code}", "Check the seal ({$trip->seal_number}) and receive the {$trip->onBoard()->count()} parcel(s).");
 
         return $trip;
     }
@@ -475,7 +489,7 @@ class Linehaul
         }
         $trip->update(['received_seal' => $seal, 'seal_discrepancy' => true, 'seal_note' => $note, 'needs_courier_note' => true]);
         $trip->log('seal_discrepancy', $note, ['old_value' => $trip->seal_number, 'new_value' => $seal]);
-        $this->notify($trip->sorting_center_id, "Seal discrepancy on {$trip->code}", "Manifest {$trip->seal_number}, found $seal: $note");
+        $this->notifyBoth($trip, "Seal discrepancy on {$trip->code}", "Manifest {$trip->seal_number}, found $seal: $note");
 
         return $trip;
     }
@@ -487,7 +501,9 @@ class Linehaul
         $tracking = strtoupper(trim($tracking));
         $parcel = Parcel::where('tracking_number', $tracking)->first() ?? $this->fail('tracking', "Parcel $tracking was not found.");
         $item = LinehaulTripParcel::where('parcel_id', $parcel->id)->whereIn('status', ['pending', 'loaded'])
-            ->whereHas('trip', fn ($q) => $q->where('sorting_center_id', $sc->id)->whereIn('status', ['in_transit', 'arrived']))->first()
+            ->whereHas('trip', fn ($q) => $q->where(fn ($w) => $w->where('destination_sorting_center_id', $sc->id)
+                ->orWhere(fn ($o) => $o->whereNull('destination_sorting_center_id')->where('sorting_center_id', $sc->id)))
+                ->whereIn('status', ['in_transit', 'arrived']))->first()
             ?? $this->fail('tracking', "$tracking is not on a trip coming to {$hub->code}.");
         $trip = $item->trip;
         if ((int) $trip->destination_hub_id !== $hub->id) {
@@ -499,10 +515,7 @@ class Linehaul
         if (! $trip->received_seal) {
             $this->fail('tracking', "Check the seal of {$trip->code} first.");
         }
-        $item->update(['status' => 'received', 'received_at' => now()]);
-        $parcel->linehaulStep = true;
-        $parcel->update(['status' => 'picked_up', 'current_hub_id' => $hub->id, 'received_at' => now()]);
-        $parcel->timeline("At Hub ({$hub->code})");
+        $this->receiveItem($trip, $item, $parcel);
 
         [$in, $all] = [$trip->onBoard()->where('status', 'received')->count(), $trip->onBoard()->count()];
 
@@ -522,7 +535,7 @@ class Linehaul
         $path = $photo->store('linehaul-incidents', 'local');
         $item->update(['status' => 'damaged', 'damage_photo_path' => $path, 'received_at' => now()]);
         $parcel->linehaulStep = true;
-        $parcel->update(['status' => 'damaged', 'current_hub_id' => $trip->destination_hub_id, 'exception_photo_path' => $path]);
+        $parcel->update(['status' => 'damaged', 'current_hub_id' => $trip->destination_hub_id, 'current_sorting_center_id' => $trip->receiverId(), 'exception_photo_path' => $path]);
         $parcel->timeline("Damaged at {$trip->destination->code}");
         $trip->update(['needs_courier_note' => true]);
         $trip->log('damaged', null, ['old_value' => $parcel->tracking_number, 'photo_path' => $path]);
@@ -574,11 +587,227 @@ class Linehaul
                     . ($discrepancy ? ' There was a discrepancy: open the trip and add your note.' : ''));
             }
             if ($discrepancy) {
-                $this->notify($trip->sorting_center_id, "{$trip->code} completed with discrepancy", 'Missing: ' . $missing->count() . ($trip->seal_discrepancy ? ', seal discrepancy' : '') . '.');
+                $this->notifyBoth($trip, "{$trip->code} completed with discrepancy", 'Missing: ' . $missing->count() . ($trip->seal_discrepancy ? ', seal discrepancy' : '') . '.');
+            } elseif ($trip->crossCompany()) {
+                $this->notify((int) $trip->sorting_center_id, "{$trip->code} was received", \App\Support\SortingCenters::nameOf($trip->destinationCompany) . " received all {$trip->onBoard()->count()} parcel(s) at {$trip->destination->code}.");
             }
 
             return $trip;
         });
+    }
+
+    // ── Between two sorting centers ──────────────────────────────
+
+    /**
+     * The hub a parcel should go to: the sorting center that serves the buyer's municipality, else the hub nearest
+     * the buyer (their map pin, or the middle of their barangay). Null when this company delivers it itself.
+     */
+    public function bestHubFor(Parcel $parcel, User $from): ?LogisticsHub
+    {
+        $flow = app(ShipmentWorkflow::class);
+        $next = $flow->nextDestination($parcel, $from);
+        if ($next['type'] === 'local') {
+            return null;
+        }
+        if ($next['type'] === 'transfer' && $next['center']) {
+            return LogisticsHub::forCompany($next['center'])->first();
+        }
+        [$lat, $lng] = \App\Services\NearestRiders::destination($parcel);
+        if ($lat === null) {
+            return null;
+        }
+
+        return LogisticsHub::where('sorting_center_id', '!=', $from->id)->whereNotNull('latitude')->get()
+            ->sortBy(fn (LogisticsHub $h) => $h->distanceTo($lat, $lng))->first();
+    }
+
+    /**
+     * Put parcels on a trip before it departs (no limit). They must be waiting at the trip's origin hub and not on
+     * another trip. The receiving sorting center is told how many were added.
+     */
+    public function addParcels(User $sc, LinehaulTrip $trip, array $ids, bool $notify = true): int
+    {
+        if ((int) $trip->sorting_center_id !== (int) $sc->id) {
+            $this->fail('parcel_ids', 'Only the sending sorting center can add parcels.');
+        }
+        if (! in_array($trip->status, LinehaulTrip::BEFORE_DEPARTURE, true)) {
+            $this->fail('parcel_ids', "{$trip->code} is {$trip->label()}: parcels can be added only before it departs.");
+        }
+        $ids = array_values(array_unique(array_map('intval', $ids)));
+        if (! $ids) {
+            $this->fail('parcel_ids', 'Choose the parcels to add.');
+        }
+        $eligible = $this->eligibleParcels($sc, $trip->origin)->keyBy('id');
+        $wrong = array_diff($ids, $eligible->keys()->all());
+        if ($wrong) {
+            $this->fail('parcel_ids', 'These parcels are not waiting at ' . $trip->origin->code . ': ' . Parcel::whereIn('id', $wrong)->pluck('tracking_number')->implode(', ') . '.');
+        }
+        DB::transaction(function () use ($trip, $ids) {
+            foreach ($ids as $id) {
+                $trip->items()->create(['parcel_id' => $id, 'status' => 'pending']);
+                Parcel::whereKey($id)->whereNull('current_hub_id')->update(['current_hub_id' => $trip->origin_hub_id]);
+            }
+            $trip->log('parcels_added', null, ['new_value' => count($ids) . ' parcel(s)']);
+        });
+        if ($notify && $trip->crossCompany() && $trip->handover_status !== 'rejected') {
+            $this->notify($trip->receiverId(), count($ids) . " parcel(s) added to {$trip->code}", "{$trip->code} ({$trip->route()}) now has {$trip->onBoard()->count()} parcel(s).");
+        }
+
+        return count($ids);
+    }
+
+    /** Auto-assign: every parcel waiting at the origin whose nearest hub to the buyer is this trip's destination. */
+    public function autoAddParcels(User $sc, LinehaulTrip $trip): int
+    {
+        $ids = $this->parcelsFor($sc, $trip->origin, (int) $trip->destination_hub_id)->pluck('id')->all();
+
+        return $ids ? $this->addParcels($sc, $trip, $ids) : 0;
+    }
+
+    /** The parcels waiting at the origin hub that should go to this destination hub (nearest to their buyers). */
+    public function parcelsFor(User $sc, LogisticsHub $origin, int $destinationHubId): Collection
+    {
+        return $this->eligibleParcels($sc, $origin)->load('order')
+            ->filter(fn (Parcel $p) => $this->bestHubFor($p, $sc)?->id === $destinationHubId)->values();
+    }
+
+    /**
+     * Auto-assign everything waiting at the origin hub: the parcels are grouped by the hub nearest their buyers; each
+     * group joins an open delivery to that hub (not departed, not rejected), or a new delivery is created for it.
+     * Parcels this company delivers itself are left out. Returns [['trip' => LinehaulTrip, 'added' => n, 'new' => bool], …].
+     */
+    public function autoAssignAll(User $sc, LogisticsHub $origin): array
+    {
+        $groups = $this->eligibleParcels($sc, $origin)->load('order')
+            ->groupBy(fn (Parcel $p) => $this->bestHubFor($p, $sc)?->id ?? 0)
+            ->forget(0);
+        $result = [];
+        foreach ($groups as $hubId => $parcels) {
+            $trip = LinehaulTrip::where('sorting_center_id', $sc->id)->where('origin_hub_id', $origin->id)
+                ->where('destination_hub_id', $hubId)->whereIn('status', LinehaulTrip::BEFORE_DEPARTURE)
+                ->where(fn ($q) => $q->whereNull('handover_status')->orWhere('handover_status', '!=', 'rejected'))
+                ->latest('id')->first();
+            $new = ! $trip;
+            if ($new) {
+                $trip = $this->createTrip($sc, ['origin_hub_id' => $origin->id, 'destination_hub_id' => $hubId, 'parcel_ids' => $parcels->pluck('id')->all()]);
+                $added = $parcels->count();
+            } else {
+                $added = $this->addParcels($sc, $trip, $parcels->pluck('id')->all());
+            }
+            $result[] = ['trip' => $trip->fresh(['destination', 'destinationCompany']), 'added' => $added, 'new' => $new];
+        }
+
+        return $result;
+    }
+
+    /** A trip to another company's hub loads and departs only after that company accepted it. */
+    private function handoverAccepted(LinehaulTrip $trip): void
+    {
+        if ($trip->handover_status === 'pending') {
+            $this->fail('trip', "{$trip->code} is waiting for " . \App\Support\SortingCenters::nameOf($trip->destinationCompany) . " to accept it. It can load once they accept.");
+        }
+        if ($trip->handover_status === 'rejected') {
+            $this->fail('trip', "{$trip->code} was rejected by the receiving sorting center.");
+        }
+    }
+
+    /** Both sorting centers of the trip (one notification when it stays inside one company). */
+    private function notifyBoth(LinehaulTrip $trip, string $title, string $body): void
+    {
+        $this->notify((int) $trip->sorting_center_id, $title, $body);
+        if ($trip->crossCompany()) {
+            $this->notify($trip->receiverId(), $title, $body);
+        }
+    }
+
+    /**
+     * The receiving company accepts (the truck may then load and depart) or rejects the trip before it departs.
+     * A rejected trip is cancelled: its parcels stay at the origin hub.
+     */
+    public function respondHandover(User $sc, LinehaulTrip $trip, bool $accept, ?string $note = null): LinehaulTrip
+    {
+        if (! $trip->crossCompany() || $trip->receiverId() !== (int) $sc->id) {
+            $this->fail('trip', 'Only the receiving sorting center can accept or reject this trip.');
+        }
+        if ($trip->handover_status !== 'pending') {
+            $this->fail('trip', "{$trip->code} was already " . ($trip->handover_status ?? 'answered') . '.');
+        }
+        $note = trim((string) $note);
+        if (! $accept && (mb_strlen($note) < 5 || mb_strlen($note) > 300)) {
+            $this->fail('note', 'Say why you are rejecting the trip (5 to 300 characters).');
+        }
+        $name = \App\Support\SortingCenters::nameOf($sc);
+
+        return DB::transaction(function () use ($sc, $trip, $accept, $note, $name) {
+            $trip->update(['handover_status' => $accept ? 'accepted' : 'rejected', 'handover_responded_at' => now(),
+                'handover_responded_by' => $sc->id, 'handover_note' => $note ?: null]);
+            $trip->log($accept ? 'handover_accepted' : 'handover_rejected', $note ?: null, ['new_value' => $name]);
+            if ($accept) {
+                $this->notify((int) $trip->sorting_center_id, "{$name} accepted {$trip->code}", "The trip to {$trip->destination->code} can load and depart." . ($note ? " Note: $note" : ''));
+                $this->notify($trip->courier?->user_id, "{$trip->code} can load", "{$name} accepted the trip. You can start loading.");
+
+                return $trip;
+            }
+            $this->cancel($trip, "Rejected by {$name}: $note");
+            $this->notify((int) $trip->sorting_center_id, "{$name} rejected {$trip->code}", $note . ' The parcels stay at ' . $trip->origin->code . '.');
+
+            return $trip;
+        });
+    }
+
+    /** A message between the two sorting centers on the trip (e.g. a delay or a problem); the other side is notified. */
+    public function postMessage(User $sc, LinehaulTrip $trip, ?string $body): void
+    {
+        if (! $trip->involves((int) $sc->id)) {
+            $this->fail('body', 'This trip is not yours.');
+        }
+        $body = trim((string) $body);
+        if ($body === '' || mb_strlen($body) > 1000) {
+            $this->fail('body', 'Write a message (up to 1,000 characters).');
+        }
+        $trip->messages()->create(['user_id' => $sc->id, 'body' => $body]);
+        $other = (int) $sc->id === (int) $trip->sorting_center_id ? $trip->receiverId() : (int) $trip->sorting_center_id;
+        if ($other !== (int) $sc->id) {
+            $this->notify($other, \App\Support\SortingCenters::nameOf($sc) . " on {$trip->code}", \Illuminate\Support\Str::limit($body, 160));
+        }
+    }
+
+    /**
+     * Receive the whole trip at once (after the seal check): every parcel still on it is received, except the
+     * ones listed as not found, which become Missing in Transit when receiving closes. The parcels then belong
+     * to the receiving company and wait in its Parcel Sorting.
+     */
+    public function receiveAll(User $sc, LinehaulTrip $trip, array $notFoundIds = []): LinehaulTrip
+    {
+        if ($trip->receiverId() !== (int) $sc->id) {
+            $this->fail('trip', 'Only the receiving sorting center can receive this trip.');
+        }
+        if ($trip->status !== 'arrived') {
+            $this->fail('trip', "{$trip->code} is {$trip->label()}: parcels are received after it arrives.");
+        }
+        if (! $trip->received_seal) {
+            $this->fail('trip', "Check the seal of {$trip->code} first.");
+        }
+        $notFound = array_map('intval', $notFoundIds);
+        DB::transaction(function () use ($trip, $notFound) {
+            foreach ($trip->onBoard()->whereIn('status', ['pending', 'loaded'])->with('parcel')->get() as $item) {
+                if (! in_array((int) $item->parcel_id, $notFound, true) && $item->parcel) {
+                    $this->receiveItem($trip, $item, $item->parcel);
+                }
+            }
+        });
+
+        return $this->closeReceiving($trip->fresh(), true);
+    }
+
+    /** One parcel received at the destination hub: it is at that hub, belongs to the receiving company, and can be sorted. */
+    private function receiveItem(LinehaulTrip $trip, LinehaulTripParcel $item, Parcel $parcel): void
+    {
+        $item->update(['status' => 'received', 'received_at' => now()]);
+        $parcel->linehaulStep = true;
+        $parcel->update(['status' => 'picked_up', 'current_hub_id' => $trip->destination_hub_id, 'current_sorting_center_id' => $trip->receiverId(),
+            'transfer_status' => null, 'received_at' => now()]);
+        $parcel->timeline('At Hub (' . ($trip->destination?->code ?? 'destination') . ')');
     }
 
     // ── Suspension ───────────────────────────────────────────────

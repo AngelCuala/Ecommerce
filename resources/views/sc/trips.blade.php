@@ -1,0 +1,217 @@
+@extends('sc.layout')
+@section('title', 'Linehaul Trips')
+@section('icon', 'truck')
+
+@php
+    $badge = fn ($t) => match (true) {
+        $t->status === 'cancelled'                      => 'badge-gray',
+        $t->status === 'completed_discrepancy' || $t->seal_discrepancy => 'badge-red',
+        in_array($t->status, ['loading', 'in_transit']) => ($t->delayed ? 'badge-red' : 'badge-blue'),
+        $t->status === 'completed'                      => 'badge-green',
+        default                                         => 'badge-yellow',
+    };
+    $selected = old('parcel_ids', $preselect);
+@endphp
+
+@section('content')
+<style>
+    .lt-stats { display: grid; gap: 12px; grid-template-columns: repeat(5, minmax(0, 1fr)); margin-bottom: 18px; }
+    @media (max-width: 1000px) { .lt-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    .lt-stat { display: flex; align-items: center; gap: 12px; padding: 14px 16px; }
+    .lt-stat-ic { display: flex; width: 40px; height: 40px; flex-shrink: 0; align-items: center; justify-content: center; border-radius: 11px; }
+    .lt-stat-n { font-size: 24px; font-weight: 800; line-height: 1; color: var(--text); }
+    .lt-stat-l { margin-top: 3px; font-size: 12px; color: var(--text-muted); }
+    .lt-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+    .lt-tab { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: 999px; font-size: 13px; font-weight: 600;
+              background: #F1F5F9; color: var(--text); text-decoration: none; }
+    .lt-tab.is-on { background: var(--accent-orange); color: #fff; }
+    .lt-tab.is-alert:not(.is-on) { background: #FFF4E5; color: var(--accent-orange); }
+    .lt-tab span { font-size: 11.5px; opacity: .8; }
+    .lt-code { font-family: 'SF Mono', Consolas, monospace; font-weight: 700; white-space: nowrap; }
+    .lt-sub { margin-top: 2px; font-size: 11.5px; color: var(--text-muted); }
+    .lt-dir { display: inline-flex; align-items: center; gap: 4px; border-radius: 999px; padding: 2px 8px; font-size: 11px; font-weight: 700; white-space: nowrap; }
+    .lt-form { display: grid; gap: 12px; padding: 16px 18px; }
+    .lt-row { display: grid; gap: 12px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    @media (max-width: 900px) { .lt-row { grid-template-columns: 1fr; } }
+    .lt-label { display: block; margin-bottom: 5px; font-size: 12px; font-weight: 600; color: var(--text-muted); }
+    .lt-parcels { max-height: 240px; overflow: auto; border: 1px solid #E2E8F0; border-radius: 10px; }
+    .lt-parcels label { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-bottom: 1px solid #F1F5F9; font-size: 13px; cursor: pointer; }
+</style>
+
+<div class="page-header"><h1>Linehaul Trips</h1></div>
+<div class="page-body">
+    <p class="text-muted" style="margin:-4px 0 16px;font-size:13px;">
+        Send parcels hub to hub on your courier's truck to the sorting center nearer the buyer.
+        The trip loads and departs only after that sorting center accepts it. Both of you can track the trip and message each other on it.
+    </p>
+
+    <div class="lt-stats" data-trip-stats>
+        @foreach ([
+            ['To accept', $stats['to_accept'], 'inbox', '#FFF4E5', 'var(--accent-orange)'],
+            ['On the road', $stats['on_road'], 'truck', '#EAF2FB', 'var(--accent-blue)'],
+            ['Coming to you', $stats['incoming'], 'transfer', '#F1F5F9', 'var(--text-muted)'],
+            ['Arrived, to receive', $stats['arrived'], 'parcel', '#E9F8EF', 'var(--accent-green)'],
+            ['Delayed', $stats['delayed'], 'clock', '#FEF2F2', 'var(--accent-red)'],
+        ] as [$label, $n, $ic, $bg, $fg])
+            <div class="card lt-stat">
+                <span class="lt-stat-ic" style="background:{{ $bg }};color:{{ $fg }};">@include('sc.partials.icon', ['name' => $ic, 'size' => 19, 'sw' => 2])</span>
+                <div><div class="lt-stat-n" style="{{ in_array($label, ['Delayed', 'To accept']) && $n ? 'color:' . ($label === 'Delayed' ? 'var(--accent-red)' : 'var(--accent-orange)') . ';' : '' }}">{{ $n }}</div><div class="lt-stat-l">{{ $label }}</div></div>
+            </div>
+        @endforeach
+    </div>
+
+    {{-- Auto-assign: every waiting parcel into a delivery to the hub nearest its buyer --}}
+    @php $outbound = $parcels->filter(fn ($p) => $p->best_hub)->groupBy(fn ($p) => \App\Support\SortingCenters::nameOf($p->best_hub->company) . ' (' . $p->best_hub->code . ')'); @endphp
+    <div class="card" style="padding:16px 18px;margin-bottom:18px;display:flex;gap:14px;align-items:center;flex-wrap:wrap;" data-trip-auto-all>
+        <span class="lt-stat-ic" style="background:#FFF4E5;color:var(--accent-orange);">@include('sc.partials.icon', ['name' => 'truck', 'size' => 19, 'sw' => 2])</span>
+        <div style="flex:1;min-width:240px;">
+            <div style="font-weight:800;">Auto-assign parcels to deliveries <span class="badge badge-gray">{{ $outbound->flatten()->count() }}</span></div>
+            <div class="text-muted" style="font-size:12.5px;">
+                @if ($outbound->isEmpty())
+                    No parcel waiting at {{ $origin->code ?? 'your hub' }} needs to go to another sorting center.
+                @else
+                    Each parcel joins a delivery to the hub nearest its buyer:
+                    {{ $outbound->map(fn ($list, $name) => $name . ' ' . $list->count())->implode(' · ') }}.
+                    An open delivery to that hub is filled first; otherwise a new one is made (they accept it).
+                @endif
+            </div>
+        </div>
+        <form method="POST" action="{{ route('sc.trips.auto-all') }}"
+              data-confirm="{{ $outbound->flatten()->count() }} parcel(s) go into deliveries to {{ $outbound->count() }} sorting center(s)." data-confirm-title="Auto-assign parcels?" data-confirm-ok="Auto-assign">
+            @csrf<input type="hidden" name="origin_hub_id" value="{{ $origin?->id }}">
+            <button class="btn btn-orange" @disabled($outbound->isEmpty())>Auto-assign all</button>
+        </form>
+    </div>
+
+    {{-- Create a trip --}}
+    <div class="card" style="margin-bottom:18px;" id="create" data-trip-create>
+        <div class="card-header"><h2>Create a delivery</h2><span class="card-meta">Hub to hub, to the sorting center nearest the buyers</span></div>
+        <form method="GET" action="{{ route('sc.trips') }}#create" style="padding:12px 18px 0;display:flex;gap:8px;align-items:end;flex-wrap:wrap;">
+            <div style="min-width:220px;">
+                <label class="lt-label" for="lt-origin">From (your hub)</label>
+                <select id="lt-origin" name="origin_hub_id" class="form-select" onchange="this.form.submit()">
+                    @foreach ($hubs as $h)<option value="{{ $h->id }}" @selected($origin && $origin->id === $h->id)>{{ $h->code }} — {{ $h->name }}</option>@endforeach
+                </select>
+            </div>
+            @foreach ($preselect as $id)<input type="hidden" name="parcel[]" value="{{ $id }}">@endforeach
+            <noscript><button class="btn btn-sm">Show parcels</button></noscript>
+        </form>
+        <form method="POST" action="{{ route('sc.trips.store') }}" class="lt-form"
+              data-confirm="The delivery is created at {{ $origin->code ?? 'your hub' }} and waits for the receiving sorting center to accept it." data-confirm-title="Create this delivery?" data-confirm-ok="Create delivery">
+            @csrf
+            <input type="hidden" name="origin_hub_id" value="{{ $origin?->id }}">
+            <div class="lt-row">
+                <div>
+                    <label class="lt-label" for="lt-dest">To (sorting center)</label>
+                    <select id="lt-dest" name="destination_hub_id" class="form-select" required>
+                        <option value="">Choose the sorting center…</option>
+                        @foreach ($destinations as $h)
+                            <option value="{{ $h->id }}" @selected((int) old('destination_hub_id') === $h->id)>{{ \App\Support\SortingCenters::nameOf($h->company) }} — {{ $h->code }}{{ $h->company?->assigned_municipality ? ' · ' . $h->company->assigned_municipality : '' }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div>
+                    <label class="lt-label" for="lt-when">Planned departure (optional)</label>
+                    <input id="lt-when" type="datetime-local" name="scheduled_departure_at" class="form-input" value="{{ old('scheduled_departure_at') }}">
+                </div>
+                <div style="display:flex;align-items:end;">
+                    <button class="btn btn-orange" style="width:100%;">Create delivery</button>
+                </div>
+            </div>
+            <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;">
+                <input type="checkbox" name="auto" value="1" @checked(old('auto', true))>
+                Auto-assign: add every parcel here whose nearest hub to the buyer is this sorting center
+            </label>
+            <div>
+                <label class="lt-label">Or pick parcels yourself ({{ $parcels->count() }} waiting at {{ $origin->code ?? 'your hub' }}). More can be added on the delivery page until it departs.</label>
+                @if ($parcels->isEmpty())
+                    <p class="text-muted" style="margin:0;font-size:13px;">No parcels are waiting at {{ $origin->code ?? 'this hub' }} right now. You can still create the delivery and add parcels later.</p>
+                @else
+                    <div class="lt-parcels">
+                        @foreach ($parcels as $p)
+                            <label data-trip-pick="{{ $p->tracking_number }}">
+                                <input type="checkbox" name="parcel_ids[]" value="{{ $p->id }}" @checked(in_array($p->id, array_map('intval', (array) $selected), true))>
+                                <span class="lt-code">{{ $p->tracking_number }}</span>
+                                <span>{{ $p->receiver_name }} · {{ trim($p->destination_municipality . ', ' . $p->destination_province, ', ') }}</span>
+                                <span class="text-muted" style="margin-left:auto;text-align:right;">
+                                    @if ($p->best_hub)Nearest hub: <b>{{ \App\Support\SortingCenters::nameOf($p->best_hub->company) }}</b>@else You deliver it @endif
+                                    · {{ number_format((float) $p->weight_kg, 2) }} kg
+                                </span>
+                            </label>
+                        @endforeach
+                    </div>
+                @endif
+            </div>
+        </form>
+    </div>
+
+    <div class="lt-tabs">
+        @foreach ($tabs as $t)
+            <a href="{{ route('sc.trips', ['status' => $t['key']]) }}" class="lt-tab {{ $tab === $t['key'] ? 'is-on' : '' }} {{ $t['key'] === 'incoming' && $t['count'] ? 'is-alert' : '' }}">{{ $t['label'] }} <span>{{ $t['count'] }}</span></a>
+        @endforeach
+    </div>
+
+    <div class="card">
+        <table class="data-table">
+            <thead><tr><th>Trip</th><th>Route</th><th>Courier</th><th>Parcels</th><th>Status</th><th>Departure</th><th></th></tr></thead>
+            <tbody>
+            @forelse ($trips as $t)
+                @php $outgoing = (int) $t->sorting_center_id === $me; @endphp
+                <tr data-trip="{{ $t->code }}">
+                    <td>
+                        <span class="lt-code">{{ $t->code }}</span>
+                        <div style="margin-top:4px;">
+                            @if ($outgoing)
+                                <span class="lt-dir" style="background:#EAF2FB;color:var(--accent-blue);">Outgoing</span>
+                            @else
+                                <span class="lt-dir" style="background:#E9F8EF;color:var(--accent-green);">Incoming</span>
+                            @endif
+                        </div>
+                    </td>
+                    <td>
+                        <strong>{{ $t->route() }}</strong>
+                        <div class="lt-sub">{{ $t->origin->name ?? '—' }} → {{ $t->destination->name ?? '—' }}</div>
+                        @if ($t->crossCompany())
+                            <div class="lt-sub">{{ $outgoing ? 'To ' . \App\Support\SortingCenters::nameOf($t->destinationCompany) : 'From ' . \App\Support\SortingCenters::nameOf($t->company) }}</div>
+                        @endif
+                    </td>
+                    <td>
+                        @if ($t->courier)
+                            {{ $t->courier->fullName() }}
+                            <div class="lt-sub">{{ trim($t->courier->vehicle_type . ' · ' . $t->courier->plate_number, ' ·') }}</div>
+                        @else
+                            <span class="text-muted">No courier yet</span>
+                        @endif
+                    </td>
+                    <td>{{ $t->parcels_count }}</td>
+                    <td>
+                        <span class="badge {{ $badge($t) }}">{{ $t->label() }}</span>
+                        @if ($t->handover_status === 'pending')
+                            <div class="lt-sub" style="color:var(--accent-orange);font-weight:700;">{{ $outgoing ? 'Waiting for them to accept' : 'Needs your acceptance' }}</div>
+                        @elseif ($t->handover_status === 'rejected')
+                            <div class="lt-sub" style="color:var(--accent-red);">Rejected by the receiver</div>
+                        @endif
+                        @if ($t->delayed && in_array($t->status, ['loading', 'in_transit']))<div class="lt-sub" style="color:var(--accent-red);">Delayed{{ $t->delay_reason ? ': ' . $t->delay_reason : '' }}</div>@endif
+                    </td>
+                    <td style="font-size:12.5px;">
+                        @if ($t->departed_at)
+                            Left {{ $t->departed_at->format('M j, g:i A') }}
+                            @if ($t->eta_at && ! $t->arrived_at)<div class="lt-sub">ETA {{ $t->eta_at->format('M j, g:i A') }}</div>@endif
+                            @if ($t->arrived_at)<div class="lt-sub">Arrived {{ $t->arrived_at->format('M j, g:i A') }}</div>@endif
+                        @elseif ($t->scheduled_departure_at)
+                            Planned {{ $t->scheduled_departure_at->format('M j, g:i A') }}
+                        @else
+                            <span class="text-muted">—</span>
+                        @endif
+                    </td>
+                    <td><a href="{{ route('sc.trips.show', $t) }}" class="btn btn-sm {{ $t->handover_status === 'pending' && ! $outgoing ? 'btn-orange' : 'btn-blue' }}">{{ $t->handover_status === 'pending' && ! $outgoing ? 'Review' : 'Track' }}</a></td>
+                </tr>
+            @empty
+                <tr><td colspan="7" style="text-align:center;padding:28px;color:var(--text-muted);">No trips here.</td></tr>
+            @endforelse
+            </tbody>
+        </table>
+    </div>
+    <div style="margin-top:14px;">{{ $trips->links() }}</div>
+</div>
+@endsection

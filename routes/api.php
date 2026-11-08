@@ -25,6 +25,9 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
     Route::get('/auth/register/options', [AuthController::class, 'registerOptions'])->name('auth.register.options');
     Route::post('/auth/forgot-password', [AuthController::class, 'forgotPassword'])->middleware('throttle:20,1')->name('auth.forgot-password');
 
+    // The newest published app build (no sign-in: checked as the app opens).
+    Route::get('/app/version', [\App\Http\Controllers\AppDownloadController::class, 'version'])->middleware('throttle:120,1')->name('app.version');
+
     Route::middleware('auth:sanctum')->group(function () {
         Route::get('/me',           [AuthController::class, 'me'])->name('me');
         Route::post('/auth/logout', [AuthController::class, 'logout'])->name('auth.logout');
@@ -99,6 +102,8 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         Route::post('/orders/{id}/returned-received', [Seller\OrdersController::class, 'returnedReceived'])->name('orders.returned-received');
         Route::get('/orders/{id}/waybill',           [Seller\OrdersController::class, 'waybill'])->name('orders.waybill');
         Route::get('/orders/{id}/payment-proof',     [\App\Http\Controllers\Api\V1\OrderFilesController::class, 'paymentProof'])->whereNumber('id')->name('orders.payment-proof');
+        // The rider's proof-of-delivery photo, like the website's seller order page (same buyer / seller / admin check).
+        Route::get('/orders/{id}/proof-of-delivery', [\App\Http\Controllers\Api\V1\OrderFilesController::class, 'proofOfDelivery'])->whereNumber('id')->name('orders.pod');
 
         Route::get('/vouchers',                      [Seller\MarketingController::class, 'vouchers'])->name('vouchers');
         Route::get('/vouchers/form/{voucher?}',      [Seller\MarketingController::class, 'voucherForm'])->name('vouchers.form');
@@ -233,6 +238,7 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         // Riders, dispatch, COD, courier applications
         Route::get('/dispatch',                          [Logistics\RidersController::class, 'dispatch'])->name('dispatch');
         Route::post('/dispatch/bulk',                    [Logistics\RidersController::class, 'bulkAssign'])->name('dispatch.bulk');
+        Route::post('/dispatch/auto-all/{kind}',         [Logistics\RidersController::class, 'autoAssignAll'])->whereIn('kind', ['pickup', 'delivery'])->name('dispatch.auto-all');
         Route::post('/dispatch/{parcel}/auto',           [Logistics\RidersController::class, 'autoAssign'])->whereNumber('parcel')->name('dispatch.auto');
         Route::post('/dispatch/{parcel}/assign',         [Logistics\RidersController::class, 'manualAssign'])->whereNumber('parcel')->name('dispatch.assign');
         Route::post('/dispatch/{parcel}/reassign',       [Logistics\RidersController::class, 'reassign'])->whereNumber('parcel')->name('dispatch.reassign');
@@ -265,8 +271,14 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         Route::get('/trips/form',                        [Logistics\TripsController::class, 'form'])->name('trips.form');
         Route::post('/trips',                            [Logistics\TripsController::class, 'store'])->name('trips.store');
         Route::post('/trips/receive',                    [Logistics\TripsController::class, 'receive'])->name('trips.receive');
+        Route::post('/trips/auto-assign',                [Logistics\TripsController::class, 'autoAssignAll'])->name('trips.auto-all');
         Route::get('/trips/{trip}',                      [Logistics\TripsController::class, 'trip'])->whereNumber('trip')->name('trips.show');
         Route::post('/trips/{trip}/assign',              [Logistics\TripsController::class, 'assign'])->whereNumber('trip')->name('trips.assign');
+        Route::post('/trips/{trip}/parcels',             [Logistics\TripsController::class, 'addParcels'])->whereNumber('trip')->name('trips.parcels');
+        Route::post('/trips/{trip}/auto',                [Logistics\TripsController::class, 'autoAdd'])->whereNumber('trip')->name('trips.auto');
+        Route::post('/trips/{trip}/respond',             [Logistics\TripsController::class, 'respond'])->whereNumber('trip')->name('trips.respond');
+        Route::post('/trips/{trip}/message',             [Logistics\TripsController::class, 'message'])->whereNumber('trip')->name('trips.message');
+        Route::post('/trips/{trip}/receive-all',         [Logistics\TripsController::class, 'receiveAll'])->whereNumber('trip')->name('trips.receive-all');
         Route::post('/trips/{trip}/cancel',              [Logistics\TripsController::class, 'cancel'])->whereNumber('trip')->name('trips.cancel');
         Route::post('/trips/{trip}/seal',                [Logistics\TripsController::class, 'seal'])->whereNumber('trip')->name('trips.seal');
         Route::post('/trips/{trip}/close',               [Logistics\TripsController::class, 'close'])->whereNumber('trip')->name('trips.close');

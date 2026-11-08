@@ -15,8 +15,8 @@ use App\Services\RiderWallet;
 use Illuminate\Http\Request;
 
 /**
- * The logistics company's side of rider work: dispatch (auto-assign with 60-second offers,
- * manual assignment, the Unassigned queue), rider records and documents, COD remittances.
+ * The logistics company's side of rider work: dispatch (Auto-assign to each barangay's rider for pickups and
+ * deliveries, manual assignment and reassignment), rider records and documents, COD remittances.
  */
 class RiderWorkController extends Controller
 {
@@ -32,17 +32,18 @@ class RiderWorkController extends Controller
     {
         $this->dispatch->expireStale();
 
-        $parcels = Parcel::where('current_sorting_center_id', $this->scId())
-            ->whereIn('status', ['pickup_approved', 'sorted'])->with(['seller', 'order', 'area'])->oldest()->get()
-            ->filter(fn ($p) => $this->dispatch->jobKind($p) !== null)
-            ->map(function ($p) {
+        $eligibleNow = $this->dispatch->eligibleRiders($this->scId());
+        $parcels = $this->dispatch->waiting($this->scId())
+            ->map(function ($p) use ($eligibleNow) {
                 $p->job_kind    = $this->dispatch->jobKind($p);
                 $p->job_offer   = $this->dispatch->pendingOffer($p)?->load('rider');
                 $p->unassigned  = $this->dispatch->isUnassigned($p);
+                // Who Auto-assign would give it to: the Online rider covering the job's barangay (null: assign manually).
+                $p->barangay_rider = $this->dispatch->barangayRider($p, $p->job_kind, $eligibleNow);
                 return $p;
             })->values();
 
-        $riders = Rider::where('sorting_center_id', $this->scId())->where('application_status', 'approved')->orderBy('full_name')->get()
+        $riders = Rider::where('sorting_center_id', $this->scId())->where('application_status', 'approved')->with('area')->orderBy('full_name')->get()
             ->each(function ($r) {
                 $r->active_jobs = $r->activeJobsCount();
                 $r->online_now  = $r->isOnlineNow();
@@ -55,7 +56,6 @@ class RiderWorkController extends Controller
             'why'       => match (true) {
                 $r->isSuspended()                           => 'suspended',
                 ! $r->online_now                            => 'offline',
-                $r->active_jobs >= RiderDispatch::MAX_ACTIVE => 'full',
                 default                                     => 'unavailable',
             },
         ])->sortBy(fn ($c) => [$c->available ? 0 : 1, $c->rider->full_name])->values();
@@ -69,6 +69,10 @@ class RiderWorkController extends Controller
             ->sortBy('since')->values();
 
         return view('sc.dispatch', [
+            'waitingPickups'    => $parcels->where('job_kind', 'pickup')->count(),
+            'waitingDeliveries' => $parcels->where('job_kind', 'delivery')->count(),
+            'readyPickups'      => $parcels->where('job_kind', 'pickup')->filter(fn ($p) => $p->barangay_rider)->count(),
+            'readyDeliveries'   => $parcels->where('job_kind', 'delivery')->filter(fn ($p) => $p->barangay_rider)->count(),
             'jobs'       => $parcels->reject->unassigned->values(),
             'unassigned' => $parcels->filter->unassigned->values(),
             'riders'     => $riders,
@@ -79,22 +83,44 @@ class RiderWorkController extends Controller
         ]);
     }
 
+    /** One parcel: its job goes straight to the rider of its barangay. */
     public function autoAssign(Parcel $parcel)
     {
         $this->guard($parcel);
-        if (! $this->dispatch->jobKind($parcel)) {
+        $kind = $this->dispatch->jobKind($parcel);
+        if (! $kind) {
             return back()->with('error', "{$parcel->tracking_number} is not waiting for a rider.");
         }
-        if ($this->dispatch->isUnassigned($parcel)) {
-            return back()->with('error', "{$parcel->tracking_number} is in the Unassigned queue: 3 riders declined or let it expire. Assign a rider manually.");
+        try {
+            $rider = $this->dispatch->autoAssign($parcel, auth()->user());
+        } catch (\RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
         }
-        $offer = $this->dispatch->offer($parcel);
+        if (! $rider) {
+            return back()->with('error', "No Online rider covers the {$kind} barangay of {$parcel->tracking_number}. Assign a rider manually.");
+        }
+        \App\Models\ActivityLog::note($parcel->tracking_number . ' ' . $kind . ' auto-assigned to ' . $rider->full_name, $parcel);
 
-        return back()->with($offer ? 'success' : 'error', $offer
-            ? "{$parcel->tracking_number} offered to {$offer->rider->full_name} for " . RiderDispatch::OFFER_SECONDS . ' seconds.'
-            : ($this->dispatch->isUnassigned($parcel->fresh())
-                ? "{$parcel->tracking_number} moved to the Unassigned queue."
-                : 'No rider can take this job right now (none Online with room for another job).'));
+        return back()->with('success', "{$parcel->tracking_number} assigned to {$rider->full_name} (barangay rider).");
+    }
+
+    /** Every waiting pickup, or every waiting delivery: each to the rider of its barangay. */
+    public function autoAssignAll(string $kind)
+    {
+        $result = $this->dispatch->autoAssignAll(auth()->user(), $kind);
+        $what = $kind === 'pickup' ? 'pickup' : 'delivery';
+        if ($result['assigned'] === 0 && $result['no_rider'] === 0) {
+            return back()->with('error', 'No ' . $what . ' is waiting for a rider.');
+        }
+        $byRider = collect($result['riders'])->map(fn ($n, $name) => "{$name} ({$n})")->implode(', ');
+        if ($result['assigned'] > 0) {
+            \App\Models\ActivityLog::note('Auto-assigned ' . $result['assigned'] . ' ' . \Illuminate\Support\Str::plural($what, $result['assigned']) . ': ' . $byRider);
+        }
+        $message = $result['assigned'] . ' ' . \Illuminate\Support\Str::plural($what, $result['assigned']) . ' assigned'
+            . ($byRider ? ': ' . $byRider : '') . '.'
+            . ($result['no_rider'] ? ' ' . $result['no_rider'] . ' left: no Online rider covers ' . ($result['no_rider'] === 1 ? 'its barangay' : 'their barangays') . '. Assign ' . ($result['no_rider'] === 1 ? 'it' : 'them') . ' manually.' : '');
+
+        return back()->with($result['assigned'] > 0 ? 'success' : 'error', $message);
     }
 
     public function manualAssign(Request $request, Parcel $parcel)

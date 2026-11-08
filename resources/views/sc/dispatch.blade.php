@@ -8,9 +8,36 @@
 <div class="page-header"><h1>Rider Dispatch</h1></div>
 <div class="page-body">
     <p class="text-muted" style="margin:-4px 0 16px;font-size:13px;">
-        Auto-assign offers a job to the nearest Online rider with fewer than {{ \App\Services\RiderDispatch::MAX_ACTIVE }} active jobs.
-        An offer expires after {{ \App\Services\RiderDispatch::OFFER_SECONDS }} seconds and goes to the next rider; after {{ \App\Services\RiderDispatch::MAX_OFFERS }} riders it waits in the Unassigned queue.
+        Riders are assigned per barangay. Auto-assign gives each waiting job straight to the Online rider who covers its barangay:
+        the seller's barangay for a pickup, the buyer's barangay for a delivery. Jobs whose barangay has no Online rider stay here for you to assign manually.
     </p>
+
+    {{-- Auto-assign: pickups and deliveries separately. --}}
+    <div style="display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));margin-bottom:16px;" data-auto-assign>
+        @foreach ([
+            ['pickup', 'Pickups', 'Seller → hub, by the seller\'s barangay', $waitingPickups, $readyPickups, '#FFF4E5', 'var(--accent-orange)'],
+            ['delivery', 'Deliveries', 'Hub → buyer, by the buyer\'s barangay', $waitingDeliveries, $readyDeliveries, '#EAF2FB', 'var(--accent-blue)'],
+        ] as [$kind, $label, $sub, $waiting, $ready, $bg, $fg])
+            <div class="card" style="padding:16px 18px;display:flex;flex-direction:column;gap:10px;" data-auto-kind="{{ $kind }}">
+                <div style="display:flex;align-items:center;gap:12px;">
+                    <span style="display:flex;width:40px;height:40px;align-items:center;justify-content:center;border-radius:11px;background:{{ $bg }};color:{{ $fg }};">@include('sc.partials.icon', ['name' => $kind === 'pickup' ? 'upload' : 'rider', 'size' => 19, 'sw' => 2])</span>
+                    <div style="flex:1;">
+                        <div style="font-weight:800;">{{ $label }} waiting <span class="badge badge-gray">{{ $waiting }}</span></div>
+                        <div class="text-muted" style="font-size:12px;">{{ $sub }}</div>
+                    </div>
+                </div>
+                <div style="font-size:12.5px;color:var(--text-muted);">
+                    {{ $ready }} {{ $ready === 1 ? 'has' : 'have' }} an Online barangay rider{{ $waiting - $ready > 0 ? ' · ' . ($waiting - $ready) . ' need manual assignment' : '' }}.
+                </div>
+                <form method="POST" action="{{ route('sc.dispatch.auto-all', $kind) }}"
+                      data-confirm="{{ $ready }} {{ \Illuminate\Support\Str::plural(strtolower(rtrim($label, 's')), $ready) }} will go to the rider of {{ $ready === 1 ? 'its' : 'their' }} barangay{{ $waiting - $ready > 0 ? '; ' . ($waiting - $ready) . ' without an Online barangay rider stay here' : '' }}."
+                      data-confirm-title="Auto-assign {{ strtolower($label) }}?" data-confirm-ok="Auto-assign">
+                    @csrf
+                    <button class="btn btn-sm {{ $kind === 'pickup' ? 'btn-orange' : 'btn-blue' }}" style="width:100%;" @disabled($ready === 0)>Auto-assign {{ $label }}</button>
+                </form>
+            </div>
+        @endforeach
+    </div>
 
     {{-- Riders --}}
     <div class="card" style="padding:14px 18px;margin-bottom:16px;">
@@ -18,7 +45,7 @@
         <div style="display:flex;flex-wrap:wrap;gap:8px;">
             @forelse($riders as $r)
                 <span class="badge {{ $r->isSuspended() ? 'badge-red' : ($r->online_now ? 'badge-green' : 'badge-gray') }}" data-rider="{{ $r->full_name }}">
-                    {{ $r->full_name }} · {{ $r->isSuspended() ? 'Suspended' : ($r->online_now ? 'Online' : 'Offline') }} · {{ $r->active_jobs }}/{{ \App\Services\RiderDispatch::MAX_ACTIVE }} jobs
+                    {{ $r->full_name }} · {{ $r->area->name ?? 'No barangay' }} · {{ $r->isSuspended() ? 'Suspended' : ($r->online_now ? 'Online' : 'Offline') }} · {{ $r->active_jobs }} {{ \Illuminate\Support\Str::plural('job', $r->active_jobs) }}
                 </span>
             @empty
                 <span class="text-muted">No approved riders yet.</span>
@@ -36,16 +63,16 @@
         <button class="btn btn-green btn-sm">Assign selected</button>
         @if ($eligible->isEmpty())
             <p class="text-muted" style="flex-basis:100%;font-size:12px;margin:2px 0 0;" data-no-rider-online>
-                {{ $riders->isEmpty() ? 'This center has no approved riders yet.' : 'No rider is available right now. Riders can be picked once they switch to Online in the courier app (and have fewer than ' . \App\Services\RiderDispatch::MAX_ACTIVE . ' active jobs).' }}
+                {{ $riders->isEmpty() ? 'This center has no approved riders yet.' : 'No rider is available right now. Riders can be picked once they switch to Online in the courier app.' }}
             </p>
         @endif
     </form>
 
-    @foreach (['Waiting for a rider' => $jobs, 'Unassigned queue — assign manually' => $unassigned] as $heading => $list)
+    @foreach (['Waiting for a rider' => $jobs, 'Returned to the hub — assign manually' => $unassigned] as $heading => $list)
         <div class="card" style="margin-bottom:16px;" @if($loop->last) id="unassigned" @endif>
             <div style="padding:14px 18px;font-weight:700;">{{ $heading }} <span class="badge badge-gray">{{ $list->count() }}</span></div>
             <table class="data-table">
-                <thead><tr><th></th><th>Tracking</th><th>Job</th><th>From</th><th>To</th><th>COD</th><th>Offer</th><th>Assign</th></tr></thead>
+                <thead><tr><th></th><th>Tracking</th><th>Job</th><th>From</th><th>To</th><th>COD</th><th>Barangay rider</th><th>Assign</th></tr></thead>
                 <tbody>
                 @forelse($list as $p)
                     <tr data-job="{{ $p->tracking_number }}">
@@ -56,12 +83,13 @@
                         <td style="font-size:12px;">{{ $p->receiver_name }}<div class="text-muted">{{ $p->area->name ?? $p->destination_municipality }}</div></td>
                         <td>{{ $p->order && strtoupper($p->order->payment_method) === 'COD' && $p->order->payment_status !== 'Paid' ? '₱' . number_format($p->order->total_price, 2) : 'Paid' }}</td>
                         <td style="font-size:12px;">
-                            @if($p->job_offer)
-                                Offered to <strong>{{ $p->job_offer->rider->full_name }}</strong><div class="text-muted">{{ $p->job_offer->secondsLeft() }}s left</div>
-                            @elseif($p->unassigned)
-                                <span class="badge badge-red">Unassigned</span>
+                            @if($p->barangay_rider)
+                                <form method="POST" action="{{ route('sc.dispatch.auto', $p) }}" style="display:flex;align-items:center;gap:8px;">@csrf
+                                    <span><strong>{{ $p->barangay_rider->full_name }}</strong><div class="text-muted">{{ $p->job_kind === 'pickup' ? 'Seller\'s barangay' : ($p->area->name ?? 'Buyer\'s barangay') }}</div></span>
+                                    <button class="btn btn-blue btn-sm" data-auto-one="{{ $p->tracking_number }}">Auto-assign</button>
+                                </form>
                             @else
-                                <form method="POST" action="{{ route('sc.dispatch.auto', $p) }}">@csrf<button class="btn btn-blue btn-sm">Auto-assign</button></form>
+                                <span class="badge badge-red" title="No Online rider covers this barangay">No barangay rider</span>
                             @endif
                         </td>
                         <td>

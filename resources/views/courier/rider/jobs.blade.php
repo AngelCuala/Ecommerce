@@ -22,7 +22,7 @@
             @if($rider->isSuspended())
                 Your account is suspended by {{ $rider->companyName() }}. You can't go Online or receive jobs.
             @else
-                Online riders get job offers. Active jobs: {{ $rider->activeJobsCount() }} of {{ \App\Services\RiderDispatch::MAX_ACTIVE }}.
+                Your hub assigns you the pickups and deliveries of your barangay. Active jobs: {{ $rider->activeJobsCount() }}.
             @endif
         </p>
     </div>
@@ -90,14 +90,7 @@
                     <form method="POST" action="{{ route('courier.rider.jobs.acknowledge', ['kind' => $kind, 'job' => $job->id]) }}" onsubmit="this.querySelector('button').disabled = true;">
                         @csrf<button class="cx-btn cx-btn-orange" style="{{ $small }}" data-acknowledge="{{ $kind }}-{{ $job->id }}">Accept</button>
                     </form>
-                    <form method="POST" action="{{ route('courier.rider.jobs.decline', ['kind' => $kind, 'job' => $job->id]) }}" style="display:flex;gap:6px;" onsubmit="return confirm('Decline this {{ $kind }}? The hub will reassign it.')">
-                        @csrf
-                        <select name="reason" required style="font-size:12px;border:1px solid #ddd;border-radius:8px;padding:5px;">
-                            <option value="">Can't do it…</option>
-                            @foreach (\App\Http\Controllers\Courier\RiderController::DECLINE_REASONS as $r)<option>{{ $r }}</option>@endforeach
-                        </select>
-                        <button class="cx-btn cx-btn-outline" style="{{ $small }}" data-decline="{{ $kind }}-{{ $job->id }}">Decline</button>
-                    </form>
+                    {{-- Jobs are assigned per barangay: the rider takes them (the hub reassigns when needed). --}}
                 </div>
             </div>
         @endforeach
