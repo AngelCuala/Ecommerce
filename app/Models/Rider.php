@@ -14,8 +14,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class Rider extends Model
 {
     /** A rider counts as Online only while seen within this many minutes (session timeout, A22). */
-    public const ONLINE_MINUTES = 30;
-    public const ONLINE_MINUTES_WITH_PUSH = 720;   // 12 hours
+    /** How long an Online rider stays Online without opening the app (12 hours). */
+    public const ONLINE_MINUTES = 720;
 
     protected $fillable = [
         'user_id', 'sorting_center_id', 'full_name', 'phone',
@@ -56,19 +56,17 @@ class Rider extends Model
     /** Approved, but turned off by the logistics company: can't go Online or take jobs. */
     public function isSuspended(): bool { return $this->isApproved() && ! $this->is_active; }
 
-    /** Online and seen recently (a timed-out session counts as Offline). */
     /**
-     * Online and recently seen. A rider whose phone gets push notifications stays Online while the app is in
-     * the background (offers reach the phone anyway) until they go Offline, log out, or 12 hours pass unseen.
+     * Online until the rider taps Go Offline or logs out: closing the app does not make them Offline.
+     * Only a rider not seen for 12 hours (e.g. forgot to go Offline at the end of the day) counts as Offline.
      */
     public function isOnlineNow(): bool
     {
         if (! $this->is_online || ! $this->last_seen_at) {
             return false;
         }
-        $push = $this->user_id && \App\Models\PushDevice::where('user_id', $this->user_id)->exists();
 
-        return $this->last_seen_at->gt(now()->subMinutes($push ? self::ONLINE_MINUTES_WITH_PUSH : self::ONLINE_MINUTES));
+        return $this->last_seen_at->gt(now()->subMinutes(self::ONLINE_MINUTES));
     }
 
     public function statusLabel(): string

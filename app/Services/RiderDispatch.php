@@ -13,19 +13,19 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Who does each rider job (assumptions A14, A34):
- *  - auto-assign offers a job to the nearest Online, Active rider of the same company with
- *    fewer than 3 active jobs; the offer expires after 60 seconds
- *  - a declined or expired offer goes to the next rider; after 3 the job is Unassigned
- *    (manual assignment only)
- *  - logistics can assign manually, only to riders who could take an offer
+ * Who does each rider job. Riders are assigned per barangay, so jobs are given, not offered:
+ *  - the logistics company presses Auto-assign (all pickups, all deliveries, or one parcel): each job goes
+ *    straight to an Online, Active rider of the company who covers the job's barangay (the seller's for a
+ *    pickup, the buyer's for a delivery), the least busy one when there are several
+ *  - a job whose barangay has no available rider waits for the company to assign it manually
+ *  - logistics can always assign or reassign manually; riders have no job limit and cannot decline
  * A job is the pickup of a parcel (seller → hub) or one delivery attempt (hub → buyer).
+ * (Older 60-second offers still in the database expire on their own; no new offers are made.)
  */
 class RiderDispatch
 {
     public const OFFER_SECONDS = 60;
     public const MAX_OFFERS    = 3;
-    public const MAX_ACTIVE    = 3;
 
     /** Rider pay (A33). */
     public const PAY_PICKUP   = 30.00;
@@ -73,7 +73,7 @@ class RiderDispatch
         }
         return Rider::where('sorting_center_id', $scId)->where('application_status', 'approved')->where('is_active', true)
             ->orderBy('id')->get()
-            ->filter(fn (Rider $r) => $r->isOnlineNow() && $r->activeJobsCount() < self::MAX_ACTIVE)
+            ->filter(fn (Rider $r) => $r->isOnlineNow())
             ->values();
     }
 
@@ -86,7 +86,6 @@ class RiderDispatch
             ! $rider->isApproved()                    => "{$rider->full_name} is not an approved rider.",
             $rider->isSuspended()                     => "{$rider->full_name} is suspended.",
             ! $rider->isOnlineNow()                   => "{$rider->full_name} is offline.",
-            $rider->activeJobsCount() >= self::MAX_ACTIVE => "{$rider->full_name} already has " . self::MAX_ACTIVE . ' active jobs.',
             default                                   => null,
         };
     }
@@ -182,17 +181,12 @@ class RiderDispatch
         return $offer;
     }
 
-    /** Offers past their 60 seconds expire, and each job goes to the next rider. */
+    /** Older offers past their 60 seconds expire (the job then waits for Auto-assign or a manual assignment). */
     public function expireStale(): int
     {
         $stale = RiderJobOffer::where('status', 'pending')->where('expires_at', '<=', now())->get();
         foreach ($stale as $offer) {
             $offer->update(['status' => 'expired']);
-        }
-        foreach ($stale->pluck('parcel_id')->unique() as $parcelId) {
-            if ($parcel = Parcel::find($parcelId)) {
-                $this->offer($parcel);
-            }
         }
         return $stale->count();
     }
@@ -200,12 +194,11 @@ class RiderDispatch
     /** The rider accepts an offer. Throws \RuntimeException with a message for the rider when it can't be done. */
     public function accept(RiderJobOffer $offer, Rider $rider): void
     {
-        // Too late: the offer expires and goes to the next rider (done outside the transaction below).
+        // Too late: the offer expires and the job waits for the hub (done outside the transaction below).
         $offer->refresh();
         if ($offer->status === 'pending' && $offer->expires_at->isPast()) {
             $offer->update(['status' => 'expired']);
-            $this->offer($offer->parcel);
-            throw new \RuntimeException('This offer expired after ' . self::OFFER_SECONDS . ' seconds and went to the next rider.');
+            throw new \RuntimeException('This offer expired. The hub will assign the job.');
         }
 
         DB::transaction(function () use ($offer, $rider) {
@@ -216,13 +209,10 @@ class RiderDispatch
                 throw new \RuntimeException('You already accepted this job.');
             }
             if ($offer->status === 'expired') {
-                throw new \RuntimeException('This offer expired after ' . self::OFFER_SECONDS . ' seconds and went to the next rider.');
+                throw new \RuntimeException('This offer expired. The hub will assign the job.');
             }
             if ($offer->status !== 'pending' || $this->jobKind($parcel) !== $offer->kind) {
                 throw new \RuntimeException('This job was already assigned to another rider.');
-            }
-            if ($rider->activeJobsCount() >= self::MAX_ACTIVE) {
-                throw new \RuntimeException('You already have ' . self::MAX_ACTIVE . ' active jobs. Finish one before accepting another.');
             }
 
             $offer->update(['status' => 'accepted', 'responded_at' => now()]);
@@ -236,10 +226,83 @@ class RiderDispatch
             return;
         }
         $offer->update(['status' => $offer->expires_at->isPast() ? 'expired' : 'declined', 'responded_at' => now()]);
-        $this->offer($offer->parcel);
     }
 
-    /** Logistics assigns the parcel's waiting job to a rider. Throws \RuntimeException with the reason when not allowed. */
+    /** The available rider who covers the job's barangay (least busy first), or null when there is none. */
+    public function barangayRider(Parcel $parcel, ?string $kind = null, ?Collection $eligible = null): ?Rider
+    {
+        $kind ??= $this->jobKind($parcel);
+        $scId = (int) $parcel->current_sorting_center_id;
+        if (! $kind || ! $scId) {
+            return null;
+        }
+
+        return ($eligible ?? $this->eligibleRiders($scId))
+            ->filter(fn (Rider $r) => $this->isNear($r, $parcel, $kind))
+            ->sortBy(fn (Rider $r) => [$r->activeJobsCount(), $r->id])
+            ->first();
+    }
+
+    /**
+     * Auto-assign one parcel: its waiting job goes straight to the barangay's rider (no offer to accept).
+     * Returns the rider, or null when the barangay has no available rider (the job waits for manual assignment).
+     */
+    public function autoAssign(Parcel $parcel, User $by): ?Rider
+    {
+        $this->expireStale();
+        $rider = $this->barangayRider($parcel->fresh());
+        if (! $rider) {
+            return null;
+        }
+        $this->assignManually($parcel, $rider, $by);
+
+        return $rider;
+    }
+
+    /**
+     * Auto-assign every waiting job of one kind ('pickup' or 'delivery') at the company to its barangay's rider.
+     * Returns ['assigned' => n, 'no_rider' => n, 'riders' => [name => n], 'notified' => n].
+     */
+    public function autoAssignAll(User $by, string $kind): array
+    {
+        $this->expireStale();
+        $result = ['assigned' => 0, 'no_rider' => 0, 'riders' => [], 'notified' => 0];
+        $eligible = $this->eligibleRiders((int) $by->id);
+        foreach ($this->waiting((int) $by->id, $kind) as $parcel) {
+            $rider = $this->barangayRider($parcel, $kind, $eligible);
+            if (! $rider) {
+                $result['no_rider']++;
+                continue;
+            }
+            try {
+                $this->assignManually($parcel, $rider, $by);
+            } catch (\RuntimeException) {
+                $result['no_rider']++;   // taken meanwhile, or no longer waiting
+                continue;
+            }
+            $result['assigned']++;
+            $result['notified'] += $this->lastNotification ? 1 : 0;
+            $result['riders'][$rider->full_name] = ($result['riders'][$rider->full_name] ?? 0) + 1;
+        }
+
+        return $result;
+    }
+
+    /** The company's parcels waiting for a rider (for one kind of job, or both), oldest first. */
+    public function waiting(int $scId, ?string $kind = null): Collection
+    {
+        $statuses = match ($kind) {
+            RiderJobOffer::PICKUP   => ['pickup_approved'],
+            RiderJobOffer::DELIVERY => ['sorted'],
+            default                 => ['pickup_approved', 'sorted'],
+        };
+
+        return Parcel::where('current_sorting_center_id', $scId)->whereIn('status', $statuses)
+            ->with(['seller', 'order', 'area'])->oldest()->get()
+            ->filter(fn (Parcel $p) => ($k = $this->jobKind($p)) !== null && ($kind === null || $k === $kind))
+            ->values();
+    }
+
     /** The rider covers the barangay where the job starts. */
     private function isNear(Rider $rider, Parcel $parcel, string $kind): bool
     {

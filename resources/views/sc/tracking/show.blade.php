@@ -85,7 +85,7 @@
 
             @if ($local && in_array($parcel->status, ['picked_up', 'sorting'], true))
                 {{-- The buyer lives in this hub's town: sort it to their barangay for last-mile delivery, no transfer. --}}
-                <p style="font-size:13px;">The buyer lives in <strong>{{ $parcel->destination_municipality }}</strong>, which this center serves. Sort it to the buyer's barangay and the delivery is offered to your riders.</p>
+                <p style="font-size:13px;">The buyer lives in <strong>{{ $parcel->destination_municipality }}</strong>, which this center serves. Sort it to the buyer's barangay, then Auto-assign it in Rider Dispatch to the rider of that barangay.</p>
                 <form method="POST" action="{{ route('sc.parcels.sort', $parcel) }}" style="display:grid;gap:10px;" data-sort-form>
                     @csrf
                     <div>
@@ -105,30 +105,14 @@
             @endif
 
             @if (in_array($parcel->status, ['picked_up', 'sorting', 'sorted'], true))
-            @if ($local)<details><summary class="text-muted" style="font-size:12.5px;cursor:pointer;">Send to another sorting center instead</summary>@endif
-            <form method="POST" action="{{ route('sc.transfers.initiate') }}" style="display:grid;gap:10px;{{ $local ? 'margin-top:10px;' : '' }}" onsubmit="return confirm('Create this transfer?')">
-                @csrf
-                <input type="hidden" name="parcel_id" value="{{ $parcel->id }}">
-                <div>
-                    <label style="{{ $label }}">Transfer to sorting center</label>
-                    <select name="to_sorting_center_id" class="form-input" required>
-                        <option value="">— Choose —</option>
-                        @foreach ($hubs as $h)<option value="{{ $h->id }}" @selected(($next['center']->id ?? null) === $h->id)>{{ \App\Support\SortingCenters::displayName($h) }} — {{ $h->assigned_municipality }}{{ ($next['center']->id ?? null) === $h->id ? ' (serves this address)' : '' }}</option>@endforeach
-                    </select>
-                </div>
-                <div>
-                    <label style="{{ $label }}">Transporter (optional)</label>
-                    <select name="transporter_rider_id" class="form-input">
-                        <option value="">— None —</option>
-                        @foreach ($transporters as $r)<option value="{{ $r->id }}">{{ $r->full_name }}</option>@endforeach
-                    </select>
-                    @if ($transporters->isEmpty())<p class="text-muted" style="font-size:11.5px;margin-top:4px;">No riders are allowed to transport transfers yet (set it on the rider's page).</p>@endif
-                </div>
-                <div><label style="{{ $label }}">Reason (required if not the suggested center)</label><input name="reason" class="form-input" maxlength="500"></div>
-                @error('to_sorting_center_id')<p style="color:#B91C1C;font-size:12px;">{{ $message }}</p>@enderror
-                <button class="btn btn-{{ $local ? 'ghost' : 'blue' }}" style="justify-self:start;">Create transfer</button>
-            </form>
-            @if ($local)</details>@endif
+            {{-- Another sorting center (the hub nearer the buyer): the parcel goes on a linehaul trip, which they accept first. --}}
+            <div style="display:grid;gap:8px;{{ $local ? 'margin-top:6px;' : '' }}" data-send-trip>
+                <p class="text-muted" style="font-size:12.5px;margin:0;">
+                    {{ $local ? 'Or send it to another sorting center on a linehaul trip.' : 'Send it to the sorting center that serves this address on a linehaul trip; they accept the trip before it departs.' }}
+                    @if (! empty($next['center']))Suggested: <strong>{{ \App\Support\SortingCenters::displayName($next['center']) }}</strong> (serves this address).@endif
+                </p>
+                <a href="{{ route('sc.trips', ['parcel' => [$parcel->id], 'origin_hub_id' => $parcel->current_hub_id]) }}#create" class="btn btn-{{ $local ? 'ghost' : 'blue' }}" style="justify-self:start;">Send on a linehaul trip</a>
+            </div>
             @endif
         </div>
     </div>

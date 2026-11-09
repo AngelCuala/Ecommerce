@@ -152,7 +152,7 @@
                     </td>
                     <td><span class="text-orange">{{ $rider->area->name ?? '—' }}</span></td>
                     <td>@if($rider->isOnlineNow())<span class="badge badge-green" data-online>Online</span>@else<span class="badge badge-gray">Offline</span>@endif</td>
-                    <td data-active-jobs="{{ $activeJobs }}"><span class="badge {{ $activeJobs >= \App\Services\RiderDispatch::MAX_ACTIVE ? 'badge-red' : 'badge-gray' }}">{{ $activeJobs }} / {{ \App\Services\RiderDispatch::MAX_ACTIVE }}</span></td>
+                    <td data-active-jobs="{{ $activeJobs }}"><span class="badge badge-gray">{{ $activeJobs }}</span></td>
                     <td data-today="{{ $todayDelivered }}">{{ $todayDelivered }}</td>
                     <td>{{ $deliveries }}</td>
                     <td><span class="badge {{ $badgeClass }}">{{ $badgeLabel }}</span></td>

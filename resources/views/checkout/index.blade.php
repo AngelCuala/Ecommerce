@@ -22,7 +22,9 @@
     .co-qty button { width:1.75rem; height:1.75rem; color:#57534E; }
     .co-qty button:hover:not(:disabled) { background:#F5F2EF; }
     .co-qty button:disabled { opacity:.35; cursor:not-allowed; }
-    .co-qty span { min-width:2.25rem; text-align:center; font-size:.8125rem; font-weight:600; color:#222; }
+    .co-qty input { width:3rem; height:1.75rem; border:0; border-left:1px solid #E7E5E4; border-right:1px solid #E7E5E4; text-align:center; font-size:.8125rem; font-weight:600; color:#222; background:#fff; -moz-appearance:textfield; }
+    .co-qty input:focus { outline:2px solid #fa4e1c; outline-offset:-2px; }
+    .co-qty input::-webkit-outer-spin-button, .co-qty input::-webkit-inner-spin-button { -webkit-appearance:none; margin:0; }
     /* Voucher pickers */
     .vp-bar { display:flex; width:100%; align-items:center; gap:.6rem; border:1px solid #ECE7E3; border-radius:.6rem; background:#fff; padding:.6rem .75rem; text-align:left; transition:border-color .15s, background .15s; }
     .vp-bar:hover:not(:disabled) { border-color:#F5C4B2; background:#FFFAF8; }
@@ -139,10 +141,10 @@
                                     @if ($line->variation)<p class="text-xs" style="color:#8a7f78;">{{ $line->variation->name }}</p>@endif
                                     @php $lineKey = $buyNow ? 'buy' : (string) $line->id; $stock = $line->availableStock(); @endphp
                                     <p class="text-xs" style="color:#8a7f78;" data-line-price="{{ $lineKey }}">@foreach ($line->priceParts() as [$partQty, $partUnit, $isFlash]){{ $loop->first ? '' : ' + ' }}{{ $peso($partUnit) }} × {{ $partQty }}{{ $isFlash && count($line->priceParts()) > 1 ? ' (flash)' : '' }}@endforeach</p>
-                                    {{-- − / +: checkout.js saves the new quantity and updates the page in place. --}}
+                                    {{-- − / + or type the amount: checkout.js saves the new quantity and updates the page in place. --}}
                                     <div class="co-qty mt-1.5" data-qty-line="{{ $lineKey }}" data-qty="{{ $line->quantity }}" data-stock="{{ $stock }}">
                                         <button type="button" data-qty-step="-1" aria-label="Decrease" @disabled($line->quantity <= 1)>−</button>
-                                        <span data-qty-value>{{ $line->quantity }}</span>
+                                        <input type="number" data-qty-value value="{{ $line->quantity }}" min="1" max="{{ max(1, $stock) }}" step="1" inputmode="numeric" aria-label="Quantity">
                                         <button type="button" data-qty-step="1" aria-label="Increase" @disabled($line->quantity >= $stock)>+</button>
                                     </div>
                                     <p class="mt-1 hidden text-xs" style="color:#DC2626;" data-qty-msg="{{ $lineKey }}"></p>

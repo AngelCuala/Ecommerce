@@ -74,12 +74,17 @@
                 <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
                 Deliveries
             </a>
-            <a href="{{ route('sc.transfers') }}" class="nav-link {{ request()->routeIs('sc.transfers*') ? 'active' : '' }}">
-                @php $pendingIncoming = \App\Models\ParcelTransfer::where('to_sorting_center_id', auth()->id())->where('status','in_transit')->count(); @endphp
-                <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>
-                SC Transfers
-                @if($pendingIncoming > 0)
-                    <span style="margin-left:auto;background:var(--accent-blue);color:#fff;border-radius:999px;padding:1px 7px;font-size:10px;font-weight:700;">{{ $pendingIncoming }}</span>
+            <a href="{{ route('sc.trips') }}" class="nav-link {{ request()->routeIs('sc.trips*') ? 'active' : '' }}">
+                @php
+                    $tripsToAccept = \App\Models\LinehaulTrip::where('destination_sorting_center_id', auth()->id())->where('sorting_center_id', '!=', auth()->id())->where('handover_status', 'pending')->count();
+                    $tripsOnRoad = \App\Models\LinehaulTrip::involving((int) auth()->id())->whereIn('status', ['loading', 'in_transit'])->count();
+                @endphp
+                <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 7h11v9H3zM14 10h4l3 3v3h-7"/><circle cx="7" cy="17.5" r="1.8"/><circle cx="17" cy="17.5" r="1.8"/></svg>
+                Linehaul Trips
+                @if($tripsToAccept > 0)
+                    <span style="margin-left:auto;background:var(--accent-orange);color:#fff;border-radius:999px;padding:1px 7px;font-size:10px;font-weight:700;" title="Incoming trips to accept">{{ $tripsToAccept }}</span>
+                @elseif($tripsOnRoad > 0)
+                    <span style="margin-left:auto;background:var(--accent-blue);color:#fff;border-radius:999px;padding:1px 7px;font-size:10px;font-weight:700;" title="Trips on the road">{{ $tripsOnRoad }}</span>
                 @endif
             </a>
             <p class="nav-section">Riders</p>

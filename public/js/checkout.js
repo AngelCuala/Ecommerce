@@ -83,7 +83,8 @@
             if (box) {
                 box.dataset.qty = l.quantity;
                 box.dataset.stock = l.stock;
-                box.querySelector('[data-qty-value]').textContent = l.quantity;
+                box.querySelector('[data-qty-value]').value = l.quantity;
+                box.querySelector('[data-qty-value]').max = Math.max(1, l.stock);
                 box.querySelector('[data-qty-step="-1"]').disabled = l.quantity <= 1;
                 box.querySelector('[data-qty-step="1"]').disabled = l.quantity >= l.stock;
             }
@@ -133,17 +134,40 @@
         });
     }
 
-    // − / + on a line: the server saves the quantity (stock and per-buyer checks) and sends the new summary.
+    // − / + or a typed amount on a line: the server saves the quantity (stock and per-buyer checks) and sends the new summary.
     form.addEventListener('click', function (e) {
         var step = e.target.closest('[data-qty-step]');
         if (!step) return;
         e.preventDefault();
         var box = step.closest('[data-qty-line]');
+        setQty(box, (+box.dataset.qty || 1) + (+step.dataset.qtyStep));
+    });
+    // Typing: saved when the box is left or Enter is pressed (Enter must not place the order).
+    form.addEventListener('change', function (e) {
+        if (!e.target.matches('[data-qty-value]')) return;
+        var box = e.target.closest('[data-qty-line]');
+        var typed = parseInt(e.target.value, 10);
+        if (isNaN(typed)) { e.target.value = box.dataset.qty; return; }
+        setQty(box, typed);
+    });
+    form.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' && e.target.matches('[data-qty-value]')) { e.preventDefault(); e.target.blur(); }
+    });
+
+    function setQty(box, wanted) {
         var key = box.dataset.qtyLine;
-        var qty = Math.min(Math.max((+box.dataset.qty || 1) + (+step.dataset.qtyStep), 1), +box.dataset.stock || 99999);
-        if (qty === +box.dataset.qty) return;
+        var max = +box.dataset.stock || 99999;
+        var qty = Math.min(Math.max(wanted, 1), max);
         var msg = form.querySelector('[data-qty-msg="' + key + '"]');
+        var input = box.querySelector('[data-qty-value]');
+        input.value = qty;
+        if (wanted > max) {
+            msg.textContent = 'Only ' + max + ' available — set to ' + max + '.';
+            msg.classList.remove('hidden');
+        }
+        if (qty === +box.dataset.qty) return;
         var buttons = box.querySelectorAll('button');
+        input.disabled = true;
         buttons.forEach(function (b) { b.disabled = true; });
         placeBtn.disabled = true;
         fetch(form.dataset.quantityUrl, {
@@ -153,23 +177,27 @@
         }).then(function (r) {
             return r.json().then(function (d) { return { ok: r.ok, d: d }; });
         }).then(function (res) {
+            input.disabled = false;
             if (res.ok) {
-                msg.classList.add('hidden');
+                if (wanted <= max) msg.classList.add('hidden');
                 render(res.d);
             } else {
                 msg.textContent = res.d.message || 'The quantity could not be changed. Please try again.';
                 msg.classList.remove('hidden');
                 box.querySelector('[data-qty-step="-1"]').disabled = +box.dataset.qty <= 1;
                 box.querySelector('[data-qty-step="1"]').disabled = +box.dataset.qty >= +box.dataset.stock;
+                input.value = box.dataset.qty;
                 placeBtn.disabled = !!document.getElementById('unserviceableMsg').textContent.trim();
             }
         }).catch(function () {
             msg.textContent = 'The quantity could not be changed. Please check your connection and try again.';
             msg.classList.remove('hidden');
             buttons.forEach(function (b) { b.disabled = false; });
+            input.disabled = false;
+            input.value = box.dataset.qty;
             placeBtn.disabled = false;
         });
-    });
+    }
 
     form.addEventListener('change', function (e) {
         if (e.target.matches('input[name="address_id"], select.v-select')) refresh();

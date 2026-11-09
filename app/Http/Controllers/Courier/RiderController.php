@@ -87,37 +87,11 @@ class RiderController extends Controller
 
     public const DECLINE_REASONS = ['Vehicle problem', 'Outside my area', 'Too many jobs', 'Not available at that time', 'Other'];
 
-    /**
-     * The rider can't do a job a hub assigned (before starting it): the reason is recorded, the job
-     * is closed (kept in the history) and the parcel waits for an authorized reassignment.
-     */
+    /** Kept for older app versions that still show Decline: barangay jobs cannot be declined. */
     public function declineJob(Request $request, string $kind, int $job)
     {
-        $rider = $this->rider();
-        $data = $request->validate(['reason' => ['required', \Illuminate\Validation\Rule::in(self::DECLINE_REASONS)]], ['reason.required' => 'Choose why you can\'t do it.']);
-
-        return DB::transaction(function () use ($rider, $kind, $job, $data) {
-            $model = $kind === 'pickup' ? ParcelPickup::class : ParcelDelivery::class;
-            $row = $model::where('rider_id', $rider->id)->lockForUpdate()->whereKey($job)->firstOrFail();   // someone else's job: 404
-            if ($row->status !== 'assigned') {
-                return back()->with('error', 'This job has already moved on (' . $row->statusLabel() . '). It can no longer be declined.');
-            }
-            $parcel = \App\Models\Parcel::lockForUpdate()->findOrFail($row->parcel_id);
-            $row->update(['status' => 'declined', 'remarks' => 'Declined by the rider: ' . $data['reason']]);
-            app(\App\Services\ShipmentTracker::class)->record($parcel, $kind . '_rider_declined', [$kind . '_id' => $row->id, 'note' => $data['reason'],
-                'dedupe_key' => "rider-job:{$kind}:{$row->id}:declined"]);
-            if ($kind === 'delivery') {
-                $parcel->update(['status' => 'sorted', 'unassigned_at' => now()]);
-            } else {
-                $parcel->forceFill(['unassigned_at' => now()])->save();
-            }
-            if ($parcel->current_sorting_center_id) {
-                app(ParcelService::class)->notify((int) $parcel->current_sorting_center_id, ucfirst($kind) . ' declined',
-                    "{$rider->full_name} declined the {$kind} of {$parcel->tracking_number}: {$data['reason']}. Please reassign it.", 'warning', route('sc.dispatch'));
-            }
-
-            return redirect()->route('courier.rider')->with('success', ucfirst($kind) . ' declined. The hub will reassign it.');
-        });
+        // Riders are assigned per barangay, so a job given by the hub is not declined; the hub reassigns it if needed.
+        return back()->with('error', 'Jobs are assigned to the rider of each barangay and cannot be declined. If you cannot do it, contact your hub so they can reassign it.');
     }
 
     /** "On my way" to the seller: Rider Arriving (the parcel is not collected yet). */

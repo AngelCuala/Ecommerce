@@ -162,7 +162,7 @@
         update();
     });
 
-    // Quantity stepper: never below 1 or above the stock; saves on change.
+    // Quantity: − / + or type it (large orders); never below 1 or above the stock; saves on change.
     document.querySelectorAll('[data-qty-form]').forEach(function (f) {
         var input = f.querySelector('input[name="quantity"]');
         f.querySelectorAll('[data-step]').forEach(function (b) {
@@ -171,7 +171,13 @@
                 if (v !== +input.value) { input.value = v; f.submit(); }
             });
         });
-        input.addEventListener('change', function () { f.submit(); });
+        input.addEventListener('change', function () {
+            var max = +input.max || 99999, n = parseInt(input.value, 10);
+            if (isNaN(n) || n < 1) n = 1;
+            if (n > max) { n = max; alert('Only ' + max + ' available — the quantity was set to ' + max + '.'); }
+            input.value = n;
+            f.submit();
+        });
     });
 
     update();

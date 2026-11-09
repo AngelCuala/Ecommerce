@@ -120,8 +120,8 @@
                             <div class="text-muted text-sm" style="margin-top:4px;">To {{ $parcel->destination_municipality }}</div>
                         </td>
                         <td style="text-align:right;">
-                            <a href="{{ route('sc.transfers') }}" class="btn btn-ghost btn-sm" style="gap:4px;">
-                                @include('sc.partials.icon', ['name' => 'transfer', 'size' => 13, 'sw' => 2]) Transfer
+                            <a href="{{ route('sc.trips', ['parcel' => [$parcel->id], 'origin_hub_id' => $parcel->current_hub_id]) }}#create" class="btn btn-ghost btn-sm" style="gap:4px;">
+                                @include('sc.partials.icon', ['name' => 'truck', 'size' => 13, 'sw' => 2]) Send on a trip
                             </a>
                         </td>
                     @endif
