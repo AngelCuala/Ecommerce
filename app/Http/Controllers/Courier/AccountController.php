@@ -26,7 +26,15 @@ class AccountController extends Controller
             $stats = ['earned' => round((float) $jobs->sum('pay'), 2), 'jobs' => $jobs->count(), 'online' => $rider->isOnlineNow()];
         }
 
+        // A 4-wheel rider: the same header numbers, from their hub-to-hub trips.
+        $truck = TruckDutyController::truckCourier();
+        if ($truck && (! $rider || $rider->isTruck())) {
+            $trips = TruckDutyController::tripHistory($truck)->where('pay', '>', 0);
+            $stats = ['earned' => round((float) $trips->sum('pay'), 2), 'jobs' => $trips->count(), 'online' => $truck->isOnDutyNow()];
+        }
+
         return view('courier.account', [
+            'truck'       => $truck,
             'user'        => $user,
             'courier'     => $courier,
             'rider'       => $rider,

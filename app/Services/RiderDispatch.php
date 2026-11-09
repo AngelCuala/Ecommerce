@@ -73,7 +73,7 @@ class RiderDispatch
         }
         return Rider::where('sorting_center_id', $scId)->where('application_status', 'approved')->where('is_active', true)
             ->orderBy('id')->get()
-            ->filter(fn (Rider $r) => $r->isOnlineNow())
+            ->filter(fn (Rider $r) => $r->isOnlineNow() && ! $r->isTruck())   // 4-wheelers do hub-to-hub trips only
             ->values();
     }
 
@@ -85,6 +85,7 @@ class RiderDispatch
             ! $this->inServiceArea($scId)            => 'This sorting center is outside the service area (' . \App\Support\ServiceArea::label() . ' only), so it cannot assign riders.',
             ! $rider->isApproved()                    => "{$rider->full_name} is not an approved rider.",
             $rider->isSuspended()                     => "{$rider->full_name} is suspended.",
+            $rider->isTruck()                         => "{$rider->full_name} drives a {$rider->vehicle_type} (4-wheeler): they do hub-to-hub trips, not pickups or deliveries.",
             ! $rider->isOnlineNow()                   => "{$rider->full_name} is offline.",
             default                                   => null,
         };

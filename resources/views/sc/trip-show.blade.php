@@ -16,7 +16,7 @@
     $steps = array_values(array_filter([
         ['Created', $trip->created_at],
         $trip->crossCompany() ? ['Accepted by ' . ($sender ? 'receiver' : 'you'), $trip->handover_status === 'accepted' ? $trip->handover_responded_at : null] : null,
-        ['Courier accepted', $trip->accepted_at], ['Loading', $trip->loading_at],
+        ['Rider accepted', $trip->accepted_at], ['Loading', $trip->loading_at],
         ['Departed', $trip->departed_at], ['Arrived', $trip->arrived_at], ['Received', $trip->completed_at],
     ]));
     $canMessage = $trip->crossCompany();
@@ -37,9 +37,24 @@
     .ts-step.is-done b { color: var(--text); }
     .ts-kv { display: flex; justify-content: space-between; gap: 10px; padding: 7px 0; font-size: 13px; border-bottom: 1px solid #F1F5F9; }
     .ts-kv span:first-child { color: var(--text-muted); }
-    .ts-log { padding: 10px 18px 16px; }
-    .ts-log div { padding: 8px 0; border-bottom: 1px solid #F1F5F9; font-size: 13px; }
-    .ts-log small { display: block; color: var(--text-muted); font-size: 11.5px; }
+    /* History: a compact timeline, newest first. On wide screens it fills the side column down to where the main
+       column ends and scrolls inside, so neither column leaves a blank space; stacked (phones) it scrolls at 360px. */
+    .ts-grid { align-items: stretch; }
+    .ts-main, .ts-side { display: flex; flex-direction: column; gap: 16px; min-width: 0; min-height: 0; }
+    /* The last card of the main column (Messages) grows to the bottom too: its message list takes the extra room. */
+    .ts-main > [data-trip-messages] { display: flex; flex-direction: column; flex: 1 0 auto; }
+    .ts-main > [data-trip-messages] .ts-msgs { flex: 1 1 auto; }
+    .ts-side > [data-trip-history] { display: flex; flex-direction: column; flex: 1 1 0; min-height: 200px; }
+    .ts-log { position: relative; flex: 1 1 0; min-height: 0; overflow-y: auto; padding: 12px 18px 14px; overscroll-behavior: contain; }
+    @media (max-width: 1000px) { .ts-side > [data-trip-history], .ts-main > [data-trip-messages] { flex: none; } .ts-log { flex: none; max-height: 360px; } }
+    .ts-ev { position: relative; padding: 0 0 12px 20px; font-size: 12.5px; line-height: 1.35; }
+    .ts-ev:last-child { padding-bottom: 0; }
+    .ts-ev::before { content: ''; position: absolute; left: 4px; top: 5px; width: 8px; height: 8px; border-radius: 99px; background: #CBD5E1; }
+    .ts-ev::after { content: ''; position: absolute; left: 7.5px; top: 16px; bottom: 0; width: 1px; background: #E2E8F0; }
+    .ts-ev:last-child::after { display: none; }
+    .ts-ev:first-child::before { background: var(--accent-orange); box-shadow: 0 0 0 3px rgba(250,78,28,.15); }
+    .ts-ev b { font-weight: 700; color: var(--text); }
+    .ts-ev small { display: block; margin-top: 1px; color: var(--text-muted); font-size: 11px; }
     .ts-alert { margin: 0 0 16px; padding: 14px 16px; border-radius: 14px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
     .ts-msgs { display: flex; flex-direction: column; gap: 8px; padding: 12px 18px; max-height: 340px; overflow: auto; }
     .ts-msg { max-width: 85%; padding: 8px 12px; border-radius: 12px; font-size: 13px; background: #F1F5F9; }
@@ -77,7 +92,7 @@
     @elseif ($sender && $trip->awaitingHandover())
         <div class="ts-alert" style="background:#FFF4E5;" data-handover>
             <b>Waiting for {{ $receiverName }} to accept this trip.</b>
-            <span class="text-muted" style="font-size:12.5px;">The courier can accept it, but cannot load or depart until they accept.</span>
+            <span class="text-muted" style="font-size:12.5px;">The rider can accept it, but cannot load or depart until they accept.</span>
         </div>
     @elseif ($trip->handover_status === 'rejected')
         <div class="ts-alert" style="background:#FEF2F2;color:var(--accent-red);" data-handover>
@@ -86,7 +101,7 @@
     @endif
 
     <div class="ts-grid">
-        <div style="display:grid;gap:16px;">
+        <div class="ts-main">
             {{-- Route and progress --}}
             <div class="card" data-trip-route>
                 <div class="ts-route">
@@ -226,23 +241,23 @@
             @endif
         </div>
 
-        <div style="display:grid;gap:16px;">
+        <div class="ts-side">
             {{-- Courier and truck --}}
             <div class="card" style="padding:16px 18px;" data-trip-courier>
-                <div style="font-weight:800;margin-bottom:8px;">Courier</div>
+                <div style="font-weight:800;margin-bottom:8px;">Rider <span class="badge badge-blue" style="font-size:10px;vertical-align:middle;">4-wheel</span></div>
                 @if ($trip->courier)
                     <div class="ts-kv"><span>Name</span><span>{{ $trip->courier->fullName() }}</span></div>
                     <div class="ts-kv"><span>Vehicle</span><span>{{ $trip->courier->vehicle_type ?: '—' }}</span></div>
                     <div class="ts-kv"><span>Plate</span><span>{{ $trip->courier->plate_number ?: '—' }}</span></div>
                     @if ($trip->courier->contact_no)<div class="ts-kv"><span>Phone</span><span>{{ $trip->courier->contact_no }}</span></div>@endif
                 @else
-                    <p class="text-muted" style="margin:0 0 8px;font-size:13px;">No courier assigned yet.</p>
+                    <p class="text-muted" style="margin:0 0 8px;font-size:13px;">No rider assigned yet.</p>
                 @endif
                 @if ($sender && in_array($trip->status, \App\Models\LinehaulTrip::BEFORE_DEPARTURE, true))
                     <form method="POST" action="{{ route('sc.trips.assign', $trip) }}" style="display:flex;gap:6px;margin-top:10px;">
                         @csrf
                         <select name="courier_id" class="form-select" style="flex:1;" required aria-label="Courier">
-                            <option value="">{{ $couriers->isEmpty() ? 'No courier On Duty' : ($trip->courier ? 'Reassign to…' : 'Choose an On Duty courier…') }}</option>
+                            <option value="">{{ $couriers->isEmpty() ? 'No 4-wheel rider online' : ($trip->courier ? 'Reassign to…' : 'Choose an online 4-wheel rider…') }}</option>
                             @foreach ($couriers as $c)<option value="{{ $c->id }}">{{ $c->fullName() }} · {{ $c->vehicle_type }}</option>@endforeach
                         </select>
                         <button class="btn btn-blue btn-sm" @disabled($couriers->isEmpty())>{{ $trip->courier ? 'Reassign' : 'Assign' }}</button>
@@ -260,7 +275,7 @@
                     <p style="margin:0 0 10px;font-size:13px;">Seen {{ $last->recorded_at->format('M j, g:i A') }} ({{ $last->recorded_at->diffForHumans() }})</p>
                     <a href="https://www.google.com/maps?q={{ $last->lat }},{{ $last->lng }}" target="_blank" rel="noopener" class="btn btn-blue btn-sm" style="width:100%;">Open in Google Maps</a>
                 @else
-                    <p class="text-muted" style="margin:0;font-size:13px;">The courier's phone sends its location once the trip is on the road.</p>
+                    <p class="text-muted" style="margin:0;font-size:13px;">The rider's phone sends its location once the trip is on the road.</p>
                 @endif
             </div>
 
@@ -275,12 +290,12 @@
                 </form>
             @endif
 
-            {{-- History --}}
+            {{-- History (newest first) --}}
             <div class="card" data-trip-history>
-                <div class="card-header"><h2>History</h2></div>
+                <div class="card-header"><h2>History</h2><span class="card-meta">{{ $events->count() }} {{ \Illuminate\Support\Str::plural('update', $events->count()) }}</span></div>
                 <div class="ts-log">
-                    @forelse ($events as $e)
-                        <div>
+                    @forelse ($events->reverse() as $e)
+                        <div class="ts-ev">
                             <b>{{ $eventLabels[$e->type] ?? ucfirst(str_replace('_', ' ', $e->type)) }}</b>
                             @if ($e->reason) — {{ $e->reason }}@endif
                             @if ($e->new_value && in_array($e->type, ['departed', 'seal_discrepancy'])) · seal {{ $e->new_value }}@endif

@@ -43,7 +43,9 @@ class RiderWorkController extends Controller
                 return $p;
             })->values();
 
+        // 4-wheel riders do hub-to-hub trips (Linehaul Trips), so they are not offered pickups or deliveries here.
         $riders = Rider::where('sorting_center_id', $this->scId())->where('application_status', 'approved')->with('area')->orderBy('full_name')->get()
+            ->reject(fn (Rider $r) => $r->isTruck())->values()
             ->each(function ($r) {
                 $r->active_jobs = $r->activeJobsCount();
                 $r->online_now  = $r->isOnlineNow();

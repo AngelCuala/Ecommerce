@@ -56,7 +56,8 @@
         <div class="flash flash-error" style="margin-bottom:16px;">{{ $errors->first() }}</div>
     @endif
 
-    <div class="stat-grid" style="margin-bottom:16px;">
+    {{-- Three or four cards: they share the full width (the shared grid has six columns). --}}
+    <div class="stat-grid" style="margin-bottom:16px;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));">
         @foreach ([
             ['Shipping fees earned', $summary['fees'], $summary['parcels'] . ' ' . \Illuminate\Support\Str::plural('parcel', $summary['parcels']) . ', your share', 'fees'],
             ...($rate > 0 ? [['ALVY commission (' . $pct . ')', -$summary['commission'], 'Kept by ALVY', 'commission']] : []),

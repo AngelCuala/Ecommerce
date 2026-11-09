@@ -30,13 +30,13 @@ class TripsController extends Controller
     ];
 
     public const EVENT_LABELS = [
-        'created' => 'Trip created', 'assigned' => 'Courier assigned', 'reassigned' => 'Courier reassigned', 'accepted' => 'Courier accepted',
-        'declined' => 'Courier declined', 'unassigned' => 'Courier removed', 'reassigned_away' => 'Reassigned to another courier',
+        'created' => 'Trip created', 'assigned' => 'Rider assigned', 'reassigned' => 'Rider reassigned', 'accepted' => 'Rider accepted',
+        'declined' => 'Rider declined', 'unassigned' => 'Rider removed', 'reassigned_away' => 'Reassigned to another rider',
         'handover_accepted' => 'Receiving sorting center accepted the trip', 'handover_rejected' => 'Receiving sorting center rejected the trip',
         'loading' => 'Loading started', 'departed' => 'Departed (sealed)', 'delay' => 'Delay reported', 'breakdown' => 'Vehicle breakdown reported',
         'arrived' => 'Arrived at the destination hub', 'seal_ok' => 'Seal checked: matches', 'seal_discrepancy' => 'Seal does not match',
         'damaged' => 'Parcel marked damaged', 'missing' => 'Parcel missing', 'parcel_removed' => 'Parcel taken off the trip',
-        'rescanned' => 'Parcels rescanned', 'parcels_added' => 'Parcels added', 'courier_note' => 'Courier note', 'completed' => 'Received and completed',
+        'rescanned' => 'Parcels rescanned', 'parcels_added' => 'Parcels added', 'courier_note' => 'Rider note', 'completed' => 'Received and completed',
         'completed_discrepancy' => 'Completed with discrepancy', 'cancelled' => 'Trip cancelled',
     ];
 
@@ -97,11 +97,23 @@ class TripsController extends Controller
         $origin = $hubs->firstWhere('id', (int) $request->query('origin_hub_id')) ?? $hubs->first();
         $parcels = $origin ? $this->linehaul->eligibleParcels($this->me(), $origin)->load('order')
             ->each(fn (Parcel $p) => $p->best_hub = $this->linehaul->bestHubFor($p, $this->me())?->load('company')) : collect();
+        // Other sorting centers' hubs, nearest to the origin hub first (with the distance).
         $destinations = LogisticsHub::with('company')->where('sorting_center_id', '!=', $me)->get()
-            ->sortBy(fn ($h) => SortingCenters::nameOf($h->company) . ' ' . $h->code)->values();
+            ->each(fn ($h) => $h->km = $origin && $origin->latitude !== null ? ($h->distanceTo((float) $origin->latitude, (float) $origin->longitude) ?? null) : null)
+            ->sortBy(fn ($h) => [$h->km === null ? 1 : 0, $h->km ?? 0, SortingCenters::nameOf($h->company) . ' ' . $h->code])->values();
+        // Picked for them (they can change it): the sorting center most waiting parcels are nearest to (by buyer),
+        // otherwise the nearest sorting center to this hub.
+        $byParcels = $parcels->pluck('best_hub.id')->filter()->countBy()->sortDesc();
+        $suggested = $byParcels->isNotEmpty() ? $destinations->firstWhere('id', $byParcels->keys()->first()) : null;
+        $suggestedWhy = $suggested
+            ? $byParcels->first() . ' of ' . $parcels->count() . ' waiting ' . \Illuminate\Support\Str::plural('parcel', $parcels->count()) . ' are nearest to it'
+            : null;
+        if (! $suggested && ($suggested = $destinations->first(fn ($h) => $h->km !== null))) {
+            $suggestedWhy = 'the nearest sorting center to ' . $origin->code . ' (' . number_format($suggested->km / 1000, 1) . ' km)';
+        }
         $preselect = array_map('intval', (array) $request->query('parcel', []));
 
-        return view('sc.trips', compact('trips', 'tabs', 'tab', 'stats', 'hubs', 'origin', 'parcels', 'destinations', 'preselect', 'me'));
+        return view('sc.trips', compact('trips', 'tabs', 'tab', 'stats', 'hubs', 'origin', 'parcels', 'destinations', 'preselect', 'me', 'suggested', 'suggestedWhy'));
     }
 
     public function store(Request $request)

@@ -9,7 +9,9 @@
 @section('content')
 
 @include('partials.page-tabs', ['tabs' => [['Riders', 'sc.riders', 'sc.riders'], ['Courier applications', 'sc.courier-applications.index', 'sc.courier-applications.*']]])
-<div class="page-header"><h1>Rider Management</h1></div>
+<div class="page-header"><h1>Rider Management</h1>
+    <p class="text-muted" style="margin:4px 0 0;font-size:13px;">The vehicle decides the work: motorcycles, tricycles and bicycles pick up from sellers and deliver to buyers; 4-wheelers (car, van, truck) carry parcels in bulk from hub to hub (Linehaul Trips) and are marked <span class="badge badge-blue" style="font-size:10px;">4-wheel · hub to hub</span>.</p>
+</div>
 <div class="page-body">
 
     {{-- Add rider: barangays come from the PSA PSGC dataset for this SC's municipality --}}
@@ -56,7 +58,14 @@
                 </div>
                 <div>
                     <label class="form-label" for="rider_vehicle">Vehicle</label>
-                    <input type="text" id="rider_vehicle" name="vehicle_type" class="form-input" placeholder="Motorcycle" value="{{ old('vehicle_type') }}">
+                    <select id="rider_vehicle" name="vehicle_type" class="form-select">
+                        <optgroup label="Deliveries to buyers">
+                            @foreach(['Motorcycle', 'Tricycle', 'Bicycle'] as $v)<option @selected(old('vehicle_type', 'Motorcycle') === $v)>{{ $v }}</option>@endforeach
+                        </optgroup>
+                        <optgroup label="4-wheel · hub to hub">
+                            @foreach(['Car', 'Van', 'Truck'] as $v)<option @selected(old('vehicle_type') === $v)>{{ $v }}</option>@endforeach
+                        </optgroup>
+                    </select>
                 </div>
                 <div>
                     <label class="form-label" for="rider_barangay">Barangay ({{ count($barangays) }} in {{ $sc->assigned_municipality }})</label>
@@ -124,12 +133,12 @@
         <table class="data-table riders-table">
             <thead>
                 <tr>
-                    <th>Rider ID</th><th>Name</th><th>Vehicle</th><th>Area</th>
+                    <th>ID</th><th>Name</th><th>Vehicle</th><th>Area</th>
                     <th>Availability</th><th>Active jobs</th><th>Delivered today</th><th>Deliveries</th><th>Status</th><th>Actions</th>
                 </tr>
             </thead>
             <tbody id="riders-tbody">
-            @forelse($riders as $rider)
+            @foreach($riders as $rider)
                 @php
                     $isActive   = $rider->application_status === 'approved' && $rider->is_active;
                     $isPending  = $rider->application_status === 'pending';
@@ -141,20 +150,39 @@
                     $todayDelivered = $rider->parcelDeliveries()->where('status','delivered')->where('updated_at', '>=', today())->count();
                     $activeJobs = $rider->activeJobsCount();
                 @endphp
-                <tr>
+                @php
+                    // A 4-wheel rider does hub-to-hub trips: show their truck's hub, duty and trips instead of buyer jobs.
+                    $truck = $rider->isTruck() ? $rider->truck : null;
+                    $trip = $truck?->activeTrip();
+                    if ($rider->isTruck()) {
+                        $activeJobs = $trip ? 1 : 0;
+                        $todayDelivered = $truck ? \App\Models\LinehaulTrip::where('paid_courier_id', $truck->id)->whereDate('completed_at', today())->count() : 0;
+                        $deliveries = $truck ? \App\Models\LinehaulTrip::where('paid_courier_id', $truck->id)->whereIn('status', \App\Models\LinehaulTrip::DONE)->count() : 0;
+                    }
+                @endphp
+                <tr @if($rider->isTruck()) data-truck-rider="{{ $rider->id }}" @endif>
                     <td><span class="id-link">RDR-{{ str_pad($rider->id,3,'0',STR_PAD_LEFT) }}</span></td>
                     <td>
                         <a href="{{ route('sc.riders.show', $rider) }}" style="font-weight:600;color:var(--accent-blue);">{{ $rider->full_name }}</a>
+                        @if($rider->isTruck())<span class="badge badge-blue" style="font-size:10px;margin-left:4px;white-space:nowrap;">4-wheel · hub to hub</span>@endif
                         <div class="text-muted text-sm">{{ $rider->user->email ?? '' }}{{ $rider->phone ? ' · ' . $rider->phone : '' }}</div>
                     </td>
                     <td>{{ $rider->vehicle_type ?? '—' }}{{ $rider->plate_number ? ' · ' . $rider->plate_number : '' }}
                         @if($rider->needs_reverification)<div><span class="badge badge-yellow" style="font-size:10px;">Re-verify vehicle</span></div>@endif
                     </td>
-                    <td><span class="text-orange">{{ $rider->area->name ?? '—' }}</span></td>
-                    <td>@if($rider->isOnlineNow())<span class="badge badge-green" data-online>Online</span>@else<span class="badge badge-gray">Offline</span>@endif</td>
-                    <td data-active-jobs="{{ $activeJobs }}"><span class="badge badge-gray">{{ $activeJobs }}</span></td>
-                    <td data-today="{{ $todayDelivered }}">{{ $todayDelivered }}</td>
-                    <td>{{ $deliveries }}</td>
+                    @if($rider->isTruck())
+                        <td><span class="text-orange" style="white-space:nowrap;">{{ $truck?->homeHub?->code ?? 'No hub yet' }}</span><div class="text-muted text-sm">hub to hub{{ $truck?->load_capacity_kg ? ' · ' . number_format($truck->load_capacity_kg) . ' kg' : '' }}</div></td>
+                        <td>@if($truck?->isOnDutyNow())<span class="badge badge-green" data-online>Online</span>@else<span class="badge badge-gray">Offline</span>@endif</td>
+                        <td data-active-jobs="{{ $activeJobs }}">@if($trip)<a href="{{ route('sc.trips.show', $trip) }}" class="badge badge-blue">{{ $trip->code }}</a>@else<span class="badge badge-gray">0</span>@endif</td>
+                        <td data-today="{{ $todayDelivered }}">{{ $todayDelivered }} {{ \Illuminate\Support\Str::plural('trip', $todayDelivered) }}</td>
+                        <td>{{ $deliveries }} {{ \Illuminate\Support\Str::plural('trip', $deliveries) }}</td>
+                    @else
+                        <td><span class="text-orange">{{ $rider->area->name ?? '—' }}</span></td>
+                        <td>@if($rider->isOnlineNow())<span class="badge badge-green" data-online>Online</span>@else<span class="badge badge-gray">Offline</span>@endif</td>
+                        <td data-active-jobs="{{ $activeJobs }}"><span class="badge badge-gray">{{ $activeJobs }}</span></td>
+                        <td data-today="{{ $todayDelivered }}">{{ $todayDelivered }}</td>
+                        <td>{{ $deliveries }}</td>
+                    @endif
                     <td><span class="badge {{ $badgeClass }}">{{ $badgeLabel }}</span></td>
                     <td>
                         <div style="display:flex;gap:5px;flex-wrap:wrap;">
@@ -186,9 +214,11 @@
                         </div>
                     </td>
                 </tr>
-            @empty
+            @endforeach
+
+            @if($riders->isEmpty())
                 <tr><td colspan="10" style="text-align:center;padding:30px;color:var(--text-muted);">No riders found.</td></tr>
-            @endforelse
+            @endif
             </tbody>
         </table>
     </div>

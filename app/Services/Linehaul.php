@@ -24,7 +24,7 @@ use Illuminate\Validation\ValidationException;
 class Linehaul
 {
     /** Pay per completed trip, by the courier's vehicle (A41). */
-    public const PAY = ['Van' => 600.00, '4-Wheeler Closed Van Truck' => 1000.00, '6-Wheeler Truck' => 1500.00];
+    public const PAY = ['Car' => 400.00, 'Van' => 600.00, 'Truck' => 1000.00, '4-Wheeler Closed Van Truck' => 1000.00, '6-Wheeler Truck' => 1500.00];
 
     public const SEAL_PATTERN = '/^BH-\d{7}$/';
 
@@ -50,6 +50,21 @@ class Linehaul
     public static function payFor(Courier $courier): float
     {
         return self::PAY[$courier->vehicle_type] ?? 0.0;
+    }
+
+    /**
+     * The parcel for a scanned or typed code: the waybill's QR code holds the waybill number (PH…),
+     * and the tracking number (ALVY-…) works too, the same as the Shipment Board's scanner.
+     */
+    private function findParcel(string $code): Parcel
+    {
+        $code = strtoupper(trim($code));
+        if ($code === '') {
+            $this->fail('tracking', 'Scan the waybill QR code or type the tracking number.');
+        }
+
+        return Parcel::where('tracking_number', $code)->orWhere('waybill_number', $code)->first()
+            ?? $this->fail('tracking', "Parcel $code was not found.");
     }
 
     private function at(LogisticsHub $hub, ?float $lat, ?float $lng, string $doing): void
@@ -353,8 +368,8 @@ class Linehaul
         if ($trip->status !== 'loading' && ! $rescan) {
             $this->fail('tracking', $trip->status === 'accepted' ? 'Tap Start Loading first.' : "{$trip->code} is {$trip->label()}: nothing to scan.");
         }
-        $tracking = strtoupper(trim($tracking));
-        $parcel = Parcel::where('tracking_number', $tracking)->first() ?? $this->fail('tracking', "Parcel $tracking was not found.");
+        $parcel = $this->findParcel($tracking);
+        $tracking = $parcel->tracking_number;   // messages name the tracking number, whichever code was scanned
         $item = $trip->onBoard()->where('parcel_id', $parcel->id)->first() ?? $this->fail('tracking', "$tracking is not in this trip.");
         if ($item->status === 'loaded') {
             $this->fail('tracking', "$tracking is already loaded.");
@@ -498,8 +513,8 @@ class Linehaul
     public function receiveScan(User $sc, int $hubId, string $tracking): array
     {
         $hub = LogisticsHub::where('sorting_center_id', $sc->id)->find($hubId) ?? $this->fail('hub_id', 'Choose the hub you are receiving at.');
-        $tracking = strtoupper(trim($tracking));
-        $parcel = Parcel::where('tracking_number', $tracking)->first() ?? $this->fail('tracking', "Parcel $tracking was not found.");
+        $parcel = $this->findParcel($tracking);
+        $tracking = $parcel->tracking_number;   // messages name the tracking number, whichever code was scanned
         $item = LinehaulTripParcel::where('parcel_id', $parcel->id)->whereIn('status', ['pending', 'loaded'])
             ->whereHas('trip', fn ($q) => $q->where(fn ($w) => $w->where('destination_sorting_center_id', $sc->id)
                 ->orWhere(fn ($o) => $o->whereNull('destination_sorting_center_id')->where('sorting_center_id', $sc->id)))

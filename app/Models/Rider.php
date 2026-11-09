@@ -5,11 +5,16 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 /**
  * A rider of a logistics company (sorting center). Riders sign in with a courier account
  * (riders.user_id), go Online to receive job offers, pick parcels up from sellers and
  * deliver them to buyers. "Suspended" = approved but turned off by the logistics company.
+ *
+ * The vehicle decides the work: a 4-wheeler (car, van, truck) carries parcels in bulk hub to hub
+ * (Linehaul Trips, through the linked truck record kept by App\Services\TruckRiders); a motorcycle,
+ * tricycle or bicycle does the pickups from sellers and the deliveries to buyers.
  */
 class Rider extends Model
 {
@@ -37,6 +42,36 @@ class Rider extends Model
         'can_transport_transfers' => 'boolean',
         'last_seen_at'         => 'datetime',
     ];
+
+    /** 4-wheelers: hub-to-hub trips in bulk. Everything else (motorcycle, tricycle, bicycle) delivers to buyers. */
+    public const HUB_TO_HUB_VEHICLES = ['Car', 'Van', 'Truck', '4-Wheeler Closed Van Truck', '6-Wheeler Truck'];
+
+    public static function isFourWheel(?string $vehicle): bool
+    {
+        return in_array(trim((string) $vehicle), self::HUB_TO_HUB_VEHICLES, true);
+    }
+
+    /** Drives a 4-wheeler: does hub-to-hub trips, not buyer pickups or deliveries. */
+    public function isTruck(): bool
+    {
+        return self::isFourWheel($this->vehicle_type);
+    }
+
+    /** The truck record behind a 4-wheel rider (trips, duty, checklist), kept in step by TruckRiders. */
+    public function truck(): HasOne
+    {
+        return $this->hasOne(Courier::class, 'user_id', 'user_id')->whereNotNull('home_hub_id');
+    }
+
+    protected static function booted(): void
+    {
+        // A new rider, or a change to the vehicle, status, company or details, updates the truck record.
+        static::saved(function (Rider $rider) {
+            if ($rider->wasRecentlyCreated || $rider->wasChanged(\App\Services\TruckRiders::WATCHED)) {
+                app(\App\Services\TruckRiders::class)->sync($rider);
+            }
+        });
+    }
 
     public function user(): BelongsTo          { return $this->belongsTo(User::class); }
     public function sortingCenter(): BelongsTo { return $this->belongsTo(User::class, 'sorting_center_id'); }

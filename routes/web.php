@@ -684,6 +684,21 @@ Route::middleware(['auth', 'role:courier,admin', 'prevent.back'])
     ->prefix('courier')->name('courier.')->group(function () {
 
     Route::get('/',                            [CourierDashboardController::class, 'index'])->name('dashboard');
+
+    // Hub Trips: a logistics company's truck courier goes On Duty here (or in the app) to be assigned hub-to-hub trips
+    Route::get('/trips',                       [\App\Http\Controllers\Courier\TruckDutyController::class, 'index'])->name('trips');
+    Route::get('/trips/history',               [\App\Http\Controllers\Courier\TruckDutyController::class, 'history'])->name('trips.history');
+    Route::get('/trips/pay',                   [\App\Http\Controllers\Courier\TruckDutyController::class, 'pay'])->name('trips.pay');
+    Route::post('/trips/duty',                 [\App\Http\Controllers\Courier\TruckDutyController::class, 'duty'])->middleware('throttle:20,1')->name('trips.duty');
+    Route::post('/trips/ping',                 [\App\Http\Controllers\Courier\TruckDutyController::class, 'ping'])->middleware('throttle:10,1')->name('trips.ping');
+    Route::post('/trips/{trip}/accept',        [\App\Http\Controllers\Courier\TruckDutyController::class, 'accept'])->whereNumber('trip')->name('trips.accept');
+    Route::post('/trips/{trip}/decline',       [\App\Http\Controllers\Courier\TruckDutyController::class, 'decline'])->whereNumber('trip')->name('trips.decline');
+    Route::post('/trips/{trip}/loading',        [\App\Http\Controllers\Courier\TruckDutyController::class, 'startLoading'])->whereNumber('trip')->name('trips.loading');
+    Route::post('/trips/{trip}/scan',           [\App\Http\Controllers\Courier\TruckDutyController::class, 'scan'])->whereNumber('trip')->middleware('throttle:60,1')->name('trips.scan');
+    Route::post('/trips/{trip}/depart',         [\App\Http\Controllers\Courier\TruckDutyController::class, 'depart'])->whereNumber('trip')->name('trips.depart');
+    Route::post('/trips/{trip}/delay',          [\App\Http\Controllers\Courier\TruckDutyController::class, 'delay'])->whereNumber('trip')->name('trips.delay');
+    Route::post('/trips/{trip}/arrived',        [\App\Http\Controllers\Courier\TruckDutyController::class, 'arrived'])->whereNumber('trip')->name('trips.arrived');
+    Route::post('/trips/{trip}/note',           [\App\Http\Controllers\Courier\TruckDutyController::class, 'note'])->whereNumber('trip')->name('trips.note');
     Route::get('/notifications',               [CourierDashboardController::class, 'notifications'])->name('notifications');
     Route::get('/notifications/{id}/open',     [CourierDashboardController::class, 'openNotification'])->whereNumber('id')->name('notifications.open');
     Route::post('/notifications/read-all',     [CourierDashboardController::class, 'readAllNotifications'])->name('notifications.read-all');
