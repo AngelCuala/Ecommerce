@@ -282,6 +282,9 @@
                 <section class="pf-card p-5">
                     <h2 class="text-sm font-bold" style="color:#222;">Return / refund</h2>
                     <p class="mt-1 text-sm" style="color:#57534E;"><strong>{{ $return->statusLabel() }}</strong> · {{ $return->reason }}</p>
+                    @if ($rs = $return->shipment)
+                        <p class="mt-1 text-sm" style="color:#1E40AF;" data-return-shipment="{{ $rs->status }}">Return pickup: <strong>{{ $rs->statusLabel() }}</strong>@if ($rs->status === 'pickup_assigned' && $rs->pickupRider) · rider {{ $rs->pickupRider->full_name }}@endif</p>
+                    @endif
                     @if ($return->seller_note)<p class="mt-1 text-sm"><strong>Seller:</strong> {{ $return->seller_note }}</p>@endif
                     @if ($return->status === 'rejected' && $order->status === \App\Models\Order::DELIVERED)
                         <form method="POST" action="{{ route('orders.escalate', $order->id) }}" class="mt-3 space-y-2 rounded-lg border p-3" style="border-color:#FECACA;">

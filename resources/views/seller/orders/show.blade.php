@@ -48,6 +48,13 @@
             <div class="pl-head"><h2>Return / refund request</h2><span class="pl-tag pending">{{ $rr->status === 'disputed' ? 'In Dispute' : ucfirst($rr->status) }}</span></div>
             <div class="pl-body space-y-2 text-sm">
                 <p><strong>Reason:</strong> {{ $rr->reason }}</p>
+                @if ($rs = $rr->shipment)
+                    <p class="rounded-md px-3 py-2 text-xs" style="background:#EFF6FF;color:#1E40AF;" data-return-shipment="{{ $rs->status }}">
+                        <strong>Item coming back:</strong> {{ $rs->statusLabel() }}
+                        @if ($rs->status === 'to_seller' && $rs->sellerRider) · rider {{ $rs->sellerRider->full_name }} @endif
+                        @if ($rs->returned_at) · {{ $rs->returned_at->format('M j, g:i A') }} @endif
+                    </p>
+                @endif
                 @if ($rr->details)<p class="pl-muted">{{ $rr->details }}</p>@endif
                 <div class="flex flex-wrap gap-2">
                     @foreach ($rr->photos() as $ph)
@@ -94,7 +101,7 @@
                             <li class="flex items-center gap-2 text-sm" style="color:{{ $done ? '#222' : '#a39890' }};">
                                 <span class="flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-semibold"
                                       style="{{ $done ? 'background:#fa4e1c;color:#fff;' : 'border:1px solid #D6D3D1;color:#a39890;' }}">{{ $i + 1 }}</span>
-                                <span class="hidden sm:inline">{{ $step }}</span>
+                                <span class="hidden sm:inline">{{ ['Pending' => 'Placed', 'Completed' => 'Received by buyer'][$step] ?? $step }}</span>
                             </li>
                         @endforeach
                     </ol>
@@ -236,6 +243,10 @@
                         <div><dt>Tracking no.</dt><dd class="font-medium">{{ $parcel->tracking_number }}</dd></div>
                         <div><dt>Sorting center</dt><dd>{{ $parcel->currentSortingCenter->name ?? 'Awaiting assignment' }}</dd></div>
                         <div><dt>Status</dt><dd>{{ $parcel->statusLabel() }}</dd></div>
+                        @php $pickupJob = $parcel->pickups()->with('rider')->whereNotIn('status', ['cancelled'])->latest('id')->first(); @endphp
+                        @if (in_array($parcel->status, ['pending_pickup', 'pickup_approved', 'in_transit_to_hub'], true) || $pickupJob)
+                            <div><dt>Pickup rider</dt><dd class="font-medium">{{ $pickupJob?->rider?->full_name ?? 'Waiting for the logistics company to assign a rider' }}@if ($pickupJob?->rider?->phone) · {{ $pickupJob->rider->phone }}@endif</dd></div>
+                        @endif
                     </dl>
                     @if ($parcel->failure_reason && in_array($parcel->status, ['pickup_rejected', 'failed', 'returned']))
                         <p class="mx-5 mb-3 rounded-md px-3 py-2 text-xs" style="background:#FEF2F2;color:#B91C1C;">Reason: {{ $parcel->failure_reason }}</p>
@@ -267,14 +278,6 @@
                                 </select>
                                 @error('sorting_center_id')<p class="text-xs" style="color:#B91C1C;">{{ $message }}</p>@enderror
                                 <p class="mt-1 text-xs pl-muted">One of their riders picks the parcel up from you and brings it to their hub.</p>
-                            </div>
-                            <div>
-                                <label for="pickup_scheduled_at" class="pl-label">Pickup date and time</label>
-                                <input type="datetime-local" id="pickup_scheduled_at" name="pickup_scheduled_at" class="input text-sm" required min="{{ now()->tz(config('app.business_timezone'))->format('Y-m-d\TH:i') }}">
-                            </div>
-                            <div>
-                                <label for="notes" class="pl-label">Notes <span style="color:#a39890;font-weight:400;">— optional</span></label>
-                                <textarea id="notes" name="notes" rows="2" class="input text-sm" placeholder="Instructions for the rider"></textarea>
                             </div>
                             <button type="submit" class="pl-btn w-full">Ready for pickup</button>
                         </form>

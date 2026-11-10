@@ -9,12 +9,13 @@
     $trouble = in_array($pStatus, ['failed', 'return_to_sender', 'returned', 'lost', 'damaged', 'cancelled', 'pickup_rejected'], true);
 
     // Progress bar: how far the parcel got (0 ordered … 4 delivered), from its confirmed status.
-    $milestones = ['Ordered', 'Collected', 'At sorting center', 'Out for delivery', 'Delivered'];
+    $milestones = ['Ordered', 'Collected', 'At sorting center', 'Out for delivery', 'Delivered', 'Received'];
     $reached = match (true) {
         ! $pStatus                                                                             => 0,
         in_array($pStatus, ['pending_pickup', 'pickup_approved', 'pickup_rejected', 'cancelled'], true) => 0,
         $pStatus === 'in_transit_to_hub'                                                       => 1,
         in_array($pStatus, ['in_transit', 'failed'], true)                                    => 3,
+        $delivered && ! empty($track['received'])                                              => 5,
         $delivered                                                                             => 4,
         default                                                                                => 2,   // at / between sorting centers, or on its way back
     };
@@ -54,7 +55,7 @@
 
     <div class="px-5 py-5">
         {{-- Progress --}}
-        <ol class="grid grid-cols-5 gap-1" aria-label="Shipment progress">
+        <ol class="grid grid-cols-6 gap-1" aria-label="Shipment progress">
             @foreach ($milestones as $i => $label)
                 @php
                     $isDone = $i < $reached || ($i === $reached && $delivered);

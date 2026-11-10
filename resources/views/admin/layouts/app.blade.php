@@ -9,6 +9,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ asset('css/admin.css') }}">
+    <link rel="stylesheet" href="{{ asset('css/responsive.css') }}?v={{ filemtime(public_path('css/responsive.css')) }}">
     @stack('styles')
     <link rel="stylesheet" href="{{ asset('css/password-field.css') }}">
 </head>
@@ -117,11 +118,14 @@
 
         {{-- Topbar --}}
         <div class="topbar">
-            <div class="topbar__title">
+            <div class="topbar__title topbar-left">
+                <button type="button" class="nav-toggle" data-nav-toggle aria-label="Open menu" aria-expanded="false">
+                    <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+                </button>
                 @yield('topbar-icon', '')
                 @yield('title', 'Dashboard')
             </div>
-            <div class="topbar__right" style="display:flex;align-items:center;gap:8px;">
+            <div class="topbar__right topbar-right" style="display:flex;align-items:center;gap:8px;">
                 @include('partials.theme-toggle')
                 @yield('topbar-actions')
             </div>
@@ -144,6 +148,8 @@
 
     </div>
 </div>
+<div class="nav-backdrop" data-nav-close></div>
+<script src="{{ asset('js/responsive.js') }}?v={{ filemtime(public_path('js/responsive.js')) }}" defer></script>
 @stack('scripts')
 <script src="{{ asset('js/logout-confirm.js') }}?v={{ filemtime(public_path('js/logout-confirm.js')) }}"></script>
 </body>

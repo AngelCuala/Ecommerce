@@ -49,6 +49,7 @@ class ShipmentEvent extends Model
         'delivery_rescheduled'      => 'Delivery Rescheduled',
         'out_for_delivery'          => 'Out for Delivery',
         'delivered'                 => 'Delivered',
+        'received_by_buyer'         => 'Received by Buyer',
         'delivery_failed'           => 'Delivery Attempt Failed',
         'return_to_sender'          => 'Returning to Seller',
         'returned'                  => 'Returned to Seller',

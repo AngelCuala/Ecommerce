@@ -49,6 +49,30 @@ class ReturnRequest extends Model
         return $this->evidence_paths ?: array_filter([$this->evidence_path]);
     }
 
+    protected static function booted(): void
+    {
+        // The buyer asked: the hub collects the item right away (Return Items), like a seller pickup.
+        static::created(fn (ReturnRequest $r) => app(\App\Services\ReturnShipments::class)->open($r));
+
+        static::updated(function (ReturnRequest $r) {
+            if (! $r->wasChanged('status')) {
+                return;
+            }
+            // Rejected or closed before the rider collected it: no trip.
+            if (in_array($r->status, ['rejected', 'closed'], true)) {
+                app(\App\Services\ReturnShipments::class)->cancelIfNotCollected($r, 'Return ' . $r->status . '.');
+            }
+            // The seller hears when the buyer is refunded (unless the seller just did it).
+            if ($r->status === 'approved' && $r->seller_id && (int) auth()->id() !== (int) $r->seller_id) {
+                UserNotification::create(['user_id' => $r->seller_id, 'title' => 'Return refunded',
+                    'body' => ($r->order?->number() ?? 'An order') . ': the buyer was refunded ₱' . number_format((float) $r->refund_amount, 2) . '. ' . ($r->seller_note ?: ''),
+                    'type' => 'warning', 'link' => route('seller.orders.show', $r->order_id)]);
+            }
+        });
+    }
+
+    public function shipment(): \Illuminate\Database\Eloquent\Relations\HasOne { return $this->hasOne(ReturnShipment::class); }
+
     public function order(): BelongsTo  { return $this->belongsTo(Order::class); }
     public function user(): BelongsTo   { return $this->belongsTo(User::class); }
     public function seller(): BelongsTo { return $this->belongsTo(User::class, 'seller_id'); }

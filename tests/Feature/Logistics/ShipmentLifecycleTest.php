@@ -279,17 +279,16 @@ class ShipmentLifecycleTest extends TestCase
 
         $this->actingAs($this->rider1->user)->post(route('courier.rider.deliveries.fail', $d->id))->assertSessionHasErrors('reason');
         $this->actingAs($this->rider1->user)->post(route('courier.rider.deliveries.fail', $d->id), ['reason' => 'Buyer not home'])->assertSessionHas('success');
-        $this->assertSame('failed', $parcel->fresh()->status);
+        $this->assertSame('sorted', $parcel->fresh()->status);   // rescheduled at once
         $this->assertSame('Buyer not home', ShipmentEvent::where('event_type', 'delivery_failed')->sole()->note);
         $this->assertTrue(UserNotification::where('user_id', $this->seller1->id)->where('title', 'Delivery Attempt Failed')->exists());
         $this->actingAs($this->buyer1)->get(route('profile.orders.show', $parcel->order_id))->assertSee('1 failed delivery attempt');
 
         // Not delivered without the delivery steps.
         $this->expectsTransitionError(fn () => $parcel->fresh()->update(['status' => 'delivered']));
-        $this->assertSame('failed', $parcel->fresh()->status);
+        $this->assertSame('sorted', $parcel->fresh()->status);
 
         // Next attempt refused by the buyer → the order is cancelled and the parcel stays at the hub (no Return to Sender).
-        $this->as($this->logistics1)->post(route('sc.deliveries.reschedule', $d))->assertSessionHas('success');
         $d2 = $this->deliveryFor($this->rider1, 'out_for_delivery', $parcel->fresh());
         $this->actingAs($this->rider1->user)->post(route('courier.rider.deliveries.fail', $d2->id), ['reason' => 'Refused'])->assertSessionHas('success');
         $this->assertSame('cancelled', $parcel->fresh()->status);

@@ -13,8 +13,8 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 /**
- * Riders and couriers are one account. A 4-wheel rider (car, van, truck) does hub-to-hub trips;
- * a motorcycle or tricycle rider does pickups and deliveries to buyers. The sorting center manages both on Riders.
+ * Riders and couriers are one account. A truck driver (Courier) does hub-to-hub trips;
+ * motorcycle, tricycle, bicycle, car and van riders do pickups and deliveries to buyers (cars and vans also the bulky ones). The sorting center manages both on Riders.
  */
 class FourWheelRidersTest extends TestCase
 {
@@ -43,7 +43,7 @@ class FourWheelRidersTest extends TestCase
 
         // Both are riders on the Riders page; the 4-wheeler is marked hub to hub with its hub.
         $this->actingAs($sc)->get(route('sc.riders'))->assertOk()
-            ->assertSee('Jericho Manalo')->assertSee('Jesus Ramos')->assertSee('4-wheel · hub to hub')->assertSee('HUB-SCZ')
+            ->assertSee('Jericho Manalo')->assertSee('Jesus Ramos')->assertSee('Courier · truck')->assertSee('HUB-SCZ')
             ->assertSee('data-truck-rider="' . $truckRider->id . '"', false)->assertDontSee('data-courier-row', false)->assertDontSee('CUR-');
         $this->assertTrue($truckRider->isTruck());
         $this->assertFalse($bike->isTruck());
@@ -67,10 +67,13 @@ class FourWheelRidersTest extends TestCase
         $this->actingAs($sc)->from(route('sc.riders'))->post(route('sc.riders.toggle', $truckRider->fresh()))->assertSessionHas('success');
         $this->assertSame('approved', Courier::where('user_id', $truckUser->id)->value('status'));
 
-        // Switching the motorcycle rider to a van makes them hub to hub; back to a motorcycle turns the truck off.
+        // A van stays a rider (it takes bulky parcels); switching to a truck makes them hub to hub; back to a tricycle turns the truck off.
         $bike->update(['vehicle_type' => 'Van']);
+        $this->assertNull(Courier::where('user_id', $bike->user_id)->first());
+        $this->assertContains($bike->id, app(RiderDispatch::class)->eligibleRiders($sc->id)->pluck('id')->all());
+        $bike->update(['vehicle_type' => 'Truck']);
         $truck = Courier::where('user_id', $bike->user_id)->first();
-        $this->assertSame(['approved', 'Van', 1000], [$truck->status, $truck->vehicle_type, $truck->load_capacity_kg]);
+        $this->assertSame(['approved', 'Truck', 4000], [$truck->status, $truck->vehicle_type, $truck->load_capacity_kg]);
         $this->assertSame(\App\Models\LogisticsHub::where('code', 'HUB-SCZ')->value('id'), $truck->home_hub_id);
         $this->actingAs($bike->user)->get(route('courier.rider'))->assertRedirect(route('courier.trips'));
         $bike->update(['vehicle_type' => 'Tricycle']);
@@ -78,7 +81,7 @@ class FourWheelRidersTest extends TestCase
         $this->actingAs($bike->user)->get(route('courier.rider'))->assertOk()->assertSee('Hub Jobs');
 
         // The sorting center's Add Rider form offers the vehicles by the work they do.
-        $this->actingAs($sc)->get(route('sc.riders'))->assertSee('Deliveries to buyers')->assertSee('4-wheel · hub to hub');
+        $this->actingAs($sc)->get(route('sc.riders'))->assertSee('Rider · pickups and deliveries')->assertSee('Rider · 4 wheels, also bulky parcels')->assertSee('Courier · truck, hub to hub');
     }
 
     public function test_old_courier_accounts_become_riders(): void

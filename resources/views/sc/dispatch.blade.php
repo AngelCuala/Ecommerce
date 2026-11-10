@@ -63,7 +63,7 @@
         <button class="btn btn-green btn-sm">Assign selected</button>
         @if ($riderChoices->where('available', true)->isEmpty())
             <p class="text-muted" style="flex-basis:100%;font-size:12px;margin:2px 0 0;" data-no-rider-online>
-                {{ $riders->isEmpty() ? 'This center has no approved riders yet.' : 'No rider can take barangay jobs right now (suspended, or 4-wheel couriers).' }}
+                {{ $riders->isEmpty() ? 'This center has no approved riders yet.' : 'No rider can take barangay jobs right now (suspended, or truck couriers).' }}
             </p>
         @endif
     </form>
@@ -93,9 +93,10 @@
                             @endif
                         </td>
                         <td>
-                            <form method="POST" action="{{ route('sc.dispatch.assign', $p) }}" style="display:flex;gap:6px;">@csrf
+                            @if ($p->isBulky())<span class="badge badge-yellow" style="margin-bottom:4px;" data-bulky>Bulky ({{ $p->bulkyReason() }}) · car or van rider</span>@endif
+                            <form method="POST" action="{{ route('sc.dispatch.assign', $p) }}" style="display:flex;gap:6px;flex-wrap:wrap;">@csrf
                                 <select name="rider_id" class="form-select" style="min-width:150px;" aria-label="Rider for {{ $p->tracking_number }}">
-                                    @include('sc.partials.rider-options')
+                                    @include('sc.partials.rider-options', ['bulky' => $p->isBulky()])
                                 </select>
                                 <button class="btn btn-green btn-sm">Assign</button>
                             </form>

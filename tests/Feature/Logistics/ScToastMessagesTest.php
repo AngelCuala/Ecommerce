@@ -36,6 +36,6 @@ class ScToastMessagesTest extends TestCase
 
     public function test_no_messages_means_no_pop_up(): void
     {
-        $this->actingAs($this->logistics1)->get(route('sc.shipments'))->assertOk()->assertDontSee('id="sc-toasts"', false);
+        $this->actingAs($this->logistics1)->get(route('sc.tracking'))->assertOk()->assertDontSee('id="sc-toasts"', false);
     }
 }

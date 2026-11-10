@@ -30,7 +30,7 @@ class L01DashboardAndRidersTest extends TestCase
 
     private function listed(string $bucket, array $query = []): int
     {
-        return $this->actingAs($this->logistics1)->get(route('sc.shipments', $query + ['status' => $bucket]))->assertOk()->viewData('parcels')->total();
+        return $this->actingAs($this->logistics1)->get(route('sc.tracking', $query + ['bucket' => $bucket]))->assertOk()->viewData('parcels')->total();
     }
 
     // ── L1 Operations Dashboard ─────────────────────────────────
@@ -100,11 +100,11 @@ class L01DashboardAndRidersTest extends TestCase
 
         $this->assertSame(1, $this->dashboard()->viewData('shipmentCounts')['in_transit']);
         $this->assertSame(0, $this->dashboard()->viewData('shipmentCounts')['delivered']);
-        $this->actingAs($this->logistics1)->get(route('sc.shipments'))->assertOk()
+        $this->actingAs($this->logistics1)->get(route('sc.tracking'))->assertOk()
             ->assertSee($mine->tracking_number)->assertDontSee($theirs->tracking_number);
-        $search = $this->actingAs($this->logistics1)->get(route('sc.shipments', ['q' => $theirs->tracking_number]))->assertOk();
+        $search = $this->actingAs($this->logistics1)->get(route('sc.tracking', ['q' => $theirs->tracking_number]))->assertOk();
         $this->assertSame(0, $search->viewData('parcels')->total());
-        $search->assertDontSee('data-shipment="' . $theirs->tracking_number . '"', false);
+        $search->assertDontSee('data-parcel="' . $theirs->id . '"', false);
     }
 
     // ── L2 Rider Management ─────────────────────────────────────

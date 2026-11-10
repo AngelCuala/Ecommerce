@@ -84,7 +84,7 @@ class CourierWebTripTest extends TestCase
         $this->actingAs($c)->get(route('courier.trips.pay', ['period' => 'today']))->assertOk()
             ->assertSee('Rider Pay')->assertSee('data-pay-row="' . $trip->code . '"', false)->assertSee('+' . $pay);
         $this->actingAs($c)->get(route('courier.account'))->assertOk()
-            ->assertSee('Rider · 4-wheel')->assertSee('Paid trips')->assertSee('data-account-earned', false)->assertSee($pay)->assertSee('NAB4521');
+            ->assertSee('Courier · truck')->assertSee('Paid trips')->assertSee('data-account-earned', false)->assertSee($pay)->assertSee('NAB4521');
         // A 4-wheel rider's rider pages open the hub-to-hub ones.
         $this->actingAs($c)->get(route('courier.rider'))->assertRedirect(route('courier.trips'));
         $this->actingAs($c)->get(route('courier.rider.history'))->assertRedirect(route('courier.trips.history'));

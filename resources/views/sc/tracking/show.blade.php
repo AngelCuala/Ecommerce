@@ -48,6 +48,13 @@
         </table>
     </div>
 
+    @if ($hold = $parcel->openHold())
+    <div class="card" style="padding:14px 16px;font-size:13px;background:#FEF2F2;border-color:#FCA5A5;color:#991B1B;" data-on-hold>
+        <strong>On hold — flagged: {{ $hold->typeLabel() }}.</strong> {{ $hold->details }}<br>
+        This parcel can't be received, sorted, assigned, transferred or delivered until an administrator resolves the flag.
+    </div>
+    @endif
+
     @if ($parcel->status === 'pickup_approved' && (int) $parcel->current_sorting_center_id === $me)
     <div class="card" style="padding:14px 16px;font-size:13px;color:var(--text-muted);">
         Waiting for pickup. You can receive this parcel after the rider marks it <strong>Picked Up</strong> at the seller.
@@ -195,7 +202,7 @@
                 <p class="text-muted">None.</p>
             @endforelse
             <form method="POST" action="{{ route('sc.tracking.exception', $parcel) }}" style="display:grid;gap:8px;border-top:1px solid var(--border);padding-top:12px;"
-                  data-confirm-title="Flag this shipment?" data-confirm="It will be marked as an exception for review, and an administrator will be notified." data-confirm-ok="Flag exception">
+                  data-confirm-title="Flag this shipment?" data-confirm="The parcel goes on hold: nobody can move or process it until an administrator resolves the flag. An administrator will be notified." data-confirm-ok="Flag exception">
                 @csrf
                 <label style="{{ $label }}">Flag shipment exception</label>
                 <select name="type" class="form-input" required>
@@ -207,6 +214,20 @@
                 @error('details')<p style="color:#B91C1C;font-size:12px;">{{ $message }}</p>@enderror
                 <button class="btn btn-ghost" style="justify-self:start;color:#DC2626;">Flag exception</button>
             </form>
+            @if ((int) $parcel->current_sorting_center_id === (int) $me && ! in_array($parcel->status, \App\Models\Parcel::CLOSED_STATUSES, true))
+                {{-- Lost / damaged (moved here from the old Shipments page): closes the parcel and opens a claim. --}}
+                <details style="border-top:1px solid var(--border);padding-top:12px;" data-mark-lost>
+                    <summary style="cursor:pointer;font-size:12.5px;font-weight:600;color:#B91C1C;">Mark lost or damaged…</summary>
+                    <form method="POST" action="{{ route('sc.parcels.exception', $parcel) }}" enctype="multipart/form-data" style="display:grid;gap:8px;margin-top:8px;"
+                          data-confirm-title="Mark this parcel?" data-confirm="The parcel is closed and a claim is opened. The buyer and seller are notified." data-confirm-ok="Mark it">
+                        @csrf
+                        <select name="type" class="form-input" aria-label="Lost or damaged"><option value="lost">Lost</option><option value="damaged">Damaged</option></select>
+                        <input name="reason" class="form-input" placeholder="What happened (10–300 characters)" minlength="10" maxlength="300" required aria-label="Reason">
+                        <label class="text-muted" style="font-size:12px;">Photo (needed for Damaged) <input type="file" name="photo" accept="image/jpeg,image/png" style="font-size:11px;margin-top:2px;"></label>
+                        <button class="btn btn-red btn-sm" style="justify-self:start;">Mark {{ $parcel->tracking_number }}</button>
+                    </form>
+                </details>
+            @endif
         </div>
     </div>
 

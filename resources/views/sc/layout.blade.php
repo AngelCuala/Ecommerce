@@ -10,6 +10,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ asset('css/sc.css') }}?v={{ filemtime(public_path('css/sc.css')) }}">
     <link rel="stylesheet" href="{{ asset('css/hover-effects.css') }}">
+    <link rel="stylesheet" href="{{ asset('css/responsive.css') }}?v={{ filemtime(public_path('css/responsive.css')) }}">
     @stack('styles')
     <link rel="stylesheet" href="{{ asset('css/password-field.css') }}">
 </head>
@@ -49,17 +50,9 @@
                 <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
                 Dashboard
             </a>
-            <a href="{{ route('sc.tracking') }}" class="nav-link {{ request()->routeIs('sc.tracking*') ? 'active' : '' }}">
-                @php $scExceptions = \App\Models\ShipmentException::where('status', 'open')->where(fn ($q) => $q->where('sorting_center_id', auth()->id())->orWhereHas('parcel', fn ($p) => $p->where('current_sorting_center_id', auth()->id())))->count(); @endphp
+            <a href="{{ route('sc.tracking') }}" class="nav-link {{ request()->routeIs('sc.tracking*', 'sc.shipments') ? 'active' : '' }}">
                 <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M3 7h18M3 12h18M3 17h12"/><circle cx="19" cy="17" r="2"/></svg>
                 Shipment Board
-                @if($scExceptions > 0)
-                    <span style="margin-left:auto;background:#DC2626;color:#fff;border-radius:999px;padding:1px 7px;font-size:10px;font-weight:700;" title="Open exceptions">{{ $scExceptions }}</span>
-                @endif
-            </a>
-            <a href="{{ route('sc.shipments') }}" class="nav-link {{ request()->routeIs('sc.shipments') ? 'active' : '' }}">
-                <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M21 16V8l-9-5-9 5v8l9 5 9-5z"/><path d="M3.3 7L12 12l8.7-5M12 22V12"/></svg>
-                Shipments
             </a>
             <p class="nav-section">Parcels</p>
             <a href="{{ route('sc.pickup-requests') }}" class="nav-link {{ request()->routeIs('sc.pickup-requests') ? 'active' : '' }}">
@@ -73,6 +66,33 @@
             <a href="{{ route('sc.delivery-assignment') }}" class="nav-link {{ request()->routeIs('sc.delivery-assignment', 'sc.dispatch*', 'sc.delivery-monitoring') ? 'active' : '' }}">
                 <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
                 Deliveries
+            </a>
+            @php
+                $navMe = auth()->id();
+                $failedWaiting = \App\Models\Parcel::where('current_sorting_center_id', $navMe)->where('status', 'failed')->count();
+                $flaggedOpen = \App\Models\Parcel::where('current_sorting_center_id', $navMe)->whereHas('exceptions', fn ($q) => $q->where('status', 'open')->whereNotIn('type', \App\Models\Parcel::HOLD_EXCEPTIONS_EXCEPT))->count();
+                $returnsWaiting = \App\Models\ReturnShipment::where('sorting_center_id', $navMe)->whereIn('status', ['requested', 'picked_up', 'at_hub'])->count();
+            @endphp
+            <a href="{{ route('sc.failed-deliveries') }}" class="nav-link {{ request()->routeIs('sc.failed-deliveries') ? 'active' : '' }}">
+                <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path stroke-linecap="round" d="M15 9l-6 6M9 9l6 6"/></svg>
+                Failed Deliveries
+                @if ($failedWaiting)<span class="badge badge-red" style="margin-left:auto;">{{ $failedWaiting }}</span>@endif
+            </a>
+            <a href="{{ route('sc.flagged') }}" class="nav-link {{ request()->routeIs('sc.flagged') ? 'active' : '' }}">
+                <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 21V4m0 0h12l-2 4 2 4H4"/></svg>
+                Flagged Parcels
+                @if ($flaggedOpen)<span class="badge badge-red" style="margin-left:auto;">{{ $flaggedOpen }}</span>@endif
+            </a>
+            <a href="{{ route('sc.returns') }}" class="nav-link {{ request()->routeIs('sc.returns') ? 'active' : '' }}">
+                <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 12a9 9 0 1 0 3-6.7M3 4v5h5"/></svg>
+                Return Items
+                @if ($returnsWaiting)<span class="badge badge-red" style="margin-left:auto;">{{ $returnsWaiting }}</span>@endif
+            </a>
+            @php $rtsWaiting = \App\Models\Parcel::where('current_sorting_center_id', auth()->id())->where('status', 'return_to_sender')->whereNull('returned_at')->whereNull('rts_rider_id')->count(); @endphp
+            <a href="{{ route('sc.rts') }}" class="nav-link {{ request()->routeIs('sc.rts') ? 'active' : '' }}">
+                <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 14L4 9l5-5M4 9h11a5 5 0 010 10h-3"/></svg>
+                Return to Seller
+                @if ($rtsWaiting)<span class="badge badge-red" style="margin-left:auto;">{{ $rtsWaiting }}</span>@endif
             </a>
             <a href="{{ route('sc.trips') }}" class="nav-link {{ request()->routeIs('sc.trips*') ? 'active' : '' }}">
                 @php
@@ -137,6 +157,9 @@
     <div class="main">
         <div class="topbar">
             <div class="topbar-left">
+                <button type="button" class="nav-toggle" data-nav-toggle aria-label="Open menu" aria-expanded="false">
+                    <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+                </button>
                 <span class="header-icon">@include('sc.partials.icon', ['name' => trim($__env->yieldContent('icon', 'dashboard')), 'size' => 19])</span>
                 @yield('title', 'Dashboard')
             </div>
@@ -149,6 +172,8 @@
     </div>
 
 </div>
+<div class="nav-backdrop" data-nav-close></div>
+<script src="{{ asset('js/responsive.js') }}?v={{ filemtime(public_path('js/responsive.js')) }}" defer></script>
 {{-- Messages after an action pop up (top right) instead of sitting above the page. --}}
 @include('sc.partials.toasts')
 @stack('scripts')

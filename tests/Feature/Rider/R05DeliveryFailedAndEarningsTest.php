@@ -145,13 +145,13 @@ class R05DeliveryFailedAndEarningsTest extends TestCase
     public function test_rid_fail_001_mark_failed_with_a_reason(): void
     {
         $d = $this->deliveryFor($this->rider1, 'out_for_delivery');
-        $this->markFailed($d, 'Buyer not home')->assertSessionHas('success', 'Failed delivery recorded (attempt 1 of 3). Logistics will reschedule it.');
+        $this->markFailed($d, 'Buyer not home')->assertSessionHas('success', 'Failed delivery recorded (attempt 1 of 3). It was rescheduled for another attempt; bring the parcel back to the hub.');
 
         $d->refresh();
         $this->assertSame(['failed', 'Buyer not home', 1], [$d->status, $d->failure_reason, $d->attempt]);
-        $this->assertSame('failed', $d->parcel->status);
-        $this->assertTrue(UserNotification::where('user_id', $this->buyer1->id)->where('title', 'Delivery attempt failed')->where('body', 'like', '%attempt 1 of 3%')->exists());
-        $this->assertTrue(UserNotification::where('user_id', $this->logistics1->id)->where('title', 'Failed delivery')->exists());
+        $this->assertSame('sorted', $d->parcel->status);   // buyer not home: rescheduled at once
+        $this->assertTrue(UserNotification::where('user_id', $this->buyer1->id)->where('title', 'Delivery rescheduled')->where('body', 'like', '%attempt 1 of 3%')->exists());
+        $this->assertTrue(UserNotification::where('user_id', $this->logistics1->id)->where('title', 'Delivery rescheduled')->exists());
         $this->assertEquals(0, $d->cod_collected);
         $this->assertEquals(0, $this->wallet()->pay($this->rider1, now()->startOfDay(), now()->endOfDay()));
         $this->actingAs($this->logistics1)->get(route('sc.delivery-monitoring'))->assertSee($d->parcel->tracking_number);
@@ -183,9 +183,7 @@ class R05DeliveryFailedAndEarningsTest extends TestCase
     {
         $this->online($this->rider1);
         $first = $this->deliveryFor($this->rider1, 'out_for_delivery');
-        $this->markFailed($first, 'Buyer not home');
-
-        $this->actingAs($this->logistics1)->post(route('sc.deliveries.reschedule', $first->id))->assertSessionHas('success');
+        $this->markFailed($first, 'Buyer not home');   // rescheduled automatically
         $parcel = $first->parcel->fresh();
         $this->assertSame('sorted', $parcel->status);
         $this->actingAs($this->logistics1)->post(route('sc.dispatch.assign', $parcel), ['rider_id' => $this->rider1->id])->assertSessionHas('success');
@@ -206,10 +204,7 @@ class R05DeliveryFailedAndEarningsTest extends TestCase
         for ($attempt = 1; $attempt <= 3; $attempt++) {
             $d = $this->deliveryFor($this->rider1, 'out_for_delivery', $parcel->fresh());
             $this->assertSame($attempt, $d->attempt);
-            $this->markFailed($d, $attempt < 3 ? 'Buyer not home' : 'Wrong address');
-            if ($attempt < 3) {
-                $this->actingAs($this->logistics1)->post(route('sc.deliveries.reschedule', $d->id))->assertSessionHas('success');
-            }
+            $this->markFailed($d, 'Buyer not home');   // rescheduled automatically until the 3rd try
         }
 
         $this->assertSame('cancelled', $parcel->fresh()->status);

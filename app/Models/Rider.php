@@ -43,8 +43,14 @@ class Rider extends Model
         'last_seen_at'         => 'datetime',
     ];
 
-    /** 4-wheelers: hub-to-hub trips in bulk. Everything else (motorcycle, tricycle, bicycle) delivers to buyers. */
-    public const HUB_TO_HUB_VEHICLES = ['Car', 'Van', 'Truck', '4-Wheeler Closed Van Truck', '6-Wheeler Truck'];
+    /**
+     * Trucks: Couriers — hub-to-hub (linehaul) trips in bulk only. Every other vehicle is a Rider who picks up from
+     * sellers and delivers to buyers; a car or van rider also takes the big / heavy parcels (BULKY_VEHICLES).
+     */
+    public const HUB_TO_HUB_VEHICLES = ['Truck', '4-Wheeler Closed Van Truck', '6-Wheeler Truck'];
+
+    /** 4-wheel riders (not trucks): they can carry bulky parcels (over 20 kg, or big items like a table). */
+    public const BULKY_VEHICLES = ['Car', 'Van'];
 
     public static function isFourWheel(?string $vehicle): bool
     {
@@ -52,10 +58,16 @@ class Rider extends Model
         return in_array(strtolower(trim((string) $vehicle)), array_map('strtolower', self::HUB_TO_HUB_VEHICLES), true);
     }
 
-    /** Drives a 4-wheeler: does hub-to-hub trips, not buyer pickups or deliveries. */
+    /** Drives a truck: a Courier who does hub-to-hub trips, not buyer pickups or deliveries. */
     public function isTruck(): bool
     {
         return self::isFourWheel($this->vehicle_type);
+    }
+
+    /** A car or van rider: may pick up and deliver bulky parcels (a motorcycle, tricycle or bicycle may not). */
+    public function canCarryBulky(): bool
+    {
+        return in_array(strtolower(trim((string) $this->vehicle_type)), array_map('strtolower', self::BULKY_VEHICLES), true);
     }
 
     /** The truck record behind a 4-wheel rider (trips, duty, checklist), kept in step by TruckRiders. */

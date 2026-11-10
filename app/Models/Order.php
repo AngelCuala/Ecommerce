@@ -144,6 +144,11 @@ class Order extends Model
             }
             $from = $order->getOriginal('status');
 
+            // The buyer has the parcel (Order Received, or completed automatically): logistics, buyer and seller see "Received by Buyer".
+            if ($order->status === self::COMPLETED && ($parcel = $order->parcels()->where('status', 'delivered')->latest('id')->first())) {
+                app(\App\Services\ShipmentTracker::class)->record($parcel, 'received_by_buyer', ['location_id' => null, 'dedupe_key' => 'order:' . $order->id . ':received']);
+            }
+
             $order->events()->create([
                 'status'     => $order->status,
                 'note'       => $order->status === self::CANCELLED ? $order->cancellation_reason : null,

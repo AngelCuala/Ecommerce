@@ -79,7 +79,7 @@
             @foreach ([
                 ['Coverage barangays', $summary['areas'], route('sc.areas')],
                 ['Riders', $summary['riders'], route('sc.riders')],
-                ['Parcels handled', $summary['handled'], route('sc.shipments')],
+                ['Parcels handled', $summary['handled'], route('sc.tracking')],
                 ['Delivered', $summary['delivered'], route('sc.delivery-monitoring', ['status' => 'delivered'])],
             ] as [$lbl, $val, $href])
                 <a href="{{ $href }}" class="acs-tile"><span class="k">{{ $lbl }}</span><div class="v" style="font-size:22px;">{{ $val }}</div></a>

@@ -236,5 +236,6 @@ $navSections = [
 <script src="{{ asset('js/prevent-back.js') }}"></script>
 <script src="{{ asset('js/logout-confirm.js') }}?v={{ filemtime(public_path('js/logout-confirm.js')) }}"></script>
 <script src="{{ asset('js/upload-progress.js') }}?v={{ filemtime(public_path('js/upload-progress.js')) }}" defer></script>
+<script src="{{ asset('js/responsive.js') }}?v={{ filemtime(public_path('js/responsive.js')) }}" defer></script>
 </body>
 </html>

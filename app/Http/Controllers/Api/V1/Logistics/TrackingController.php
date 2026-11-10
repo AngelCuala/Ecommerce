@@ -52,7 +52,7 @@ class TrackingController extends Controller
             'last_event' => ($e = $p->events->first()) ? ['label' => $e->label(), 'at' => $e->occurred_at?->toIso8601String()] : null,
         ]) + [
             'tab'  => $d['tab'],
-            'tabs' => collect(WebShipment::TABS)->map(fn ($label, $key) => ['key' => $key, 'label' => $label, 'count' => (int) ($d['counts'][$key] ?? 0)])->values(),
+            'tabs' => collect(WebShipment::TABS)->except('all')->map(fn ($label, $key) => ['key' => $key, 'label' => $label, 'count' => (int) ($d['counts'][$key] ?? 0)])->values(),
             'statuses' => Parcel::STATUS_LABELS,
         ]);
     }

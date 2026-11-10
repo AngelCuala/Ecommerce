@@ -19,6 +19,7 @@ use Illuminate\Support\Collection;
 class ShipmentController extends Controller
 {
     public const TABS = [
+        'all'                => 'All parcels',
         'incoming'           => 'Incoming Packages',
         'awaiting_sorting'   => 'Awaiting Sorting',
         'sorting'            => 'Sorting in Progress',
@@ -67,31 +68,45 @@ class ShipmentController extends Controller
                     ->orWhereHas('exceptions', fn ($e) => $e->where('status', 'open')->where('sorting_center_id', $me))
                     ->orWhereHas('transfers', fn ($t) => $t->where('from_sorting_center_id', $me)->orWhere('to_sorting_center_id', $me))),
             'completed'          => (clone $held)->whereIn('status', ['delivered', 'returned', 'cancelled', 'lost', 'damaged']),
-            default              => (clone $held),
+            default              => $this->visible(),   // 'all': the whole inventory this center handles
         };
     }
 
     public function index(Request $request)
     {
         $request->validate(['tab' => 'nullable|in:' . implode(',', array_keys(self::TABS)), 'q' => 'nullable|string|max:80',
-            'status' => 'nullable|in:' . implode(',', array_keys(Parcel::STATUS_LABELS))]);
+            'status' => 'nullable|in:' . implode(',', array_keys(Parcel::STATUS_LABELS)),
+            // The dashboard's counts open the board filtered the same way (bucket + date range by creation day).
+            'bucket' => 'nullable|in:' . implode(',', array_keys(Parcel::BUCKETS)),
+            'from' => 'nullable|date', 'to' => 'nullable|date' . ($request->filled('from') ? '|after_or_equal:from' : '')],
+            ['to.after_or_equal' => 'The end date must be on or after the start date.']);
         $this->flow->flagDelayedTransfers();
 
-        $tab = $request->input('tab', 'incoming');
+        // The website's board is the inventory list (status links go to each job's page); the app keeps its tabs.
+        $tab = $request->input('tab', $request->is('api/*') ? 'incoming' : 'all');
         $counts = collect(self::TABS)->map(fn ($l, $key) => $this->tabQuery($key)->count());
 
-        $parcels = $this->tabQuery($tab)
+        // A dashboard count (bucket / dates) counts the parcels this center holds, so the list matches it.
+        $parcels = (collect(['bucket', 'from', 'to'])->contains(fn ($k) => $request->filled($k)) && $tab === 'all' ? Parcel::where('current_sorting_center_id', $this->me()->id) : $this->tabQuery($tab))
             ->when($request->filled('q'), function ($q) use ($request) {
                 $term = trim($request->q);
                 $like = '%' . \App\Support\ProductSearch::likeEscape($term) . '%';
                 $orderId = (int) ltrim(preg_replace('/\D/', '', $term), '0');
+                // An order number ("123", "#000123", "ORD-123") finds that order only, not every code containing the digits.
+                if ($orderId > 0 && preg_match('/^(#|ORD-?)?\d{1,7}$/i', $term)) {
+                    $q->where(fn ($w) => $w->where('order_id', $orderId)->orWhere('tracking_number', $term)->orWhere('waybill_number', $term));
+                    return;
+                }
                 $q->where(fn ($w) => $w->where('tracking_number', 'like', $like)->orWhere('waybill_number', 'like', $like)
-                    ->orWhere('destination_municipality', 'like', $like)
+                    ->orWhere('destination_municipality', 'like', $like)->orWhere('receiver_name', 'like', $like)
                     ->orWhereHas('seller', fn ($s) => $s->where('name', 'like', $like))
-                    ->when($orderId > 0 && str_starts_with($term, '#'), fn ($o) => $o->orWhere('order_id', $orderId)));
+                    ->when($orderId > 0 && preg_match('/^(#|ORD-?)?\d+$/i', $term), fn ($o) => $o->orWhere('order_id', $orderId)));
             })
             ->when($request->filled('status'), fn ($q) => $q->where('status', $request->status))
-            ->with(['order', 'seller', 'activeTransfer.toSortingCenter', 'activeTransfer.fromSortingCenter', 'pickup.rider', 'parcelDelivery.rider',
+            ->when($request->filled('bucket'), fn ($q) => $q->whereIn('status', Parcel::BUCKETS[$request->bucket]))
+            ->when($request->filled('from'), fn ($q) => $q->where('created_at', '>=', \Carbon\Carbon::parse($request->from)->startOfDay()))
+            ->when($request->filled('to'), fn ($q) => $q->where('created_at', '<=', \Carbon\Carbon::parse($request->to)->endOfDay()))
+            ->with(['order', 'seller', 'area', 'nextCenter', 'exceptions', 'activeTransfer.toSortingCenter', 'activeTransfer.fromSortingCenter', 'pickup.rider', 'parcelDelivery.rider',
                 'events' => fn ($e) => $e->latest('occurred_at')->latest('id')->limit(1)])
             ->latest('updated_at')->paginate(25)->withQueryString();
 
@@ -166,7 +181,7 @@ class ShipmentController extends Controller
         ], ['details.required' => 'Describe the problem.']);
         $this->flow->openException($parcel, $data['type'], $data['details'], $this->me(), auth()->user(), $parcel->activeTransfer?->id);
 
-        return back()->with('success', 'Exception recorded for review. The shipment itself was not changed.');
+        return back()->with('success', 'Flagged. The parcel is on hold until an administrator resolves it.');
     }
 
     /** Allow / stop one of this center's riders carrying parcels between hubs (separate from last-mile work). */

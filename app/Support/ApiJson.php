@@ -255,6 +255,7 @@ class ApiJson
             ! $s, in_array($s, ['pending_pickup', 'pickup_approved', 'pickup_rejected', 'cancelled'], true) => 0,
             $s === 'in_transit_to_hub'                                                                  => 1,
             in_array($s, ['in_transit', 'failed'], true)                                               => 3,
+            $s === 'delivered' && $t['received']                                                        => 5,
             $s === 'delivered'                                                                          => 4,
             default                                                                                     => 2,
         };
@@ -265,9 +266,10 @@ class ApiJson
             'waybill_number'  => $t['parcel']?->waybill_number,
             'status'          => $t['status'],
             'location'        => $t['location'],
-            'milestones'      => ['Ordered', 'Collected', 'At sorting center', 'Out for delivery', 'Delivered'],
+            'milestones'      => ['Ordered', 'Collected', 'At sorting center', 'Out for delivery', 'Delivered', 'Received'],
             'reached'         => $reached,
             'delivered'       => $s === 'delivered',
+            'received'        => (bool) $t['received'],
             'trouble'         => in_array($s, ['failed', 'return_to_sender', 'returned', 'lost', 'damaged', 'cancelled', 'pickup_rejected'], true),
             'hubs'            => collect($t['hubs'])->pluck('name')->filter()->unique()->values(),
             'events'          => $t['events']->values()->map(fn ($e) => [
@@ -369,6 +371,7 @@ class ApiJson
                 'status' => $return->status, 'status_label' => $return->statusLabel(), 'reason' => $return->reason,
                 'details' => $return->details, 'seller_note' => $return->seller_note, 'refund_amount' => (float) $return->refund_amount,
                 'photos' => array_map(fn ($p) => self::file($p), $return->photos()),
+                'pickup' => $return->shipment ? ['status' => $return->shipment->status, 'label' => $return->shipment->statusLabel()] : null,
             ] : null,
             'actions' => [
                 'pay'             => $order->canBePaid(),

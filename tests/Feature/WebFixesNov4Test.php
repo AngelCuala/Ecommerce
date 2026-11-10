@@ -118,10 +118,9 @@ class WebFixesNov4Test extends TestCase
     public function test_incoming_parcels_is_gone_and_the_sidebar_is_grouped(): void
     {
         $this->actingAs($this->logistics1)->get(route('sc.incoming-parcels'))->assertRedirect(route('sc.tracking'));
-        $this->actingAs($this->logistics1)->get(route('sc.shipments'))->assertOk()
+        $this->actingAs($this->logistics1)->get(route('sc.tracking'))->assertOk()
             ->assertDontSee('Incoming Parcels')
-            ->assertSee('class="nav-section"', false)->assertSee('Overview')->assertSee('Parcels')
-            ->assertSee('class="sh-tabs"', false);
+            ->assertSee('class="nav-section"', false)->assertSee('Overview')->assertSee('Parcels');
     }
 
     // ── Rider directions ──

@@ -16,7 +16,7 @@
     $expiryState = ! $expiry ? null : ($expiry->isPast() ? 'expired' : ($expiry->lte(now()->addDays(30)) ? 'soon' : null));
     $isTruck = (bool) ($rider?->isTruck() || (! $rider && $truck));
     $badges = array_values(array_filter([
-        ['text' => $rider ? ($isTruck ? 'Rider · 4-wheel' : 'Rider') : 'Courier'],
+        ['text' => $rider ? ($isTruck ? 'Courier · truck' : 'Rider') : 'Courier'],
         ['text' => $st[0], 'tone' => $st[1]],
         $stats ? ['text' => $stats['online'] ? 'Online' : 'Offline', 'tone' => $stats['online'] ? 'green' : 'gray'] : null,
     ]));
@@ -85,7 +85,7 @@
                 <span class="acs-icon" style="background:#EEF3F7;color:#002b4d;"><svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7h11v9H3zM14 10h4l3 3v3h-7"/><circle cx="7" cy="17.5" r="1.8"/><circle cx="17" cy="17.5" r="1.8"/></svg></span>
                 <div><h2>Vehicle &amp; license</h2><p>Changing the plate number or OR/CR sends them to {{ $rider->companyName() }} for re-verification.</p></div>
             </div>
-            @if ($isTruck)<span class="acs-badge acs-badge-blue">4-wheel · hub to hub</span>@endif
+            @if ($isTruck)<span class="acs-badge acs-badge-blue">Courier · truck, hub to hub</span>@endif
         </div>
 
         @if ($rider->needs_reverification)
@@ -161,7 +161,7 @@
     @elseif ($truck)
     <section class="acs-card acs-pad" id="rider-profile">
         <div class="acs-card-head"><div><span class="acs-icon" style="background:#EEF3F7;color:#002b4d;"><svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7h11v9H3zM14 10h4l3 3v3h-7"/><circle cx="7" cy="17.5" r="1.8"/><circle cx="17" cy="17.5" r="1.8"/></svg></span>
-            <div><h2>Truck &amp; license</h2><p>Your 4-wheeler for hub-to-hub trips. Ask {{ $truck->hubName() }} to change these.</p></div></div></div>
+            <div><h2>Truck &amp; license</h2><p>Your truck for hub-to-hub trips. Ask {{ $truck->hubName() }} to change these.</p></div></div></div>
         <dl class="acs-tiles">
             <div class="acs-tile"><dt>Sorting center</dt><dd>{{ $truck->hubName() }}<small>Home hub {{ $truck->homeHub?->code ?? '—' }}</small></dd></div>
             <div class="acs-tile"><dt>Vehicle</dt><dd>{{ $truck->vehicle_type ?? '—' }}<small>Plate <span class="ac-nowrap">{{ $truck->plate_number ?? '—' }}</span>{{ $truck->load_capacity_kg ? ' · up to ' . number_format($truck->load_capacity_kg) . ' kg' : '' }}</small></dd></div>

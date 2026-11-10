@@ -7,7 +7,7 @@
 @endphp
 <x-account-shell title="Accounts & Security" subtitle="Change the password you sign in with." portal="ALVY {{ $meRider ? 'Rider' : 'Courier' }}"
                  :nav="\App\Support\AccountNav::rider('security', $meTruck)" :name="$meRider->full_name ?? $me->name"
-                 :badges="[['text' => $meRider ? ($meTruck ? 'Rider · 4-wheel' : 'Rider') : 'Courier']]">
+                 :badges="[['text' => $meRider ? ($meTruck ? 'Courier · truck' : 'Rider') : 'Courier']]">
 
 @if ($errors->any())
     <div class="acs-alert acs-alert-error">

@@ -10,7 +10,7 @@
 
 @include('partials.page-tabs', ['tabs' => [['Riders', 'sc.riders', 'sc.riders'], ['Courier applications', 'sc.courier-applications.index', 'sc.courier-applications.*']]])
 <div class="page-header"><h1>Rider Management</h1>
-    <p class="text-muted" style="margin:4px 0 0;font-size:13px;">The vehicle decides the work: motorcycles, tricycles and bicycles pick up from sellers and deliver to buyers; 4-wheelers (car, van, truck) carry parcels in bulk from hub to hub (Linehaul Trips) and are marked <span class="badge badge-blue" style="font-size:10px;">4-wheel · hub to hub</span>.</p>
+    <p class="text-muted" style="margin:4px 0 0;font-size:13px;">The vehicle decides the work: <strong>riders</strong> (motorcycle, tricycle, bicycle, car, van) pick up from sellers and deliver to buyers; only cars and vans take <strong>bulky</strong> parcels (over {{ \App\Models\Parcel::BULKY_KG }} kg, or big items like a table). <strong>Couriers</strong> drive trucks and carry parcels in bulk from hub to hub (Linehaul Trips); they are marked <span class="badge badge-blue" style="font-size:10px;">Courier · truck</span>.</p>
 </div>
 <div class="page-body">
 
@@ -59,11 +59,14 @@
                 <div>
                     <label class="form-label" for="rider_vehicle">Vehicle</label>
                     <select id="rider_vehicle" name="vehicle_type" class="form-select">
-                        <optgroup label="Deliveries to buyers">
+                        <optgroup label="Rider · pickups and deliveries">
                             @foreach(['Motorcycle', 'Tricycle', 'Bicycle'] as $v)<option @selected(old('vehicle_type', 'Motorcycle') === $v)>{{ $v }}</option>@endforeach
                         </optgroup>
-                        <optgroup label="4-wheel · hub to hub">
-                            @foreach(['Car', 'Van', 'Truck'] as $v)<option @selected(old('vehicle_type') === $v)>{{ $v }}</option>@endforeach
+                        <optgroup label="Rider · 4 wheels, also bulky parcels">
+                            @foreach(['Car', 'Van'] as $v)<option @selected(old('vehicle_type') === $v)>{{ $v }}</option>@endforeach
+                        </optgroup>
+                        <optgroup label="Courier · truck, hub to hub">
+                            @foreach(['Truck'] as $v)<option @selected(old('vehicle_type') === $v)>{{ $v }}</option>@endforeach
                         </optgroup>
                     </select>
                 </div>
@@ -164,7 +167,7 @@
                     <td><span class="id-link">RDR-{{ str_pad($rider->id,3,'0',STR_PAD_LEFT) }}</span></td>
                     <td>
                         <a href="{{ route('sc.riders.show', $rider) }}" style="font-weight:600;color:var(--accent-blue);">{{ $rider->full_name }}</a>
-                        @if($rider->isTruck())<span class="badge badge-blue" style="font-size:10px;margin-left:4px;white-space:nowrap;">4-wheel · hub to hub</span>@endif
+                        @if($rider->isTruck())<span class="badge badge-blue" style="font-size:10px;margin-left:4px;white-space:nowrap;">Courier · truck</span>@elseif($rider->canCarryBulky())<span class="badge badge-yellow" style="font-size:10px;margin-left:4px;white-space:nowrap;">4 wheels · bulky OK</span>@endif
                         <div class="text-muted text-sm">{{ $rider->user->email ?? '' }}{{ $rider->phone ? ' · ' . $rider->phone : '' }}</div>
                     </td>
                     <td>{{ $rider->vehicle_type ?? '—' }}{{ $rider->plate_number ? ' · ' . $rider->plate_number : '' }}

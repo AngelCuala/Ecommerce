@@ -155,7 +155,7 @@ class Linehaul
 
         return Parcel::where('current_sorting_center_id', $sc->id)->whereIn('status', self::AT_HUB)
             ->where(fn ($q) => $q->whereNull('current_hub_id')->orWhere('current_hub_id', $origin->id))
-            ->whereNotIn('id', $busy)->orderBy('id')->get();
+            ->whereNotIn('id', $busy)->notOnHold()->orderBy('id')->get();   // flagged parcels stay until resolved
     }
 
     public function createTrip(User $sc, array $data): LinehaulTrip

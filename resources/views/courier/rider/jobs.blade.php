@@ -166,6 +166,20 @@
 
 <h2 class="cx-section-title">Returned packages</h2>
 <div style="margin-bottom:28px;" data-section="returns">
+    @foreach ($returnJobs as $rj)
+        <div class="card cx-item" data-return-job="{{ $rj->id }}">
+            <div class="cx-item-row">
+                @if ($rj->status === 'pickup_assigned')
+                    <div><p class="cx-item-title">Collect return · {{ $rj->order?->number() }}</p><p class="cx-item-meta">Buyer {{ $rj->order?->full_name }} — {{ $rj->buyerAddress() }}</p>
+                        <p class="cx-item-meta">{{ $rj->acknowledged_at ? 'Accepted · photo + waybill scan at the buyer' : 'New: accept it first' }}</p></div>
+                    <a href="{{ route('courier.rider.return-pickups.show', $rj->id) }}" class="cx-pill cx-pill-amber">Open</a>
+                @else
+                    <div><p class="cx-item-title">Return to seller · {{ $rj->order?->number() }}</p><p class="cx-item-meta">{{ $rj->parcel?->seller?->storeName() ?? $rj->parcel?->seller?->name }} — {{ $rj->sellerAddress() }}</p></div>
+                    <a href="{{ route('courier.rider.return-pickups.show', $rj->id) }}" class="cx-pill cx-pill-blue">Open</a>
+                @endif
+            </div>
+        </div>
+    @endforeach
     @forelse ($returns as $rp)
         <div class="card cx-item" data-return="{{ $rp->tracking_number }}">
             <div class="cx-item-row">
@@ -176,7 +190,7 @@
             </div>
         </div>
     @empty
-        <div class="card cx-empty"><p class="cx-empty-title">No returns to bring back</p></div>
+        @if ($returnJobs->isEmpty())<div class="card cx-empty"><p class="cx-empty-title">No returns to bring back</p></div>@endif
     @endforelse
 </div>
 

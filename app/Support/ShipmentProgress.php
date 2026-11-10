@@ -57,6 +57,8 @@ class ShipmentProgress
             'events'         => $events,
             'expected'       => self::expected($order, $parcel, $transfer),
             'delivered_at'   => $parcel?->status === 'delivered' ? ($delivery?->delivered_at ?? $events->firstWhere('event_type', 'delivered')?->occurred_at) : null,
+            'received'       => $parcel?->status === 'delivered' && $order->status === Order::COMPLETED,
+            'received_at'    => $parcel?->status === 'delivered' && $order->status === Order::COMPLETED ? $order->completed_at : null,
             'pod'            => $parcel?->status === 'delivered' && $delivery?->pod_path ? $delivery->pod_path : null,
             'attempts'       => $attempts,
             // A finished shipment is no longer "being reviewed", even if an old exception was never closed.

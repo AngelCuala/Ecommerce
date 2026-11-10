@@ -30,7 +30,7 @@
             <thead>
                 <tr>
                     <th>Tracking No.</th><th>Order</th><th>Seller / Pickup Address</th>
-                    <th>Deliver To</th><th>Pickup Schedule</th><th>Status</th><th>Action</th>
+                    <th>Deliver To</th><th>Requested</th><th>Status</th><th>Action</th>
                 </tr>
             </thead>
             <tbody>
@@ -65,7 +65,7 @@
                         <div style="font-weight:600;">{{ $parcel->receiver_name }}</div>
                         <div class="text-muted text-sm">{{ $parcel->destination_municipality ?? $parcel->dropoff_address }}</div>
                     </td>
-                    <td style="font-size:12px;">{{ $parcel->pickup_scheduled_at?->copy()->tz(config('app.business_timezone'))->format('M d, Y h:i A') ?? '—' }}</td>
+                    <td style="font-size:12px;">{{ $parcel->updated_at?->copy()->tz(config('app.business_timezone'))->format('M d, Y h:i A') ?? '—' }}</td>
                     <td>
                         <span class="badge {{ $badgeClass }}">{{ $parcel->statusLabel() }}</span>
                         @if($parcel->status === 'pickup_rejected' && $parcel->failure_reason)
@@ -76,9 +76,10 @@
                         @php $openPickup = $parcel->pickups->first(fn ($k) => in_array($k->status, \App\Models\ParcelPickup::OPEN, true)); @endphp
                         @if($parcel->can_assign)
                             <div style="display:flex;flex-direction:column;gap:6px;min-width:210px;">
+                                @if($parcel->isBulky())<span class="badge badge-yellow" style="align-self:flex-start;" data-bulky>Bulky ({{ $parcel->bulkyReason() }}) · car or van rider</span>@endif
                                 <form method="POST" action="{{ route('sc.dispatch.assign',$parcel) }}" style="display:flex;gap:4px;">@csrf
                                     <select name="rider_id" class="form-select" style="flex:1;padding:5px 8px;font-size:12px;" required aria-label="Rider for {{ $parcel->tracking_number }}">
-                                        @include('sc.partials.rider-options', ['placeholder' => 'Assign rider…'])
+                                        @include('sc.partials.rider-options', ['placeholder' => 'Assign rider…', 'bulky' => $parcel->isBulky()])
                                     </select>
                                     <button class="btn btn-green btn-sm">Assign</button>
                                 </form>
@@ -94,7 +95,7 @@
                             <div class="text-muted text-sm">{{ $openPickup->acknowledged_at ? 'Accepted · going to the seller' : 'Waiting for the rider to accept' }}</div>
                         @elseif($parcel->status === 'in_transit_to_hub')
                             <div class="text-sm" style="margin-bottom:4px;">Picked up by {{ $openPickup?->rider?->full_name ?? 'rider' }}</div>
-                            <a href="{{ route('sc.tracking') }}" class="btn btn-ghost btn-sm">Receive</a>
+                            <a href="{{ route('sc.tracking.show', $parcel) }}" class="btn btn-blue btn-sm">Check &amp; receive</a>
                         @else
                             <span class="text-muted text-sm">—</span>
                         @endif

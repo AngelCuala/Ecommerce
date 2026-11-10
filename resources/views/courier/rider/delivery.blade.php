@@ -58,7 +58,7 @@
             @foreach(\App\Models\ParcelDelivery::FAILURE_REASONS as $r)<option>{{ $r }}</option>@endforeach
         </select>
         @error('reason')<p class="cx-alert cx-alert-error">{{ $message }}</p>@enderror
-        <p style="font-size:12px;color:#8a7f78;margin-top:6px;">"Refused" or a 3rd failed attempt returns the parcel to the seller.</p>
+        <p style="font-size:12px;color:#8a7f78;margin-top:6px;"><strong>Buyer not home</strong>: rescheduled for another try (up to 3). <strong>Wrong address</strong>: the parcel is returned to the seller. <strong>Refused</strong> or a 3rd failed try: the order is cancelled. Bring the parcel back to the hub in every case.</p>
         <button class="cx-btn cx-btn-danger-outline cx-btn-block" style="margin-top:10px;">Mark failed</button>
     </form>
 @endif

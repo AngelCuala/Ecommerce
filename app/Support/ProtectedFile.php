@@ -20,7 +20,7 @@ final class ProtectedFile
     public const FOLDERS = [
         'seller-ids/', 'seller-dti/', 'seller-bir/', 'seller-permits/', 'seller-sec/',
         'courier-licenses/', 'courier-vehicle-regs/', 'couriers/', 'courier-documents/',
-        'proof-of-delivery/', 'returns/', 'parcel-exceptions/', 'chat/',
+        'proof-of-delivery/', 'proof-of-pickup/', 'returns/', 'parcel-exceptions/', 'chat/',
     ];
 
     /** How long a link works. */

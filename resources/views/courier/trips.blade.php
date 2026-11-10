@@ -72,7 +72,7 @@
 
 <div class="cx-page-head">
     <h1 class="font-display">Hub Jobs</h1>
-    <p>{{ $courier->hubName() }} · {{ $courier->fullName() }} · {{ $courier->vehicle_type }} ({{ $courier->plate_number }}) · 4-wheeler: you carry parcels in bulk from hub to hub</p>
+    <p>{{ $courier->hubName() }} · {{ $courier->fullName() }} · {{ $courier->vehicle_type }} ({{ $courier->plate_number }}) · Courier (truck): you carry parcels in bulk from hub to hub</p>
 </div>
 
 {{-- On Duty / Off Duty --}}

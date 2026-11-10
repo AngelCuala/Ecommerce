@@ -15,7 +15,7 @@ class Parcel extends Model
         'destination_municipality', 'destination_province',
         'receiver_name', 'receiver_phone',
         'weight_kg', 'size', 'notes', 'pickup_scheduled_at',
-        'area_id', 'status', 'transfer_status',
+        'area_id', 'next_center_id', 'status', 'transfer_status',
         'current_sorting_center_id', 'current_hub_id',
         'verified_by', 'verified_at', 'received_at', 'sorted_at', 'failure_reason',
         'rts_rider_id', 'rts_assigned_at', 'returned_at', 'returned_received_at', 'exception_photo_path',
@@ -120,6 +120,55 @@ class Parcel extends Model
     public bool $linehaulStep = false;
 
     /** Shipment steps on the buyer's order timeline (rider assignment is written by the dispatcher). */
+    /** Set while an administrator resolves a flag, so the resolution itself may move the parcel. */
+    public static bool $releasingHold = false;
+
+    /** Flag types that hold the parcel. A late transfer is not held: receiving it is how that one is cleared. */
+    public const HOLD_EXCEPTIONS_EXCEPT = ['delayed_transfer'];
+
+    /** The open flag that keeps this parcel on hold, if any. */
+    public function openHold(): ?ShipmentException
+    {
+        return $this->id ? ShipmentException::where('parcel_id', $this->id)->where('status', 'open')
+            ->whereNotIn('type', self::HOLD_EXCEPTIONS_EXCEPT)->oldest('id')->first() : null;
+    }
+
+    /** Over this weight (kg) a parcel is bulky: only a car or van rider picks it up / delivers it. */
+    public const BULKY_KG = 20;
+
+    /** A product this long on any side (cm), e.g. a table, makes the parcel bulky too. */
+    public const BULKY_SIDE_CM = 100;
+
+    private ?bool $bulkyCache = null;
+
+    /** Too heavy or too big for a motorcycle, tricycle or bicycle: a car or van rider takes it. */
+    public function isBulky(): bool
+    {
+        if ($this->bulkyCache !== null) {
+            return $this->bulkyCache;
+        }
+        if ((float) $this->weight_kg > self::BULKY_KG || in_array(strtolower((string) $this->size), ['large', 'bulky'], true)) {
+            return $this->bulkyCache = true;
+        }
+        $items = $this->order_id ? ($this->order?->items()->with('product')->get() ?? collect()) : collect();
+
+        return $this->bulkyCache = $items
+            ->filter(fn ($i) => $i->product && (int) $i->product->seller_id === (int) $this->seller_id)
+            ->contains(fn ($i) => max((float) $i->product->length_cm, (float) $i->product->width_cm, (float) $i->product->height_cm) >= self::BULKY_SIDE_CM);
+    }
+
+    /** Why it is bulky, for staff: "25 kg" / "big item". */
+    public function bulkyReason(): string
+    {
+        return (float) $this->weight_kg > self::BULKY_KG ? rtrim(rtrim(number_format((float) $this->weight_kg, 2), '0'), '.') . ' kg' : 'big item';
+    }
+
+    /** Parcels without an open flag (the ones that may be moved). */
+    public function scopeNotOnHold($query)
+    {
+        return $query->whereDoesntHave('exceptions', fn ($q) => $q->where('status', 'open')->whereNotIn('type', self::HOLD_EXCEPTIONS_EXCEPT));
+    }
+
     protected static function booted(): void
     {
         // Every parcel gets its own waybill number when it is created.
@@ -131,6 +180,16 @@ class Parcel extends Model
         static::updating(function (Parcel $parcel) {
             if ($parcel->isDirty('status') && ! static::canMove($parcel->getOriginal('status'), $parcel->status)) {
                 throw new \App\Exceptions\InvalidShipmentTransition($parcel, (string) $parcel->getOriginal('status'), (string) $parcel->status);
+            }
+            // At a new hub (or back in sorting) the hub-to-hub sort no longer applies.
+            if ($parcel->next_center_id && ($parcel->isDirty('current_sorting_center_id') || in_array($parcel->status, ['picked_up', 'sorting'], true) && $parcel->isDirty('status'))) {
+                $parcel->next_center_id = null;
+            }
+            // A flagged parcel stays where it is until the flag is resolved (only cancelling the order still closes it).
+            $moving = ($parcel->isDirty('status') && $parcel->status !== 'cancelled')
+                || ($parcel->isDirty('transfer_status') && $parcel->transfer_status !== null);
+            if ($moving && ! static::$releasingHold && ($flag = $parcel->openHold())) {
+                throw new \App\Exceptions\ParcelOnHold($parcel, $flag);
             }
         });
 
@@ -181,6 +240,8 @@ class Parcel extends Model
     }
     public function seller(): BelongsTo      { return $this->belongsTo(User::class, 'seller_id'); }
     public function area(): BelongsTo        { return $this->belongsTo(DeliveryArea::class, 'area_id'); }
+    /** The sorting center this parcel was sorted for (hub-to-hub), when it is outside this hub's jurisdiction. */
+    public function nextCenter(): BelongsTo  { return $this->belongsTo(User::class, 'next_center_id'); }
     public function verifiedBy(): BelongsTo  { return $this->belongsTo(User::class, 'verified_by'); }
     public function currentSortingCenter(): BelongsTo { return $this->belongsTo(User::class, 'current_sorting_center_id'); }
 
@@ -259,6 +320,10 @@ class Parcel extends Model
 
     public function statusLabel(): string
     {
+        // Delivered, and the buyer confirmed it (or the order completed): the end of the line.
+        if ($this->status === 'delivered' && $this->order_id && $this->order?->status === Order::COMPLETED) {
+            return 'Received by Buyer';
+        }
         return self::STATUS_LABELS[$this->status] ?? ucwords(str_replace('_', ' ', $this->status));
     }
 

@@ -9,12 +9,12 @@ use App\Models\Rider;
 use Illuminate\Support\Facades\DB;
 
 /**
- * A rider with a 4-wheeler (car, van, truck) carries parcels in bulk between hubs. The hub-to-hub trip rules
+ * A rider who drives a truck (a Courier) carries parcels in bulk between hubs; car and van riders deliver like other riders. The hub-to-hub trip rules
  * (App\Services\Linehaul, the trip pages and the app) work on a truck record (App\Models\Courier with a home hub);
  * this keeps that record in step with the rider, so a sorting center only ever manages riders:
  *  - a 4-wheel rider gets a truck record: their company, its first hub, name, phone, vehicle, plate, license;
  *    Active when the rider is Active, Suspended when the rider is suspended, Pending until approved;
- *  - a rider who switches to a motorcycle, tricycle or bicycle has the truck record turned off
+ *  - a rider who switches to a car, van, motorcycle, tricycle or bicycle has the truck record turned off
  *    (Off Duty, trips not yet departed go back to Unassigned).
  */
 class TruckRiders
@@ -37,7 +37,7 @@ class TruckRiders
 
         if (! $rider->isTruck()) {
             if ($truck && $truck->home_hub_id && in_array($truck->status, ['approved', 'pending', 'pending_activation'], true)) {
-                $this->turnOff($truck, 'The rider no longer drives a 4-wheeler.');
+                $this->turnOff($truck, 'The rider no longer drives a truck (cars and vans are riders now).');
             }
 
             return $truck;

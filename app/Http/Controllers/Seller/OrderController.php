@@ -291,16 +291,16 @@ class OrderController extends Controller
      */
     public function handover(Request $request, int $id)
     {
-        // The pickup time is Philippine time (stored as UTC).
-        \App\Support\VoucherRules::inBusinessTime($request, ['pickup_scheduled_at'], fn () => $request->validate([
+        // Just the logistics company: it assigns a rider, who comes when the job is accepted (no pickup date/time to pick).
+        // Older app versions may still send pickup_scheduled_at / notes; they are accepted but not required.
+        $request->validate([
             'sorting_center_id'   => ['required', 'integer', \Illuminate\Validation\Rule::exists('users', 'id')->where('role', 'sorting_center')->where('approval_status', 'approved')],
-            'pickup_scheduled_at' => 'required|date',
+            'pickup_scheduled_at' => 'nullable|date',
             'notes'               => 'nullable|string|max:500',
         ], [
             'sorting_center_id.required' => 'Choose the logistics company whose rider will pick up the parcel.',
             'sorting_center_id.exists'   => 'Choose one of the listed logistics companies.',
-            'pickup_scheduled_at.required' => 'Choose the pickup date and time.',
-        ]));
+        ]);
 
         $order = $this->ownOrder($id);
         // Steps can't be skipped: New → Accepted → Packed → Ready for Pickup.
@@ -327,12 +327,11 @@ class OrderController extends Controller
         $svc = app(\App\Services\ParcelService::class);
 
         \Illuminate\Support\Facades\DB::transaction(function () use ($order, $sc, $request, $svc) {
-            $parcel = $svc->createForSeller($order, auth()->user(), $request->pickup_scheduled_at, $request->notes, $sc);
+            $parcel = $svc->createForSeller($order, auth()->user(), null, $request->notes, $sc);
             // A request for the chosen company: it confirms the request in Pickup Requests, then assigns a rider.
             $parcel->update(['status' => 'pending_pickup', 'current_sorting_center_id' => $sc->id, 'failure_reason' => null]);
             $svc->syncOrder($parcel);
-            $svc->notify($sc->id, 'New pickup request', "{$parcel->tracking_number} from " . auth()->user()->storeName() . ' wants a pickup'
-                . ' (' . \Carbon\Carbon::parse($request->pickup_scheduled_at)->tz(config('app.business_timezone'))->format('M j, g:i A') . ').', 'info', route('sc.pickup-requests'));
+            $svc->notify($sc->id, 'New pickup request', "{$parcel->tracking_number} from " . auth()->user()->storeName() . ' is ready for pickup. Assign a rider.', 'info', route('sc.pickup-requests'));
         });
 
         $name = \App\Models\SortingCenterApplication::where('user_id', $sc->id)->where('status', 'approved')->value('business_name') ?: $sc->name;

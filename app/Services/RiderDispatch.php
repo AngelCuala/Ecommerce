@@ -40,7 +40,7 @@ class RiderDispatch
         if (in_array($parcel->status, ['pending_pickup', 'pickup_approved'], true) && ! $parcel->pickups()->whereIn('status', ParcelPickup::OPEN)->exists()) {
             return RiderJobOffer::PICKUP;
         }
-        if ($parcel->status === 'sorted' && ! $parcel->deliveries()->whereIn('status', ParcelDelivery::OPEN)->exists()) {
+        if ($parcel->status === 'sorted' && ! $parcel->next_center_id && ! $parcel->deliveries()->whereIn('status', ParcelDelivery::OPEN)->exists()) {   // sorted for another hub: a linehaul trip, not a rider
             return RiderJobOffer::DELIVERY;
         }
         return null;
@@ -86,7 +86,7 @@ class RiderDispatch
                 $r->online_now  = $r->isOnlineNow();
                 $why = $this->ineligibleReason($r, $scId, true);
                 return (object) ['rider' => $r, 'available' => $why === null,
-                    'why' => $r->isSuspended() ? 'suspended' : ($r->isTruck() ? '4-wheeler (hub-to-hub trips)' : 'unavailable')];
+                    'why' => $r->isSuspended() ? 'suspended' : ($r->isTruck() ? 'truck (hub-to-hub trips)' : 'unavailable')];
             })
             ->sortBy(fn ($c) => [$c->available ? 0 : 1, $c->rider->online_now ? 0 : 1, $c->rider->full_name])->values();
     }
@@ -99,7 +99,7 @@ class RiderDispatch
             ! $this->inServiceArea($scId)            => 'This sorting center is outside the service area (' . \App\Support\ServiceArea::label() . ' only), so it cannot assign riders.',
             ! $rider->isApproved()                    => "{$rider->full_name} is not an approved rider.",
             $rider->isSuspended()                     => "{$rider->full_name} is suspended.",
-            $rider->isTruck()                         => "{$rider->full_name} drives a {$rider->vehicle_type} (4-wheeler): they do hub-to-hub trips, not pickups or deliveries.",
+            $rider->isTruck()                         => "{$rider->full_name} drives a {$rider->vehicle_type}: trucks do hub-to-hub trips, not pickups or deliveries.",
             ! $manual && ! $rider->isOnlineNow()      => "{$rider->full_name} is offline.",
             default                                   => null,
         };
@@ -252,8 +252,10 @@ class RiderDispatch
             return null;
         }
 
+        $bulky = $parcel->isBulky();
+
         return ($eligible ?? $this->eligibleRiders($scId))
-            ->filter(fn (Rider $r) => $this->isNear($r, $parcel, $kind))
+            ->filter(fn (Rider $r) => $this->isNear($r, $parcel, $kind) && (! $bulky || $r->canCarryBulky()))   // bulky: cars and vans only
             ->sortBy(fn (Rider $r) => [$r->activeJobsCount(), $r->id])
             ->first();
     }
@@ -315,6 +317,7 @@ class RiderDispatch
         return Parcel::where('current_sorting_center_id', $scId)->whereIn('status', $statuses)
             ->with(['seller', 'order', 'area'])->oldest()->get()
             ->filter(fn (Parcel $p) => ($k = $this->jobKind($p)) !== null && ($kind === null || $k === $kind))
+            ->reject(fn (Parcel $p) => $p->openHold() !== null)   // flagged parcels wait until the flag is resolved
             ->values();
     }
 
@@ -339,8 +342,15 @@ class RiderDispatch
                     ? "{$parcel->tracking_number} is already assigned to a rider."
                     : "{$parcel->tracking_number} is not ready for a rider ({$parcel->statusLabel()}).");
             }
+            if ($flag = $parcel->openHold()) {
+                throw new \App\Exceptions\ParcelOnHold($parcel, $flag);   // flagged: no rider until it is resolved
+            }
             if ($reason = $this->ineligibleReason($rider, (int) $by->id, true)) {
                 throw new \RuntimeException($reason);
+            }
+            if ($parcel->isBulky() && ! $rider->canCarryBulky()) {
+                throw new \RuntimeException("{$parcel->tracking_number} is bulky ({$parcel->bulkyReason()}): assign a car or van rider, not a "
+                    . strtolower((string) $rider->vehicle_type ?: 'motorcycle') . '.');
             }
             RiderJobOffer::where('parcel_id', $parcel->id)->where('status', 'pending')->update(['status' => 'cancelled']);
             $this->assign($parcel, $kind, $rider, $by->id);

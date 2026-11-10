@@ -77,8 +77,12 @@ class RiderController extends Controller
         $transfers = \App\Models\ParcelTransfer::where('transporter_rider_id', $rider->id)->whereIn('status', ['pending', 'in_transit'])
             ->with('parcel', 'fromSortingCenter', 'toSortingCenter')->latest()->get();
         $recent = ParcelDelivery::where('rider_id', $rider->id)->whereIn('status', ['delivered', 'failed'])->with('parcel')->latest('updated_at')->take(10)->get();
+        // Buyers' returns: collect from the buyer, or bring back to the seller.
+        $returnJobs = \App\Models\ReturnShipment::where(fn ($q) => $q->where(fn ($w) => $w->where('pickup_rider_id', $rider->id)->where('status', 'pickup_assigned'))
+                ->orWhere(fn ($w) => $w->where('seller_rider_id', $rider->id)->where('status', 'to_seller')))
+            ->with('order', 'parcel.seller')->oldest('updated_at')->get();
 
-        return view('courier.rider.jobs', compact('rider', 'offers', 'pickups', 'deliveries', 'returns', 'transfers', 'recent'));
+        return view('courier.rider.jobs', compact('rider', 'offers', 'pickups', 'deliveries', 'returns', 'transfers', 'recent', 'returnJobs'));
     }
 
     /**
@@ -147,6 +151,62 @@ class RiderController extends Controller
         \App\Models\ActivityLog::note($parcel->tracking_number . ' handed back to the seller by ' . $rider->full_name, $parcel);
 
         return back()->with('success', "{$parcel->tracking_number} handed back to the seller.");
+    }
+
+    // ── Return Items: collect a buyer's return (like a pickup), then bring it to the seller ──
+
+    private function myReturn(int $id): \App\Models\ReturnShipment
+    {
+        $rider = $this->rider();
+        return \App\Models\ReturnShipment::where(fn ($q) => $q->where('pickup_rider_id', $rider->id)->orWhere('seller_rider_id', $rider->id))
+            ->with('order.items.product', 'parcel.seller.sellerApplication', 'returnRequest')->findOrFail($id);   // someone else's: 404
+    }
+
+    public function returnPickup(int $return)
+    {
+        return view('courier.rider.return-pickup', ['rider' => $this->rider(), 'rs' => $this->myReturn($return)]);
+    }
+
+    public function acceptReturnPickup(int $return)
+    {
+        try {
+            app(\App\Services\ReturnShipments::class)->acknowledge($this->myReturn($return), $this->rider());
+        } catch (\RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+        return back()->with('success', 'Return pickup accepted. Go to the buyer, take a photo of the item and scan its waybill.');
+    }
+
+    public function confirmReturnPickup(Request $request, int $return)
+    {
+        $data = $request->validate([
+            'tracking_number' => 'required|string|max:50',
+            'proof_photo'     => 'required|file|image|mimes:jpg,jpeg,png|mimetypes:image/jpeg,image/png|max:5120',
+        ], [
+            'tracking_number.required' => 'Scan the waybill or type its tracking number.',
+            'proof_photo.required'     => 'Take a photo of the item as proof of pickup.',
+            'proof_photo.image'        => 'The proof of pickup must be a JPG or PNG photo.',
+            'proof_photo.max'          => 'The photo must be 5 MB or smaller.',
+        ]);
+        try {
+            app(\App\Services\ReturnShipments::class)->confirmPickup($this->myReturn($return), $this->rider(), $data['tracking_number'], $request->file('proof_photo'));
+        } catch (\InvalidArgumentException $e) {
+            return back()->withInput()->withErrors(['tracking_number' => $e->getMessage()]);
+        } catch (\RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+        return redirect()->route('courier.rider')->with('success', 'Return picked up. Bring it to the hub.');
+    }
+
+    public function returnHandedToSeller(Request $request, int $return)
+    {
+        $request->validate(['proof_photo' => 'nullable|file|image|mimes:jpg,jpeg,png|max:5120']);
+        try {
+            app(\App\Services\ReturnShipments::class)->handedToSeller($this->myReturn($return), $this->rider(), $request->file('proof_photo'));
+        } catch (\RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+        return redirect()->route('courier.rider')->with('success', 'Returned item handed back to the seller.');
     }
 
     public function toggleOnline(Request $request)
@@ -353,8 +413,8 @@ class RiderController extends Controller
             }
 
             $parcel = $delivery->parcel;
-            // Refused, or the last attempt: the order is cancelled and the parcel stays at the hub (no Return to Sender).
-            $final = $data['reason'] === 'Refused' || $delivery->attempt >= ParcelDelivery::MAX_ATTEMPTS;
+            // Refused, or the last attempt (a wrong address always goes back to the seller): the order is cancelled and the parcel stays at the hub (no Return to Sender).
+            $final = $data['reason'] === 'Refused' || ($data['reason'] !== 'Wrong address' && $delivery->attempt >= ParcelDelivery::MAX_ATTEMPTS);
             $delivery->update(['status' => 'failed', 'failure_reason' => $data['reason'], 'remarks' => $data['reason']]);
             $parcel->update(['status' => 'failed', 'failure_reason' => $data['reason']]);
 
@@ -367,13 +427,27 @@ class RiderController extends Controller
                 return redirect()->route('courier.rider')->with('success', "{$parcel->tracking_number} could not be delivered, so the order was cancelled. Bring the parcel back to the hub.");
             }
 
-            $svc->notifyBuyer($parcel, 'Delivery attempt failed', "{$ref} could not be delivered: {$data['reason']} ({$attempt}). We'll try again.", 'warning');
+            // Wrong address: no point trying again — the parcel goes back to the seller (Return to Sender).
+            if ($data['reason'] === 'Wrong address') {
+                $parcel->update(['status' => 'return_to_sender', 'failure_reason' => 'Wrong address']);
+                $svc->syncOrder($parcel->fresh());
+                $svc->notifyBuyer($parcel, 'Delivery failed: wrong address', "{$ref} could not be delivered because the address is wrong. The parcel is being returned to the seller.", 'warning');
+                $svc->notifySeller($parcel, 'Parcel coming back', "{$parcel->tracking_number} could not be delivered (wrong address). A rider will bring it back to you; confirm when you receive it.", 'warning');
+                if ($scId = $parcel->current_sorting_center_id) {
+                    $svc->notify((int) $scId, 'Return to seller', "{$parcel->tracking_number}: wrong address. Assign a rider to bring it back to the seller.", 'warning', route('sc.rts'));
+                }
+                return redirect()->route('courier.rider')->with('success', "{$parcel->tracking_number}: wrong address. Bring the parcel back to the hub; it will be returned to the seller.");
+            }
+
+            // Buyer not home (and anything else not final): rescheduled at once for the next delivery run.
+            $parcel->update(['status' => 'sorted']);
+            $svc->notifyBuyer($parcel, 'Delivery rescheduled', "{$ref} could not be delivered: {$data['reason']} ({$attempt}). We'll deliver it again on the next delivery run, so please be home to receive it.", 'warning');
             if ($scId = $parcel->current_sorting_center_id) {
-                $svc->notify((int) $scId, 'Failed delivery', "{$parcel->tracking_number}: {$data['reason']} ({$attempt}). Reschedule it.", 'warning');
+                $svc->notify((int) $scId, 'Delivery rescheduled', "{$parcel->tracking_number}: {$data['reason']} ({$attempt}). It is back in the queue: assign a rider for the next attempt.", 'warning', route('sc.delivery-assignment', ['area_id' => $parcel->area_id]));
             }
             $svc->syncOrder($parcel->fresh());
 
-            return redirect()->route('courier.rider')->with('success', "Failed delivery recorded ({$attempt}). Logistics will reschedule it.");
+            return redirect()->route('courier.rider')->with('success', "Failed delivery recorded ({$attempt}). It was rescheduled for another attempt; bring the parcel back to the hub.");
         });
     }
 

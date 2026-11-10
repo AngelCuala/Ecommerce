@@ -56,7 +56,7 @@
 <div class="page-header"><h1>Linehaul Trips</h1></div>
 <div class="page-body">
     <p class="text-muted" style="margin:-4px 0 16px;font-size:13px;">
-        Send parcels hub to hub with your 4-wheel riders (car, van or truck) to the sorting center nearer the buyer.
+        Send parcels hub to hub with your truck couriers to the sorting center nearer the buyer.
         The trip loads and departs only after that sorting center accepts it. Both of you can track the trip and message each other on it.
     </p>
 
@@ -171,7 +171,7 @@
             </div>
 
             <div class="lt-foot">
-                <span>The receiving sorting center accepts it first; then assign an online 4-wheel rider.</span>
+                <span>The receiving sorting center accepts it first; then assign an online truck courier.</span>
                 <button class="btn btn-orange">@include('sc.partials.icon', ['name' => 'truck', 'size' => 15, 'sw' => 2]) Create delivery</button>
             </div>
         </form>

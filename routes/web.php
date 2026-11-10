@@ -127,12 +127,20 @@ Route::middleware(['auth', 'is_sc', 'prevent.back'])->prefix('sc')->name('sc.')-
     Route::get('/commissions',               [\App\Http\Controllers\SortingCenter\CommissionController::class, 'index'])->name('commissions');
 
     // Logistics workbook (L1–L8): shipment list, reassign / bulk assign, exceptions, Return to Sender, rates and zones
-    Route::get('/shipments',                  [\App\Http\Controllers\SortingCenter\LogisticsController::class, 'shipments'])->name('shipments');
+    // Shipments is part of the Shipment Board now (one inventory list); old links keep their search.
+    Route::get('/shipments',                  fn (\Illuminate\Http\Request $r) => redirect()->route('sc.tracking', array_filter($r->only('q', 'from', 'to')
+        + ['bucket' => isset(\App\Models\Parcel::BUCKETS[$r->input('status')]) ? $r->input('status') : null])))->name('shipments');
     Route::post('/dispatch/bulk',             [\App\Http\Controllers\SortingCenter\LogisticsController::class, 'bulkAssign'])->name('dispatch.bulk');
     Route::post('/dispatch/{parcel}/reassign', [\App\Http\Controllers\SortingCenter\LogisticsController::class, 'reassign'])->name('dispatch.reassign');
     Route::post('/parcels/{parcel}/exception', [\App\Http\Controllers\SortingCenter\LogisticsController::class, 'markException'])->name('parcels.exception');
     // Return to Sender was removed: undeliverable parcels cancel the order and stay at the hub (old links land on Shipments).
-    Route::get('/rts',                        fn () => redirect()->route('sc.shipments'))->name('rts');
+    Route::get('/returns',                    [\App\Http\Controllers\SortingCenter\ReturnsController::class, 'index'])->name('returns');
+    Route::post('/returns/{return}/assign',   [\App\Http\Controllers\SortingCenter\ReturnsController::class, 'assignPickup'])->whereNumber('return')->name('returns.assign');
+    Route::post('/returns/{return}/receive',  [\App\Http\Controllers\SortingCenter\ReturnsController::class, 'receive'])->whereNumber('return')->name('returns.receive');
+    Route::post('/returns/{return}/to-seller', [\App\Http\Controllers\SortingCenter\ReturnsController::class, 'assignSeller'])->whereNumber('return')->name('returns.to-seller');
+    Route::get('/failed-deliveries',          [\App\Http\Controllers\SortingCenter\IssuesController::class, 'failed'])->name('failed-deliveries');
+    Route::get('/flagged',                    [\App\Http\Controllers\SortingCenter\IssuesController::class, 'flagged'])->name('flagged');
+    Route::get('/rts',                        [\App\Http\Controllers\SortingCenter\LogisticsController::class, 'rtsQueue'])->name('rts');
     Route::post('/rts/{parcel}/assign',     [\App\Http\Controllers\SortingCenter\LogisticsController::class, 'assignRts'])->name('rts.assign');
     Route::get('/rates',                      [\App\Http\Controllers\SortingCenter\LogisticsController::class, 'rates'])->name('rates');
     Route::post('/rates',                     [\App\Http\Controllers\SortingCenter\LogisticsController::class, 'updateRate'])->name('rates.update');
@@ -162,6 +170,7 @@ Route::middleware(['auth', 'is_sc', 'prevent.back'])->prefix('sc')->name('sc.')-
     Route::post('/parcels/scan',        [\App\Http\Controllers\SortingCenterController::class, 'scanParcel'])->name('parcels.scan');
     Route::post('/parcels/{parcel}/advance', [\App\Http\Controllers\SortingCenterController::class, 'advanceParcel'])->name('parcels.advance');
     Route::post('/parcels/{parcel}/sort',    [\App\Http\Controllers\SortingCenterController::class, 'sortParcel'])->name('parcels.sort');
+    Route::post('/parcels/{parcel}/sort-transfer', [\App\Http\Controllers\SortingCenterController::class, 'sortForTransfer'])->name('parcels.sort-transfer');
     Route::post('/parcels/{parcel}/assign',  [\App\Http\Controllers\SortingCenterController::class, 'assignParcel'])->name('parcels.assign');
 
     // Parcel sorting
@@ -725,6 +734,10 @@ Route::middleware(['auth', 'role:courier,admin', 'prevent.back'])
     Route::get('/rider/deliveries/{delivery}',          [\App\Http\Controllers\Courier\RiderController::class, 'delivery'])->whereNumber('delivery')->name('rider.deliveries.show');
     Route::post('/rider/deliveries/{delivery}/start',   [\App\Http\Controllers\Courier\RiderController::class, 'startDelivery'])->whereNumber('delivery')->name('rider.deliveries.start');
     Route::post('/rider/deliveries/{delivery}/deliver', [\App\Http\Controllers\Courier\RiderController::class, 'deliver'])->whereNumber('delivery')->name('rider.deliveries.deliver');
+    Route::get('/rider/return-pickups/{return}',          [\App\Http\Controllers\Courier\RiderController::class, 'returnPickup'])->whereNumber('return')->name('rider.return-pickups.show');
+    Route::post('/rider/return-pickups/{return}/accept',  [\App\Http\Controllers\Courier\RiderController::class, 'acceptReturnPickup'])->whereNumber('return')->name('rider.return-pickups.accept');
+    Route::post('/rider/return-pickups/{return}/confirm', [\App\Http\Controllers\Courier\RiderController::class, 'confirmReturnPickup'])->whereNumber('return')->name('rider.return-pickups.confirm');
+    Route::post('/rider/return-pickups/{return}/handed',  [\App\Http\Controllers\Courier\RiderController::class, 'returnHandedToSeller'])->whereNumber('return')->name('rider.return-pickups.handed');
     Route::post('/rider/returns/{parcel}/returned', [\App\Http\Controllers\Courier\RiderController::class, 'returnedToSeller'])->whereNumber('parcel')->name('rider.returns.returned');
     Route::post('/rider/deliveries/{delivery}/fail',    [\App\Http\Controllers\Courier\RiderController::class, 'fail'])->whereNumber('delivery')->name('rider.deliveries.fail');
     Route::get('/rider/profile/{rider?}',          [\App\Http\Controllers\Courier\RiderController::class, 'profile'])->whereNumber('rider')->name('rider.profile');

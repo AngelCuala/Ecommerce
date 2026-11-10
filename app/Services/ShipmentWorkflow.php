@@ -346,6 +346,16 @@ class ShipmentWorkflow
      */
     public function resolveException(ShipmentException $exception, User $admin, string $action, string $reason, ?int $centerId = null): void
     {
+        Parcel::$releasingHold = true;   // the resolution may move the flagged parcel (custody / lost)
+        try {
+            $this->resolveExceptionNow($exception, $admin, $action, $reason, $centerId);
+        } finally {
+            Parcel::$releasingHold = false;
+        }
+    }
+
+    private function resolveExceptionNow(ShipmentException $exception, User $admin, string $action, string $reason, ?int $centerId): void
+    {
         DB::transaction(function () use ($exception, $admin, $action, $reason, $centerId) {
             $exception = ShipmentException::lockForUpdate()->findOrFail($exception->id);
             if (! $exception->isOpen()) {

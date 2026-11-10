@@ -777,7 +777,20 @@ class SortingCenterController extends Controller
 
         $sortedToday = $this->myParcels()->where('status', 'sorted')->whereDate('sorted_at', today())->count();
 
-        return view('sc.parcel-sorting', compact('areas', 'pending', 'sortedToday', 'suggested', 'covered'));
+        // Outside this hub's jurisdiction: sort it to the sorting center serving the address (hub-to-hub trip).
+        $flow = app(\App\Services\ShipmentWorkflow::class);
+        $hubs = $flow->eligibleHubs($sc);
+        $nextHub = [];
+        foreach ($pending as $p) {
+            if (! $covered[$p->id]) {
+                $nextHub[$p->id] = $flow->nextHub($p, $sc)?->id;
+            }
+        }
+        // Sorted for another hub, waiting for a linehaul trip (grouped by where they go).
+        $forTransfer = $this->myParcels()->where('status', 'sorted')->whereNotNull('next_center_id')->with('nextCenter')->get()
+            ->groupBy('next_center_id');
+
+        return view('sc.parcel-sorting', compact('areas', 'pending', 'sortedToday', 'suggested', 'covered', 'hubs', 'nextHub', 'forTransfer'));
     }
 
     public function sortParcel(Request $request, Parcel $parcel)
@@ -806,6 +819,31 @@ class SortingCenterController extends Controller
 
         // Ready for last-mile: the delivery waits in Rider Dispatch for Auto-assign (the barangay's rider) or a manual assignment.
         return back()->with('success', "{$parcel->tracking_number} sorted to {$parcel->area->name}. The delivery is waiting in Rider Dispatch.");
+    }
+
+    /**
+     * Sort a parcel this hub doesn't deliver to the sorting center that serves the buyer's address: it is ready for a
+     * hub-to-hub (linehaul) trip there, not for a rider.
+     */
+    public function sortForTransfer(Request $request, Parcel $parcel)
+    {
+        $this->guardParcel($parcel, ['picked_up', 'sorting']);
+        $sc = $this->sc();
+        if ($this->parcels()->coversDestination($parcel, $sc)) {
+            return back()->with('error', "{$parcel->tracking_number} is in your area: sort it to its barangay instead.");
+        }
+        $hubs = app(\App\Services\ShipmentWorkflow::class)->eligibleHubs($sc);
+        $request->validate(['center_id' => ['required', 'integer', \Illuminate\Validation\Rule::in($hubs->pluck('id')->all())]], [
+            'center_id.required' => 'Choose the sorting center this parcel goes to.',
+            'center_id.in'       => 'Choose one of the listed sorting centers.',
+        ]);
+        $to = $hubs->firstWhere('id', (int) $request->center_id);
+
+        $parcel->withTracking(['location_id' => $sc->id, 'note' => 'For hub-to-hub transfer to ' . \App\Support\SortingCenters::displayName($to)])
+            ->update(['area_id' => null, 'next_center_id' => $to->id, 'status' => 'sorted', 'sorted_at' => now(), 'sorted_by' => auth()->id()]);
+        $this->parcels()->syncOrder($parcel);
+
+        return back()->with('success', "{$parcel->tracking_number} sorted for " . \App\Support\SortingCenters::displayName($to) . '. Send it on a linehaul trip.');
     }
 
     // ── Delivery Assignment ───────────────────────────────────
@@ -857,6 +895,12 @@ class SortingCenterController extends Controller
         }
         if (! $rider->isApproved() || ! $rider->is_active) {
             return back()->with('error', "{$rider->full_name} is not an active rider.");
+        }
+        if ($rider->isTruck()) {
+            return back()->with('error', "{$rider->full_name} drives a {$rider->vehicle_type}: trucks do hub-to-hub trips, not deliveries.");
+        }
+        if ($parcel->isBulky() && ! $rider->canCarryBulky()) {
+            return back()->with('error', "{$parcel->tracking_number} is bulky ({$parcel->bulkyReason()}): assign a car or van rider.");
         }
 
         // The rider must cover the parcel's barangay, unless none of the company's active riders does:

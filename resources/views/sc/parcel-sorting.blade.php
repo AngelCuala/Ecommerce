@@ -116,14 +116,21 @@
                         <td style="text-align:right;"><button class="btn btn-green btn-sm" form="sort-{{ $parcel->id }}">Confirm sort</button></td>
                     @else
                         <td>
-                            <span class="badge badge-orange">Outside your municipality</span>
-                            <div class="text-muted text-sm" style="margin-top:4px;">To {{ $parcel->destination_municipality }}</div>
+                            <form method="POST" action="{{ route('sc.parcels.sort-transfer', $parcel) }}" id="sortx-{{ $parcel->id }}">
+                                @csrf
+                                <select name="center_id" class="form-select" style="width:210px;" required aria-label="Sorting center for {{ $parcel->tracking_number }}">
+                                    <option value="">Sorting center…</option>
+                                    @foreach ($hubs as $hub)
+                                        <option value="{{ $hub->id }}" @selected(($nextHub[$parcel->id] ?? null) === $hub->id)>{{ \App\Support\SortingCenters::displayName($hub) }} · {{ $hub->assigned_municipality }}</option>
+                                    @endforeach
+                                </select>
+                            </form>
+                            <div class="ps-row-suggest" style="color:var(--accent-orange);">
+                                @include('sc.partials.icon', ['name' => 'truck', 'size' => 12, 'sw' => 2.2])
+                                Outside your area · to {{ $parcel->destination_municipality }}{{ ($nextHub[$parcel->id] ?? null) ? ' (detected)' : '' }}
+                            </div>
                         </td>
-                        <td style="text-align:right;">
-                            <a href="{{ route('sc.trips', ['parcel' => [$parcel->id], 'origin_hub_id' => $parcel->current_hub_id]) }}#create" class="btn btn-ghost btn-sm" style="gap:4px;">
-                                @include('sc.partials.icon', ['name' => 'truck', 'size' => 13, 'sw' => 2]) Send on a trip
-                            </a>
-                        </td>
+                        <td style="text-align:right;"><button class="btn btn-blue btn-sm" form="sortx-{{ $parcel->id }}" data-sort-transfer>Sort for hub-to-hub</button></td>
                     @endif
                 </tr>
             @empty
@@ -134,6 +141,25 @@
             </tbody>
         </table>
     </div>
+
+    {{-- Sorted for other sorting centers: waiting for a hub-to-hub (linehaul) trip --}}
+    @if ($forTransfer->isNotEmpty())
+        <div class="ps-title" id="hub-to-hub">
+            <h2>Ready for hub-to-hub transfer</h2>
+            <span>{{ $forTransfer->flatten()->count() }} {{ \Illuminate\Support\Str::plural('parcel', $forTransfer->flatten()->count()) }}</span>
+        </div>
+        <div class="ps-bins" data-transfer-bins>
+            @foreach ($forTransfer as $centerId => $group)
+                <a href="{{ route('sc.trips', ['parcel' => $group->pluck('id')->all()]) }}#create" class="ps-bin" data-transfer-bin="{{ $centerId }}">
+                    <div class="ps-bin-top">
+                        <span class="ps-bin-name">{{ \App\Support\SortingCenters::nameOf($group->first()->nextCenter) ?? 'Another sorting center' }}</span>
+                        <span class="ps-bin-n">{{ $group->count() }}</span>
+                    </div>
+                    <div class="text-muted text-sm">Create a linehaul trip →</div>
+                </a>
+            @endforeach
+        </div>
+    @endif
 
     {{-- Area bins: barangays with sorted parcels waiting for a rider --}}
     <div class="ps-title">

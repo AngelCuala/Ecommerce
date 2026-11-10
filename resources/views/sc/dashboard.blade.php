@@ -22,7 +22,7 @@
         @error('to')<p style="color:var(--accent-red);font-size:12px;margin:-6px 0 10px;">{{ $message }}</p>@enderror
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;">
             @foreach(['pending' => 'Pending pickup', 'in_transit' => 'In transit', 'delivered' => 'Delivered', 'failed' => 'Failed / exceptions', 'returned' => 'Returned / cancelled'] as $bucket => $label)
-                <a href="{{ route('sc.shipments', array_filter(['status' => $bucket, 'from' => request('from'), 'to' => request('to')])) }}" class="card" style="padding:12px;display:block;" data-count="{{ $bucket }}">
+                <a href="{{ route('sc.tracking', array_filter(['bucket' => $bucket, 'from' => request('from'), 'to' => request('to')])) }}" class="card" style="padding:12px;display:block;" data-count="{{ $bucket }}">
                     <div style="font-size:11px;text-transform:uppercase;color:var(--text-muted);font-weight:600;">{{ $label }}</div>
                     <div style="font-size:22px;font-weight:700;color:var(--text);">{{ $shipmentCounts[$bucket] }}</div>
                 </a>

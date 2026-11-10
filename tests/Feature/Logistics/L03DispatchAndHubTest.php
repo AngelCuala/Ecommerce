@@ -207,7 +207,7 @@ class L03DispatchAndHubTest extends TestCase
         $this->assertEquals(now()->startOfSecond(), $parcel->received_at);
         $this->assertSame('At Hub', ParcelPickup::where('parcel_id', $parcel->id)->sole()->statusLabel());
 
-        $this->actingAs($this->logistics1)->get(route('sc.shipments'))->assertSee($parcel->tracking_number);
+        $this->actingAs($this->logistics1)->get(route('sc.tracking'))->assertSee($parcel->tracking_number);
         $this->buyerPage($parcel)->assertSee('At Sorting Center — received ' . now()->format('M j, g:i A'));
     }
 

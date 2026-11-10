@@ -29,7 +29,7 @@ class L05TrackingAndReturnsTest extends TestCase
 
     private function search(string $q)
     {
-        return $this->actingAs($this->logistics1)->get(route('sc.shipments', ['q' => $q]))->assertOk();
+        return $this->actingAs($this->logistics1)->get(route('sc.tracking', ['q' => $q]))->assertOk();
     }
 
     private function override($delivery, string $reason)
@@ -40,7 +40,7 @@ class L05TrackingAndReturnsTest extends TestCase
 
     private function exception(Parcel $parcel, array $data)
     {
-        return $this->actingAs($this->logistics1)->from(route('sc.shipments'))->post(route('sc.parcels.exception', $parcel), $data);
+        return $this->actingAs($this->logistics1)->from(route('sc.tracking.show', $parcel))->post(route('sc.parcels.exception', $parcel), $data);
     }
 
     // ── L5 Shipment Tracking & Exceptions ───────────────────────
@@ -58,7 +58,7 @@ class L05TrackingAndReturnsTest extends TestCase
         $this->assertSame([$ana->id], $this->search($ana->tracking_number)->viewData('parcels')->pluck('id')->all());
 
         foreach (['TRK-0000000', "' OR '1'='1", '<script>alert(1)</script>'] as $q) {
-            $res = $this->search($q)->assertSee('No shipments found.');
+            $res = $this->search($q)->assertSee('No parcels matching', false);
             $this->assertSame(0, $res->viewData('parcels')->total(), "Search for '{$q}'");
         }
         $this->search('<script>alert(1)</script>')->assertDontSee('<script>alert(1)</script>', false);
@@ -142,12 +142,9 @@ class L05TrackingAndReturnsTest extends TestCase
     private function failedThreeTimes(): Parcel
     {
         $parcel = $this->parcel('sorted');
-        foreach (['Buyer not home', 'Wrong address', 'Buyer not home'] as $i => $reason) {
+        foreach (range(1, 3) as $i) {   // "Buyer not home" is rescheduled automatically after each try
             $d = $this->deliveryFor($this->rider1, 'out_for_delivery', $parcel->fresh());
-            $this->actingAs($this->rider1->user)->post(route('courier.rider.deliveries.fail', $d->id), ['reason' => $reason])->assertSessionHas('success');
-            if ($i < 2) {
-                $this->actingAs($this->logistics1)->post(route('sc.deliveries.reschedule', $d))->assertSessionHas('success');
-            }
+            $this->actingAs($this->rider1->user)->post(route('courier.rider.deliveries.fail', $d->id), ['reason' => 'Buyer not home'])->assertSessionHas('success');
         }
         return $parcel->fresh();
     }
@@ -188,11 +185,14 @@ class L05TrackingAndReturnsTest extends TestCase
         $this->assertSame(20, $this->p02->fresh()->stock);   // the order's unit is back on the shelf
     }
 
-    /** LOG-RTS-002: the Return to Sender page is gone; the menu has no link and old links land on Shipments. */
-    public function test_log_rts_002_return_to_sender_page_is_gone(): void
+    /** LOG-RTS-002: a wrong address sends the parcel back to the seller; the Return to Seller page lists it. */
+    public function test_log_rts_002_wrong_address_goes_to_the_return_to_seller_page(): void
     {
-        $this->actingAs($this->logistics1)->get(route('sc.rts'))->assertRedirect(route('sc.shipments'));
-        $this->actingAs($this->logistics1)->get(route('sc.shipments'))->assertOk()->assertDontSee('Return to Sender</a>', false);
+        $parcel = $this->parcel('sorted');
+        $d = $this->deliveryFor($this->rider1, 'out_for_delivery', $parcel);
+        $this->actingAs($this->rider1->user)->post(route('courier.rider.deliveries.fail', $d->id), ['reason' => 'Wrong address'])->assertSessionHas('success');
+        $this->assertSame('return_to_sender', $parcel->fresh()->status);
+        $this->actingAs($this->logistics1)->get(route('sc.rts'))->assertOk()->assertSee($parcel->tracking_number);
     }
 
     /** LOG-RTS-003 */

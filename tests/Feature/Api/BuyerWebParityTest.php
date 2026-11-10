@@ -45,7 +45,7 @@ class BuyerWebParityTest extends TestCase
         $t = $this->as($buyer)->getJson('/api/v1/orders/' . $parcel->order_id)->assertOk()->json('order.tracking');
         $this->assertSame($parcel->tracking_number, $t['tracking_number']);
         $this->assertNotNull($t['waybill_number']);
-        $this->assertSame(['Ordered', 'Collected', 'At sorting center', 'Out for delivery', 'Delivered'], $t['milestones']);
+        $this->assertSame(['Ordered', 'Collected', 'At sorting center', 'Out for delivery', 'Delivered', 'Received'], $t['milestones']);
         $this->assertSame(0, $t['reached']);
         $this->assertContains('Delivered', $t['expected']);
         $this->as($buyer)->getJson('/api/v1/orders/' . $parcel->order_id . '/payment-proof')->assertNotFound();   // no GCash receipt

@@ -244,7 +244,7 @@
         <div class="ts-side">
             {{-- Courier and truck --}}
             <div class="card" style="padding:16px 18px;" data-trip-courier>
-                <div style="font-weight:800;margin-bottom:8px;">Rider <span class="badge badge-blue" style="font-size:10px;vertical-align:middle;">4-wheel</span></div>
+                <div style="font-weight:800;margin-bottom:8px;">Courier <span class="badge badge-blue" style="font-size:10px;vertical-align:middle;">truck</span></div>
                 @if ($trip->courier)
                     <div class="ts-kv"><span>Name</span><span>{{ $trip->courier->fullName() }}</span></div>
                     <div class="ts-kv"><span>Vehicle</span><span>{{ $trip->courier->vehicle_type ?: '—' }}</span></div>
@@ -257,7 +257,7 @@
                     <form method="POST" action="{{ route('sc.trips.assign', $trip) }}" style="display:flex;gap:6px;margin-top:10px;">
                         @csrf
                         <select name="courier_id" class="form-select" style="flex:1;" required aria-label="Courier">
-                            <option value="">{{ $couriers->isEmpty() ? 'No 4-wheel rider online' : ($trip->courier ? 'Reassign to…' : 'Choose an online 4-wheel rider…') }}</option>
+                            <option value="">{{ $couriers->isEmpty() ? 'No truck courier online' : ($trip->courier ? 'Reassign to…' : 'Choose an online truck courier…') }}</option>
                             @foreach ($couriers as $c)<option value="{{ $c->id }}">{{ $c->fullName() }} · {{ $c->vehicle_type }}</option>@endforeach
                         </select>
                         <button class="btn btn-blue btn-sm" @disabled($couriers->isEmpty())>{{ $trip->courier ? 'Reassign' : 'Assign' }}</button>
