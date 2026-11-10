@@ -264,6 +264,7 @@ class TripsController extends Controller
 
     public function couriers(): JsonResponse
     {
+        Courier::syncCompany((int) auth()->id());
         $list = Courier::where('sorting_center_id', auth()->id())->whereNotNull('home_hub_id')->whereIn('status', ['approved', 'suspended'])
             ->with('homeHub')->orderBy('first_name')->get();
 

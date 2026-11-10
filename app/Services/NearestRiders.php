@@ -19,7 +19,7 @@ class NearestRiders
     /** Active, approved riders of the parcel's company who cover the parcel's barangay. */
     public static function forArea(Collection $riders, ?int $areaId): Collection
     {
-        return $riders->filter(fn (Rider $r) => (int) $r->area_id === (int) $areaId)->values();
+        return $riders->filter(fn (Rider $r) => $r->coversArea((int) $areaId))->values();
     }
 
     /**

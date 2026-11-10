@@ -4,7 +4,7 @@
 @if ($list->where('available', true)->isNotEmpty())
     <optgroup label="Available">
         @foreach ($list->where('available', true) as $c)
-            <option value="{{ $c->rider->id }}" data-available>{{ $c->rider->full_name }} ({{ $c->rider->active_jobs }} {{ \Illuminate\Support\Str::plural('job', $c->rider->active_jobs) }})</option>
+            <option value="{{ $c->rider->id }}" data-available>{{ $c->rider->full_name }}{{ $c->rider->area ? ' · ' . $c->rider->barangayNames() : '' }} ({{ $c->rider->active_jobs }} {{ \Illuminate\Support\Str::plural('job', $c->rider->active_jobs) }}){{ $c->rider->online_now ? '' : ' · offline' }}</option>
         @endforeach
     </optgroup>
 @endif

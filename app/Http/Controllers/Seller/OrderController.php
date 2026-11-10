@@ -328,17 +328,17 @@ class OrderController extends Controller
 
         \Illuminate\Support\Facades\DB::transaction(function () use ($order, $sc, $request, $svc) {
             $parcel = $svc->createForSeller($order, auth()->user(), $request->pickup_scheduled_at, $request->notes, $sc);
-            // The seller chose the company, so the pickup is confirmed for it right away.
-            $parcel->update(['status' => 'pickup_approved', 'current_sorting_center_id' => $sc->id, 'verified_at' => now(), 'failure_reason' => null]);
+            // A request for the chosen company: it confirms the request in Pickup Requests, then assigns a rider.
+            $parcel->update(['status' => 'pending_pickup', 'current_sorting_center_id' => $sc->id, 'failure_reason' => null]);
             $svc->syncOrder($parcel);
-            $svc->notify($sc->id, 'New pickup', "{$parcel->tracking_number} from " . auth()->user()->storeName() . ' is ready for pickup'
-                . ' (' . \Carbon\Carbon::parse($request->pickup_scheduled_at)->tz(config('app.business_timezone'))->format('M j, g:i A') . ').', 'info', route('sc.dispatch'));
+            $svc->notify($sc->id, 'New pickup request', "{$parcel->tracking_number} from " . auth()->user()->storeName() . ' wants a pickup'
+                . ' (' . \Carbon\Carbon::parse($request->pickup_scheduled_at)->tz(config('app.business_timezone'))->format('M j, g:i A') . ').', 'info', route('sc.pickup-requests'));
         });
 
         $name = \App\Models\SortingCenterApplication::where('user_id', $sc->id)->where('status', 'approved')->value('business_name') ?: $sc->name;
-        \App\Models\ActivityLog::note('Order ' . $order->number() . ' ready for pickup by ' . $name, $order);
+        \App\Models\ActivityLog::note('Order ' . $order->number() . ' pickup requested from ' . $name, $order);
 
-        return back()->with('success', "Ready for Pickup. {$name} will assign the rider of your barangay to pick it up.");
+        return back()->with('success', "Pickup requested. {$name} will confirm it and assign a rider to pick it up.");
     }
 
     /** Mark as handed over to courier → status becomes Shipped */

@@ -32,6 +32,22 @@ class RiderController extends Controller
     public function __construct(private RiderDispatch $dispatch, private RiderWallet $wallet) {}
 
     /** The signed-in rider (seen now, so Online stays fresh). */
+    /** The app build that sends the pickup photo and the delivery waybill scan (older builds: optional until they update). */
+    public const APP_BUILD_WITH_SCANS = 10;
+
+    /** Required on the website and from the app build that has the camera steps. */
+    private function scanRequired(Request $request): bool
+    {
+        return ! $request->is('api/*') || (int) $request->header('X-App-Build') >= self::APP_BUILD_WITH_SCANS;
+    }
+
+    /** Does a scanned code (waybill QR / barcode, or a typed number) belong to this parcel? */
+    public static function scanMatches(?string $scanned, \App\Models\Parcel $parcel): bool
+    {
+        $code = strtoupper(trim((string) $scanned));
+        return $code !== '' && in_array($code, array_filter([strtoupper($parcel->tracking_number), strtoupper((string) $parcel->waybill_number)]), true);
+    }
+
     private function rider(): Rider
     {
         $rider = Rider::with('sortingCenter')->where('user_id', auth()->id())->first();
@@ -186,20 +202,36 @@ class RiderController extends Controller
     public function confirmPickup(Request $request, int $pickup)
     {
         $rider = $this->rider();
-        $data = $request->validate(['tracking_number' => 'required|string|max:50'], ['tracking_number.required' => 'Scan the waybill or type its tracking number.']);
+        // The proof photo is required on the website; the app sends it once its pickup screen has the camera step.
+        $photo = $this->scanRequired($request) ? 'required' : 'nullable';
+        $data = $request->validate([
+            'tracking_number' => 'required|string|max:50',
+            'proof_photo'     => $photo . '|file|image|mimes:jpg,jpeg,png|mimetypes:image/jpeg,image/png|max:5120',
+        ], [
+            'tracking_number.required' => 'Scan the waybill or type its tracking number.',
+            'proof_photo.required'     => 'Take a photo of the parcel as proof of pickup.',
+            'proof_photo.image'        => 'The proof of pickup must be a JPG or PNG photo.',
+            'proof_photo.mimes'        => 'The proof of pickup must be a JPG or PNG photo.',
+            'proof_photo.mimetypes'    => 'The proof of pickup must be a JPG or PNG photo.',
+            'proof_photo.max'          => 'The photo must be 5 MB or smaller.',
+        ]);
 
-        return DB::transaction(function () use ($rider, $pickup, $data) {
+        return DB::transaction(function () use ($rider, $pickup, $data, $request) {
             $pickup = ParcelPickup::where('rider_id', $rider->id)->lockForUpdate()->findOrFail($pickup);
             $parcel = $pickup->parcel;
 
             if ($pickup->status !== 'assigned') {
                 return back()->with('error', 'This parcel is already picked up (' . $pickup->picked_up_at?->format('M j, g:i A') . ').');
             }
-            if (strtoupper(trim($data['tracking_number'])) !== strtoupper($parcel->tracking_number)) {
-                return back()->withInput()->withErrors(['tracking_number' => 'The tracking number does not match this job. Check the waybill on the parcel.']);
+            if (! $pickup->acknowledged_at) {
+                return back()->with('error', 'Accept this pickup job first, then confirm the pickup at the seller.');
+            }
+            if (! self::scanMatches($data['tracking_number'], $parcel)) {
+                return back()->withInput()->withErrors(['tracking_number' => 'This waybill does not match this job. Check the label on the parcel.']);
             }
 
-            $pickup->update(['status' => 'picked_up', 'picked_up_at' => now()]);
+            $proof = $request->hasFile('proof_photo') ? $request->file('proof_photo')->store('proof-of-pickup', \App\Support\ProtectedFile::DISK) : null;
+            $pickup->update(['status' => 'picked_up', 'picked_up_at' => now(), 'proof_path' => $proof]);
             $parcel->update(['status' => 'in_transit_to_hub']);
             $svc = app(ParcelService::class);
             $svc->syncOrder($parcel);
@@ -257,8 +289,11 @@ class RiderController extends Controller
         $cod = (float) $delivery->cod_amount > 0;
         $request->validate([
             'pod_photo'     => 'required|file|image|mimes:jpg,jpeg,png|mimetypes:image/jpeg,image/png|max:5120',
+            // Proof of delivery: the parcel photo and the rider's scan of its waybill.
+            'tracking_number' => ($this->scanRequired($request) ? 'required' : 'nullable') . '|string|max:50',
             'cod_collected' => $cod ? 'required|numeric|min:0' : 'nullable',
         ], [
+            'tracking_number.required' => 'Scan the waybill on the parcel.',
             'pod_photo.required'  => 'Take a proof-of-delivery photo.',
             'pod_photo.image'     => 'The proof of delivery must be a JPG or PNG photo.',
             'pod_photo.mimes'     => 'The proof of delivery must be a JPG or PNG photo.',
@@ -267,6 +302,9 @@ class RiderController extends Controller
             'cod_collected.required' => 'Enter the COD amount you collected.',
         ]);
 
+        if ($request->filled('tracking_number') && ! self::scanMatches($request->tracking_number, $delivery->parcel)) {
+            return back()->withInput()->withErrors(['tracking_number' => 'This waybill does not match this delivery. Check the label on the parcel.']);
+        }
         if ($cod && round((float) $request->cod_collected, 2) !== round((float) $delivery->cod_amount, 2)) {
             return back()->withInput()->withErrors(['cod_collected' => 'The COD amount doesn\'t match. Collect exactly ₱' . number_format($delivery->cod_amount, 2) . '.']);
         }

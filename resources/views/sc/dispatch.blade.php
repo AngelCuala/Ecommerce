@@ -45,7 +45,7 @@
         <div style="display:flex;flex-wrap:wrap;gap:8px;">
             @forelse($riders as $r)
                 <span class="badge {{ $r->isSuspended() ? 'badge-red' : ($r->online_now ? 'badge-green' : 'badge-gray') }}" data-rider="{{ $r->full_name }}">
-                    {{ $r->full_name }} · {{ $r->area->name ?? 'No barangay' }} · {{ $r->isSuspended() ? 'Suspended' : ($r->online_now ? 'Online' : 'Offline') }} · {{ $r->active_jobs }} {{ \Illuminate\Support\Str::plural('job', $r->active_jobs) }}
+                    {{ $r->full_name }} · {{ $r->barangayNames() }} · {{ $r->isSuspended() ? 'Suspended' : ($r->online_now ? 'Online' : 'Offline') }} · {{ $r->active_jobs }} {{ \Illuminate\Support\Str::plural('job', $r->active_jobs) }}
                 </span>
             @empty
                 <span class="text-muted">No approved riders yet.</span>
@@ -61,9 +61,9 @@
             @include('sc.partials.rider-options')
         </select>
         <button class="btn btn-green btn-sm">Assign selected</button>
-        @if ($eligible->isEmpty())
+        @if ($riderChoices->where('available', true)->isEmpty())
             <p class="text-muted" style="flex-basis:100%;font-size:12px;margin:2px 0 0;" data-no-rider-online>
-                {{ $riders->isEmpty() ? 'This center has no approved riders yet.' : 'No rider is available right now. Riders can be picked once they switch to Online in the courier app.' }}
+                {{ $riders->isEmpty() ? 'This center has no approved riders yet.' : 'No rider can take barangay jobs right now (suspended, or 4-wheel couriers).' }}
             </p>
         @endif
     </form>

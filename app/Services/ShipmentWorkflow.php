@@ -98,7 +98,9 @@ class ShipmentWorkflow
                 }
                 $transfer->update(['status' => 'received', 'received_by' => $actor->id, 'received_at' => now()]);
                 $context = ['transfer_id' => $transfer->id, 'origin_id' => $transfer->from_sorting_center_id, 'destination_id' => $sc->id];
-            } elseif (in_array($parcel->status, ['pickup_approved', 'in_transit_to_hub'], true)) {
+            } elseif ($parcel->status === 'pickup_approved') {
+                throw new RuntimeException("{$parcel->tracking_number} hasn't been picked up yet. The rider marks it Picked Up at the seller first; then you can receive it.");
+            } elseif ($parcel->status === 'in_transit_to_hub') {
                 if ((int) $parcel->current_sorting_center_id !== (int) $sc->id) {
                     throw new RuntimeException("{$parcel->tracking_number} is not addressed to your sorting center.");
                 }

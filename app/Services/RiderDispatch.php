@@ -37,7 +37,7 @@ class RiderDispatch
         if ($parcel->transfer_status === 'outgoing' || ($parcel->order && $parcel->order->status === \App\Models\Order::CANCELLED)) {
             return null;   // moving to another hub, or nothing to deliver any more
         }
-        if ($parcel->status === 'pickup_approved' && ! $parcel->pickups()->whereIn('status', ParcelPickup::OPEN)->exists()) {
+        if (in_array($parcel->status, ['pending_pickup', 'pickup_approved'], true) && ! $parcel->pickups()->whereIn('status', ParcelPickup::OPEN)->exists()) {
             return RiderJobOffer::PICKUP;
         }
         if ($parcel->status === 'sorted' && ! $parcel->deliveries()->whereIn('status', ParcelDelivery::OPEN)->exists()) {
@@ -71,21 +71,36 @@ class RiderDispatch
         if (! $this->inServiceArea($scId)) {
             return collect();
         }
-        return Rider::where('sorting_center_id', $scId)->where('application_status', 'approved')->where('is_active', true)
+        return Rider::with('area', 'areas')->where('sorting_center_id', $scId)->where('application_status', 'approved')->where('is_active', true)
             ->orderBy('id')->get()
-            ->filter(fn (Rider $r) => $r->isOnlineNow())
+            ->filter(fn (Rider $r) => $r->isOnlineNow() && ! $r->isFourWheel())
             ->values();
     }
 
+    /** Every approved rider of the company for a "Choose rider" list, with why a rider can't be picked. */
+    public function riderChoices(int $scId): Collection
+    {
+        return Rider::where('sorting_center_id', $scId)->where('application_status', 'approved')->with('area', 'areas')->orderBy('full_name')->get()
+            ->map(function (Rider $r) use ($scId) {
+                $r->active_jobs = $r->activeJobsCount();
+                $r->online_now  = $r->isOnlineNow();
+                $why = $this->ineligibleReason($r, $scId, true);
+                return (object) ['rider' => $r, 'available' => $why === null,
+                    'why' => $r->isSuspended() ? 'suspended' : ($r->isFourWheel() ? '4-wheel courier' : 'unavailable')];
+            })
+            ->sortBy(fn ($c) => [$c->available ? 0 : 1, $c->rider->online_now ? 0 : 1, $c->rider->full_name])->values();
+    }
+
     /** Why this rider can't be given a job, or null when they can. */
-    public function ineligibleReason(Rider $rider, int $scId): ?string
+    public function ineligibleReason(Rider $rider, int $scId, bool $manual = false): ?string
     {
         return match (true) {
             (int) $rider->sorting_center_id !== $scId => 'This rider belongs to another logistics company.',
             ! $this->inServiceArea($scId)            => 'This sorting center is outside the service area (' . \App\Support\ServiceArea::label() . ' only), so it cannot assign riders.',
             ! $rider->isApproved()                    => "{$rider->full_name} is not an approved rider.",
             $rider->isSuspended()                     => "{$rider->full_name} is suspended.",
-            ! $rider->isOnlineNow()                   => "{$rider->full_name} is offline.",
+            $rider->isFourWheel()                     => "{$rider->full_name} drives a {$rider->vehicle_type}: 4-wheel couriers do Linehaul trips, not barangay pickups or deliveries.",
+            ! $manual && ! $rider->isOnlineNow()      => "{$rider->full_name} is offline.",
             default                                   => null,
         };
     }
@@ -292,9 +307,9 @@ class RiderDispatch
     public function waiting(int $scId, ?string $kind = null): Collection
     {
         $statuses = match ($kind) {
-            RiderJobOffer::PICKUP   => ['pickup_approved'],
+            RiderJobOffer::PICKUP   => ['pending_pickup', 'pickup_approved'],
             RiderJobOffer::DELIVERY => ['sorted'],
-            default                 => ['pickup_approved', 'sorted'],
+            default                 => ['pending_pickup', 'pickup_approved', 'sorted'],
         };
 
         return Parcel::where('current_sorting_center_id', $scId)->whereIn('status', $statuses)
@@ -307,10 +322,9 @@ class RiderDispatch
     private function isNear(Rider $rider, Parcel $parcel, string $kind): bool
     {
         if ($kind === RiderJobOffer::DELIVERY) {
-            return $parcel->area_id && (int) $rider->area_id === (int) $parcel->area_id;
+            return $rider->coversArea((int) $parcel->area_id);
         }
-        $barangay = $rider->area?->name;
-        return $barangay && $parcel->pickup_address && stripos($parcel->pickup_address, $barangay) !== false;
+        return $rider->coversAddress($parcel->pickup_address);
     }
 
     public function assignManually(Parcel $parcel, Rider $rider, User $by): string
@@ -321,11 +335,11 @@ class RiderDispatch
             $parcel = Parcel::lockForUpdate()->findOrFail($parcel->id);
             $kind = $this->jobKind($parcel);
             if (! $kind) {
-                throw new \RuntimeException(in_array($parcel->status, ['pickup_approved', 'sorted'], true)
+                throw new \RuntimeException(in_array($parcel->status, ['pending_pickup', 'pickup_approved', 'sorted'], true)
                     ? "{$parcel->tracking_number} is already assigned to a rider."
                     : "{$parcel->tracking_number} is not ready for a rider ({$parcel->statusLabel()}).");
             }
-            if ($reason = $this->ineligibleReason($rider, (int) $by->id)) {
+            if ($reason = $this->ineligibleReason($rider, (int) $by->id, true)) {
                 throw new \RuntimeException($reason);
             }
             RiderJobOffer::where('parcel_id', $parcel->id)->where('status', 'pending')->update(['status' => 'cancelled']);
@@ -350,6 +364,14 @@ class RiderDispatch
             : null;
 
         if ($kind === RiderJobOffer::PICKUP) {
+            if ($parcel->status === 'pending_pickup') {
+                if ($parcel->order_id && \App\Models\Delivery::where('order_id', $parcel->order_id)->whereIn('status', \App\Models\Delivery::OPEN_STATUSES)->exists()) {
+                    throw new \RuntimeException("{$parcel->tracking_number}: this order is already being delivered by a direct courier.");
+                }
+                // Assigning the rider accepts the seller's pickup request.
+                $parcel->update(['status' => 'pickup_approved', 'verified_by' => $by ?? $parcel->current_sorting_center_id, 'verified_at' => now(), 'failure_reason' => null]);
+                $svc->syncOrder($parcel);
+            }
             $job = ParcelPickup::create([
                 'parcel_id' => $parcel->id, 'rider_id' => $rider->id, 'sorting_center_id' => $parcel->current_sorting_center_id,
                 'assigned_by' => $by, 'status' => 'assigned',

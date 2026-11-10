@@ -201,8 +201,7 @@ class HubController extends Controller
         $openJobs = collect($d['openJobs'] ?? []);
 
         // A parcel whose barangay has no rider: the company's riders, nearest first (any of them may take it).
-        $byArea = $d['riders']->groupBy('area_id');
-        $nearest = fn ($p) => $byArea->has($p->area_id) ? null : \App\Services\NearestRiders::ranked($p, $d['riders'])
+        $nearest = fn ($p) => $d['riders']->contains(fn ($r) => $r->coversArea((int) $p->area_id)) ? null : \App\Services\NearestRiders::ranked($p, $d['riders'])
             ->map(fn ($x) => ['rider_id' => $x['rider']->id, 'name' => $x['rider']->full_name, 'area' => $x['rider']->area?->name, 'km' => $x['km'], 'online' => (bool) $x['rider']->is_online])->values()->all();
 
         return response()->json(ApiJson::page($d['parcels'], fn ($p) => LogisticsJson::parcel($p) + ['nearest_riders' => $nearest($p)]) + [

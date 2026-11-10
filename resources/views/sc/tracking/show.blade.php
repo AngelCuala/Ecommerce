@@ -48,6 +48,26 @@
         </table>
     </div>
 
+    @if ($parcel->status === 'pickup_approved' && (int) $parcel->current_sorting_center_id === $me)
+    <div class="card" style="padding:14px 16px;font-size:13px;color:var(--text-muted);">
+        Waiting for pickup. You can receive this parcel after the rider marks it <strong>Picked Up</strong> at the seller.
+    </div>
+    @endif
+
+    @php $pu = $parcel->pickups->whereIn('status', ['picked_up', 'received'])->sortByDesc('id')->first(); @endphp
+    @if ($pu)
+    <div class="card" style="padding:14px 16px;font-size:13px;">
+        <strong>Picked up by {{ $pu->rider?->full_name ?? '—' }}</strong>
+        @if ($pu->picked_up_at) on {{ $pu->picked_up_at->copy()->tz(config('app.business_timezone'))->format('M j, g:i A') }}@endif · waybill scanned
+        @if ($pu->proof_path)
+            <div style="margin-top:10px;"><a href="{{ \App\Support\ProtectedFile::url($pu->proof_path) }}" target="_blank" rel="noopener">
+                <img src="{{ \App\Support\ProtectedFile::url($pu->proof_path) }}" alt="Proof of pickup" style="max-height:220px;border-radius:8px;border:1px solid var(--border);"></a></div>
+        @else
+            <div class="text-muted" style="margin-top:6px;">No proof photo (picked up from the mobile app).</div>
+        @endif
+    </div>
+    @endif
+
     {{-- Confirm receipt: explicit, after checking the package --}}
     @if ($canReceive)
     <div class="card" style="border:2px solid var(--accent-blue);">

@@ -344,6 +344,9 @@ class AuthController extends Controller
     public static function userPayload(User $user): array
     {
         $rider = \App\Models\Rider::where('user_id', $user->id)->first();
+        if ($rider) {
+            \App\Models\Courier::syncFromRider($rider);   // a 4-wheel rider is a Linehaul courier
+        }
         // Like the web's courier dashboard: an approved rider without an approved direct-courier profile works from Hub Jobs.
         $approvedRider = $rider?->isApproved() ?? false;
         $approvedCourier = $user->isCourier() && \App\Models\Courier::where('user_id', $user->id)->where('status', 'approved')->exists();

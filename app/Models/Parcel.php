@@ -37,7 +37,7 @@ class Parcel extends Model
 
     /** Human labels for each pipeline status (sorting-center wording). */
     public const STATUS_LABELS = [
-        'pending_pickup'  => 'Ready for Pickup',
+        'pending_pickup'  => 'Pickup Requested',
         'pickup_approved' => 'Pickup Confirmed',
         'in_transit_to_hub' => 'Picked Up by Rider',
         'pickup_rejected' => 'Pickup Rejected',

@@ -150,7 +150,7 @@
                     <td>{{ $rider->vehicle_type ?? '—' }}{{ $rider->plate_number ? ' · ' . $rider->plate_number : '' }}
                         @if($rider->needs_reverification)<div><span class="badge badge-yellow" style="font-size:10px;">Re-verify vehicle</span></div>@endif
                     </td>
-                    <td><span class="text-orange">{{ $rider->area->name ?? '—' }}</span></td>
+                    <td><span class="text-orange">{{ $rider->barangayNames() }}</span></td>
                     <td>@if($rider->isOnlineNow())<span class="badge badge-green" data-online>Online</span>@else<span class="badge badge-gray">Offline</span>@endif</td>
                     <td data-active-jobs="{{ $activeJobs }}"><span class="badge badge-gray">{{ $activeJobs }}</span></td>
                     <td data-today="{{ $todayDelivered }}">{{ $todayDelivered }}</td>

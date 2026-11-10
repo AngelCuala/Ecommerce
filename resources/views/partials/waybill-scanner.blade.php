@@ -4,6 +4,7 @@
     number; the server finds the parcel and the pop-up opens its page.
     @include('partials.waybill-scanner', ['lookup' => route('sc.parcels.scan')])
     Optional: 'label' (button text), 'style' (button look: 'solid' default, or 'ghost').
+    Fill mode: 'fill' => '#field' puts the scanned code in that field instead (keep the include outside the page's form).
 --}}
 @php
     $id = 'wbs-' . substr(md5($lookup), 0, 8);
@@ -84,7 +85,7 @@
 @endonce
 
 @if ($renderDialog)
-<dialog class="wbs" id="{{ $id }}" data-waybill-scanner data-lookup="{{ $lookup }}" aria-labelledby="{{ $id }}-title">
+<dialog class="wbs" id="{{ $id }}" data-waybill-scanner data-lookup="{{ $lookup }}" @isset($fill) data-fill="{{ $fill }}" @endisset aria-labelledby="{{ $id }}-title">
     <div class="wbs-head">
         <div>
             <h2 id="{{ $id }}-title">QR Scanner</h2>

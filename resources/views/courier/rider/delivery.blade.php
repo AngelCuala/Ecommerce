@@ -28,12 +28,16 @@
         <button class="cx-btn cx-btn-blue cx-btn-block">Mark Out for Delivery</button>
     </form>
 @elseif($delivery->status === 'out_for_delivery')
+    <div style="margin-bottom:10px;">@include('partials.waybill-scanner', ['lookup' => 'fill:delivery', 'fill' => '#tracking_number', 'label' => 'Scan the waybill with the camera'])</div>
     <form method="POST" action="{{ route('courier.rider.deliveries.deliver', $delivery->id) }}" enctype="multipart/form-data" class="card" style="padding:18px 20px;margin-bottom:16px;">
         @csrf
         <p class="cx-section-title" style="margin-top:0;">Mark Delivered</p>
         <label class="cx-label" for="pod_photo">Proof-of-delivery photo (JPG or PNG, up to 5 MB)</label>
         <input type="file" id="pod_photo" name="pod_photo" accept="image/jpeg,image/png" capture="environment" class="input">
         @error('pod_photo')<p class="cx-alert cx-alert-error">{{ $message }}</p>@enderror
+        <label class="cx-label cx-field-mt" for="tracking_number">Waybill (scan it with the button above, or type the number)</label>
+        <input id="tracking_number" name="tracking_number" class="input" autocomplete="off" required value="{{ old('tracking_number') }}" placeholder="e.g. PH2611…">
+        @error('tracking_number')<p class="cx-alert cx-alert-error">{{ $message }}</p>@enderror
         <p style="font-size:12px;color:#8a7f78;margin-top:6px;">Take the photo with the parcel handed to the buyer (or at the door). It is the proof that completes the delivery.</p>
 
         @if($cod)

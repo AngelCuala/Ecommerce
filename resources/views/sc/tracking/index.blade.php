@@ -94,7 +94,7 @@
                         @if ($t?->expected_by && $t->isInTransit())<div class="sub">Due {{ $t->expected_by->copy()->tz($tz)->format('M j, g:i A') }}</div>@endif
                     </td>
                     <td style="white-space:nowrap;">
-                        @if (in_array($p->status, ['pickup_approved', 'in_transit_to_hub'], true) || ($p->status === 'in_transfer' && $t?->isInTransit() && (int) $t->to_sorting_center_id === auth()->id()))
+                        @if ($p->status === 'in_transit_to_hub' || ($p->status === 'in_transfer' && $t?->isInTransit() && (int) $t->to_sorting_center_id === auth()->id()))
                             <a href="{{ route('sc.tracking.show', $p) }}" class="btn btn-blue btn-sm">Check &amp; receive</a>
                         @elseif ($p->status === 'picked_up' && ! $p->transfer_status)
                             <form method="POST" action="{{ route('sc.tracking.start-sorting', $p) }}" style="display:inline;" onsubmit="return confirm('Start sorting {{ $p->tracking_number }}?')">@csrf<button class="btn btn-blue btn-sm">Start sorting</button></form>

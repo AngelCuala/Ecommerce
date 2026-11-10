@@ -50,15 +50,7 @@ class RiderWorkController extends Controller
             });
         $eligible = $this->dispatch->eligibleRiders($this->scId());
         // Every rider of this hub for the "Choose rider" lists: available ones to pick, the rest shown with why not.
-        $riderChoices = $riders->map(fn (Rider $r) => (object) [
-            'rider'     => $r,
-            'available' => $eligible->contains('id', $r->id),
-            'why'       => match (true) {
-                $r->isSuspended()                           => 'suspended',
-                ! $r->online_now                            => 'offline',
-                default                                     => 'unavailable',
-            },
-        ])->sortBy(fn ($c) => [$c->available ? 0 : 1, $c->rider->full_name])->values();
+        $riderChoices = $this->dispatch->riderChoices($this->scId());
         $withRiders = ParcelPickup::where('sorting_center_id', $this->scId())->whereIn('status', ParcelPickup::OPEN)->with('parcel', 'rider')->latest()->get();
         // L3: jobs given to a rider who hasn't started them yet — these can still be reassigned.
         $mine = fn ($q) => $q->where('current_sorting_center_id', $this->scId());
@@ -149,9 +141,15 @@ class RiderWorkController extends Controller
     public function showRider(Rider $rider)
     {
         $this->guardRider($rider);
-        $rider->load('area', 'user');
+        $rider->load('area', 'areas', 'user');
+        $sc = \App\Models\User::find($this->scId());
+        $barangays = $sc?->assigned_municipality_code
+            ? collect(app(\App\Services\PsgcDirectory::class)->barangaysByMunicipality($sc->assigned_municipality_code) ?? [])
+                ->reject(fn ($b) => $rider->areas->contains(fn ($a) => $a->barangay_code && $a->barangay_code === ($b['code'] ?? null)
+                    || strcasecmp($a->name, $b['name'] ?? '') === 0))->values()
+            : collect();
 
-        return view('sc.rider-show', ['rider' => $rider, 'wallet' => $this->wallet]);
+        return view('sc.rider-show', ['rider' => $rider, 'wallet' => $this->wallet, 'barangays' => $barangays]);
     }
 
     public function riderDocument(Rider $rider, string $document)

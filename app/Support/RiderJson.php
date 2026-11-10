@@ -39,6 +39,7 @@ class RiderJson
                 : ($rider->license_expiry->lte(now()->addDays(30)) ? 'soon' : null)),
             'rider_since'    => $rider->approved_at?->toIso8601String(),
             'area'           => $rider->area?->name,
+            'barangays'      => $rider->areas()->pluck('name')->values(),
             'needs_reverification' => (bool) $rider->needs_reverification,
             'has_license_file' => (bool) $rider->license_path,
             'has_or_cr_file'   => (bool) $rider->or_cr_path,
@@ -95,6 +96,9 @@ class RiderJson
             'bring_to'       => $rider->companyName() . ' hub',
             'picked_up_at'   => $pu->picked_up_at?->toIso8601String(),
             'can_confirm'    => $pu->status === 'assigned',
+            'acknowledged'   => (bool) $pu->acknowledged_at,
+            'waybill'        => $p?->waybill_number,
+            'has_proof'      => (bool) $pu->proof_path,
             'pay'            => RiderDispatch::PAY_PICKUP,
         ]);
     }

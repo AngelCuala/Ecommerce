@@ -333,6 +333,49 @@ class SortingCenterController extends Controller
             . ($addedToCoverage ? " {$addr['barangay']} was added to your coverage areas." : ''));
     }
 
+    /** Give a rider one more barangay (one account, several barangays). */
+    public function addRiderArea(Request $request, Rider $rider)
+    {
+        $sc = $this->sc();
+        abort_unless((int) $rider->sorting_center_id === (int) $sc->id, 403, 'This rider belongs to another logistics company.');
+        $data = $request->validate($this->barangayRules(), $this->barangayMessages());
+        $addr = $this->resolveScBarangay($sc, $data);
+
+        $added = false;
+        $area = DB::transaction(function () use ($sc, $addr, $rider, &$added) {
+            $area = $this->findCoverageArea($sc, $addr);
+            if (! $area) {
+                $area = $this->createCoverageArea($sc, $addr);
+                $added = true;
+            }
+            $rider->areas()->syncWithoutDetaching([$area->id]);
+            if (! $rider->area_id) {
+                $rider->update(['area_id' => $area->id]);
+            }
+            return $area;
+        });
+        \App\Models\ActivityLog::note("{$rider->full_name} now also covers {$area->name}", $rider);
+
+        return back()->with('success', "{$rider->full_name} now also covers {$area->name}." . ($added ? " {$area->name} was added to your coverage areas." : ''));
+    }
+
+    /** Take a barangay away from a rider (not the last one). */
+    public function removeRiderArea(Rider $rider, DeliveryArea $area)
+    {
+        abort_unless((int) $rider->sorting_center_id === (int) auth()->id(), 403, 'This rider belongs to another logistics company.');
+        $rider->load('areas');
+        if ($rider->areas->count() <= 1) {
+            return back()->with('error', "{$rider->full_name} needs at least one barangay.");
+        }
+        $rider->areas()->detach($area->id);
+        if ((int) $rider->area_id === (int) $area->id) {
+            $rider->update(['area_id' => $rider->areas()->whereKeyNot($area->id)->value('delivery_areas.id')]);
+        }
+        \App\Models\ActivityLog::note("{$rider->full_name} no longer covers {$area->name}", $rider);
+
+        return back()->with('success', "{$rider->full_name} no longer covers {$area->name}.");
+    }
+
     /** Vehicles a rider of a logistics company may use (pickups and deliveries). */
     public const RIDER_VEHICLES = ['Motorcycle', 'Car', 'Van'];
 
@@ -479,7 +522,7 @@ class SortingCenterController extends Controller
 
         $tabStatuses = [
             'pending'   => ['pending_pickup'],
-            'confirmed' => ['pickup_approved'],
+            'confirmed' => ['pickup_approved', 'in_transit_to_hub'],
             'received'  => ['picked_up', 'sorted', 'assigned', 'in_transit', 'delivered', 'failed', 'returned'],
             'rejected'  => ['pickup_rejected'],
         ];
@@ -491,7 +534,13 @@ class SortingCenterController extends Controller
 
         $counts = collect($tabStatuses)->map(fn ($s) => $this->pickupScope()->whereIn('status', $s)->count());
 
-        return view('sc.pickup-requests', compact('requests', 'counts', 'tab'));
+        $dispatch = app(\App\Services\RiderDispatch::class);
+        $riderChoices = $dispatch->riderChoices((int) auth()->id());
+        $requests->getCollection()->each(fn (Parcel $p) => $p->can_assign = (int) $p->current_sorting_center_id === (int) auth()->id()
+            && $dispatch->jobKind($p) === \App\Models\RiderJobOffer::PICKUP);
+        $requests->getCollection()->loadMissing('pickups.rider');
+
+        return view('sc.pickup-requests', compact('requests', 'counts', 'tab', 'riderChoices'));
     }
 
     /** Confirm/verify a seller's pickup request — the SC takes responsibility for it. */
@@ -533,7 +582,7 @@ class SortingCenterController extends Controller
         $svc->notifySeller($parcel, 'Pickup confirmed',
             "{$svc->orderRef($parcel)}: {$this->sc()->name} confirmed your pickup request ({$parcel->tracking_number}). Please have the parcel packed and labeled.");
 
-        return back()->with('success', "Pickup for {$parcel->tracking_number} confirmed.");
+        return back()->with('success', "Pickup for {$parcel->tracking_number} confirmed. Assign a rider in Rider Dispatch.");
     }
 
     public function rejectPickup(Request $request, Parcel $parcel)
@@ -813,9 +862,9 @@ class SortingCenterController extends Controller
         // The rider must cover the parcel's barangay, unless none of the company's active riders does:
         // then any of its riders may take it (the page lists the nearest first).
         $outside = null;
-        if ((int) $rider->area_id !== (int) $parcel->area_id) {
+        if (! $rider->coversArea((int) $parcel->area_id)) {
             $areaHasRider = Rider::where('sorting_center_id', auth()->id())->where('application_status', 'approved')
-                ->where('is_active', true)->where('area_id', $parcel->area_id)->exists();
+                ->where('is_active', true)->whereHas('areas', fn ($q) => $q->whereKey($parcel->area_id))->exists();
             if ($areaHasRider) {
                 return back()->with('error', "{$rider->full_name} is not assigned to {$parcel->area->name}. Choose a rider for that area.");
             }

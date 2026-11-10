@@ -20,9 +20,10 @@ class DeliveryArea extends Model
         return $this->belongsTo(User::class, 'sorting_center_id');
     }
 
-    public function riders(): HasMany
+    /** Riders who cover this barangay (as their main barangay or an extra one). */
+    public function riders(): \Illuminate\Database\Eloquent\Relations\BelongsToMany
     {
-        return $this->hasMany(Rider::class, 'area_id');
+        return $this->belongsToMany(Rider::class, 'rider_areas', 'area_id', 'rider_id');
     }
 
     public function parcels(): HasMany

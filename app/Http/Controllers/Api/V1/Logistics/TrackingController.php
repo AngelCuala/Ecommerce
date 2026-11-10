@@ -34,7 +34,7 @@ class TrackingController extends Controller
         $action = function (Parcel $p) use ($me) {
             $t = $p->activeTransfer;
             return match (true) {
-                in_array($p->status, ['pickup_approved', 'in_transit_to_hub'], true)
+                $p->status === 'in_transit_to_hub'
                     || ($p->status === 'in_transfer' && $t?->isInTransit() && (int) $t->to_sorting_center_id === $me) => 'receive',
                 $p->status === 'picked_up' && ! $p->transfer_status                                     => 'start_sorting',
                 $t?->isPending() && (int) $t->from_sorting_center_id === $me                            => 'dispatch',

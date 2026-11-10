@@ -247,6 +247,14 @@
                         </select>
                         <button class="btn btn-blue btn-sm" @disabled($couriers->isEmpty())>{{ $trip->courier ? 'Reassign' : 'Assign' }}</button>
                     </form>
+                    @if ($offDuty->isNotEmpty())
+                        <p class="text-muted" style="font-size:12px;margin-top:6px;">
+                            Not available now: {{ $offDuty->map(fn ($c) => $c->fullName() . ' (' . $c->vehicle_type . ', ' . ($c->activeTrip() ? 'on ' . $c->activeTrip()->code : 'Off Duty') . ')')->implode(', ') }}.
+                            A courier goes On Duty in the ALVY app (pre-trip checklist).
+                        </p>
+                    @elseif ($couriers->isEmpty())
+                        <p class="text-muted" style="font-size:12px;margin-top:6px;">No courier yet. Riders with a van, truck or car are your Linehaul couriers.</p>
+                    @endif
                 @endif
                 <div class="ts-kv" style="margin-top:8px;"><span>Seal</span><span>{{ $trip->seal_number ?: '—' }}{{ $trip->received_seal ? ' · found ' . $trip->received_seal : '' }}</span></div>
                 @if ($trip->seal_discrepancy)<div class="ts-kv"><span>Seal check</span><span style="color:var(--accent-red);font-weight:700;">Does not match</span></div>@endif

@@ -139,6 +139,7 @@
 
     function setup(dialog) {
         var lookup  = dialog.dataset.lookup;
+        var fill    = dialog.dataset.fill;   // a field's selector: the code goes there (rider pickup / delivery)
         var view    = dialog.querySelector('[data-wbs-view]');
         var video   = dialog.querySelector('video');
         var status  = dialog.querySelector('[data-wbs-status]');
@@ -305,6 +306,15 @@
             last = { code: code, at: Date.now() };
             if (!CODE.test(code)) { say(INVALID, 'error'); return; }
             if (fromCamera) beep();
+            if (fill) {
+                var field = document.querySelector(fill);
+                if (field) { field.value = code; field.dispatchEvent(new Event('input', { bubbles: true })); }
+                cover('ok');
+                say('Waybill scanned: ' + code, 'ok');
+                stop(true);
+                setTimeout(function () { closeDialog(true); if (field) field.focus(); }, 450);
+                return;
+            }
             ask(code);
         }
 

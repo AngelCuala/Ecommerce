@@ -7,12 +7,12 @@
 <div class="page-body">
 
     <p class="text-muted" style="font-size:12.5px;margin-bottom:14px;">
-        Sellers send a pickup request when an order is packed and ready. Confirm the request to schedule the rider pickup,
-        or reject it with a reason so the seller can fix and resend it.
+        Sellers send a pickup request when an order is packed and ready. Accept it by assigning a rider (the rider of the seller's
+        barangay, or anyone you choose); the rider gets the job, picks the parcel up and brings it to the hub. Or reject it with a reason.
     </p>
 
     @php
-        $tabs = ['pending'=>'Ready for Pickup','confirmed'=>'Confirmed','received'=>'Received at Center','rejected'=>'Rejected'];
+        $tabs = ['pending'=>'Requests','confirmed'=>'Rider Assigned','received'=>'Received at Center','rejected'=>'Rejected'];
     @endphp
     <div class="tab-bar">
         @foreach($tabs as $key => $label)
@@ -73,17 +73,27 @@
                         @endif
                     </td>
                     <td>
-                        @if($parcel->status === 'pending_pickup')
-                            <div style="display:flex;flex-direction:column;gap:6px;min-width:190px;">
-                                <form method="POST" action="{{ route('sc.pickup-requests.approve',$parcel) }}">@csrf
-                                    <button class="btn btn-green btn-sm" style="width:100%;justify-content:center;">Confirm Pickup</button>
+                        @php $openPickup = $parcel->pickups->first(fn ($k) => in_array($k->status, \App\Models\ParcelPickup::OPEN, true)); @endphp
+                        @if($parcel->can_assign)
+                            <div style="display:flex;flex-direction:column;gap:6px;min-width:210px;">
+                                <form method="POST" action="{{ route('sc.dispatch.assign',$parcel) }}" style="display:flex;gap:4px;">@csrf
+                                    <select name="rider_id" class="form-select" style="flex:1;padding:5px 8px;font-size:12px;" required aria-label="Rider for {{ $parcel->tracking_number }}">
+                                        @include('sc.partials.rider-options', ['placeholder' => 'Assign rider…'])
+                                    </select>
+                                    <button class="btn btn-green btn-sm">Assign</button>
                                 </form>
+                                @if($parcel->status === 'pending_pickup')
                                 <form method="POST" action="{{ route('sc.pickup-requests.reject',$parcel) }}" style="display:flex;gap:4px;">@csrf
                                     <input type="text" name="reason" class="form-input" style="padding:5px 8px;font-size:12px;" placeholder="Reason" required maxlength="500">
                                     <button class="btn btn-red btn-sm">Reject</button>
                                 </form>
+                                @endif
                             </div>
-                        @elseif($parcel->status === 'pickup_approved')
+                        @elseif($openPickup && $parcel->status === 'pickup_approved')
+                            <span class="text-sm">{{ $openPickup->rider?->full_name }}</span>
+                            <div class="text-muted text-sm">{{ $openPickup->acknowledged_at ? 'Accepted · going to the seller' : 'Waiting for the rider to accept' }}</div>
+                        @elseif($parcel->status === 'in_transit_to_hub')
+                            <div class="text-sm" style="margin-bottom:4px;">Picked up by {{ $openPickup?->rider?->full_name ?? 'rider' }}</div>
                             <a href="{{ route('sc.tracking') }}" class="btn btn-ghost btn-sm">Receive</a>
                         @else
                             <span class="text-muted text-sm">—</span>

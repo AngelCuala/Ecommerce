@@ -110,7 +110,7 @@ class ShipmentController extends Controller
             : $parcel->events()->orderBy('occurred_at')->get();
 
         $transfer = $parcel->transfers->first(fn ($t) => in_array($t->status, ParcelTransfer::ACTIVE, true));
-        $canReceive = (in_array($parcel->status, ['pickup_approved', 'in_transit_to_hub'], true) && (int) $parcel->current_sorting_center_id === $me->id)
+        $canReceive = ($parcel->status === 'in_transit_to_hub' && (int) $parcel->current_sorting_center_id === $me->id)
             || ($parcel->status === 'in_transfer' && $transfer?->isInTransit());
         $next = $parcel->isAtHub() && (int) $parcel->current_sorting_center_id === $me->id ? $this->flow->nextDestination($parcel, $me) : null;
         $hubs = $this->flow->eligibleHubs($me);

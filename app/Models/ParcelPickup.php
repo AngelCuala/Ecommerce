@@ -21,7 +21,7 @@ class ParcelPickup extends Model
 
     protected $fillable = [
         'parcel_id', 'rider_id', 'sorting_center_id', 'assigned_by',
-        'status', 'remarks', 'picked_up_at', 'received_at', 'received_by', 'acknowledged_at', 'en_route_at',
+        'status', 'remarks', 'picked_up_at', 'proof_path', 'received_at', 'received_by', 'acknowledged_at', 'en_route_at',
     ];
 
     protected $casts = [

@@ -29,13 +29,12 @@ return [
     |--------------------------------------------------------------------------
     | Returns and refunds
     |--------------------------------------------------------------------------
-    | Off until the return process is ready: buyers can't request a return, and
-    | the Return & Refund Policy is hidden everywhere. Requests made before it was
-    | turned off can still be finished (seller decision, escalation, admin).
-    | Set RETURNS_ENABLED=true to bring it all back.
+    | On: buyers can ask for a return within Order::RETURN_DAYS of delivery, and the
+    | Return & Refund Policy shows everywhere. RETURNS_ENABLED=false turns it off
+    | again (requests already made can still be finished).
     |
     */
-    'returns_enabled' => (bool) env('RETURNS_ENABLED', false),
+    'returns_enabled' => (bool) env('RETURNS_ENABLED', true),
 
     /*
     |--------------------------------------------------------------------------

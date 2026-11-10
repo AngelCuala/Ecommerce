@@ -191,6 +191,7 @@ class Linehaul
     public function assignable(User $sc, ?LinehaulTrip $trip = null): Collection
     {
         $weight = $trip?->weightKg() ?? 0;
+        Courier::syncCompany((int) $sc->id);
 
         return Courier::where('sorting_center_id', $sc->id)->whereNotNull('home_hub_id')->where('status', 'approved')
             ->where('on_duty', true)->where('last_seen_at', '>', now()->subMinutes(Courier::ONLINE_MINUTES))
@@ -417,7 +418,7 @@ class Linehaul
         }
         try {
             // A typed time is Philippine time (a value with its own offset keeps it).
-            $at = $eta ? \Carbon\Carbon::parse($eta, config('app.business_timezone'))->utc() : null;
+            $at = $eta ? \Carbon\Carbon::parse($eta, config('app.business_timezone')) : null;
         } catch (\Throwable) {
             $at = null;
         }
