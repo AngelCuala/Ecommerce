@@ -64,6 +64,9 @@ class RiderController extends Controller
     {
         $this->dispatch->expireStale();
         $rider = $this->rider();
+        if ($rider->isTruck()) {
+            return redirect()->route('courier.trips');   // a 4-wheel rider's Hub Jobs are hub-to-hub trips
+        }
 
         $offers = RiderJobOffer::where('rider_id', $rider->id)->where('status', 'pending')->where('expires_at', '>', now())
             ->with('parcel.order', 'parcel.seller')->latest()->get();
@@ -149,6 +152,9 @@ class RiderController extends Controller
     public function toggleOnline(Request $request)
     {
         $rider = $this->rider();
+        if ($rider->isTruck()) {
+            return redirect()->route('courier.trips')->with('info', 'Go Online here: answer the truck checklist first.');
+        }
         $goOnline = $request->has('online') ? $request->boolean('online') : ! $rider->is_online;
 
         if ($goOnline && $rider->isSuspended()) {
@@ -462,6 +468,9 @@ class RiderController extends Controller
     public function history(Request $request)
     {
         $rider = $this->rider();
+        if ($rider->isTruck()) {
+            return redirect()->route('courier.trips.history', $request->only('from', 'to'));
+        }
         $request->validate(['from' => 'nullable|date', 'to' => 'nullable|date|after_or_equal:from'], ['to.after_or_equal' => 'The end date must be on or after the start date.']);
         $from = $request->filled('from') ? \Carbon\Carbon::parse($request->from)->startOfDay() : null;
         $to   = $request->filled('to') ? \Carbon\Carbon::parse($request->to)->endOfDay() : null;
@@ -476,6 +485,9 @@ class RiderController extends Controller
     public function earnings(Request $request)
     {
         $rider = $this->rider();
+        if ($rider->isTruck()) {
+            return redirect()->route('courier.trips.pay', $request->only('period'));
+        }
         $request->validate(['period' => 'nullable|in:' . implode(',', array_keys(self::PAY_PERIODS))]);
         $period = $request->input('period', 'week');
         $tz = config('app.business_timezone', 'Asia/Manila');

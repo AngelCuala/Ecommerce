@@ -33,10 +33,13 @@
     .cv-chip.is-on { border-color: var(--accent-blue); background: var(--accent-blue); color: #fff; }
     .cv-chip.is-on b { background: rgba(255,255,255,.22); color: #fff; }
     .cv-search { margin-left: auto; width: 220px; max-width: 100%; }
-    .cv-list { max-height: 640px; overflow-y: auto; }
-    .cv-row { display: flex; align-items: center; gap: 12px; padding: 10px 16px; border-bottom: 1px solid #F1F5F9; }
-    .cv-row:last-child { border-bottom: 0; }
-    .cv-row:hover { background: #FAFBFC; }
+    /* Barangays as compact tiles, several per row, so the list stays short beside the Add card (no blank space). */
+    .cv-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 10px; padding: 14px 16px 16px; max-height: 560px; overflow-y: auto; align-content: start; }
+    .cv-row { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 12px; background: #fff; }
+    .cv-row:hover { border-color: #FAD7C8; background: #FFFBF8; }
+    .cv-list [data-cv-empty] { grid-column: 1 / -1; }
+    /* The Add card follows the page while the list scrolls. */
+    @media (min-width: 1001px) { [data-coverage-add] { position: sticky; top: 76px; } }
     .cv-pin { display: flex; width: 32px; height: 32px; flex-shrink: 0; align-items: center; justify-content: center; border-radius: 9px; background: #FFF4E5; color: var(--accent-orange); }
     .cv-name { font-size: 13.5px; font-weight: 700; color: var(--text); }
     .cv-code { margin-top: 1px; font-family: 'SF Mono', Consolas, monospace; font-size: 11px; color: var(--text-muted); }

@@ -35,7 +35,7 @@ trait RiderTestData
 
         $this->rider1 = $this->riderAccount($this->logistics1, 'pedrojose.garcia@example.com', 'Pedro Jose Garcia', 'Rider@2026', 'Motorcycle', '123ABC',
             ['license_number' => 'N01-23-456789', 'license_expiry' => '2030-03-22', 'license_path' => 'rider-documents/pedro-license.jpg', 'or_cr_path' => 'rider-documents/pedro-orcr.pdf']);
-        $this->rider2 = $this->riderAccount($this->logistics1, 'markanthony.bautista@example.com', 'Mark Anthony Bautista', 'Hatid#Mark26', 'Van', 'NBC1234');
+        $this->rider2 = $this->riderAccount($this->logistics1, 'markanthony.bautista@example.com', 'Mark Anthony Bautista', 'Hatid#Mark26', 'Tricycle', 'NBC1234');
         $this->rider3 = $this->riderAccount($this->logistics1, 'rider.test01@example.com', 'Ramon Cruz', 'Rider@2026', 'Motorcycle', '456DEF', ['is_active' => false]);
         $this->agilaRider = $this->riderAccount($this->logistics2, 'rider.agila@example.com', 'Agila Rider', 'Rider@2026', 'Motorcycle', '999ZZZ');
 

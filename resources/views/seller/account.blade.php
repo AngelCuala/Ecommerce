@@ -22,245 +22,135 @@
             'Shop address'  => $application->address,
         ]);
     }
+    $nav = \App\Support\AccountNav::seller('account');
+    $badges = array_values(array_filter([
+        ['text' => 'Seller'],
+        $application ? ['text' => $application->isApproved() ? 'Approved' : ucfirst($application->status), 'tone' => $application->isApproved() ? 'green' : 'gray'] : null,
+        ['text' => 'Since ' . $u->created_at->format('M Y'), 'tone' => 'gray'],
+    ]));
 @endphp
 <style>
-    .ac-section { background: #fff; border: 1px solid #ECE7E3; border-radius: 1rem; box-shadow: 0 1px 2px rgba(34, 34, 34, .04); }
-    .ac-head { display: flex; align-items: flex-start; gap: .75rem; padding: 1.15rem 1.5rem; border-bottom: 1px solid #F2EEEA; }
-    .ac-head-ic { display: flex; flex: none; height: 2.4rem; width: 2.4rem; align-items: center; justify-content: center; border-radius: .75rem; }
-    /* Profile header: a cover with the photo overlapping it */
-    .ac-cover { height: 6.5rem; border-radius: 1rem 1rem 0 0; background: linear-gradient(120deg,#fa4e1c 0%,#ff8a5b 45%,#002b4d 130%); }
-    .ac-hero { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 1rem; padding: 0 1.5rem 1.25rem; margin-top: -2.75rem; }
-    .ac-hero-text { min-width: 0; flex: 1; padding-top: 3rem; }
-    .ac-field { position: relative; }
-    .ac-field > svg { position: absolute; left: .85rem; top: 50%; transform: translateY(-50%); height: 1rem; width: 1rem; color: #a39890; pointer-events: none; }
-    .ac-field > .input { padding-left: 2.4rem; }
-    .ac-field:has(+ .ac-error) > .input { border-color: #DC2626; box-shadow: 0 0 0 3px rgba(220, 38, 38, .12); }
-    .ac-head h2 { font-size: 1rem; font-weight: 600; color: #222; }
-    .ac-head p { margin-top: .15rem; font-size: .8125rem; color: #8a7f78; }
-    .ac-body { padding: 1.25rem 1.5rem; }
-    .ac-label { display: block; margin-bottom: .3rem; font-size: .8125rem; font-weight: 500; color: #44403C; }
-    .ac-note { margin-top: .3rem; font-size: .75rem; color: #8a7f78; }
-    .ac-error { margin-top: .3rem; font-size: .75rem; font-weight: 500; color: #B91C1C; }
-    .input:has(+ .ac-error) { border-color: #DC2626; box-shadow: 0 0 0 3px rgba(220, 38, 38, .12); }
-    .input:disabled { background: #FAFAF9; color: #8a7f78; cursor: not-allowed; }
-    .ac-group { padding-top: 1.25rem; border-top: 1px solid #F2EEEA; }
-    .ac-group-title { margin-bottom: .75rem; font-size: .8125rem; font-weight: 600; color: #222; }
-    .ac-btn { display: inline-flex; align-items: center; gap: .4rem; border: 1px solid #E7E5E4; border-radius: .5rem; padding: .45rem .875rem; background: #fff; font-size: .8125rem; font-weight: 600; color: #44403C; cursor: pointer; transition: border-color .15s, color .15s; }
-    .ac-btn:hover { border-color: #fa4e1c; color: #fa4e1c; }
-    .ac-pill { padding: .15rem .6rem; border-radius: 9999px; font-size: .75rem; font-weight: 600; }
-    .ac-fact { padding: .625rem .875rem; border-radius: .625rem; background: #FAFAF9; }
-    .ac-fact dt { font-size: .75rem; color: #8a7f78; }
-    .ac-fact dd { margin-top: .1rem; font-size: .875rem; font-weight: 500; color: #222; overflow-wrap: anywhere; }
-    .ac-doc-icon { display: flex; flex: none; height: 2rem; width: 2rem; align-items: center; justify-content: center; border-radius: .5rem; background: #FFF1EB; color: #fa4e1c; }
-    .ac-row-icon { display: flex; flex: none; height: 2.5rem; width: 2.5rem; align-items: center; justify-content: center; border-radius: .625rem; }
+    /* The bar that appears with unsaved changes */
     .ac-save { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: .75rem; border-radius: 1rem; transition: box-shadow .15s; }
-    .ac-save.is-dirty { position: sticky; bottom: 1rem; z-index: 20; justify-content: space-between; border: 1px solid #ECE7E3; background: #fff; padding: .75rem 1rem; box-shadow: 0 8px 28px rgba(34, 34, 34, .16); }
-    .ac-save-state { display: none; font-size: .8125rem; font-weight: 500; color: #92400E; }
+    .ac-save.is-dirty { position: sticky; bottom: 1rem; z-index: 20; justify-content: space-between; border: 1px solid #F0E4DC; background: #fff; padding: .75rem 1rem; box-shadow: 0 8px 28px rgba(34, 34, 34, .16); }
+    .ac-save-state { display: none; font-size: .8125rem; font-weight: 600; color: #92400E; }
     .ac-save > span:last-child { margin-left: auto; }
-    .ac-save.is-dirty .ac-save-state, .ac-save.is-dirty [data-discard] { display: inline-block; }
-    .ac-primary { border-radius: .5rem; padding: .55rem 1.25rem; background: #fa4e1c; font-size: .875rem; font-weight: 600; color: #fff; transition: opacity .15s; }
-    .ac-primary:hover { opacity: .9; }
-    .ac-primary:disabled { background: #F5F2EF; color: #a39890; opacity: 1; cursor: default; }
+    .ac-save.is-dirty .ac-save-state, .ac-save.is-dirty [data-discard] { display: inline-flex; }
+    .acs-input:has(+ .acs-error) { border-color: #DC2626; box-shadow: 0 0 0 3px rgba(220, 38, 38, .12); }
+    .ac-docs { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); }
+    .ac-doc { display: flex; align-items: center; gap: 10px; border: 1px solid #F5EBE4; border-radius: 12px; padding: 10px 12px; background: #FDF8F5; font-size: 13.5px; font-weight: 600; }
+    .ac-doc a { margin-left: auto; font-weight: 700; color: #fa4e1c; text-decoration: none; }
 </style>
 
-<div class="mx-auto max-w-3xl">
-
-    <div class="mb-5">
-        <h1 class="font-display text-2xl font-bold" style="color:#222;">Account</h1>
-        <p class="mt-0.5 text-sm" style="color:#8a7f78;">Your profile and shop details.</p>
-    </div>
-
+<x-account-shell title="My Account" subtitle="Manage your profile and shop details." portal="Seller Centre" :nav="$nav" :badges="$badges" :sign-out="true">
     @if ($errors->any())
-        <div class="mb-5 rounded-2xl border px-5 py-3.5 text-sm font-medium" style="background:#FEF2F2;border-color:#FECACA;color:#991B1B;" role="alert">
-            Nothing was saved yet. Please fix the highlighted {{ \Illuminate\Support\Str::plural('field', $errors->count()) }} below.
-        </div>
+        <div class="acs-alert acs-alert-error" role="alert">Nothing was saved yet. Please fix the highlighted {{ \Illuminate\Support\Str::plural('field', $errors->count()) }} below.</div>
     @endif
 
-    <form action="{{ route('seller.account.update') }}" method="POST" enctype="multipart/form-data" class="space-y-5" data-account-form data-start-dirty="{{ $errors->any() ? '1' : '0' }}">
+    <form action="{{ route('seller.account.update') }}" method="POST" enctype="multipart/form-data" style="display:grid;gap:20px;" data-account-form data-start-dirty="{{ $errors->any() ? '1' : '0' }}">
         @csrf @method('PATCH')
 
-        {{-- ── Profile ─────────────────────────────────────── --}}
-        <section class="ac-section">
-            <div class="ac-cover" aria-hidden="true"></div>
-            <div class="ac-hero" data-account-hero>
-                <button type="button" id="avatar-box" onclick="document.getElementById('avatar-input').click()"
-                            class="group relative flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-full"
-                            style="background:#FFF1EB;box-shadow:0 0 0 4px #fff,0 6px 16px -6px rgba(0,0,0,.3);" aria-label="Change profile photo">
-                        <img id="avatar-preview" data-photo-preview src="{{ $u->profile_photo_path ? asset('storage/' . $u->profile_photo_path) : '' }}"
-                             class="{{ $u->profile_photo_path ? '' : 'hidden' }} h-full w-full object-cover" alt="">
-                        @unless ($u->profile_photo_path)
-                            <span id="avatar-initial" data-photo-initial class="font-display text-3xl font-bold" style="color:#d93d0e;">{{ strtoupper(mb_substr($u->name, 0, 1)) }}</span>
-                        @endunless
-                        <span class="absolute inset-0 hidden items-center justify-center text-[11px] font-medium text-white group-hover:flex" style="background:rgba(0,0,0,.45);">Change</span>
-                    </button>
-                <div class="ac-hero-text">
-                    <p class="truncate font-display text-xl font-bold" style="color:#222;" data-hero-name>{{ old('name', $u->name) }}</p>
-                    <p class="mt-0.5 flex flex-wrap items-center gap-2 text-sm" style="color:#8a7f78;">
-                        @if ($application)<span class="font-medium" style="color:#57534E;">{{ $application->shop_name }}</span>@endif
-                        @if ($application)
-                            <span class="ac-pill" style="{{ $application->isApproved() ? 'background:#ECFDF5;color:#047857;' : 'background:#F5F5F4;color:#57534E;' }}">{{ $application->isApproved() ? 'Approved seller' : ucfirst($application->status) }}</span>
-                        @endif
-                        <span>Seller since {{ $u->created_at->format('M Y') }}</span>
-                    </p>
-                </div>
-                <div class="min-w-0 pb-1">
-                    <input id="avatar-input" type="file" accept="image/jpeg,image/png,image/webp" class="hidden" data-photo-upload data-photo-url="{{ route('account.photo') }}">
-                        <label for="avatar-input" class="ac-btn">
-                            <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3 9a2 2 0 0 1 2-2h1.2a2 2 0 0 0 1.7-.9l.7-1.2A2 2 0 0 1 10.3 4h3.4a2 2 0 0 1 1.7.9l.7 1.2a2 2 0 0 0 1.7.9H19a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9Z"/><circle cx="12" cy="13" r="3.5"/></svg>
-                            {{ $u->profile_photo_path ? 'Change photo' : 'Upload photo' }}
-                        </label>
-                        <p id="avatar-filename" class="ac-note" data-photo-status>JPG, PNG or WebP, up to 5 MB. Saved as soon as you choose it.</p>
-                        @error('avatar')<p class="ac-error">{{ $message }}</p>@enderror
+        {{-- Personal information --}}
+        <section class="acs-card acs-pad" data-account-hero>
+            <div class="acs-card-head">
+                <div>
+                    <span class="acs-icon"><svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/></svg></span>
+                    <div><h2>Personal Information</h2><p>How you appear to buyers and the ALVY team.</p></div>
                 </div>
             </div>
-            <div class="ac-head" style="border-top:1px solid #F2EEEA;">
-                <span class="ac-head-ic" style="background:#FFF1EB;color:#fa4e1c;"><svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/></svg></span>
-                <div><h2>Profile</h2><p>How you appear to buyers and the ALVY team.</p></div>
-            </div>
-            <div class="ac-body space-y-5">
-                <div class="grid gap-4 sm:grid-cols-2">
-                    <div class="sm:col-span-2">
-                        <label class="ac-label" for="name">Full name</label>
-                        <input type="text" id="name" name="name" value="{{ old('name', $u->name) }}" class="input" required>
-                        @error('name')<p class="ac-error">{{ $message }}</p>@enderror
-                    </div>
-                    <div>
-                        <label class="ac-label" for="email">Email</label>
-                        <div class="ac-field"><svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg>
-                        <input type="email" id="email" name="email" value="{{ old('email', $u->email) }}" class="input" required>
-                        </div>
-                        @error('email')<p class="ac-error">{{ $message }}</p>@enderror
-                    </div>
-                    <div>
-                        <label class="ac-label" for="phone">Mobile number</label>
-                        <div class="ac-field"><svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/></svg>
-                        <input type="tel" id="phone" name="phone" value="{{ old('phone', $u->phone ?: $u->contact_no) }}" class="input" placeholder="09171234567" maxlength="13" inputmode="tel" autocomplete="tel" data-mobile oninput="this.value=this.value.startsWith('+')?('+'+this.value.slice(1).replace(/\D/g,'')).slice(0,13):this.value.replace(/\D/g,'').slice(0,11)">
-                        </div>
-                        @error('phone')<p class="ac-error">{{ $message }}</p>@enderror
-                    </div>
+            <div class="acs-fields">
+                <div class="wide">
+                    <label class="acs-label" for="name">Full name</label>
+                    <input type="text" id="name" name="name" value="{{ old('name', $u->name) }}" class="acs-input" required>
+                    @error('name')<p class="acs-error">{{ $message }}</p>@enderror
                 </div>
-
-                <div class="ac-group">
-                    <p class="ac-group-title">Address</p>
-                    <div class="grid gap-4 sm:grid-cols-2">
-                        <div class="sm:col-span-2">
-                            <label class="ac-label" for="address">House no., street and barangay</label>
-                            <input type="text" id="address" name="address" value="{{ old('address', $u->address ?: $u->street) }}" class="input" placeholder="e.g. 12 Rizal Street, Barangay Uno" autocomplete="street-address">
-                        </div>
-                        <div>
-                            <label class="ac-label" for="city">City</label>
-                            <input type="text" id="city" name="city" value="{{ old('city', $u->city ?: $u->municipality) }}" class="input" placeholder="e.g. Calamba" autocomplete="address-level2">
-                        </div>
-                        <div>
-                            <label class="ac-label" for="zip">ZIP code</label>
-                            <input type="text" id="zip" name="zip" value="{{ old('zip', $u->zip) }}" class="input" inputmode="numeric" maxlength="10" placeholder="e.g. 4027" autocomplete="postal-code">
-                        </div>
-                    </div>
+                <div>
+                    <label class="acs-label" for="email">Email</label>
+                    <input type="email" id="email" name="email" value="{{ old('email', $u->email) }}" class="acs-input" required>
+                    @error('email')<p class="acs-error">{{ $message }}</p>@enderror
+                </div>
+                <div>
+                    <label class="acs-label" for="phone">Mobile number</label>
+                    <input type="tel" id="phone" name="phone" value="{{ old('phone', $u->phone ?: $u->contact_no) }}" class="acs-input" placeholder="09171234567" maxlength="13" inputmode="tel" autocomplete="tel" data-mobile oninput="this.value=this.value.startsWith('+')?('+'+this.value.slice(1).replace(/\D/g,'')).slice(0,13):this.value.replace(/\D/g,'').slice(0,11)">
+                    @error('phone')<p class="acs-error">{{ $message }}</p>@enderror
+                </div>
+                <div class="wide">
+                    <label class="acs-label" for="address">House no., street and barangay</label>
+                    <input type="text" id="address" name="address" value="{{ old('address', $u->address ?: $u->street) }}" class="acs-input" placeholder="e.g. 12 Rizal Street, Barangay Uno" autocomplete="street-address">
+                </div>
+                <div>
+                    <label class="acs-label" for="city">City</label>
+                    <input type="text" id="city" name="city" value="{{ old('city', $u->city ?: $u->municipality) }}" class="acs-input" placeholder="e.g. Calamba" autocomplete="address-level2">
+                </div>
+                <div>
+                    <label class="acs-label" for="zip">ZIP code</label>
+                    <input type="text" id="zip" name="zip" value="{{ old('zip', $u->zip) }}" class="acs-input" inputmode="numeric" maxlength="10" placeholder="e.g. 4027" autocomplete="postal-code">
                 </div>
             </div>
+            @error('avatar')<p class="acs-error">{{ $message }}</p>@enderror
         </section>
 
-        {{-- ── Shop ────────────────────────────────────────── --}}
+        {{-- Shop --}}
         @if ($application)
-            <section class="ac-section">
-                <div class="ac-head flex flex-wrap items-start justify-between gap-2">
-                    <span class="ac-head-ic" style="background:#EEF3F7;color:#002b4d;"><svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9l1.5-5h15L21 9M3 9h18M3 9a3 3 0 006 0 3 3 0 006 0 3 3 0 006 0M5 12v8h14v-8"/></svg></span>
-                    <div class="min-w-0 flex-1">
-                        <h2>Shop</h2>
-                        <p>Details from your approved seller application.</p>
-                    </div>
-                    <span class="ac-pill"
-                          style="{{ $application->isApproved() ? 'background:#ECFDF5;color:#047857;' : 'background:#F5F5F4;color:#57534E;' }}">
-                        {{ ucfirst($application->status) }}
-                    </span>
-                </div>
-                <div class="ac-body space-y-5">
+            <section class="acs-card acs-pad">
+                <div class="acs-card-head">
                     <div>
-                        <div class="mb-1 flex flex-wrap items-baseline justify-between gap-2">
-                            <label class="ac-label !mb-0" for="shop_name">Shop name</label>
-                            <span class="ac-pill" style="{{ $canChange ? 'background:#F5F2EF;color:#57534E;' : 'background:#FEF2F2;color:#B91C1C;' }}">
-                                @if ($canChange)
-                                    {{ $remaining }} of 3 changes left this month
-                                @else
-                                    No changes left until {{ $resetsAt }}
-                                @endif
-                            </span>
-                        </div>
-                        @if ($canChange)
-                            <input type="text" id="shop_name" name="shop_name" value="{{ old('shop_name', $application->shop_name) }}" class="input" maxlength="30">
-                        @else
-                            <input type="text" id="shop_name" value="{{ $application->shop_name }}" class="input" disabled>
-                        @endif
-                        @error('shop_name')
-                            <p class="ac-error">{{ $message }}</p>
-                        @else
-                            <p class="ac-note flex justify-between gap-3"><span>3–30 characters. You can rename your shop up to 3 times a month.</span>@if ($canChange)<span class="flex-none"><span data-shop-count>{{ mb_strlen(old('shop_name', $application->shop_name)) }}</span> / 30</span>@endif</p>
-                        @enderror
+                        <span class="acs-icon" style="background:#EEF3F7;color:#002b4d;"><svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9l1.5-5h15L21 9M3 9h18M3 9a3 3 0 006 0 3 3 0 006 0 3 3 0 006 0M5 12v8h14v-8"/></svg></span>
+                        <div><h2>Shop</h2><p>Details from your approved seller application.</p></div>
                     </div>
-
-                    @if ($facts)
-                        <dl class="ac-group grid gap-2 sm:grid-cols-2">
-                            @foreach ($facts as $label => $value)
-                                <div class="ac-fact {{ in_array($label, ['Shop address']) ? 'sm:col-span-2' : '' }}">
-                                    <dt>{{ $label }}</dt>
-                                    <dd>{{ $value }}</dd>
-                                </div>
-                            @endforeach
-                        </dl>
-                    @endif
-
-                    @if ($documents)
-                        <div class="ac-group">
-                            <p class="ac-group-title">Documents</p>
-                            <ul class="divide-y overflow-hidden rounded-xl border" style="border-color:#ECE7E3;">
-                                @foreach ($documents as $label => $path)
-                                    <li class="flex items-center gap-3 px-3 py-2.5 text-sm" style="border-color:#F2EEEA;">
-                                        <span class="ac-doc-icon" aria-hidden="true"><svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6Zm0 0v6h6"/></svg></span>
-                                        <span class="min-w-0 flex-1 font-medium" style="color:#222;">{{ $label }}</span>
-                                        <a href="{{ \App\Support\ProtectedFile::url($path) }}" target="_blank" rel="noopener" class="flex-none font-semibold hover:underline" style="color:#fa4e1c;" aria-label="View {{ $label }}">View</a>
-                                    </li>
-                                @endforeach
-                            </ul>
-                            <p class="ac-note">To change your business details or documents, contact ALVY support.</p>
-                        </div>
-                    @endif
+                    <span class="acs-badge {{ $application->isApproved() ? 'acs-badge-green' : 'acs-badge-gray' }}">{{ ucfirst($application->status) }}</span>
                 </div>
+
+                <div style="margin-bottom:18px;">
+                    <div style="display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:6px;">
+                        <label class="acs-label" for="shop_name" style="margin:0;">Shop name</label>
+                        <span class="acs-badge {{ $canChange ? 'acs-badge-gray' : 'acs-badge-red' }}">{{ $canChange ? $remaining . ' of 3 changes left this month' : 'No changes left until ' . $resetsAt }}</span>
+                    </div>
+                    @if ($canChange)
+                        <input type="text" id="shop_name" name="shop_name" value="{{ old('shop_name', $application->shop_name) }}" class="acs-input" maxlength="30">
+                    @else
+                        <input type="text" id="shop_name" value="{{ $application->shop_name }}" class="acs-input" disabled>
+                    @endif
+                    @error('shop_name')
+                        <p class="acs-error">{{ $message }}</p>
+                    @else
+                        <p class="acs-note" style="display:flex;justify-content:space-between;gap:12px;"><span>3–30 characters. You can rename your shop up to 3 times a month.</span>@if ($canChange)<span style="flex:none;"><span data-shop-count>{{ mb_strlen(old('shop_name', $application->shop_name)) }}</span> / 30</span>@endif</p>
+                    @enderror
+                </div>
+
+                @if ($facts)
+                    <dl class="acs-tiles">
+                        @foreach ($facts as $label => $value)
+                            <div class="acs-tile {{ $label === 'Shop address' ? 'wide' : '' }}"><dt>{{ $label }}</dt><dd>{{ $value }}</dd></div>
+                        @endforeach
+                    </dl>
+                @endif
+
+                @if ($documents)
+                    <p class="acs-label" style="margin:18px 0 8px;">Documents</p>
+                    <div class="ac-docs">
+                        @foreach ($documents as $label => $path)
+                            <div class="ac-doc">
+                                <svg width="16" height="16" fill="none" stroke="#fa4e1c" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6Zm0 0v6h6"/></svg>
+                                <span>{{ $label }}</span>
+                                <a href="{{ \App\Support\ProtectedFile::url($path) }}" target="_blank" rel="noopener" aria-label="View {{ $label }}">View</a>
+                            </div>
+                        @endforeach
+                    </div>
+                    <p class="acs-note">To change your business details or documents, contact ALVY support.</p>
+                @endif
             </section>
         @endif
 
-        {{-- ── Password ────────────────────────────────────── --}}
-        <section class="ac-section">
-            <div class="ac-body flex flex-wrap items-center gap-3">
-                <span class="ac-row-icon" style="background:#F5F2EF;color:#57534E;" aria-hidden="true"><svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="4" y="11" width="16" height="10" rx="2"/><path stroke-linecap="round" d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></span>
-                <div class="min-w-0 flex-1" style="min-width:12rem;">
-                    <h2 class="text-base font-semibold" style="color:#222;">Password</h2>
-                    <p class="mt-0.5 text-sm" style="color:#8a7f78;">Change the password you use to sign in.</p>
-                </div>
-                <a href="{{ route('seller.account.security') }}" class="ac-btn">Change password</a>
-            </div>
-        </section>
-
         <div class="ac-save" data-save-bar>
             <span class="ac-save-state" role="status">You have unsaved changes</span>
-            <span class="flex items-center gap-3">
-                <button type="button" class="hidden text-sm font-semibold hover:underline" style="color:#57534E;" data-discard>Discard</button>
-                <button type="submit" class="ac-primary" data-save>Save changes</button>
+            <span style="display:flex;align-items:center;gap:12px;">
+                <button type="button" class="acs-btn-ghost" style="display:none;" data-discard>Discard</button>
+                <button type="submit" class="acs-btn" data-save>Save changes</button>
             </span>
         </div>
     </form>
-
-    {{-- Outside the form above: a form can't hold another form. --}}
-    <section class="ac-section mt-5" style="background:#FEF2F2;border-color:#FECACA;">
-        <div class="ac-body flex flex-wrap items-center gap-3">
-            <span class="ac-row-icon" style="background:#FEE2E2;color:#DC2626;" aria-hidden="true"><svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg></span>
-            <div class="min-w-0 flex-1" style="min-width:12rem;">
-                <h2 class="text-base font-semibold" style="color:#7F1D1D;">Sign out</h2>
-                <p class="mt-0.5 text-sm" style="color:#991B1B;">End your session on this browser.</p>
-            </div>
-            @include('partials.panel.sign-out')
-        </div>
-    </section>
-</div>
+</x-account-shell>
 
 <script>
 (function () {
@@ -281,24 +171,25 @@
     function sync() {
         var d = dirty();
         bar.classList.toggle('is-dirty', d);
-        discard.classList.toggle('hidden', !d);
+        discard.style.display = d ? '' : 'none';
         save.disabled = !d;
         var shop = form.elements.shop_name;
         if (shopCount && shop) shopCount.textContent = shop.value.length;
     }
 
     form.addEventListener('input', sync);
-    var heroName = document.querySelector('[data-hero-name]');
-    if (heroName) form.elements.name.addEventListener('input', function () { heroName.textContent = form.elements.name.value.trim() || '—'; });
+    // The name in the profile card follows what is typed.
+    var cardName = document.querySelector('[data-account-name]');
+    if (cardName) form.elements.name.addEventListener('input', function () { cardName.textContent = form.elements.name.value.trim() || '—'; });
     discard.addEventListener('click', function () {
-        if (failedSave) { window.location.href = window.location.pathname; return; }   // the page's fields hold the failed values
+        if (failedSave) { window.location.href = window.location.pathname; return; }
         form.reset();
         sync();
     });
     form.addEventListener('submit', function () {
         leaving = true;
         save.textContent = 'Saving…';
-        setTimeout(function () { save.disabled = true; }, 0);   // after the browser has taken the click
+        setTimeout(function () { save.disabled = true; }, 0);
     });
     window.addEventListener('beforeunload', function (e) {
         if (leaving || !dirty() || failedSave) return;
@@ -308,17 +199,10 @@
     window.addEventListener('pageshow', function (e) {
         if (e.persisted) { leaving = false; save.textContent = 'Save changes'; sync(); }
     });
-
     sync();
 
-    // A failed save: go straight to the first field that needs fixing.
-    var first = form.querySelector('.input:has(+ .ac-error)');
-    if (first) {
-        first.scrollIntoView({ block: 'center' });
-        first.focus({ preventScroll: true });
-    }
+    var first = form.querySelector('.acs-input:has(+ .acs-error)');
+    if (first) { first.scrollIntoView({ block: 'center' }); first.focus({ preventScroll: true }); }
 })();
 </script>
-
-<script src="{{ asset('js/photo-upload.js') }}"></script>
 </x-seller-layout>

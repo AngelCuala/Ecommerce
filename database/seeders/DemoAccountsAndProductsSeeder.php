@@ -22,13 +22,15 @@ use Illuminate\Support\Str;
 
 /**
  * A small working marketplace for local testing, in Laguna (the delivery area):
- * 1 admin, 4 sellers (6 products each, most with variations), 2 buyers,
- * 4 logistics companies (each with a hub and barangay coverage) and 4 riders (one per company).
+ * 1 admin, 6 sellers (6 products each, most with variations), 4 buyers,
+ * 6 logistics companies (each with a hub and barangay coverage: Calamba, Santa Rosa, Biñan, Los Baños, Luisiana, Santa Cruz),
+ * 12 riders, two per company: a motorcycle or tricycle (pickups and deliveries to buyers) and a 4-wheel truck (hub to hub).
  *
  *   php artisan db:seed --class=DemoAccountsAndProductsSeeder
  *
  * Deletes nothing and is safe to run again: accounts are matched by email, products by product code.
  * Logins are <role><n>@alvy.test (admin@alvy.test for the admin) with the passwords below.
+ * 4-wheel riders: courier<n>@alvy.test / Courier@2026 (SortingCenterCouriersSeeder).
  */
 class DemoAccountsAndProductsSeeder extends Seeder
 {
@@ -42,20 +44,26 @@ class DemoAccountsAndProductsSeeder extends Seeder
         ['Santa Rosa Swift Cargo', 'Liza Fernandez', 'City of Santa Rosa', 'STR', 14.3122, 121.1114],
         ['Biñan Bilis Hatid', 'Carlos Mendoza', 'City of Biñan', 'BIN', 14.3424, 121.0806],
         ['Los Baños Campus Couriers', 'Miguel Navarro', 'Los Baños', 'LSB', 14.1699, 121.2441],
+        ['Luisiana Highland Logistics', 'Teresa Alcantara', 'Luisiana', 'LUI', 14.1853, 121.5108],
+        ['Santa Cruz Lakeshore Logistics', 'Antonio Ilagan', 'Santa Cruz', 'SCZ', 14.2814, 121.4161],
     ];
 
     /** [name, vehicle, plate] — one rider per logistics company, same order. */
     private const RIDERS = [
         ['Juan Carlo Reyes', 'Motorcycle', 'NAB1234'],
         ['Mark Anthony Santos', 'Motorcycle', 'NCD5678'],
-        ['Ronald Garcia', 'Van', 'NGH3456'],
+        ['Ronald Garcia', 'Tricycle', 'NGH3456'],
         ['Kevin Mendoza', 'Motorcycle', 'NIJ7890'],
+        ['Paolo Dela Rosa', 'Motorcycle', 'NKL2345'],
+        ['Jericho Manalo', 'Motorcycle', 'NMN6789'],
     ];
 
     /** [name, town] */
     private const BUYERS = [
         ['Maria Angelica Santos', 'City of Calamba'],
         ['Jose Rafael Reyes', 'Los Baños'],
+        ['Kristine Joy Valdez', 'Luisiana'],
+        ['Mark Joseph Aguilar', 'Santa Cruz'],
     ];
 
     /** Photo key => file under public/images. */
@@ -68,6 +76,9 @@ class DemoAccountsAndProductsSeeder extends Seeder
         'brush' => 'makeup brush.png', 'skincare' => 'categories/health-and-beauty.jpg',
         'sneakers' => 'categories/shoes-and-footwear.jpg', 'dumbbells' => 'categories/sports-and-outdoors.jpg',
         'helmet' => 'categories/automotive-and-motorcycle.jpg', 'bag' => 'categories/bags-and-luggage.jpg',
+        'home' => 'categories/home-and-garden.jpg', 'food' => 'categories/food-and-gourmet.jpg',
+        'furniture' => 'categories/furniture-and-office.jpg', 'appliance' => 'categories/home-appliances.jpg',
+        'kids' => 'categories/kids-and-baby.jpg',
     ];
 
     public function run(): void
@@ -89,7 +100,9 @@ class DemoAccountsAndProductsSeeder extends Seeder
             $this->buyers($towns, $prov);
         });
 
-        $this->command?->info('Demo accounts ready: 1 admin, 4 sellers, 2 buyers, 4 logistics, 4 riders.');
+        $this->call(SortingCenterCouriersSeeder::class);   // a truck courier for each logistics company
+
+        $this->command?->info('Demo accounts ready: 1 admin, ' . count($this->shops()) . ' sellers, ' . count(self::BUYERS) . ' buyers, ' . count(self::LOGISTICS) . ' logistics, ' . count(self::RIDERS) . ' delivery riders, ' . count(self::LOGISTICS) . ' 4-wheel riders.');
         $this->command?->info(Product::published()->count() . ' products visible in the shop, '
             . ProductVariation::count() . ' variations.');
     }
@@ -281,6 +294,31 @@ class DemoAccountsAndProductsSeeder extends Seeder
                 ['AL-05', 'Resistance Bands Set', 'Sports & Outdoors', 'IronFit', 549, 0, 0.4, 'dumbbells', 'Five latex bands with handles, a door anchor and a carry bag.', null, 45],
                 ['AL-06', 'Motorcycle Riding Gloves', 'Automotive & Motorcycle', 'RoadGuard', 449, 0, 0.2, 'helmet', 'Touchscreen-friendly gloves with knuckle protection.',
                     'Size', [['M', null, 18], ['L', null, 20], ['XL', null, 7]]],
+            ]],
+            ['Luisiana Pandan Crafts', 'Lourdes Javier', 'Luisiana', [
+                ['LH-01', 'Handwoven Pandan Tote Bag', 'Bags & Luggage', 'Luisiana Weaves', 449, 0, 0.4, 'bag', 'Sturdy tote woven by hand from Luisiana pandan leaves, with a cotton lining.',
+                    'Size', [['Small', null, 15], ['Medium', 499, 12], ['Large', 599, 8]]],
+                ['LH-02', 'Pandan Placemat Set', 'Home & Garden', 'Luisiana Weaves', 349, 0, 0.5, 'home', 'Four woven placemats in natural pandan, easy to wipe clean.',
+                    'Color', [['Natural', null, 20], ['Two-Tone', null, 14]]],
+                ['LH-03', 'Woven Storage Basket', 'Home & Garden', 'Luisiana Weaves', 399, 10, 0.6, 'home', 'Lidded pandan basket for laundry, toys or pantry storage.',
+                    'Size', [['Small', null, 18], ['Large', 549, 9]]],
+                ['LH-04', 'Pandan Banig Sleeping Mat', 'Furniture & Office', 'Luisiana Weaves', 899, 0, 1.2, 'furniture', 'Traditional woven banig, cool to sleep on in warm weather.',
+                    'Size', [['Single', null, 10], ['Double', 1199, 6], ['Queen', 1499, 0]]],
+                ['LH-05', 'Woven Pandan Hat', "Men's Apparel", 'Luisiana Weaves', 249, 0, 0.2, 'home', 'Wide-brim hat woven from pandan for sun and farm work.', null, 30],
+                ['LH-06', 'Laguna Buko Pie Box', 'Food & Gourmet', 'Luisiana Pasalubong', 380, 0, 1, 'food', 'Freshly baked buko pie with a flaky crust. Best eaten within 3 days.', null, 25],
+            ]],
+            ['Sta. Cruz Home & Kesong Puti', 'Ramil Gutierrez', 'Santa Cruz', [
+                ['SK-01', 'Fresh Kesong Puti', 'Food & Gourmet', 'Sta. Cruz Dairy', 120, 0, 0.25, 'food', 'Soft white carabao-milk cheese wrapped in banana leaf. Keep chilled.',
+                    'Pack', [['1 piece', null, 40], ['3 pieces', 330, 20], ['6 pieces', 630, 10]]],
+                ['SK-02', 'Electric Rice Cooker 1.8L', 'Home Appliances', 'KusinaPro', 1499, 10, 2.5, 'appliance', 'Cooks up to 10 cups with a keep-warm mode and non-stick pot.',
+                    'Color', [['White', null, 12], ['Red', null, 8]]],
+                ['SK-03', 'Stand Fan 16-inch', 'Home Appliances', 'KusinaPro', 1299, 0, 4, 'appliance', 'Three speeds, oscillation and an adjustable height.',
+                    'Color', [['White', null, 10], ['Black', null, 6]]],
+                ['SK-04', 'Stainless Cookware Set', 'Home & Garden', 'KusinaPro', 1899, 5, 3.2, 'home', 'Pots and pans with glass lids, for gas and induction stoves.',
+                    'Set', [['5 pcs', null, 9], ['8 pcs', 2599, 5]]],
+                ['SK-05', 'Baby Cotton Onesie Pack', 'Kids & Baby', 'Munting Anghel', 549, 0, 0.3, 'kids', 'Soft cotton onesies with snap buttons, pack of three.',
+                    'Size', [['0-3 months', null, 15], ['3-6 months', null, 12], ['6-12 months', null, 9]]],
+                ['SK-06', 'Kids Wooden Puzzle Set', 'Kids & Baby', 'Munting Anghel', 399, 0, 0.6, 'kids', 'Three chunky wooden puzzles for ages 2 and up.', null, 20],
             ]],
         ];
     }

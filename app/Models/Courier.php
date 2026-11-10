@@ -99,53 +99,6 @@ class Courier extends Model
 
     public function isPending(): bool           { return $this->status === 'pending'; }
     public function isApproved(): bool          { return $this->status === 'approved'; }
-
-    /**
-     * A rider with a 4-wheel vehicle is the company's Linehaul courier: keep their courier record (same account)
-     * in step with the rider record, with the company's hub as home hub. Returns null when the rider isn't one.
-     */
-    public static function syncFromRider(Rider $r): ?self
-    {
-        if (! $r->user_id || ! $r->sorting_center_id || ! $r->isApproved() || ! $r->isFourWheel()) {
-            return null;
-        }
-        $hubId = LogisticsHub::where('sorting_center_id', $r->sorting_center_id)->orderBy('id')->value('id');
-        if (! $hubId) {
-            return null;   // the company has no hub yet
-        }
-        $c = self::firstOrNew(['user_id' => $r->user_id]);
-        $words = preg_split('/\s+/', trim((string) $r->full_name)) ?: [];
-        $last = count($words) > 1 ? array_pop($words) : '';
-        $c->fill(array_filter([
-            'first_name'      => $c->first_name ?: implode(' ', $words) ?: $r->full_name,
-            'last_name'       => $c->last_name ?: $last,
-            'contact_no'      => $c->contact_no ?: $r->phone,
-            'plate_number'    => $c->plate_number ?: $r->plate_number,
-            'license_number'  => $c->license_number ?: $r->license_number,
-            'license_expiry'  => $c->license_expiry ?: $r->license_expiry,
-            'or_cr_path'      => $c->or_cr_path ?: $r->or_cr_path,
-            'id_license_path' => $c->id_license_path ?: ($r->license_path ?: $r->id_document_path),
-        ], fn ($v) => $v !== null && $v !== ''));
-        $c->sorting_center_id = $r->sorting_center_id;
-        $c->vehicle_type = $r->vehicle_type;
-        if ($c->sorting_center_id != $c->getOriginal('sorting_center_id') || ! $c->home_hub_id) {
-            $c->home_hub_id = $hubId;
-        }
-        // The company approved the rider. A suspended rider is a suspended courier; a courier suspended in Linehaul stays so.
-        $c->status = ! $r->is_active || $c->status === 'suspended' ? 'suspended' : 'approved';
-        $c->last_name = (string) $c->last_name;
-        $c->save();
-
-        return $c;
-    }
-
-    /** Make sure every 4-wheel rider of the company has their courier record. */
-    public static function syncCompany(int $scId): void
-    {
-        Rider::where('sorting_center_id', $scId)->where('application_status', 'approved')->get()
-            ->filter(fn (Rider $r) => $r->isFourWheel())
-            ->each(fn (Rider $r) => self::syncFromRider($r));
-    }
     public function isRejected(): bool          { return $this->status === 'rejected'; }
     public function isSuspended(): bool         { return $this->status === 'suspended'; }
     /** Made by a logistics company; waits for the courier to set a password from the emailed link. */

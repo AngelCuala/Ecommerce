@@ -110,6 +110,9 @@
         html[data-theme="dark"] :is(img, video, canvas, iframe, svg.ai-avatar, [data-keep-colors], .auth-photo, input[type="checkbox"], input[type="radio"]):not(:is([data-keep-colors], svg.ai-avatar) *) {
             filter: invert(1) hue-rotate(180deg);
         }
+        /* A pop-up opened with showModal() is drawn above the page (the top layer), outside the page's filter:
+           give it the same flip, so it is dark like the page and the pictures inside (the scanner's camera) look right. */
+        html[data-theme="dark"] dialog:modal { filter: invert(1) hue-rotate(180deg) contrast(.9) brightness(1.1); }
         html[data-theme="dark"] { scrollbar-color: #9a9a9a #e6e6e6; }
         /* Cards and panels: these cool light greys come out as a lifted slate (warm greys would turn brown);
            form fields a shade darker so they stand out inside a card. */

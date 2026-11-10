@@ -23,9 +23,9 @@
 @section('content')
 <style>
     /* Fills the page: the form on the left, sign-in details and tips on the right. */
-    .se-grid { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 18px; align-items: start; }
-    @media (max-width: 1050px) { .se-grid { grid-template-columns: 1fr; } }
-    .se-side { display: grid; gap: 16px; }
+    /* Inside the account layout: the form on top, sign-in details, how it works and tips in a row under it. */
+    .se-grid { display: grid; grid-template-columns: 1fr; gap: 18px; }
+    .se-side { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); align-items: start; }
     .se-head { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; padding: 18px 20px; border-bottom: 1px solid var(--border-dim); }
     .se-head h2 { margin: 0; font-size: 17px; font-weight: 700; color: var(--text); }
     .se-head p { margin: 3px 0 0; font-size: 13px; color: var(--text-muted); }
@@ -78,13 +78,10 @@
     .se-kv span { font-size: 13px; font-weight: 600; color: var(--text); word-break: break-all; }
 </style>
 
-<div class="page-header flex-between">
-    <div>
-        <a href="{{ route('sc.account') }}" style="font-size:12.5px;color:var(--text-muted);">&larr; Account Management</a>
-        <h1 style="margin-top:2px;">Security</h1>
-    </div>
-</div>
-<div class="page-body">
+<div class="page-body" style="padding-top:22px;">
+<x-account-shell title="Accounts & Security" subtitle="Change the password you sign in with." portal="LogiSort"
+                 :nav="\App\Support\AccountNav::sortingCenter('security')"
+                 :badges="[['text' => 'Sorting center'], ['text' => 'Active', 'tone' => 'green']]">
     <div class="se-grid">
         <div class="card" data-password-card>
             <div class="se-head">
@@ -206,6 +203,7 @@
             </div>
         </aside>
     </div>
+</x-account-shell>
 </div>
 
 <script>

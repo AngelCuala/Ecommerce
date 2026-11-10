@@ -73,7 +73,7 @@ class RiderDispatch
         }
         return Rider::with('area', 'areas')->where('sorting_center_id', $scId)->where('application_status', 'approved')->where('is_active', true)
             ->orderBy('id')->get()
-            ->filter(fn (Rider $r) => $r->isOnlineNow() && ! $r->isFourWheel())
+            ->filter(fn (Rider $r) => $r->isOnlineNow() && ! $r->isTruck())   // 4-wheelers do hub-to-hub trips only
             ->values();
     }
 
@@ -86,7 +86,7 @@ class RiderDispatch
                 $r->online_now  = $r->isOnlineNow();
                 $why = $this->ineligibleReason($r, $scId, true);
                 return (object) ['rider' => $r, 'available' => $why === null,
-                    'why' => $r->isSuspended() ? 'suspended' : ($r->isFourWheel() ? '4-wheel courier' : 'unavailable')];
+                    'why' => $r->isSuspended() ? 'suspended' : ($r->isTruck() ? '4-wheeler (hub-to-hub trips)' : 'unavailable')];
             })
             ->sortBy(fn ($c) => [$c->available ? 0 : 1, $c->rider->online_now ? 0 : 1, $c->rider->full_name])->values();
     }
@@ -99,7 +99,7 @@ class RiderDispatch
             ! $this->inServiceArea($scId)            => 'This sorting center is outside the service area (' . \App\Support\ServiceArea::label() . ' only), so it cannot assign riders.',
             ! $rider->isApproved()                    => "{$rider->full_name} is not an approved rider.",
             $rider->isSuspended()                     => "{$rider->full_name} is suspended.",
-            $rider->isFourWheel()                     => "{$rider->full_name} drives a {$rider->vehicle_type}: 4-wheel couriers do Linehaul trips, not barangay pickups or deliveries.",
+            $rider->isTruck()                         => "{$rider->full_name} drives a {$rider->vehicle_type} (4-wheeler): they do hub-to-hub trips, not pickups or deliveries.",
             ! $manual && ! $rider->isOnlineNow()      => "{$rider->full_name} is offline.",
             default                                   => null,
         };

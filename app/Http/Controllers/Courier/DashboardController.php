@@ -9,6 +9,10 @@ class DashboardController extends Controller
 {
     public function index()
     {
+        // A logistics company's truck courier works from Hub Trips.
+        if (TruckDutyController::truckCourier()) {
+            return redirect()->route('courier.trips');
+        }
         // A rider of a logistics company without a direct-courier profile works from Hub Jobs.
         $c = auth()->user()->courier;
         if ((! $c || ! $c->isApproved()) && \App\Models\Rider::where('user_id', auth()->id())->where('application_status', 'approved')->exists()) {

@@ -12,6 +12,10 @@ return new class extends Migration
 {
     public function up(): void
     {
+        // Only the MySQL databases hold old UTC times (a fresh test database has nothing to move).
+        if (DB::getDriverName() !== 'mysql') {
+            return;
+        }
         $columns = DB::select("SELECT table_name AS t, column_name AS c FROM information_schema.columns
             WHERE table_schema = DATABASE() AND data_type IN ('datetime', 'timestamp') AND table_name <> 'migrations'");
 

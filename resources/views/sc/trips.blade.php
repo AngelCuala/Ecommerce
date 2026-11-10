@@ -30,18 +30,33 @@
     .lt-code { font-family: 'SF Mono', Consolas, monospace; font-weight: 700; white-space: nowrap; }
     .lt-sub { margin-top: 2px; font-size: 11.5px; color: var(--text-muted); }
     .lt-dir { display: inline-flex; align-items: center; gap: 4px; border-radius: 999px; padding: 2px 8px; font-size: 11px; font-weight: 700; white-space: nowrap; }
-    .lt-form { display: grid; gap: 12px; padding: 16px 18px; }
-    .lt-row { display: grid; gap: 12px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
-    @media (max-width: 900px) { .lt-row { grid-template-columns: 1fr; } }
+    .lt-form { display: grid; gap: 14px; padding: 18px; }
+    .lt-route { display: grid; gap: 12px; grid-template-columns: minmax(0, 1.1fr) auto minmax(0, 1.25fr) minmax(190px, .6fr); align-items: end; }
+    .lt-route .form-select, .lt-route .form-input { width: 100%; }
+    .lt-arrow { display: flex; width: 38px; height: 38px; align-items: center; justify-content: center; border-radius: 999px; background: #FFF4E5; color: var(--accent-orange); }
+    @media (max-width: 900px) { .lt-route { grid-template-columns: 1fr; } .lt-arrow { display: none; } }
     .lt-label { display: block; margin-bottom: 5px; font-size: 12px; font-weight: 600; color: var(--text-muted); }
-    .lt-parcels { max-height: 240px; overflow: auto; border: 1px solid #E2E8F0; border-radius: 10px; }
+    .lt-suggest { display: flex; align-items: flex-start; gap: 7px; margin: -4px 0 0; font-size: 12.5px; color: var(--text-muted); }
+    .lt-suggest svg { flex: none; margin-top: 2px; color: var(--accent-green); }
+    .lt-suggest b { color: var(--accent-blue); }
+    .lt-box { border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+    .lt-auto { display: flex; align-items: flex-start; gap: 10px; padding: 12px 14px; border-bottom: 1px solid var(--border); background: #FAFBFC; cursor: pointer; }
+    .lt-auto input { margin-top: 3px; }
+    .lt-auto b { display: block; font-size: 13.5px; color: var(--text); }
+    .lt-auto small { display: block; font-size: 12px; color: var(--text-muted); }
+    .lt-box-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 14px 6px; font-size: 12.5px; font-weight: 700; color: var(--text-sub); }
+    .lt-empty { margin: 0; padding: 4px 14px 14px; font-size: 13px; color: var(--text-muted); }
+    .lt-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
+    .lt-foot > span { font-size: 12.5px; color: var(--text-muted); }
+    .lt-foot .btn { gap: 6px; min-width: 190px; justify-content: center; }
+    .lt-parcels { max-height: 240px; overflow: auto; border-top: 1px solid #F1F5F9; }
     .lt-parcels label { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-bottom: 1px solid #F1F5F9; font-size: 13px; cursor: pointer; }
 </style>
 
 <div class="page-header"><h1>Linehaul Trips</h1></div>
 <div class="page-body">
     <p class="text-muted" style="margin:-4px 0 16px;font-size:13px;">
-        Send parcels hub to hub on your courier's truck to the sorting center nearer the buyer.
+        Send parcels hub to hub with your 4-wheel riders (car, van or truck) to the sorting center nearer the buyer.
         The trip loads and departs only after that sorting center accepts it. Both of you can track the trip and message each other on it.
     </p>
 
@@ -86,46 +101,58 @@
     {{-- Create a trip --}}
     <div class="card" style="margin-bottom:18px;" id="create" data-trip-create>
         <div class="card-header"><h2>Create a delivery</h2><span class="card-meta">Hub to hub, to the sorting center nearest the buyers</span></div>
-        <form method="GET" action="{{ route('sc.trips') }}#create" style="padding:12px 18px 0;display:flex;gap:8px;align-items:end;flex-wrap:wrap;">
-            <div style="min-width:220px;">
-                <label class="lt-label" for="lt-origin">From (your hub)</label>
-                <select id="lt-origin" name="origin_hub_id" class="form-select" onchange="this.form.submit()">
-                    @foreach ($hubs as $h)<option value="{{ $h->id }}" @selected($origin && $origin->id === $h->id)>{{ $h->code }} — {{ $h->name }}</option>@endforeach
-                </select>
-            </div>
+        {{-- Changing "From" reloads the page for that hub's waiting parcels (its select belongs to this form). --}}
+        <form method="GET" action="{{ route('sc.trips') }}#create" id="lt-origin-form" hidden>
             @foreach ($preselect as $id)<input type="hidden" name="parcel[]" value="{{ $id }}">@endforeach
-            <noscript><button class="btn btn-sm">Show parcels</button></noscript>
         </form>
         <form method="POST" action="{{ route('sc.trips.store') }}" class="lt-form"
               data-confirm="The delivery is created at {{ $origin->code ?? 'your hub' }} and waits for the receiving sorting center to accept it." data-confirm-title="Create this delivery?" data-confirm-ok="Create delivery">
             @csrf
             <input type="hidden" name="origin_hub_id" value="{{ $origin?->id }}">
-            <div class="lt-row">
+
+            {{-- Route: from your hub → to the receiving sorting center, and when --}}
+            <div class="lt-route">
+                <div>
+                    <label class="lt-label" for="lt-origin">From (your hub)</label>
+                    <select id="lt-origin" name="origin_hub_id" form="lt-origin-form" class="form-select" onchange="this.form.submit()">
+                        @foreach ($hubs as $h)<option value="{{ $h->id }}" @selected($origin && $origin->id === $h->id)>{{ $h->code }} — {{ $h->name }}</option>@endforeach
+                    </select>
+                </div>
+                <span class="lt-arrow" aria-hidden="true">@include('sc.partials.icon', ['name' => 'truck', 'size' => 18, 'sw' => 2])</span>
                 <div>
                     <label class="lt-label" for="lt-dest">To (sorting center)</label>
                     <select id="lt-dest" name="destination_hub_id" class="form-select" required>
                         <option value="">Choose the sorting center…</option>
+                        {{-- Nearest first; the suggested one is picked for you and can be changed. --}}
                         @foreach ($destinations as $h)
-                            <option value="{{ $h->id }}" @selected((int) old('destination_hub_id') === $h->id)>{{ \App\Support\SortingCenters::nameOf($h->company) }} — {{ $h->code }}{{ $h->company?->assigned_municipality ? ' · ' . $h->company->assigned_municipality : '' }}</option>
+                            <option value="{{ $h->id }}" @selected((int) old('destination_hub_id', $suggested?->id) === $h->id)>{{ \App\Support\SortingCenters::nameOf($h->company) }} — {{ $h->code }}{{ $h->km !== null ? ' · ' . number_format($h->km / 1000, 1) . ' km' : '' }}{{ $suggested && $suggested->id === $h->id ? ' (suggested)' : '' }}</option>
                         @endforeach
                     </select>
                 </div>
                 <div>
-                    <label class="lt-label" for="lt-when">Planned departure (optional)</label>
+                    <label class="lt-label" for="lt-when">Planned departure <span style="font-weight:500;">(optional)</span></label>
                     <input id="lt-when" type="datetime-local" name="scheduled_departure_at" class="form-input" value="{{ old('scheduled_departure_at') }}">
                 </div>
-                <div style="display:flex;align-items:end;">
-                    <button class="btn btn-orange" style="width:100%;">Create delivery</button>
-                </div>
             </div>
-            <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;">
-                <input type="checkbox" name="auto" value="1" @checked(old('auto', true))>
-                Auto-assign: add every parcel here whose nearest hub to the buyer is this sorting center
-            </label>
-            <div>
-                <label class="lt-label">Or pick parcels yourself ({{ $parcels->count() }} waiting at {{ $origin->code ?? 'your hub' }}). More can be added on the delivery page until it departs.</label>
+            @if ($suggested)
+                <p class="lt-suggest" data-suggested="{{ $suggested->code }}">
+                    @include('sc.partials.icon', ['name' => 'check', 'size' => 14, 'sw' => 2.4])
+                    <span>Picked automatically: <b>{{ $suggested->code }}</b>{{ $suggested->company?->assigned_municipality ? ' (' . $suggested->company->assigned_municipality . ')' : '' }}, {{ $suggestedWhy }}. You can choose another.</span>
+                </p>
+            @endif
+
+            {{-- Parcels: added automatically, or picked by hand --}}
+            <div class="lt-box">
+                <label class="lt-auto">
+                    <input type="checkbox" name="auto" value="1" @checked(old('auto', true))>
+                    <span><b>Auto-assign parcels</b><small>Add every parcel waiting here whose nearest hub to the buyer is this sorting center.</small></span>
+                </label>
+                <div class="lt-box-head">
+                    <span>Or pick parcels yourself</span>
+                    <span class="badge badge-gray">{{ $parcels->count() }} waiting at {{ $origin->code ?? 'your hub' }}</span>
+                </div>
                 @if ($parcels->isEmpty())
-                    <p class="text-muted" style="margin:0;font-size:13px;">No parcels are waiting at {{ $origin->code ?? 'this hub' }} right now. You can still create the delivery and add parcels later.</p>
+                    <p class="lt-empty">No parcels are waiting at {{ $origin->code ?? 'this hub' }} right now. You can still create the delivery and add parcels on its page until it departs.</p>
                 @else
                     <div class="lt-parcels">
                         @foreach ($parcels as $p)
@@ -142,6 +169,11 @@
                     </div>
                 @endif
             </div>
+
+            <div class="lt-foot">
+                <span>The receiving sorting center accepts it first; then assign an online 4-wheel rider.</span>
+                <button class="btn btn-orange">@include('sc.partials.icon', ['name' => 'truck', 'size' => 15, 'sw' => 2]) Create delivery</button>
+            </div>
         </form>
     </div>
 
@@ -153,7 +185,7 @@
 
     <div class="card">
         <table class="data-table">
-            <thead><tr><th>Trip</th><th>Route</th><th>Courier</th><th>Parcels</th><th>Status</th><th>Departure</th><th></th></tr></thead>
+            <thead><tr><th>Trip</th><th>Route</th><th>Rider</th><th>Parcels</th><th>Status</th><th>Departure</th><th></th></tr></thead>
             <tbody>
             @forelse ($trips as $t)
                 @php $outgoing = (int) $t->sorting_center_id === $me; @endphp
@@ -180,7 +212,7 @@
                             {{ $t->courier->fullName() }}
                             <div class="lt-sub">{{ trim($t->courier->vehicle_type . ' · ' . $t->courier->plate_number, ' ·') }}</div>
                         @else
-                            <span class="text-muted">No courier yet</span>
+                            <span class="text-muted">No rider yet</span>
                         @endif
                     </td>
                     <td>{{ $t->parcels_count }}</td>
