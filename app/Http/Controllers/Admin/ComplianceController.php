@@ -34,7 +34,42 @@ class ComplianceController extends Controller
             ->get()
             ->filter(fn($book) => $this->isCategoryMismatch($book));
 
-        return view('admin.compliance.index', compact('sellers', 'recentViolations', 'flagged'));
+        // Off-platform contact: sellers with strikes in the last 90 days (3 or more first: they need a review).
+        $since = now()->subDays(\App\Services\ContactStrikes::WINDOW_DAYS);
+        $strikeSellers = \App\Models\ContactStrike::where('created_at', '>=', $since)->counted()
+            ->selectRaw('user_id, COUNT(*) as strikes, MAX(created_at) as last_at, SUM(CASE WHEN reviewed_at IS NULL THEN 1 ELSE 0 END) as unreviewed')
+            ->groupBy('user_id')->orderByDesc('strikes')->orderByDesc('last_at')->get()
+            ->map(fn ($row) => (object) ['seller' => User::with('sellerApplication')->find($row->user_id), 'strikes' => (int) $row->strikes,
+                'unreviewed' => (int) $row->unreviewed, 'last_at' => \Illuminate\Support\Carbon::parse($row->last_at),
+                'recent' => \App\Models\ContactStrike::where('user_id', $row->user_id)->where('created_at', '>=', $since)->with('message')->latest()->take(3)->get()])
+            ->filter(fn ($r) => $r->seller)->values();
+        // Appeals waiting for a decision.
+        $appeals = \App\Models\ContactStrike::where('appeal_status', 'pending')->with('user', 'message')->oldest('appealed_at')->get();
+
+        return view('admin.compliance.index', compact('sellers', 'recentViolations', 'flagged', 'strikeSellers', 'appeals'));
+    }
+
+    /** Accept (the strike no longer counts) or reject a seller's appeal, with a note the seller sees. */
+    public function decideAppeal(Request $request, \App\Models\ContactStrike $strike)
+    {
+        $data = $request->validate(['decision' => 'required|in:accept,reject', 'note' => 'required|string|min:5|max:500'],
+            ['note.required' => 'Write a short note for the seller (5 to 500 characters).']);
+        try {
+            app(\App\Services\ContactStrikes::class)->decide($strike, auth()->user(), $data['decision'] === 'accept', trim($data['note']));
+        } catch (\RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return back()->with('success', $data['decision'] === 'accept' ? 'Appeal accepted: the strike no longer counts.' : 'Appeal rejected: the strike still counts.');
+    }
+
+    /** The administrator looked at a seller's contact strikes (they stay counted; the next action is a violation). */
+    public function reviewStrikes(int $sellerId)
+    {
+        $n = \App\Models\ContactStrike::where('user_id', $sellerId)->whereNull('reviewed_at')
+            ->update(['reviewed_at' => now(), 'reviewed_by' => auth()->id()]);
+
+        return back()->with('success', $n ? "Marked {$n} " . \Illuminate\Support\Str::plural('strike', $n) . ' as reviewed.' : 'Nothing new to review.');
     }
 
     /** Show a single seller's compliance details */

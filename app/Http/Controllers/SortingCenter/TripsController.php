@@ -119,14 +119,12 @@ class TripsController extends Controller
     public function store(Request $request)
     {
         $request->validate(['scheduled_departure_at' => 'nullable|date|after:now'], ['scheduled_departure_at.after' => 'The departure time must be in the future.']);
-        $trip = $this->linehaul->createTrip($this->me(), $request->only(['origin_hub_id', 'destination_hub_id', 'parcel_ids', 'scheduled_departure_at']));
-        // Auto-assign: every parcel waiting here whose nearest hub to the buyer is this trip's destination.
-        $auto = $request->boolean('auto') ? $this->linehaul->autoAddParcels($this->me(), $trip) : 0;
+        // Step 1: only the route. Parcels, then the truck, are assigned on the delivery's own page.
+        $trip = $this->linehaul->createTrip($this->me(), $request->only(['origin_hub_id', 'destination_hub_id', 'scheduled_departure_at']));
         \App\Models\ActivityLog::note("Linehaul trip {$trip->code} created ({$trip->route()})", $trip);
-        $count = $trip->onBoard()->count();
 
-        return redirect()->route('sc.trips.show', $trip)->with('success', "Delivery {$trip->code} was created ({$trip->route()}) with {$count} parcel(s)"
-            . ($auto ? " ({$auto} auto-assigned)" : '') . '. It waits for ' . SortingCenters::nameOf($trip->destinationCompany) . ' to accept it before it can load.');
+        return redirect()->route('sc.trips.show', $trip)->with('success', "Delivery {$trip->code} to {$trip->destination->code} was created. Next: assign its parcels here."
+            . ($trip->crossCompany() ? ' ' . SortingCenters::nameOf($trip->destinationCompany) . ' accepts it first.' : ''));
     }
 
     /** One button: every waiting parcel goes into a delivery to the hub nearest its buyer (new deliveries when needed). */

@@ -134,7 +134,7 @@ class SellerJson
                 'amount' => (float) $order->total_price, 'checking' => $order->payment_status === 'For verification',
             ] : null,
             'waybill_number' => $parcel?->waybill_number,
-            'ship_to' => ['name' => $order->full_name, 'phone' => $order->phone, 'address' => $order->fullAddress(), 'note' => $order->buyer_note],
+            'ship_to' => ['name' => $order->full_name, 'phone' => ContactGuard::maskPhone($order->phone), 'address' => $order->fullAddress(), 'note' => $order->buyer_note],
             'timeline' => $order->events->map(fn ($e) => ['status' => $e->status, 'note' => $e->note, 'at' => $e->created_at?->toIso8601String()])->values(),
             'return' => $lastReturn ? [
                 'id' => $lastReturn->id, 'status' => $lastReturn->status, 'reason' => $lastReturn->reason, 'details' => $lastReturn->details,

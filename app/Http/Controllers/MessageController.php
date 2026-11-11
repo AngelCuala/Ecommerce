@@ -149,7 +149,7 @@ class MessageController extends Controller
         // The first message after "Chat" on a product page carries that product as a card.
         $productId = session()->pull('chat_product.' . $threadKey);
 
-        Message::create([
+        $message = Message::create([
             'order_id'        => null,
             'thread_key'      => $threadKey,
             'sender_id'       => $userId,
@@ -158,6 +158,10 @@ class MessageController extends Controller
             'attachment_path' => $request->file('attachment')?->store('chat', \App\Support\ProtectedFile::DISK),
             'product_id'      => $productId,
         ]);
+
+        if ($message->safety_flag === 'hidden') {
+            return back()->with('success', 'Message sent. ALVY hid the contact details in it: keep orders and payments on ALVY.');
+        }
 
         return back()->with('success', 'Message sent.');
     }
@@ -304,6 +308,7 @@ class MessageController extends Controller
                 ->where('is_read', false)->update(['is_read' => true]);
 
             $title = 'Order #' . str_pad($order->id, 6, '0', STR_PAD_LEFT);
+            $protected = true;
         } else {
             // Direct threads are "userId_userId"; anything else is not a thread.
             abort_unless(preg_match('/^\d+_\d+$/', $id) === 1, 404);
@@ -318,12 +323,16 @@ class MessageController extends Controller
                 ->where('is_read', false)->update(['is_read' => true]);
 
             $title = $otherUser->name;
+            $me = auth()->user();
+            $protected = ($me->isSeller() && $otherUser->isBuyer()) || ($me->isBuyer() && $otherUser->isSeller());
         }
 
         return response()->json([
             'title'    => $title,
+            'protection' => $protected ? Message::PROTECTION : null,
             'messages' => $messages->map(fn ($m) => [
                 'body'  => $m->body,
+                'notice' => $m->safetyNote(),
                 'mine'  => (int) $m->sender_id === (int) $userId,
                 'name'  => $m->sender->name ?? '',
                 'at'    => $m->created_at->format('M d, H:i'),
@@ -351,7 +360,7 @@ class MessageController extends Controller
             $receiverId = $lastFromOther?->sender_id
                 ?? ((int) $order->user_id === (int) $userId ? optional($order->items()->with('product')->first())->product->seller_id : $order->user_id);
 
-            Message::create([
+            $message = Message::create([
                 'order_id'    => $order->id,
                 'sender_id'   => $userId,
                 'receiver_id' => $receiverId,
@@ -365,7 +374,7 @@ class MessageController extends Controller
             $otherUser = User::findOrFail($otherId);
             $this->authorizeDirectMessage($otherUser);
 
-            Message::create([
+            $message = Message::create([
                 'order_id'    => null,
                 'thread_key'  => $id,
                 'sender_id'   => $userId,
@@ -374,7 +383,9 @@ class MessageController extends Controller
             ]);
         }
 
-        return response()->json(['ok' => true]);
+        // contact_hidden: the sender is told at once (the notice also shows under the message for both).
+        return response()->json(['ok' => true, 'contact_hidden' => $message->safety_flag === 'hidden',
+            'notice' => $message->safetyNote()]);
     }
 
     // ══════════════════════════════════════════════════════════════

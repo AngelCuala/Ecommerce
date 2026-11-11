@@ -105,6 +105,15 @@
             .then(function (data) {
                 titleEl.textContent = data.title;
                 renderMessages(data.messages || [], silent);
+                var old = document.querySelector('[data-chat-protection]');
+                if (old) old.remove();
+                if (data.protection) {
+                    var b = document.createElement('div');
+                    b.setAttribute('data-chat-protection', '');
+                    b.className = 'mx-protect';
+                    b.textContent = data.protection;
+                    msgsEl.parentNode.insertBefore(b, msgsEl);
+                }
                 if (t.unread) { t.unread = 0; renderThreads(filtered()); }
                 if (!silent) input.focus();
             });
@@ -125,10 +134,10 @@
             var time = m.time || m.at;
             if (m.mine) {
                 html += '<div class="mb-2 flex flex-col items-end"><div class="mx-bubble mine">' + esc(m.body) + '</div>' +
-                        '<span class="mx-time">' + esc(time) + '</span></div>';
+                        '<span class="mx-time">' + esc(time) + '</span>' + (m.notice ? '<div class="mx-safety" data-safety-note>' + esc(m.notice) + '</div>' : '') + '</div>';
             } else {
                 html += '<div class="mb-2 flex flex-col items-start"><div class="mx-bubble theirs">' + esc(m.body) + '</div>' +
-                        '<span class="mx-time">' + esc(m.name) + ' · ' + esc(time) + '</span></div>';
+                        '<span class="mx-time">' + esc(m.name) + ' · ' + esc(time) + '</span>' + (m.notice ? '<div class="mx-safety" data-safety-note>' + esc(m.notice) + '</div>' : '') + '</div>';
             }
         });
         msgsEl.innerHTML = html;

@@ -348,6 +348,16 @@
                             class="w-full rounded-xl py-3.5 text-base font-bold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
                             style="background:#002b4d;">Place Order</button>
                     <p class="text-center text-[11px]" style="color:#a39890;">🔒 Secure checkout</p>
+                    {{-- Why pay through ALVY (and not the seller directly). --}}
+                    <div class="rounded-xl px-3 py-2.5 text-[11.5px] leading-snug" style="background:#F0F7FF;color:#1E3A5F;" data-buyer-protection>
+                        <p class="font-bold">ALVY Buyer Protection</p>
+                        <ul class="mt-1 list-disc space-y-0.5 pl-4">
+                            <li>The seller is paid only after you receive your order.</li>
+                            <li>Every parcel has an ALVY waybill you can track.</li>
+                            <li>Returns and refunds are handled by ALVY.</li>
+                        </ul>
+                        <p class="mt-1" style="color:#475569;">Only orders paid here are protected. Never pay a seller directly.</p>
+                    </div>
                 </div>
             </div>
         </aside>

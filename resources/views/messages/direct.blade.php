@@ -14,6 +14,13 @@
             </div>
         </header>
 
+        @if ((auth()->user()->isSeller() && $otherUser->isBuyer()) || (auth()->user()->isBuyer() && $otherUser->isSeller()))
+            {{-- Buyer protection: deals stay on ALVY (payment held until delivery, tracked waybill, refunds). --}}
+            <div class="flex items-start gap-2 border-b px-4 py-2 text-xs leading-snug" style="border-color:#F2EEEA;background:#F0F7FF;color:#1E3A5F;" data-chat-protection>
+                <svg class="mt-0.5 h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6l8-3z"/></svg>
+                <span><strong>ALVY Buyer Protection:</strong> order and pay only through ALVY. Your payment is protected until you receive the item, every parcel has an ALVY waybill you can track, and returns and refunds are handled for you. Phone numbers, emails and links are hidden in chats.</span>
+            </div>
+        @endif
         <div id="chat-box" class="overflow-y-auto px-4 py-3" style="max-height:60vh;min-height:16rem;">
             @php $lastDay = null; @endphp
             @forelse ($messages as $msg)
@@ -43,6 +50,9 @@
                     <span class="mt-0.5 text-[11px]" style="color:#b3a79f;">
                         {{ $isMine ? '' : ($msg->sender->name ?? '—') . ' · ' }}{{ $msg->created_at->format('g:i A') }}
                     </span>
+                    @if ($msg->safetyNote())
+                        <div class="mt-1 max-w-[85%] rounded-lg px-2.5 py-1.5 text-xs leading-snug" style="background:#FFF7ED;color:#9A3412;border:1px solid #FED7AA;" data-safety-note>{{ $msg->safetyNote() }}</div>
+                    @endif
                 </div>
             @empty
                 <p class="py-16 text-center text-sm" style="color:#a39890;">No messages yet. Say hello.</p>

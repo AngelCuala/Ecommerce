@@ -534,16 +534,16 @@ class BookController extends Controller
 
         $money = ['numeric', 'min:1', 'max:1000000', 'decimal:0,2'];
         $rules = [
-            'title'            => $req . '|string|min:5|max:120',
+            'title'            => [...explode('|', $req . '|string|min:5|max:120'), new \App\Rules\NoContactDetails],
             'category_id'      => array_filter([$req, 'exists:categories,id',
                                     ($allowed = $this->allowedCategoryIds($book)) ? Rule::in($allowed) : null]),
             // A subcategory must belong to the chosen category.
             'subcategory'      => ['nullable', 'string', 'max:255',
                                     Rule::in($this->subcategoryMap()[Category::whereKey((int) $request->input('category_id'))->value('name')] ?? [])],
-            'brand'            => 'nullable|string|max:255',
+            'brand'            => ['nullable', 'string', 'max:255', new \App\Rules\NoContactDetails],
             'condition'        => ['nullable', Rule::in(self::CONDITIONS)],   // no longer on the form: kept as it is ("New")
             'sale_type'        => ['nullable', Rule::in(['none', 'price', 'percent'])],
-            'description'      => $req . '|string|min:20|max:3000',
+            'description'      => [...explode('|', $req . '|string|min:20|max:3000'), new \App\Rules\NoContactDetails],
             'store_category_ids'   => 'nullable|array|max:3',
             'store_category_ids.*' => ['integer', Rule::exists('store_categories', 'id')->where('seller_id', auth()->id())],
 

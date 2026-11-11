@@ -352,6 +352,10 @@ a:hover { text-decoration: underline; }
 .badge-red    { background: #fef3f2; color: var(--accent-red); }
 .badge-gray   { background: #f2f4f7; color: var(--text-sub); }
 .badge-purple { background: #f3ecfe; color: var(--accent-purple); }
+/* A status pill that opens a page: only the coloured pill is the link. */
+.status-link { display: inline-flex; text-decoration: none !important; }
+.status-link .badge { cursor: pointer; transition: filter .15s, box-shadow .15s; }
+.status-link:hover .badge, .status-link:focus-visible .badge { filter: brightness(.95); box-shadow: 0 0 0 2px currentColor; }
 
 /* ── Buttons ── */
 .btn {

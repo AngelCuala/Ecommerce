@@ -50,9 +50,6 @@
         <style>
             .board-table th, .board-table td { padding-left: 12px; padding-right: 12px; }
             .board-table .sub { color: var(--text-muted); font-size: 11px; line-height: 1.4; }
-            .board-status { display: inline-flex; text-decoration: none !important; }
-            .board-status .badge { cursor: pointer; transition: filter .15s, box-shadow .15s; }
-            .board-status:hover .badge, .board-status:focus-visible .badge { filter: brightness(.95); box-shadow: 0 0 0 2px currentColor; }
         </style>
         <table class="data-table board-table">
             <thead>
@@ -77,7 +74,7 @@
                         <div class="sub">{{ $p->order?->number() ?? '—' }} · {{ $p->seller?->storeName() ?? $p->seller?->name }}</div>
                     </td>
                     <td>
-                        <a href="{{ $pageUrl }}" class="board-status" data-status-link="{{ $p->status }}" title="Open {{ $pageName }}">
+                        <a href="{{ $pageUrl }}" class="status-link" data-status-link="{{ $p->status }}" title="Open {{ $pageName }}">
                             <span class="badge {{ $badge($p->status) }}">{{ $t?->isDelayed() ? 'Delayed in transit' : $p->statusLabel() }}</span>
                         </a>
                     </td>

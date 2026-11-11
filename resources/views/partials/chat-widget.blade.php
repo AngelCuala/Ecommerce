@@ -207,6 +207,15 @@
             .then(function (data) {
                 titleEl.textContent = data.title;
                 renderMessages(data.messages);
+                var old = msgsEl.parentNode.querySelector('[data-chat-protection]');
+                if (old) old.remove();
+                if (data.protection) {
+                    var b = document.createElement('div');
+                    b.setAttribute('data-chat-protection', '');
+                    b.style.cssText = 'padding:6px 12px;font-size:11px;line-height:1.35;background:#F0F7FF;color:#1E3A5F;border-bottom:1px solid #DCE8F5;';
+                    b.textContent = data.protection;
+                    msgsEl.parentNode.insertBefore(b, msgsEl);
+                }
             });
     }
 
@@ -217,9 +226,9 @@
         }
         msgsEl.innerHTML = messages.map(function (m) {
             if (m.mine) {
-                return '<div style="display:flex;justify-content:flex-end;"><div style="max-width:75%;"><div style="background:#fa4e1c;color:#fff;border-radius:14px 14px 4px 14px;padding:8px 12px;font-size:13px;line-height:1.4;">' + escapeHtml(m.body) + '</div><p style="text-align:right;font-size:10px;color:#c2d1dc;margin-top:2px;">' + m.at + '</p></div></div>';
+                return '<div style="display:flex;justify-content:flex-end;"><div style="max-width:75%;"><div style="background:#fa4e1c;color:#fff;border-radius:14px 14px 4px 14px;padding:8px 12px;font-size:13px;line-height:1.4;">' + escapeHtml(m.body) + '</div><p style="text-align:right;font-size:10px;color:#c2d1dc;margin-top:2px;">' + m.at + '</p>' + (m.notice ? '<div data-safety-note style="margin-top:4px;padding:6px 9px;border-radius:9px;font-size:11px;line-height:1.35;background:#FFF7ED;color:#9A3412;border:1px solid #FED7AA;">' + escapeHtml(m.notice) + '</div>' : '') + '</div></div>';
             }
-            return '<div style="display:flex;justify-content:flex-start;"><div style="max-width:75%;"><div style="background:#eef2f6;color:#002b4d;border-radius:14px 14px 14px 4px;padding:8px 12px;font-size:13px;line-height:1.4;">' + escapeHtml(m.body) + '</div><p style="font-size:10px;color:#c2d1dc;margin-top:2px;">' + m.name + ' · ' + m.at + '</p></div></div>';
+            return '<div style="display:flex;justify-content:flex-start;"><div style="max-width:75%;"><div style="background:#eef2f6;color:#002b4d;border-radius:14px 14px 14px 4px;padding:8px 12px;font-size:13px;line-height:1.4;">' + escapeHtml(m.body) + '</div><p style="font-size:10px;color:#c2d1dc;margin-top:2px;">' + m.name + ' · ' + m.at + '</p>' + (m.notice ? '<div data-safety-note style="margin-top:4px;padding:6px 9px;border-radius:9px;font-size:11px;line-height:1.35;background:#FFF7ED;color:#9A3412;border:1px solid #FED7AA;">' + escapeHtml(m.notice) + '</div>' : '') + '</div></div>';
         }).join('');
         msgsEl.scrollTop = msgsEl.scrollHeight;
     }

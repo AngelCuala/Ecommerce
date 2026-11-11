@@ -233,6 +233,31 @@
         </section>
     </div>
 
+    {{-- Trusted Seller: the reward for selling well and keeping deals on ALVY --}}
+    @php $trust = \App\Support\TrustedSeller::progress(auth()->user()); @endphp
+    <section class="pl-card overflow-hidden" data-trusted-progress>
+        <div class="pl-head">
+            <h2>Trusted Seller badge</h2>
+            @if ($trust['trusted'])
+                <span class="text-xs font-bold" style="color:#047857;">✓ You have it</span>
+            @else
+                <span class="text-xs pl-muted">Not yet</span>
+            @endif
+        </div>
+        <div class="px-5 pb-4 text-sm">
+            <p class="pl-muted" style="margin-bottom:8px;">Shown next to your store name on your store and every product. Buyers trust it more.</p>
+            @foreach ($trust['checks'] as $label => $ok)
+                <div style="display:flex;gap:8px;align-items:flex-start;padding:3px 0;">
+                    <span style="font-weight:800;color:{{ $ok ? '#047857' : '#B45309' }};">{{ $ok ? '✓' : '○' }}</span><span>{{ $label }}</span>
+                </div>
+            @endforeach
+            @if ($trust['strikes'])
+                <p style="margin-top:8px;color:#B91C1C;font-size:12.5px;">You have {{ $trust['strikes'] }} {{ \Illuminate\Support\Str::plural('strike', $trust['strikes']) }} for sharing contact details with buyers. Keep orders, chats and payments on ALVY.</p>
+            @endif
+            <a href="{{ route('seller.strikes') }}" class="pl-link" style="display:inline-block;margin-top:8px;font-size:12.5px;">See your strikes and appeal</a>
+        </div>
+    </section>
+
     {{-- Recent orders --}}
     <section class="pl-card overflow-hidden">
         <div class="pl-head">

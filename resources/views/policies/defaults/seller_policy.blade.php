@@ -163,9 +163,17 @@
     <h2>10. Conduct, reviews and buyer information</h2>
     <ul>
         <li>Be honest and polite in chat. Don't pressure buyers, ask them to cancel, or move the sale outside ALVY.</li>
+        <li><strong>Keep deals on ALVY.</strong> Don't share phone numbers, email addresses, links or social-media accounts
+            with buyers, in chat or in your listings and store details. ALVY hides them automatically. Each time you send them
+            in a chat counts as a strike: the 1st is a warning, the 2nd a final warning, and at the 3rd within 90 days ALVY
+            reviews your store and may suspend it. Listings and store details with contact details can't be saved. You can see
+            your strikes on the Contact strikes page and appeal any that were a mistake; an accepted appeal doesn't count.
+            Strike records are deleted after one year.</li>
+        <li>Stores with at least 10 completed orders, good ratings and no strikes earn the <strong>Trusted Seller</strong>
+            badge on the store and every product.</li>
         <li>Don't write, buy or arrange reviews of your own products, or offer rewards for good reviews. Reply to reviews
             professionally.</li>
-        <li>Buyer names, addresses and phone numbers are given to you only to fulfil their orders. Don't use them for
+        <li>Buyer names and addresses are given to you only to fulfil their orders (their phone number is shown only partly). Don't use them for
             anything else, share them, or contact buyers outside ALVY. Personal data must be handled according to the
             <a href="{{ $policy('privacy_policy') }}">Privacy Policy</a> and the Data Privacy Act of 2012 (RA 10173).</li>
         <li>Products must meet Philippine consumer-protection, product-safety and intellectual-property laws. Counterfeit or

@@ -75,29 +75,6 @@
         @endforeach
     </div>
 
-    {{-- Auto-assign: every waiting parcel into a delivery to the hub nearest its buyer --}}
-    @php $outbound = $parcels->filter(fn ($p) => $p->best_hub)->groupBy(fn ($p) => \App\Support\SortingCenters::nameOf($p->best_hub->company) . ' (' . $p->best_hub->code . ')'); @endphp
-    <div class="card" style="padding:16px 18px;margin-bottom:18px;display:flex;gap:14px;align-items:center;flex-wrap:wrap;" data-trip-auto-all>
-        <span class="lt-stat-ic" style="background:#FFF4E5;color:var(--accent-orange);">@include('sc.partials.icon', ['name' => 'truck', 'size' => 19, 'sw' => 2])</span>
-        <div style="flex:1;min-width:240px;">
-            <div style="font-weight:800;">Auto-assign parcels to deliveries <span class="badge badge-gray">{{ $outbound->flatten()->count() }}</span></div>
-            <div class="text-muted" style="font-size:12.5px;">
-                @if ($outbound->isEmpty())
-                    No parcel waiting at {{ $origin->code ?? 'your hub' }} needs to go to another sorting center.
-                @else
-                    Each parcel joins a delivery to the hub nearest its buyer:
-                    {{ $outbound->map(fn ($list, $name) => $name . ' ' . $list->count())->implode(' · ') }}.
-                    An open delivery to that hub is filled first; otherwise a new one is made (they accept it).
-                @endif
-            </div>
-        </div>
-        <form method="POST" action="{{ route('sc.trips.auto-all') }}"
-              data-confirm="{{ $outbound->flatten()->count() }} parcel(s) go into deliveries to {{ $outbound->count() }} sorting center(s)." data-confirm-title="Auto-assign parcels?" data-confirm-ok="Auto-assign">
-            @csrf<input type="hidden" name="origin_hub_id" value="{{ $origin?->id }}">
-            <button class="btn btn-orange" @disabled($outbound->isEmpty())>Auto-assign all</button>
-        </form>
-    </div>
-
     {{-- Create a trip --}}
     <div class="card" style="margin-bottom:18px;" id="create" data-trip-create>
         <div class="card-header"><h2>Create a delivery</h2><span class="card-meta">Hub to hub, to the sorting center nearest the buyers</span></div>
@@ -106,7 +83,7 @@
             @foreach ($preselect as $id)<input type="hidden" name="parcel[]" value="{{ $id }}">@endforeach
         </form>
         <form method="POST" action="{{ route('sc.trips.store') }}" class="lt-form"
-              data-confirm="The delivery is created at {{ $origin->code ?? 'your hub' }} and waits for the receiving sorting center to accept it." data-confirm-title="Create this delivery?" data-confirm-ok="Create delivery">
+              data-confirm="The delivery is created at {{ $origin->code ?? 'your hub' }} Then assign its parcels on the delivery's page." data-confirm-title="Create this delivery?" data-confirm-ok="Create delivery">
             @csrf
             <input type="hidden" name="origin_hub_id" value="{{ $origin?->id }}">
 
@@ -141,37 +118,8 @@
                 </p>
             @endif
 
-            {{-- Parcels: added automatically, or picked by hand --}}
-            <div class="lt-box">
-                <label class="lt-auto">
-                    <input type="checkbox" name="auto" value="1" @checked(old('auto', true))>
-                    <span><b>Auto-assign parcels</b><small>Add every parcel waiting here whose nearest hub to the buyer is this sorting center.</small></span>
-                </label>
-                <div class="lt-box-head">
-                    <span>Or pick parcels yourself</span>
-                    <span class="badge badge-gray">{{ $parcels->count() }} waiting at {{ $origin->code ?? 'your hub' }}</span>
-                </div>
-                @if ($parcels->isEmpty())
-                    <p class="lt-empty">No parcels are waiting at {{ $origin->code ?? 'this hub' }} right now. You can still create the delivery and add parcels on its page until it departs.</p>
-                @else
-                    <div class="lt-parcels">
-                        @foreach ($parcels as $p)
-                            <label data-trip-pick="{{ $p->tracking_number }}">
-                                <input type="checkbox" name="parcel_ids[]" value="{{ $p->id }}" @checked(in_array($p->id, array_map('intval', (array) $selected), true))>
-                                <span class="lt-code">{{ $p->tracking_number }}</span>
-                                <span>{{ $p->receiver_name }} · {{ trim($p->destination_municipality . ', ' . $p->destination_province, ', ') }}</span>
-                                <span class="text-muted" style="margin-left:auto;text-align:right;">
-                                    @if ($p->best_hub)Nearest hub: <b>{{ \App\Support\SortingCenters::nameOf($p->best_hub->company) }}</b>@else You deliver it @endif
-                                    · {{ number_format((float) $p->weight_kg, 2) }} kg
-                                </span>
-                            </label>
-                        @endforeach
-                    </div>
-                @endif
-            </div>
-
             <div class="lt-foot">
-                <span>The receiving sorting center accepts it first; then assign an online truck courier.</span>
+                <span>After you create it, open the delivery to assign its parcels, then a truck.</span>
                 <button class="btn btn-orange">@include('sc.partials.icon', ['name' => 'truck', 'size' => 15, 'sw' => 2]) Create delivery</button>
             </div>
         </form>
@@ -217,7 +165,7 @@
                     </td>
                     <td>{{ $t->parcels_count }}</td>
                     <td>
-                        <span class="badge {{ $badge($t) }}">{{ $t->label() }}</span>
+                        <span class="badge {{ $badge($t) }}" title="{{ $t->label() }}">{{ $t->stageLabel() }}</span>
                         @if ($t->handover_status === 'pending')
                             <div class="lt-sub" style="color:var(--accent-orange);font-weight:700;">{{ $outgoing ? 'Waiting for them to accept' : 'Needs your acceptance' }}</div>
                         @elseif ($t->handover_status === 'rejected')

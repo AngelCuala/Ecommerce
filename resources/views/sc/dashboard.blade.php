@@ -21,11 +21,12 @@
         </form>
         @error('to')<p style="color:var(--accent-red);font-size:12px;margin:-6px 0 10px;">{{ $message }}</p>@enderror
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;">
-            @foreach(['pending' => 'Pending pickup', 'in_transit' => 'In transit', 'delivered' => 'Delivered', 'failed' => 'Failed / exceptions', 'returned' => 'Returned / cancelled'] as $bucket => $label)
-                <a href="{{ route('sc.tracking', array_filter(['bucket' => $bucket, 'from' => request('from'), 'to' => request('to')])) }}" class="card" style="padding:12px;display:block;" data-count="{{ $bucket }}">
-                    <div style="font-size:11px;text-transform:uppercase;color:var(--text-muted);font-weight:600;">{{ $label }}</div>
-                    <div style="font-size:22px;font-weight:700;color:var(--text);">{{ $shipmentCounts[$bucket] }}</div>
-                </a>
+            {{-- Only the coloured status is a link. --}}
+            @foreach(['pending' => ['Pending pickup', 'badge-yellow'], 'in_transit' => ['In transit', 'badge-blue'], 'delivered' => ['Delivered', 'badge-green'], 'failed' => ['Failed / exceptions', 'badge-red'], 'returned' => ['Returned / cancelled', 'badge-gray']] as $bucket => [$label, $color])
+                <div class="card" style="padding:12px;">
+                    <a href="{{ route('sc.tracking', array_filter(['bucket' => $bucket, 'from' => request('from'), 'to' => request('to')])) }}" class="status-link" data-count="{{ $bucket }}" title="Open {{ $label }} on the Shipment Board"><span class="badge {{ $color }}">{{ $label }}</span></a>
+                    <div style="font-size:22px;font-weight:700;color:var(--text);margin-top:6px;">{{ $shipmentCounts[$bucket] }}</div>
+                </div>
             @endforeach
         </div>
     </div>
@@ -137,7 +138,14 @@
                         <td>{{ $d->parcel->seller->name ?? '—' }}</td>
                         <td>{{ $d->area->name ?? '—' }}</td>
                         <td>{{ $d->rider->full_name ?? '—' }}</td>
-                        <td><span class="badge {{ $badgeClass }}">{{ $badgeLabel }}</span></td>
+                        <td>
+                            @if ($d->parcel)
+                                @php [$pageName, $pageUrl] = \App\Support\ParcelJobPage::for($d->parcel, (int) $me->id); @endphp
+                                <a href="{{ $pageUrl }}" class="status-link" data-status-link="{{ $d->status }}" title="Open {{ $pageName }}"><span class="badge {{ $badgeClass }}">{{ $badgeLabel }}</span></a>
+                            @else
+                                <span class="badge {{ $badgeClass }}">{{ $badgeLabel }}</span>
+                            @endif
+                        </td>
                         <td style="color:var(--text-muted);font-size:12px;">{{ $d->updated_at->format('h:i A') }}</td>
                     </tr>
                 @empty

@@ -303,6 +303,7 @@
                     <div class="min-w-0 flex-1">
                         <p class="text-xs" style="color:#a39890;">Sold by</p>
                         <a href="{{ route('stores.show', $product->seller->id) }}" class="truncate text-sm font-semibold hover:underline" style="color:#222;">{{ $product->seller->storeName() }}</a>
+                        @include('partials.trusted-badge', ['seller' => $product->seller])
                     </div>
                     @auth
                         <form action="{{ \App\Support\Portal::route('messages.new') }}" method="POST">@csrf

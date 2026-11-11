@@ -226,6 +226,10 @@ class Linehaul
             if ((int) $trip->courier_id === $courier->id) {
                 $this->fail('courier_id', "{$trip->code} is already assigned to {$courier->fullName()}.");
             }
+            // Parcels first, then the truck.
+            if (! $trip->onBoard()->exists()) {
+                $this->fail('courier_id', "{$trip->code} has no parcels yet. Assign the parcels first, then a truck.");
+            }
             $inTransit = $trip->status === 'in_transit';
             if (! in_array($trip->status, LinehaulTrip::BEFORE_DEPARTURE, true) && ! $inTransit) {
                 $this->fail('courier_id', "{$trip->code} is {$trip->label()} and can no longer be reassigned.");
@@ -619,6 +623,11 @@ class Linehaul
      */
     public function bestHubFor(Parcel $parcel, User $from): ?LogisticsHub
     {
+        // Sorted for hub-to-hub by the staff (Parcel Sorting): that sorting center's hub.
+        if ($parcel->next_center_id && (int) $parcel->next_center_id !== (int) $from->id
+            && ($hub = LogisticsHub::where('sorting_center_id', $parcel->next_center_id)->orderBy('id')->first())) {
+            return $hub;
+        }
         $flow = app(ShipmentWorkflow::class);
         $next = $flow->nextDestination($parcel, $from);
         if ($next['type'] === 'local') {

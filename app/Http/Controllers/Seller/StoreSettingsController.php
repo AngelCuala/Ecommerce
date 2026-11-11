@@ -39,14 +39,14 @@ class StoreSettingsController extends Controller
         }
 
         $data = $request->validate([
-            'shop_name'         => ['required', 'string', 'min:3', 'max:30', function ($attr, $value, $fail) use ($application) {
+            'shop_name'         => ['required', 'string', 'min:3', 'max:30', new \App\Rules\NoContactDetails, function ($attr, $value, $fail) use ($application) {
                 $taken = SellerApplication::whereRaw('LOWER(TRIM(shop_name)) = ?', [mb_strtolower($value)])
                     ->where('id', '!=', $application->id)->exists();
                 if ($taken) {
                     $fail('This store name is already taken. Please choose another.');
                 }
             }],
-            'description'       => 'nullable|string|max:500',
+            'description'       => ['nullable', 'string', 'max:500', new \App\Rules\NoContactDetails],
             'phone'             => ['required', 'regex:/^09\d{9}$/'],
             'region'            => 'required|string|max:120',
             'province'          => 'required|string|max:120',

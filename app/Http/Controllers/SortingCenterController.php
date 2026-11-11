@@ -843,7 +843,7 @@ class SortingCenterController extends Controller
             ->update(['area_id' => null, 'next_center_id' => $to->id, 'status' => 'sorted', 'sorted_at' => now(), 'sorted_by' => auth()->id()]);
         $this->parcels()->syncOrder($parcel);
 
-        return back()->with('success', "{$parcel->tracking_number} sorted for " . \App\Support\SortingCenters::displayName($to) . '. Send it on a linehaul trip.');
+        return back()->with('success', "{$parcel->tracking_number} sorted for " . \App\Support\SortingCenters::displayName($to) . '. Open a delivery to that sorting center in Linehaul Trips and assign it there.');
     }
 
     // ── Delivery Assignment ───────────────────────────────────

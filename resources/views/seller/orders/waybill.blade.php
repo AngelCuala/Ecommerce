@@ -27,7 +27,7 @@
         'barangay' => $parcel?->area->name ?? null,
         'cod'      => $order->payment_method === 'COD' && $order->payment_status !== 'Paid',
         'amount'   => (float) $order->total_price,
-        'to'       => ['name' => $order->full_name, 'phone' => $order->phone, 'address' => $order->fullAddress()],
+        'to'       => ['name' => $order->full_name, 'phone' => \App\Support\ContactGuard::maskPhone($order->phone), 'address' => $order->fullAddress()],
         'from'     => ['name' => $seller->storeName(), 'phone' => $app->phone ?? $seller->contact_no, 'address' => $app->address ?? null],
         'order'    => $order->number(),
         'weight'   => $weight,

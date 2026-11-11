@@ -12,13 +12,12 @@
     };
     $senderName = \App\Support\SortingCenters::nameOf($trip->company);
     $receiverName = \App\Support\SortingCenters::nameOf($trip->destinationCompany ?? $trip->company);
-    // The trip's steps, done or not, for the progress line.
-    $steps = array_values(array_filter([
-        ['Created', $trip->created_at],
-        $trip->crossCompany() ? ['Accepted by ' . ($sender ? 'receiver' : 'you'), $trip->handover_status === 'accepted' ? $trip->handover_responded_at : null] : null,
-        ['Rider accepted', $trip->accepted_at], ['Loading', $trip->loading_at],
-        ['Departed', $trip->departed_at], ['Arrived', $trip->arrived_at], ['Received', $trip->completed_at],
-    ]));
+    // The five delivery steps (LinehaulTrip::STAGES) and when each was reached.
+    $stage = $trip->stage();
+    $stageAt = [1 => $trip->created_at, 2 => $trip->assigned_at, 3 => $stage >= 3 ? ($trip->items->where('status', 'loaded')->max('loaded_at') ?? $trip->loading_at) : null,
+        4 => $trip->departed_at, 5 => $trip->completed_at];
+    $steps = collect(\App\Models\LinehaulTrip::STAGES)->map(fn ($label, $n) => [
+        $n === 5 ? 'Received by ' . ($trip->destination->code ?? 'the hub') : $label, $stage >= $n ? ($stageAt[$n] ?? $trip->updated_at) : null, $n === $stage])->values()->all();
     $canMessage = $trip->crossCompany();
 @endphp
 
@@ -35,6 +34,9 @@
     .ts-step i { display: block; height: 5px; border-radius: 99px; background: #E2E8F0; margin-bottom: 6px; }
     .ts-step.is-done i { background: var(--accent-orange); }
     .ts-step.is-done b { color: var(--text); }
+    .ts-step.is-now b { color: var(--accent-orange); }
+    @media (max-width: 700px) { .ts-steps { grid-auto-flow: row; grid-auto-columns: auto; } }
+    .ts-next { margin: 0 18px 16px; padding: 10px 12px; border-radius: 10px; background: #F0F7FF; color: #1E3A5F; font-size: 13px; }
     .ts-kv { display: flex; justify-content: space-between; gap: 10px; padding: 7px 0; font-size: 13px; border-bottom: 1px solid #F1F5F9; }
     .ts-kv span:first-child { color: var(--text-muted); }
     /* History: a compact timeline, newest first. On wide screens it fills the side column down to where the main
@@ -66,7 +68,7 @@
 <div class="page-header" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
     <a href="{{ route('sc.trips') }}" class="btn btn-sm" style="background:#F1F5F9;">← Trips</a>
     <div><div class="text-muted" style="font-size:11.5px;font-weight:700;letter-spacing:.4px;">DELIVERY CODE</div><h1 style="margin:0;font-family:'SF Mono',Consolas,monospace;">{{ $trip->code }}</h1></div>
-    <span class="badge {{ in_array($trip->status, ['loading', 'in_transit']) ? 'badge-blue' : ($trip->status === 'completed' ? 'badge-green' : ($trip->status === 'cancelled' ? 'badge-gray' : 'badge-yellow')) }}">{{ $trip->label() }}</span>
+    <span class="badge {{ $stage >= 5 ? 'badge-green' : ($stage === 0 ? 'badge-gray' : ($stage >= 2 ? 'badge-blue' : 'badge-yellow')) }}" title="{{ $trip->label() }}" data-trip-stage="{{ $stage }}">{{ $trip->stageLabel() }}</span>
     @if ($trip->crossCompany())
         <span class="text-muted" style="font-size:13px;">{{ $sender ? 'Outgoing to ' . $receiverName : 'Incoming from ' . $senderName }}</span>
     @endif
@@ -110,10 +112,24 @@
                     <div class="ts-hub" style="text-align:right;"><b>{{ $trip->destination->code ?? '?' }}</b><span>{{ $trip->destination->name ?? '' }}</span>@if($trip->crossCompany())<span>{{ $receiverName }}</span>@endif</div>
                 </div>
                 <div class="ts-steps">
-                    @foreach ($steps as [$label, $at])
-                        <div class="ts-step {{ $at ? 'is-done' : '' }}"><i></i><b>{{ $label }}</b><div>{{ $at?->format('M j, g:i A') ?? '—' }}</div></div>
+                    @foreach ($steps as $n => [$label, $at, $current])
+                        <div class="ts-step {{ $at ? 'is-done' : '' }} {{ $current ? 'is-now' : '' }}" data-stage="{{ $n + 1 }}"><i></i><b>{{ $n + 1 }}. {{ $label }}</b><div>{{ $at?->format('M j, g:i A') ?? '—' }}</div></div>
                     @endforeach
                 </div>
+                @if ($sender && $stage >= 1 && $stage <= 3)
+                    <div class="ts-next" data-trip-next>
+                        <b>Next:</b>
+                        @if ($stage === 1 && $onBoard->isEmpty())
+                            assign the parcels below. <b>Auto-assign</b> puts in every parcel going to {{ $trip->destination->code }}, or tick them yourself.
+                        @elseif ($stage === 1)
+                            assign a truck (right side). The courier then scans each parcel onto the truck.
+                        @elseif ($stage === 2)
+                            {{ $trip->courier?->fullName() ?? 'The courier' }} is loading: {{ $onBoard->where('status', 'loaded')->count() }} of {{ $onBoard->count() }} parcel(s) scanned onto the truck.
+                        @else
+                            all parcels are on the truck. {{ $trip->courier?->fullName() ?? 'The courier' }} departs for {{ $trip->destination->code }}.
+                        @endif
+                    </div>
+                @endif
                 @if ($trip->delayed && ! $trip->arrived_at)
                     <div style="margin:0 18px 16px;padding:10px 12px;border-radius:10px;background:#FEF2F2;color:var(--accent-red);font-size:13px;">
                         Delayed{{ $trip->delay_reason ? ': ' . $trip->delay_reason : '' }}{{ $trip->eta_at ? ' · new ETA ' . $trip->eta_at->format('M j, g:i A') : '' }}
@@ -153,12 +169,12 @@
             @if ($sender && in_array($trip->status, \App\Models\LinehaulTrip::BEFORE_DEPARTURE, true))
                 @php $forHere = $addable->filter(fn ($p) => $p->best_hub?->id === (int) $trip->destination_hub_id); @endphp
                 <div class="card" data-trip-add>
-                    <div class="card-header"><h2>Add parcels</h2><span class="card-meta">{{ $addable->count() }} waiting at {{ $trip->origin->code }} · {{ $forHere->count() }} nearest to {{ $trip->destination->code }}</span></div>
+                    <div class="card-header"><h2>Assign parcels</h2><span class="card-meta">{{ $addable->count() }} waiting at {{ $trip->origin->code }} · {{ $forHere->count() }} nearest to {{ $trip->destination->code }}</span></div>
                     <div style="padding:14px 18px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
                         <form method="POST" action="{{ route('sc.trips.auto', $trip) }}">@csrf
                             <button class="btn btn-orange" @disabled($forHere->isEmpty())>Auto-assign {{ $forHere->count() }} parcel(s)</button>
                         </form>
-                        <span class="text-muted" style="font-size:12.5px;">Adds every waiting parcel whose nearest hub to the buyer is {{ $receiverName }} ({{ $trip->destination->code }}).</span>
+                        <span class="text-muted" style="font-size:12.5px;">Puts in every parcel waiting at {{ $trip->origin->code }} whose buyer is in the area of {{ $receiverName }} ({{ $trip->destination->code }}).</span>
                     </div>
                     @if ($addable->isNotEmpty())
                         <form method="POST" action="{{ route('sc.trips.parcels', $trip) }}" class="ts-recv">
@@ -260,8 +276,9 @@
                             <option value="">{{ $couriers->isEmpty() ? 'No truck courier online' : ($trip->courier ? 'Reassign to…' : 'Choose an online truck courier…') }}</option>
                             @foreach ($couriers as $c)<option value="{{ $c->id }}">{{ $c->fullName() }} · {{ $c->vehicle_type }}</option>@endforeach
                         </select>
-                        <button class="btn btn-blue btn-sm" @disabled($couriers->isEmpty())>{{ $trip->courier ? 'Reassign' : 'Assign' }}</button>
+                        <button class="btn btn-blue btn-sm" @disabled($couriers->isEmpty() || $onBoard->isEmpty())>{{ $trip->courier ? 'Reassign' : 'Assign' }}</button>
                     </form>
+                    @if ($onBoard->isEmpty())<p class="text-muted" style="font-size:12px;margin-top:6px;" data-truck-after-parcels>Assign the parcels first; then the truck.</p>@endif
                     @if ($offDuty->isNotEmpty())
                         <p class="text-muted" style="font-size:12px;margin-top:6px;">
                             Not available now: {{ $offDuty->map(fn ($c) => $c->fullName() . ' (' . $c->vehicle_type . ', ' . ($c->activeTrip() ? 'on ' . $c->activeTrip()->code : 'Off Duty') . ')')->implode(', ') }}.

@@ -148,6 +148,11 @@
         <li>You keep ownership of what you post, such as reviews and photos. You allow ALVY to show it on the platform for as long
             as it stays on ALVY.</li>
         <li>We may remove content that breaks these Terms.</li>
+        <li><strong>Keep orders and payments on ALVY.</strong> Chats between buyers and sellers are checked automatically: phone
+            numbers, email addresses, links and social-media accounts are hidden, and both people see a reminder. Orders and
+            payments made outside ALVY are not covered by ALVY's buyer protection, tracking, returns or refunds. Sellers who
+            share contact details receive strikes under the Seller Policy, which they can appeal. See the Privacy Policy for
+            how this information is handled.</li>
     </ul>
 
     <h2>11. What you may not do</h2>

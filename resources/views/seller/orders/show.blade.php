@@ -146,7 +146,7 @@
                 </div>
                 <dl class="pl-dl pl-body !py-3">
                     <div><dt>Name</dt><dd>{{ $order->full_name }}</dd></div>
-                    <div><dt>Phone</dt><dd>{{ $order->phone }}</dd></div>
+                    <div><dt>Phone</dt><dd title="Hidden: ALVY's riders contact the buyer">{{ \App\Support\ContactGuard::maskPhone($order->phone) }}</dd></div>
                     <div><dt>Email</dt><dd class="break-all">{{ $order->email }}</dd></div>
                     <div><dt>Address</dt><dd class="max-w-[24rem]">{{ $order->fullAddress() }}</dd></div>
                     @if ($order->buyer_note)

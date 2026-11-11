@@ -82,6 +82,47 @@ class LinehaulTrip extends Model
 
     public function label(): string { return self::LABELS[$this->status] ?? ucfirst($this->status); }
 
+    /**
+     * The five steps the logistics panel shows for a delivery (hub to hub):
+     *   1 Delivery created            open it, assign its parcels (Auto-assign or by hand), then a truck
+     *   2 Loading parcels onto the truck
+     *   3 Ready to deliver to hub     every parcel is scanned onto the truck
+     *   4 On delivery                 the truck left (and until the receiving hub has checked the parcels)
+     *   5 Received by the hub
+     */
+    public const STAGES = [1 => 'Delivery created', 2 => 'Loading parcels onto the truck', 3 => 'Ready to deliver to hub', 4 => 'On delivery', 5 => 'Received by the hub'];
+
+    /** 1–5 (see STAGES), 0 when cancelled. */
+    public function stage(): int
+    {
+        return match (true) {
+            $this->status === 'cancelled'                         => 0,
+            in_array($this->status, self::DONE, true)             => 5,
+            in_array($this->status, ['in_transit', 'arrived'], true) => 4,
+            $this->status === 'scheduled' || ! $this->courier_id  => 1,
+            $this->allLoaded()                                    => 3,
+            default                                               => 2,
+        };
+    }
+
+    public function stageLabel(): string
+    {
+        return match ($stage = $this->stage()) {
+            0 => 'Cancelled',
+            5 => 'Received by ' . ($this->destination?->code ?? 'the hub'),
+            4 => $this->status === 'arrived' ? 'On delivery · arrived, being checked' : 'On delivery',
+            default => self::STAGES[$stage],
+        };
+    }
+
+    /** Every parcel on the trip is scanned onto the truck (and there is at least one). */
+    public function allLoaded(): bool
+    {
+        $items = $this->relationLoaded('items') ? $this->items->where('status', '!=', 'removed') : $this->onBoard()->get();
+
+        return $items->isNotEmpty() && $items->every(fn ($i) => $i->status === 'loaded');
+    }
+
     public function route(): string { return ($this->origin?->code ?? '?') . ' → ' . ($this->destination?->code ?? '?'); }
 
     public function weightKg(): float

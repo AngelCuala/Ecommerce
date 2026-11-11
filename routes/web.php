@@ -478,6 +478,9 @@ Route::middleware(['auth', 'role:seller,admin', 'seller.approved', 'prevent.back
 
     // Earnings and payouts
     Route::get('/earnings',                  [\App\Http\Controllers\Seller\EarningsController::class, 'index'])->name('earnings');
+    // Contact strikes (sharing contact details with buyers) and appeals
+    Route::get('/strikes',                   [\App\Http\Controllers\Seller\StrikesController::class, 'index'])->name('strikes');
+    Route::post('/strikes/{strike}/appeal',  [\App\Http\Controllers\Seller\StrikesController::class, 'appeal'])->whereNumber('strike')->middleware('throttle:10,1')->name('strikes.appeal');
     Route::post('/earnings/payouts',         [\App\Http\Controllers\Seller\EarningsController::class, 'requestPayout'])->name('earnings.payout');
 
     Route::get('/orders',                    [SellerOrderController::class, 'index'])->name('orders.index');
@@ -633,6 +636,8 @@ Route::middleware(['auth', 'role:admin', 'prevent.back'])
     Route::get('/compliance',                    [AdminComplianceController::class, 'index'])->name('compliance.index');
     Route::get('/compliance/{sellerId}',         [AdminComplianceController::class, 'show'])->name('compliance.show');
     Route::post('/compliance',                   [AdminComplianceController::class, 'store'])->name('compliance.store');
+    Route::post('/compliance/{sellerId}/strikes-reviewed', [AdminComplianceController::class, 'reviewStrikes'])->whereNumber('sellerId')->name('compliance.strikes-reviewed');
+    Route::post('/compliance/strikes/{strike}/appeal', [AdminComplianceController::class, 'decideAppeal'])->whereNumber('strike')->name('compliance.strike-appeal');
 
     // Platform settings
     Route::get('/settings',                              [AdminSettingsController::class, 'index'])->name('settings.index');
