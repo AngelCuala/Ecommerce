@@ -121,6 +121,10 @@ Route::middleware(['auth', 'is_sc', 'prevent.back'])->prefix('sc')->name('sc.')-
     Route::post('/dispatch/auto-all/{kind}', [\App\Http\Controllers\SortingCenter\RiderWorkController::class, 'autoAssignAll'])->whereIn('kind', ['pickup', 'delivery'])->name('dispatch.auto-all');
     Route::post('/dispatch/{parcel}/assign', [\App\Http\Controllers\SortingCenter\RiderWorkController::class, 'manualAssign'])->name('dispatch.assign');
     Route::get('/remittances',               [\App\Http\Controllers\SortingCenter\RiderWorkController::class, 'remittances'])->name('remittances');
+    Route::get('/rider-pay',                 [\App\Http\Controllers\SortingCenter\RiderWorkController::class, 'riderPay'])->name('rider-pay');
+    Route::post('/rider-pay/{rider}/send',   [\App\Http\Controllers\SortingCenter\RiderWorkController::class, 'sendPay'])->whereNumber('rider')->middleware('throttle:20,1')->name('rider-pay.send');
+    Route::post('/rider-pay/cashouts/{entry}/paid',   [\App\Http\Controllers\SortingCenter\RiderWorkController::class, 'cashoutPaid'])->whereNumber('entry')->name('rider-pay.cashout.paid');
+    Route::post('/rider-pay/cashouts/{entry}/reject', [\App\Http\Controllers\SortingCenter\RiderWorkController::class, 'cashoutReject'])->whereNumber('entry')->name('rider-pay.cashout.reject');
     Route::post('/remittances/{remittance}/confirm', [\App\Http\Controllers\SortingCenter\RiderWorkController::class, 'confirmRemittance'])->name('remittances.confirm');
 
     // Commission and net earnings: share of the shipping fee, ALVY's commission, rider pay
@@ -139,7 +143,6 @@ Route::middleware(['auth', 'is_sc', 'prevent.back'])->prefix('sc')->name('sc.')-
     Route::post('/returns/{return}/receive',  [\App\Http\Controllers\SortingCenter\ReturnsController::class, 'receive'])->whereNumber('return')->name('returns.receive');
     Route::post('/returns/{return}/to-seller', [\App\Http\Controllers\SortingCenter\ReturnsController::class, 'assignSeller'])->whereNumber('return')->name('returns.to-seller');
     Route::get('/failed-deliveries',          [\App\Http\Controllers\SortingCenter\IssuesController::class, 'failed'])->name('failed-deliveries');
-    Route::get('/flagged',                    [\App\Http\Controllers\SortingCenter\IssuesController::class, 'flagged'])->name('flagged');
     Route::get('/rts',                        [\App\Http\Controllers\SortingCenter\LogisticsController::class, 'rtsQueue'])->name('rts');
     Route::post('/rts/{parcel}/assign',     [\App\Http\Controllers\SortingCenter\LogisticsController::class, 'assignRts'])->name('rts.assign');
     Route::get('/rates',                      [\App\Http\Controllers\SortingCenter\LogisticsController::class, 'rates'])->name('rates');
@@ -234,7 +237,6 @@ Route::middleware(['auth', 'is_sc', 'prevent.back'])->prefix('sc')->name('sc.')-
     Route::get('/tracking/{parcel}',                [\App\Http\Controllers\SortingCenter\ShipmentController::class, 'show'])->name('tracking.show');
     Route::post('/tracking/{parcel}/receive',       [\App\Http\Controllers\SortingCenter\ShipmentController::class, 'receive'])->name('tracking.receive');
     Route::post('/tracking/{parcel}/start-sorting', [\App\Http\Controllers\SortingCenter\ShipmentController::class, 'startSorting'])->name('tracking.start-sorting');
-    Route::post('/tracking/{parcel}/exception',     [\App\Http\Controllers\SortingCenter\ShipmentController::class, 'reportException'])->name('tracking.exception');
     Route::post('/riders/{rider}/transport',        [\App\Http\Controllers\SortingCenter\ShipmentController::class, 'toggleTransport'])->name('riders.transport');
 });
 
@@ -745,6 +747,8 @@ Route::middleware(['auth', 'role:courier,admin', 'prevent.back'])
     Route::get('/rider/{rider}/documents/{document}', [\App\Http\Controllers\Courier\RiderController::class, 'document'])->whereNumber('rider')->whereIn('document', ['license', 'or-cr'])->name('rider.document');
     Route::get('/rider/history',                   [\App\Http\Controllers\Courier\RiderController::class, 'history'])->name('rider.history');
     Route::get('/rider/earnings',                  [\App\Http\Controllers\Courier\RiderController::class, 'earnings'])->name('rider.earnings');
+    Route::get('/rider/wallet',                    [\App\Http\Controllers\Courier\RiderController::class, 'wallet'])->name('rider.wallet');
+    Route::post('/rider/wallet/cashout',           [\App\Http\Controllers\Courier\RiderController::class, 'cashout'])->middleware('throttle:10,1')->name('rider.wallet.cashout');
     Route::get('/rider/cod',                       [\App\Http\Controllers\Courier\RiderController::class, 'cod'])->name('rider.cod');
     Route::post('/rider/cod/remit',                [\App\Http\Controllers\Courier\RiderController::class, 'remit'])->name('rider.cod.remit');
     Route::get('/rider/cod/remittances/{remittance}/receipt', [\App\Http\Controllers\Courier\RiderController::class, 'remittanceReceipt'])->whereNumber('remittance')->name('rider.cod.receipt');

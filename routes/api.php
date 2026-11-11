@@ -166,6 +166,10 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
             Route::post('/deliveries/{delivery}/deliver',  [Rider\RiderController::class, 'deliver'])->whereNumber('delivery')->name('deliveries.deliver');
             Route::post('/deliveries/{delivery}/fail',     [Rider\RiderController::class, 'fail'])->whereNumber('delivery')->name('deliveries.fail');
             Route::post('/returns/{parcel}/returned',      [Rider\RiderController::class, 'returned'])->whereNumber('parcel')->name('returns.returned');
+            Route::get('/return-jobs/{return}',            [Rider\RiderController::class, 'returnJobShow'])->whereNumber('return')->name('return-jobs.show');
+            Route::post('/return-jobs/{return}/accept',    [Rider\RiderController::class, 'returnJobAccept'])->whereNumber('return')->name('return-jobs.accept');
+            Route::post('/return-jobs/{return}/confirm',   [Rider\RiderController::class, 'returnJobConfirm'])->whereNumber('return')->name('return-jobs.confirm');   // multipart
+            Route::post('/return-jobs/{return}/handed',    [Rider\RiderController::class, 'returnJobHanded'])->whereNumber('return')->name('return-jobs.handed');   // multipart
             Route::get('/profile',                         [Rider\RiderController::class, 'profile'])->name('profile');
             Route::post('/profile',                        [Rider\RiderController::class, 'updateProfile'])->name('profile.update');   // POST: multipart files
             Route::get('/documents/{document}',            [Rider\RiderController::class, 'document'])->whereIn('document', ['license', 'or-cr'])->name('document');
@@ -212,7 +216,6 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         Route::get('/tracking/{parcel}',                 [Logistics\TrackingController::class, 'show'])->whereNumber('parcel')->name('tracking.show');
         Route::post('/tracking/{parcel}/receive',        [Logistics\TrackingController::class, 'receive'])->whereNumber('parcel')->name('tracking.receive');
         Route::post('/tracking/{parcel}/start-sorting',  [Logistics\TrackingController::class, 'startSorting'])->whereNumber('parcel')->name('tracking.start-sorting');
-        Route::post('/tracking/{parcel}/exception',      [Logistics\TrackingController::class, 'exception'])->whereNumber('parcel')->name('tracking.exception');
         Route::post('/riders/{rider}/transport',         [Logistics\TrackingController::class, 'toggleTransport'])->name('riders.transport');
         Route::get('/commissions',                       [Logistics\TrackingController::class, 'commissions'])->name('commissions');
         Route::get('/commissions/export',                [Logistics\TrackingController::class, 'exportCommissions'])->name('commissions.export');
@@ -220,6 +223,12 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         Route::post('/incoming/{parcel}/receive',        [Logistics\HubController::class, 'receive'])->whereNumber('parcel')->name('incoming.receive');
         Route::get('/sorting',                           [Logistics\HubController::class, 'sorting'])->name('sorting');
         Route::post('/sorting/{parcel}',                 [Logistics\HubController::class, 'sort'])->whereNumber('parcel')->name('sorting.sort');
+        Route::post('/sorting/{parcel}/transfer',        [Logistics\IssuesController::class, 'sortTransfer'])->whereNumber('parcel')->name('sorting.transfer');
+        Route::get('/failed-deliveries',                 [Logistics\IssuesController::class, 'failed'])->name('failed-deliveries');
+        Route::get('/returns',                           [Logistics\IssuesController::class, 'returns'])->name('returns');
+        Route::post('/returns/{return}/assign',          [Logistics\IssuesController::class, 'returnAssign'])->whereNumber('return')->name('returns.assign');
+        Route::post('/returns/{return}/receive',         [Logistics\IssuesController::class, 'returnReceive'])->whereNumber('return')->name('returns.receive');
+        Route::post('/returns/{return}/to-seller',       [Logistics\IssuesController::class, 'returnToSeller'])->whereNumber('return')->name('returns.to-seller');
         Route::get('/assignment',                        [Logistics\HubController::class, 'assignment'])->name('assignment');
         Route::post('/assignment/{parcel}',              [Logistics\HubController::class, 'assign'])->whereNumber('parcel')->name('assignment.assign');
         Route::get('/monitoring',                        [Logistics\HubController::class, 'monitoring'])->name('monitoring');

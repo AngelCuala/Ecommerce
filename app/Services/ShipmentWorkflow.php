@@ -346,12 +346,7 @@ class ShipmentWorkflow
      */
     public function resolveException(ShipmentException $exception, User $admin, string $action, string $reason, ?int $centerId = null): void
     {
-        Parcel::$releasingHold = true;   // the resolution may move the flagged parcel (custody / lost)
-        try {
-            $this->resolveExceptionNow($exception, $admin, $action, $reason, $centerId);
-        } finally {
-            Parcel::$releasingHold = false;
-        }
+        $this->resolveExceptionNow($exception, $admin, $action, $reason, $centerId);
     }
 
     private function resolveExceptionNow(ShipmentException $exception, User $admin, string $action, string $reason, ?int $centerId): void
@@ -392,6 +387,7 @@ class ShipmentWorkflow
                 'dedupe_key' => 'exception:' . $exception->id . ':resolved']);
         });
     }
+
 
     /** An administrator corrects the tracking record: the original event stays, a correction is appended. */
     public function correctEvent(ShipmentEvent $event, User $admin, string $reason): ShipmentEvent

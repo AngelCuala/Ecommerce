@@ -139,6 +139,7 @@ class SellerJson
             'return' => $lastReturn ? [
                 'id' => $lastReturn->id, 'status' => $lastReturn->status, 'reason' => $lastReturn->reason, 'details' => $lastReturn->details,
                 'refund_amount' => (float) $lastReturn->refund_amount, 'seller_note' => $lastReturn->seller_note,
+                'item_coming_back' => $lastReturn->shipment ? ['status' => $lastReturn->shipment->status, 'label' => $lastReturn->shipment->statusLabel()] : null,
                 'photos' => array_map(fn ($p) => ApiJson::file($p), $lastReturn->photos()),
                 'answer_by' => $lastReturn->status === 'requested' ? $lastReturn->created_at->addDays(\App\Models\ReturnRequest::RESPOND_DAYS)->toIso8601String() : null,
                 'escalated_at' => $lastReturn->escalated_at?->toIso8601String(), 'dispute_note' => $lastReturn->dispute_note,
@@ -148,6 +149,9 @@ class SellerJson
                 'sorting_center' => $parcel->currentSortingCenter->name ?? null,
                 'failure_reason' => $parcel->failure_reason && in_array($parcel->status, ['pickup_rejected', 'failed', 'returned']) ? $parcel->failure_reason : null,
                 'returned_at' => $parcel->returned_at?->toIso8601String(),
+                // Who will pick it up (the website's "Pickup rider" row).
+                'pickup_rider' => ($job = $parcel->pickups()->with('rider')->where('status', '!=', 'cancelled')->latest('id')->first())?->rider
+                    ? ['name' => $job->rider->full_name, 'phone' => $job->rider->phone] : null,
             ] : null,
             'delivery' => $delivery ? ['status' => $delivery->status, 'tracking_number' => $delivery->tracking_number, 'notes' => $delivery->notes,
                 'pickup_scheduled_at' => $delivery->pickup_scheduled_at?->toIso8601String()] : null,

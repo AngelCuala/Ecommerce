@@ -35,6 +35,7 @@ class Rider extends Model
 
     protected $casts = [
         'approved_at'          => 'datetime',
+        'wallet_since'         => 'datetime',
         'is_active'            => 'boolean',
         'license_expiry'       => 'date',
         'needs_reverification' => 'boolean',
@@ -78,6 +79,10 @@ class Rider extends Model
 
     protected static function booted(): void
     {
+        // A new rider's pay goes to their wallet from the start (see RiderWallet).
+        static::creating(function (Rider $rider) {
+            $rider->wallet_since ??= now();
+        });
         // A new rider, or a change to the vehicle, status, company or details, updates the truck record.
         static::saved(function (Rider $rider) {
             if ($rider->wasRecentlyCreated || $rider->wasChanged(\App\Services\TruckRiders::WATCHED)) {
@@ -92,6 +97,7 @@ class Rider extends Model
     }
 
     public function user(): BelongsTo          { return $this->belongsTo(User::class); }
+    public function walletEntries(): \Illuminate\Database\Eloquent\Relations\HasMany { return $this->hasMany(RiderWalletEntry::class); }
     public function sortingCenter(): BelongsTo { return $this->belongsTo(User::class, 'sorting_center_id'); }
     public function area(): BelongsTo          { return $this->belongsTo(DeliveryArea::class, 'area_id'); }   // the main barangay
 

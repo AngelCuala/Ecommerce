@@ -16,10 +16,6 @@ final class ParcelJobPage
         $me ??= (int) auth()->id();
         $t = $parcel->relationLoaded('activeTransfer') ? $parcel->activeTransfer : null;
 
-        if ($parcel->relationLoaded('exceptions') ? $parcel->exceptions->contains(fn ($x) => $x->isOpen() && ! in_array($x->type, Parcel::HOLD_EXCEPTIONS_EXCEPT, true)) : $parcel->openHold()) {
-            return ['Flagged Parcels', route('sc.flagged')];
-        }
-
         if (\App\Models\ReturnShipment::where('parcel_id', $parcel->id)->whereIn('status', \App\Models\ReturnShipment::OPEN)->exists()) {
             return ['Return Items', route('sc.returns')];
         }

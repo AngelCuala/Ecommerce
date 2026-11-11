@@ -50,8 +50,9 @@
         <style>
             .board-table th, .board-table td { padding-left: 12px; padding-right: 12px; }
             .board-table .sub { color: var(--text-muted); font-size: 11px; line-height: 1.4; }
-            .board-status { display: inline-flex; flex-direction: column; gap: 3px; text-decoration: none !important; }
-            .board-status .go { font-size: 11px; color: var(--accent-blue); font-weight: 600; }
+            .board-status { display: inline-flex; text-decoration: none !important; }
+            .board-status .badge { cursor: pointer; transition: filter .15s, box-shadow .15s; }
+            .board-status:hover .badge, .board-status:focus-visible .badge { filter: brightness(.95); box-shadow: 0 0 0 2px currentColor; }
         </style>
         <table class="data-table board-table">
             <thead>
@@ -67,7 +68,6 @@
                     $dest = $t ? 'Transfer → ' . \App\Support\SortingCenters::nameOf($t->toSortingCenter)
                         : ($p->next_center_id ? 'Hub-to-hub → ' . \App\Support\SortingCenters::nameOf($p->nextCenter)
                         : ($next[$p->id]['label'] ?? ($p->area?->name ? 'Delivery: ' . $p->area->name : $p->destination_municipality)));
-                    $flagged = $pageName === 'Flagged Parcels';
                 @endphp
                 <tr data-parcel="{{ $p->id }}">
                     @php $tz = config('app.business_timezone'); @endphp
@@ -78,8 +78,7 @@
                     </td>
                     <td>
                         <a href="{{ $pageUrl }}" class="board-status" data-status-link="{{ $p->status }}" title="Open {{ $pageName }}">
-                            <span class="badge {{ $flagged ? 'badge-red' : $badge($p->status) }}">{{ $flagged ? 'Flagged · on hold' : ($t?->isDelayed() ? 'Delayed in transit' : $p->statusLabel()) }}</span>
-                            <span class="go">{{ $pageName }} →</span>
+                            <span class="badge {{ $badge($p->status) }}">{{ $t?->isDelayed() ? 'Delayed in transit' : $p->statusLabel() }}</span>
                         </a>
                     </td>
                     <td style="font-size:12px;">

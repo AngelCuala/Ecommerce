@@ -28,6 +28,8 @@ class RiderApiTest extends TestCase
         Mail::fake();
         Storage::fake('public');
         $this->seedRiderTestData();
+        // Rider 1 joined before the e-wallet: their pay is still kept out of the COD (RiderWallet::unpaidPay).
+        $this->rider1->forceFill(['wallet_since' => now()->addYear()])->save();
         $this->token = $this->rider1->user->createToken('test')->plainTextToken;
     }
 

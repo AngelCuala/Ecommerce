@@ -4,14 +4,12 @@ namespace App\Http\Controllers\SortingCenter;
 
 use App\Http\Controllers\Controller;
 use App\Models\ParcelDelivery;
-use App\Models\ShipmentException;
 use Illuminate\Http\Request;
 
 /**
  * Problems to look at, each on its own page:
  *  - Failed Deliveries: every failed delivery attempt of this hub's riders, with the reason and what happened next
- *    (buyer not home → rescheduled automatically; wrong address → Return to Seller; refused / 3rd try → cancelled);
- *  - Flagged Parcels: parcels flagged at the hub (damaged, missing, wrong center…). They are on hold until resolved.
+ *    (buyer not home → rescheduled automatically; wrong address → Return to Seller; refused / 3rd try → cancelled).
  */
 class IssuesController extends Controller
 {
@@ -35,17 +33,4 @@ class IssuesController extends Controller
         return view('sc.failed-deliveries', compact('failed', 'counts', 'reason', 'waiting'));
     }
 
-    public function flagged()
-    {
-        $me = $this->me();
-        $scope = fn ($q) => $q->where(fn ($w) => $w->where('sorting_center_id', $me)
-            ->orWhereHas('parcel', fn ($p) => $p->where('current_sorting_center_id', $me)));
-
-        $open = ShipmentException::where('status', 'open')->where($scope)
-            ->with(['parcel.order', 'parcel.seller', 'reporter'])->latest('id')->get();
-        $resolved = ShipmentException::where('status', 'resolved')->where($scope)
-            ->with(['parcel', 'resolver'])->latest('resolved_at')->limit(20)->get();
-
-        return view('sc.flagged', compact('open', 'resolved'));
-    }
 }

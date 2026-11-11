@@ -70,18 +70,12 @@
             @php
                 $navMe = auth()->id();
                 $failedWaiting = \App\Models\Parcel::where('current_sorting_center_id', $navMe)->where('status', 'failed')->count();
-                $flaggedOpen = \App\Models\Parcel::where('current_sorting_center_id', $navMe)->whereHas('exceptions', fn ($q) => $q->where('status', 'open')->whereNotIn('type', \App\Models\Parcel::HOLD_EXCEPTIONS_EXCEPT))->count();
                 $returnsWaiting = \App\Models\ReturnShipment::where('sorting_center_id', $navMe)->whereIn('status', ['requested', 'picked_up', 'at_hub'])->count();
             @endphp
             <a href="{{ route('sc.failed-deliveries') }}" class="nav-link {{ request()->routeIs('sc.failed-deliveries') ? 'active' : '' }}">
                 <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path stroke-linecap="round" d="M15 9l-6 6M9 9l6 6"/></svg>
                 Failed Deliveries
                 @if ($failedWaiting)<span class="badge badge-red" style="margin-left:auto;">{{ $failedWaiting }}</span>@endif
-            </a>
-            <a href="{{ route('sc.flagged') }}" class="nav-link {{ request()->routeIs('sc.flagged') ? 'active' : '' }}">
-                <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 21V4m0 0h12l-2 4 2 4H4"/></svg>
-                Flagged Parcels
-                @if ($flaggedOpen)<span class="badge badge-red" style="margin-left:auto;">{{ $flaggedOpen }}</span>@endif
             </a>
             <a href="{{ route('sc.returns') }}" class="nav-link {{ request()->routeIs('sc.returns') ? 'active' : '' }}">
                 <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 12a9 9 0 1 0 3-6.7M3 4v5h5"/></svg>
@@ -120,6 +114,12 @@
             <a href="{{ route('sc.remittances') }}" class="nav-link {{ request()->routeIs('sc.remittances*') ? 'active' : '' }}">
                 <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/></svg>
                 COD Remittances
+            </a>
+            <a href="{{ route('sc.rider-pay') }}" class="nav-link {{ request()->routeIs('sc.rider-pay*') ? 'active' : '' }}">
+                <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 7h15a3 3 0 013 3v7a3 3 0 01-3 3H6a3 3 0 01-3-3V7zm0 0l2.5-3h11L18 7M16.5 13.5h.01"/></svg>
+                Rider Pay
+                @php $cashoutsWaiting = \App\Models\RiderWalletEntry::where('sorting_center_id', auth()->id())->where('type', 'cashout')->where('status', 'pending')->count(); @endphp
+                @if ($cashoutsWaiting)<span class="badge badge-red" style="margin-left:auto;" title="GCash cash-outs to send">{{ $cashoutsWaiting }}</span>@endif
             </a>
             <a href="{{ route('sc.commissions') }}" class="nav-link {{ request()->routeIs('sc.commissions') ? 'active' : '' }}">
                 <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>

@@ -46,6 +46,8 @@ class TrackingController extends Controller
 
         return response()->json(ApiJson::page($d['parcels'], fn (Parcel $p) => LogisticsJson::parcel($p) + [
             'row_action' => $action($p),
+            // The website's board: tapping the status opens this page (pickup_requests, sorting, deliveries, …).
+            'page'       => self::pageKey($p),
             'next'       => $d['next'][$p->id]['label'] ?? null,
             'transfer'   => $p->activeTransfer ? self::transfer($p->activeTransfer) : null,
             'rider'      => $p->parcelDelivery?->rider?->full_name ?? $p->pickup?->rider?->full_name,
@@ -55,6 +57,22 @@ class TrackingController extends Controller
             'tabs' => collect(WebShipment::TABS)->except('all')->map(fn ($label, $key) => ['key' => $key, 'label' => $label, 'count' => (int) ($d['counts'][$key] ?? 0)])->values(),
             'statuses' => Parcel::STATUS_LABELS,
         ]);
+    }
+
+    /** Which app screen the parcel's status opens (the website's ParcelJobPage, as a key). */
+    public static function pageKey(Parcel $p): string
+    {
+        [$name] = \App\Support\ParcelJobPage::for($p);
+        return match ($name) {
+            'Pickup Requests'   => 'pickup_requests',
+            'Parcel Sorting'    => 'sorting',
+            'Deliveries'        => in_array($p->status, ['assigned', 'in_transit'], true) ? 'monitoring' : 'assignment',
+            'Failed Deliveries' => 'failed',
+            'Return Items'      => 'returns',
+            'Return to Seller'  => 'rts',
+            'Linehaul Trips'    => 'trips',
+            default             => 'details',
+        };
     }
 
     public function show(int $parcel): JsonResponse
@@ -122,12 +140,6 @@ class TrackingController extends Controller
     public function startSorting(int $parcel): JsonResponse
     {
         return $this->then($parcel, $this->web(WebShipment::class, 'startSorting', ['parcel' => Parcel::findOrFail($parcel)]));
-    }
-
-    /** type (damaged_on_arrival, missing, other), details. */
-    public function exception(int $parcel): JsonResponse
-    {
-        return $this->then($parcel, $this->web(WebShipment::class, 'reportException', ['parcel' => Parcel::findOrFail($parcel)]));
     }
 
     /** Allow / stop one of this center's riders carrying hub transfers. */

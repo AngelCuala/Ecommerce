@@ -178,8 +178,13 @@ class HubController extends Controller
         return response()->json([
             'areas' => $d['areas']->map(fn ($a) => ['id' => $a->id, 'name' => $a->name, 'sorted' => (int) $a->sorted_count])->values(),
             'pending' => $d['pending']->map(fn ($p) => LogisticsJson::parcel($p) + [
-                'suggested_area_id' => $d['suggested'][$p->id] ?? null, 'covered' => (bool) ($d['covered'][$p->id] ?? false)])->values(),
+                'suggested_area_id' => $d['suggested'][$p->id] ?? null, 'covered' => (bool) ($d['covered'][$p->id] ?? false),
+                'suggested_center_id' => $d['nextHub'][$p->id] ?? null])->values(),
             'sorted_today' => (int) $d['sortedToday'],
+            // Out of this hub's area: sort to the sorting center serving the address (POST sorting/{id}/transfer, center_id).
+            'centers' => $d['hubs']->map(fn ($h) => ['id' => $h->id, 'name' => \App\Support\SortingCenters::displayName($h), 'municipality' => $h->assigned_municipality])->values(),
+            'for_transfer' => $d['forTransfer']->map(fn ($g) => ['center' => \App\Support\SortingCenters::nameOf($g->first()->nextCenter),
+                'parcels' => $g->map(fn ($p) => LogisticsJson::parcel($p))->values()])->values(),
         ]);
     }
 

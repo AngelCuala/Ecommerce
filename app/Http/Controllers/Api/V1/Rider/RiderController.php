@@ -34,6 +34,8 @@ class RiderController extends Controller
             'pickups'    => $d['pickups']->map(fn ($p) => RiderJson::pickupRow($p))->values(),
             'deliveries' => $d['deliveries']->map(fn ($x) => RiderJson::deliveryRow($x))->values(),
             'returns'    => $d['returns']->map(fn ($p) => RiderJson::returnRow($p))->values(),
+            // Buyers' returns (Return Items): collect from the buyer, or bring back to the seller.
+            'return_jobs' => collect($d['returnJobs'] ?? [])->map(fn ($r) => self::returnJob($r))->values(),
             // Hub-to-hub parcels this rider carries (riders the hub allowed to transport), and the last finished deliveries.
             'transfers'  => collect($d['transfers'] ?? [])->map(fn ($t) => [
                 'id' => $t->id, 'reference' => $t->reference, 'tracking' => $t->parcel?->tracking_number, 'waybill' => $t->parcel?->waybill_number,
@@ -70,6 +72,39 @@ class RiderController extends Controller
     public function accept(int $offer): JsonResponse  { return $this->withJobs($this->web(WebRider::class, 'accept', ['offer' => $offer])); }
     public function decline(int $offer): JsonResponse { return $this->withJobs($this->web(WebRider::class, 'decline', ['offer' => $offer])); }
     public function returned(int $parcel): JsonResponse { return $this->withJobs($this->web(WebRider::class, 'returnedToSeller', ['parcel' => $parcel])); }
+
+    // ── Return Items (buyer → hub → seller) ──────────────────────
+
+    public static function returnJob(\App\Models\ReturnShipment $r): array
+    {
+        $r->loadMissing('order', 'parcel.seller.sellerApplication', 'returnRequest');
+        $app = $r->parcel?->seller?->sellerApplication;
+        return [
+            'id' => $r->id, 'status' => $r->status, 'status_label' => $r->statusLabel(),
+            'kind' => in_array($r->status, ['to_seller', 'returned'], true) ? 'to_seller' : 'pickup',
+            'order_number' => $r->order?->number(), 'waybill' => $r->code(), 'reason' => $r->returnRequest?->reason,
+            'accepted' => (bool) $r->acknowledged_at,
+            'buyer' => ['name' => $r->order?->full_name, 'phone' => $r->order?->phone, 'address' => $r->buyerAddress()],
+            'seller' => ['name' => $app->shop_name ?? $r->parcel?->seller?->name, 'phone' => $app->phone ?? $r->parcel?->seller?->contact_no, 'address' => $r->sellerAddress()],
+            'items' => $r->order ? $r->order->items()->with('product')->get()->map(fn ($i) => ($i->product->title ?? 'Item') . ' ×' . $i->quantity)->values() : [],
+            'bulky' => (bool) $r->parcel?->isBulky(),
+            'proof_url' => $r->pickup_proof_path ? \App\Support\ProtectedFile::url($r->pickup_proof_path) : null,
+        ];
+    }
+
+    public function returnJobShow(int $return): JsonResponse
+    {
+        $d = $this->pageData($this->web(WebRider::class, 'returnPickup', ['return' => $return]));
+        return response()->json(['return_job' => self::returnJob($d['rs'])]);
+    }
+
+    public function returnJobAccept(int $return): JsonResponse { return $this->withJobs($this->web(WebRider::class, 'acceptReturnPickup', ['return' => $return])); }
+
+    /** Multipart: proof_photo, tracking_number (scanned from the waybill). */
+    public function returnJobConfirm(int $return): JsonResponse { return $this->withJobs($this->web(WebRider::class, 'confirmReturnPickup', ['return' => $return])); }
+
+    /** Multipart: proof_photo (optional). */
+    public function returnJobHanded(int $return): JsonResponse { return $this->withJobs($this->web(WebRider::class, 'returnHandedToSeller', ['return' => $return])); }
 
     private function withJobs(mixed $response): JsonResponse
     {

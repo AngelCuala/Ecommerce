@@ -201,6 +201,63 @@ class RiderWorkController extends Controller
     }
 
     /** Only the logistics company confirms a remittance; any shortfall stays on the rider's balance. */
+    /** Rider Pay: each rider's pay waiting to be sent to their e-wallet (₱30 a pickup, ₱50 a delivery), and what was sent. */
+    public function riderPay()
+    {
+        $riders = Rider::where('sorting_center_id', $this->scId())->where('application_status', 'approved')->orderBy('full_name')->get()
+            ->reject(fn (Rider $r) => $r->isTruck())
+            ->map(fn (Rider $r) => ['rider' => $r, 'to_send' => $this->wallet->toSend($r), 'jobs' => $this->wallet->unsentJobs($r),
+                'balance' => $this->wallet->walletBalance($r)])
+            ->sortByDesc('to_send')->values();
+        $sent = \App\Models\RiderWalletEntry::where('sorting_center_id', $this->scId())->where('type', 'pay')
+            ->with('rider', 'sender')->latest('id')->paginate(20);
+        $cashouts = \App\Models\RiderWalletEntry::where('sorting_center_id', $this->scId())->where('type', 'cashout')->where('status', 'pending')
+            ->with('rider')->oldest('id')->get();
+        $cashoutsDone = \App\Models\RiderWalletEntry::where('sorting_center_id', $this->scId())->where('type', 'cashout')->whereIn('status', ['paid', 'rejected'])
+            ->with('rider', 'processor')->latest('processed_at')->limit(20)->get();
+
+        return view('sc.rider-pay', compact('riders', 'sent', 'cashouts', 'cashoutsDone'));
+    }
+
+    /** A rider's GCash cash-out: the hub sent it (with the GCash reference) … */
+    public function cashoutPaid(Request $request, \App\Models\RiderWalletEntry $entry)
+    {
+        $data = $request->validate(['reference' => 'required|string|min:6|max:60'],
+            ['reference.required' => 'Enter the GCash reference number of the transfer.', 'reference.min' => 'Enter the GCash reference number of the transfer.']);
+        try {
+            $e = $this->wallet->markCashoutPaid($entry, auth()->user(), trim($data['reference']));
+        } catch (\RuntimeException $ex) {
+            return back()->with('error', $ex->getMessage());
+        }
+
+        return back()->with('success', '₱' . number_format(abs((float) $e->amount), 2) . " cash-out marked as sent to {$e->rider->full_name}'s GCash.");
+    }
+
+    /** … or can't send it: the money goes back into the rider's wallet. */
+    public function cashoutReject(Request $request, \App\Models\RiderWalletEntry $entry)
+    {
+        $data = $request->validate(['reason' => 'required|string|min:5|max:300'], ['reason.required' => 'Tell the rider why (5 to 300 characters).']);
+        try {
+            $e = $this->wallet->rejectCashout($entry, auth()->user(), trim($data['reason']));
+        } catch (\RuntimeException $ex) {
+            return back()->with('error', $ex->getMessage());
+        }
+
+        return back()->with('success', "Cash-out rejected. ₱" . number_format(abs((float) $e->amount), 2) . " is back in {$e->rider->full_name}'s wallet.");
+    }
+
+    public function sendPay(Rider $rider)
+    {
+        abort_unless((int) $rider->sorting_center_id === $this->scId(), 403);
+        try {
+            $entry = $this->wallet->sendPay($rider, auth()->user(), auth()->user());
+        } catch (\RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return back()->with('success', '₱' . number_format((float) $entry->amount, 2) . " sent to {$rider->full_name}'s wallet.");
+    }
+
     public function confirmRemittance(RiderRemittance $remittance)
     {
         abort_unless((int) $remittance->sorting_center_id === $this->scId(), 403);

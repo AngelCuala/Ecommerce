@@ -43,7 +43,7 @@
         $links = array_slice($links, 0, 1, true) + [
             'rider'          => ['route' => 'courier.rider',          'label' => 'Hub Jobs',       'icon' => 'parcel'],
             'rider-history'  => ['route' => 'courier.rider.history',  'label' => 'Job History',    'icon' => 'history'],
-            'rider-earnings' => ['route' => 'courier.rider.earnings', 'label' => 'Pay & COD',      'icon' => 'earnings', 'also' => ['rider-cod']],
+            'rider-earnings' => ['route' => 'courier.rider.earnings', 'label' => 'Pay & COD',      'icon' => 'earnings', 'also' => ['rider-cod', 'rider-wallet']],
         ] + array_diff_key(array_slice($links, 1, null, true), $direct ? [] : ['history' => 1, 'profit' => 1]);
     }
     // A 4-wheel rider (car, van, truck): the same rider pages, for hub-to-hub trips instead of buyer deliveries.

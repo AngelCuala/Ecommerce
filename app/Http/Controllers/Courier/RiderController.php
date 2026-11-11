@@ -556,6 +556,48 @@ class RiderController extends Controller
     /** Periods on Rider Pay. Days and weeks are counted in the business time zone (Philippine time), not UTC. */
     public const PAY_PERIODS = ['today' => 'Today', 'week' => 'This week', 'last_week' => 'Last week', 'month' => 'This month'];
 
+    /** E-wallet: the pay the hub sent in, and the pay earned but not sent yet. */
+    public function wallet()
+    {
+        $rider = $this->rider();
+        if ($rider->isTruck()) {
+            return redirect()->route('courier.trips.pay');
+        }
+
+        return view('courier.rider.wallet', [
+            'rider'   => $rider,
+            'balance' => $this->wallet->walletBalance($rider),
+            'toSend'  => $this->wallet->toSend($rider),
+            'unsent'  => $this->wallet->unsentJobs($rider),
+            'entries' => $rider->walletEntries()->with('sortingCenter')->latest('id')->paginate(20),
+            'pendingCashout' => $this->wallet->pendingCashout($rider),
+            'lastGcash' => $rider->walletEntries()->where('type', 'cashout')->latest('id')->first(['gcash_number', 'gcash_name']),
+        ]);
+    }
+
+    /** Cash out from the wallet to the rider's GCash; their logistics company sends it. */
+    public function cashout(Request $request)
+    {
+        $rider = $this->rider();
+        $data = $request->validate([
+            'amount'       => 'required|numeric|min:' . RiderWallet::CASHOUT_MIN . '|max:1000000',
+            'gcash_number' => ['required', 'regex:/^09\d{9}$/'],
+            'gcash_name'   => 'required|string|min:2|max:120',
+        ], [
+            'amount.min'         => 'The smallest cash-out is ₱' . number_format(RiderWallet::CASHOUT_MIN, 2) . '.',
+            'gcash_number.regex' => 'Enter your 11-digit GCash number, e.g. 09171234567.',
+            'gcash_name.required' => 'Enter the name on your GCash account.',
+        ]);
+        try {
+            $entry = $this->wallet->requestCashout($rider, (float) $data['amount'], $data['gcash_number'], trim($data['gcash_name']));
+        } catch (\RuntimeException $e) {
+            return back()->withInput()->with('error', $e->getMessage());
+        }
+
+        return back()->with('success', 'Cash-out of ₱' . number_format(abs((float) $entry->amount), 2) . ' requested. '
+            . $rider->companyName() . ' will send it to your GCash ' . $entry->gcash_number . '.');
+    }
+
     public function earnings(Request $request)
     {
         $rider = $this->rider();

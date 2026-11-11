@@ -83,10 +83,6 @@ class LogisticsWebParityTest extends TestCase
         $this->assertSame('picked_up', $parcel->fresh()->status);
         $this->assertNotEmpty($done->json('parcel.events'));
 
-        $this->api('POST', "/tracking/{$parcel->id}/exception", ['type' => 'missing', 'details' => 'x'])->assertStatus(422);
-        $this->api('POST', "/tracking/{$parcel->id}/exception", ['type' => 'missing', 'details' => 'One item missing from the box'])->assertOk()
-            ->assertJsonPath('parcel.exceptions.0.type_label', 'Missing / not found');
-
         // Another company's parcel: forbidden.
         $other = $this->parcel('picked_up', ['current_sorting_center_id' => $this->logistics2->id]);
         $this->api('GET', "/tracking/{$other->id}")->assertForbidden();

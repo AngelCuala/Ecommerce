@@ -35,7 +35,7 @@ class LogisticsBoardAndReturnsTest extends TestCase
             ->assertSee($pickup->tracking_number)->assertSee($sorted->tracking_number)
             ->assertSee(route('sc.pickup-requests', ['tab' => 'pending']), false)
             ->assertSee(route('sc.delivery-assignment', ['area_id' => $this->central->id]), false);
-        $page->assertSee('Failed Deliveries')->assertSee('Flagged Parcels')->assertSee('Return Items')->assertDontSee('>Shipments<', false);
+        $page->assertSee('Failed Deliveries')->assertDontSee('Flagged Parcels')->assertSee('Return Items')->assertDontSee('>Shipments<', false);
 
         // The old Shipments page is part of the board now.
         $this->actingAs($this->logistics1)->get(route('sc.shipments', ['q' => $pickup->tracking_number]))
@@ -43,18 +43,13 @@ class LogisticsBoardAndReturnsTest extends TestCase
         $this->actingAs($this->logistics1)->get(route('sc.tracking', ['q' => $pickup->order->full_name]))->assertOk()->assertSee($pickup->tracking_number);
     }
 
-    public function test_failed_and_flagged_pages_list_the_problems(): void
+    public function test_failed_deliveries_page_lists_the_problems(): void
     {
         $this->online($this->rider1);
         $d = $this->deliveryFor($this->rider1, 'out_for_delivery');
         $this->actingAs($this->rider1->user)->post(route('courier.rider.deliveries.fail', $d->id), ['reason' => 'Buyer not home'])->assertSessionHas('success');
         $this->actingAs($this->logistics1)->get(route('sc.failed-deliveries'))->assertOk()
             ->assertSee($d->parcel->waybill_number)->assertSee('Buyer not home')->assertSee('Rescheduled');
-
-        $flagged = $this->parcel('sorted');
-        $this->actingAs($this->logistics1)->post(route('sc.tracking.exception', $flagged), ['type' => 'missing', 'details' => 'Not on the shelf.'])->assertSessionHas('success');
-        $this->actingAs($this->logistics1)->get(route('sc.flagged'))->assertOk()->assertSee($flagged->waybill_number)->assertSee('Not on the shelf.');
-        $this->actingAs($this->logistics1)->get(route('sc.tracking'))->assertSee('Flagged · on hold');
     }
 
     public function test_an_out_of_area_parcel_is_sorted_for_a_hub_to_hub_trip(): void

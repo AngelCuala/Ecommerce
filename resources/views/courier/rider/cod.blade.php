@@ -1,8 +1,9 @@
 <x-courier-layout title="COD Remittance" active="rider-cod">
 
-@include('partials.page-tabs', ['tabs' => [['Rider pay', 'courier.rider.earnings', 'courier.rider.earnings'], ['COD remittance', 'courier.rider.cod', 'courier.rider.cod*']]])
+@include('partials.page-tabs', ['tabs' => [['Rider pay', 'courier.rider.earnings', 'courier.rider.earnings'], ['Wallet', 'courier.rider.wallet', 'courier.rider.wallet'], ['COD remittance', 'courier.rider.cod', 'courier.rider.cod*']]])
 <div class="cx-page-head"><h1 class="font-display">COD Remittance</h1>
-    <p>Hand the COD you collected to {{ $rider->companyName() }} by the end of the day. Only they can confirm it.</p></div>
+    <p>Hand the COD you collected to {{ $rider->companyName() }} by the end of the day. Only they can confirm it.
+        Your pay is no longer kept from the cash: {{ $rider->companyName() }} sends it to your <a href="{{ route('courier.rider.wallet') }}" style="color:var(--accent);font-weight:600;">wallet</a>.</p></div>
 
 <div class="cx-grid cx-cols-2" style="margin-bottom:24px;">
     <div class="card cx-stat"><p class="cx-stat-value" data-balance>₱{{ number_format($balance, 2) }}</p><p class="cx-stat-label">COD balance (not yet confirmed)</p></div>
@@ -15,7 +16,7 @@
     <input type="hidden" name="request_token" value="{{ $token }}">
     <table style="width:100%;max-width:420px;font-size:14px;">
         <tr><td style="padding:3px 0;">COD you're holding</td><td style="text-align:right;">₱{{ number_format($next['cod'], 2) }}</td></tr>
-        <tr><td style="padding:3px 0;">Your pay (keep it from the cash)</td><td style="text-align:right;color:var(--green,#047857);">− ₱{{ number_format($next['pay'], 2) }}</td></tr>
+        @if ($next['pay'] > 0)<tr><td style="padding:3px 0;">Your earlier pay (keep it from the cash)</td><td style="text-align:right;color:var(--green,#047857);">− ₱{{ number_format($next['pay'], 2) }}</td></tr>@endif
         <tr style="border-top:1px solid var(--border,#e5e7eb);font-weight:800;font-size:16px;"><td style="padding:6px 0;">Hand over to {{ $rider->companyName() }}</td><td style="text-align:right;" data-remit-amount>₱{{ number_format($next['remit'], 2) }}</td></tr>
     </table>
     @if ($next['owed'] > 0)

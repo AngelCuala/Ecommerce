@@ -120,19 +120,6 @@ class Parcel extends Model
     public bool $linehaulStep = false;
 
     /** Shipment steps on the buyer's order timeline (rider assignment is written by the dispatcher). */
-    /** Set while an administrator resolves a flag, so the resolution itself may move the parcel. */
-    public static bool $releasingHold = false;
-
-    /** Flag types that hold the parcel. A late transfer is not held: receiving it is how that one is cleared. */
-    public const HOLD_EXCEPTIONS_EXCEPT = ['delayed_transfer'];
-
-    /** The open flag that keeps this parcel on hold, if any. */
-    public function openHold(): ?ShipmentException
-    {
-        return $this->id ? ShipmentException::where('parcel_id', $this->id)->where('status', 'open')
-            ->whereNotIn('type', self::HOLD_EXCEPTIONS_EXCEPT)->oldest('id')->first() : null;
-    }
-
     /** Over this weight (kg) a parcel is bulky: only a car or van rider picks it up / delivers it. */
     public const BULKY_KG = 20;
 
@@ -163,12 +150,6 @@ class Parcel extends Model
         return (float) $this->weight_kg > self::BULKY_KG ? rtrim(rtrim(number_format((float) $this->weight_kg, 2), '0'), '.') . ' kg' : 'big item';
     }
 
-    /** Parcels without an open flag (the ones that may be moved). */
-    public function scopeNotOnHold($query)
-    {
-        return $query->whereDoesntHave('exceptions', fn ($q) => $q->where('status', 'open')->whereNotIn('type', self::HOLD_EXCEPTIONS_EXCEPT));
-    }
-
     protected static function booted(): void
     {
         // Every parcel gets its own waybill number when it is created.
@@ -184,12 +165,6 @@ class Parcel extends Model
             // At a new hub (or back in sorting) the hub-to-hub sort no longer applies.
             if ($parcel->next_center_id && ($parcel->isDirty('current_sorting_center_id') || in_array($parcel->status, ['picked_up', 'sorting'], true) && $parcel->isDirty('status'))) {
                 $parcel->next_center_id = null;
-            }
-            // A flagged parcel stays where it is until the flag is resolved (only cancelling the order still closes it).
-            $moving = ($parcel->isDirty('status') && $parcel->status !== 'cancelled')
-                || ($parcel->isDirty('transfer_status') && $parcel->transfer_status !== null);
-            if ($moving && ! static::$releasingHold && ($flag = $parcel->openHold())) {
-                throw new \App\Exceptions\ParcelOnHold($parcel, $flag);
             }
         });
 

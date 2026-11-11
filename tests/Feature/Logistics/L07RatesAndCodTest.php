@@ -24,6 +24,8 @@ class L07RatesAndCodTest extends TestCase
     {
         parent::setUp();
         $this->seedRiderTestData();
+        // Rider 1 joined before the e-wallet: their pay is still kept out of the COD (RiderWallet::unpaidPay).
+        $this->rider1->forceFill(['wallet_since' => now()->addYear()])->save();
     }
 
     private function saveRate(array $data)

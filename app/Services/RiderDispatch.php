@@ -317,7 +317,6 @@ class RiderDispatch
         return Parcel::where('current_sorting_center_id', $scId)->whereIn('status', $statuses)
             ->with(['seller', 'order', 'area'])->oldest()->get()
             ->filter(fn (Parcel $p) => ($k = $this->jobKind($p)) !== null && ($kind === null || $k === $kind))
-            ->reject(fn (Parcel $p) => $p->openHold() !== null)   // flagged parcels wait until the flag is resolved
             ->values();
     }
 
@@ -341,9 +340,6 @@ class RiderDispatch
                 throw new \RuntimeException(in_array($parcel->status, ['pending_pickup', 'pickup_approved', 'sorted'], true)
                     ? "{$parcel->tracking_number} is already assigned to a rider."
                     : "{$parcel->tracking_number} is not ready for a rider ({$parcel->statusLabel()}).");
-            }
-            if ($flag = $parcel->openHold()) {
-                throw new \App\Exceptions\ParcelOnHold($parcel, $flag);   // flagged: no rider until it is resolved
             }
             if ($reason = $this->ineligibleReason($rider, (int) $by->id, true)) {
                 throw new \RuntimeException($reason);

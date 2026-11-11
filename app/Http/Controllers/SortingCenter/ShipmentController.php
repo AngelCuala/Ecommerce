@@ -29,7 +29,6 @@ class ShipmentController extends Controller
         'in_transit'         => 'In Transit',
         'final_delivery'     => 'Awaiting Final Delivery',
         'delayed'            => 'Delayed',
-        'exceptions'         => 'Exceptions',
         'completed'          => 'Completed',
     ];
 
@@ -63,10 +62,6 @@ class ShipmentController extends Controller
             'final_delivery'     => (clone $held)->whereIn('status', ['sorted', 'assigned', 'in_transit', 'failed'])->whereNull('transfer_status')->whereNotNull('area_id'),
             'delayed'            => Parcel::whereHas('transfers', fn ($t) => $t->where('status', 'in_transit')->whereNotNull('delayed_at')
                 ->where(fn ($w) => $w->where('from_sorting_center_id', $me)->orWhere('to_sorting_center_id', $me))),
-            'exceptions'         => Parcel::whereHas('exceptions', fn ($e) => $e->where('status', 'open'))
-                ->where(fn ($w) => $w->where('current_sorting_center_id', $me)
-                    ->orWhereHas('exceptions', fn ($e) => $e->where('status', 'open')->where('sorting_center_id', $me))
-                    ->orWhereHas('transfers', fn ($t) => $t->where('from_sorting_center_id', $me)->orWhere('to_sorting_center_id', $me))),
             'completed'          => (clone $held)->whereIn('status', ['delivered', 'returned', 'cancelled', 'lost', 'damaged']),
             default              => $this->visible(),   // 'all': the whole inventory this center handles
         };
@@ -106,7 +101,7 @@ class ShipmentController extends Controller
             ->when($request->filled('bucket'), fn ($q) => $q->whereIn('status', Parcel::BUCKETS[$request->bucket]))
             ->when($request->filled('from'), fn ($q) => $q->where('created_at', '>=', \Carbon\Carbon::parse($request->from)->startOfDay()))
             ->when($request->filled('to'), fn ($q) => $q->where('created_at', '<=', \Carbon\Carbon::parse($request->to)->endOfDay()))
-            ->with(['order', 'seller', 'area', 'nextCenter', 'exceptions', 'activeTransfer.toSortingCenter', 'activeTransfer.fromSortingCenter', 'pickup.rider', 'parcelDelivery.rider',
+            ->with(['order', 'seller', 'area', 'nextCenter', 'activeTransfer.toSortingCenter', 'activeTransfer.fromSortingCenter', 'pickup.rider', 'parcelDelivery.rider',
                 'events' => fn ($e) => $e->latest('occurred_at')->latest('id')->limit(1)])
             ->latest('updated_at')->paginate(25)->withQueryString();
 
@@ -169,19 +164,6 @@ class ShipmentController extends Controller
             return back()->with('error', $e->getMessage());
         }
         return back()->with('success', "Sorting started for {$parcel->tracking_number}.");
-    }
-
-    /** Flag Shipment Exception (damage found later, missing item, other). */
-    public function reportException(Request $request, Parcel $parcel)
-    {
-        $this->authorizeParcel($parcel);
-        $data = $request->validate([
-            'type'    => 'required|in:damaged_on_arrival,missing,other',
-            'details' => 'required|string|min:5|max:500',
-        ], ['details.required' => 'Describe the problem.']);
-        $this->flow->openException($parcel, $data['type'], $data['details'], $this->me(), auth()->user(), $parcel->activeTransfer?->id);
-
-        return back()->with('success', 'Flagged. The parcel is on hold until an administrator resolves it.');
     }
 
     /** Allow / stop one of this center's riders carrying parcels between hubs (separate from last-mile work). */
