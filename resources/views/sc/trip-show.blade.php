@@ -190,15 +190,15 @@
                     <span class="card-meta">{{ $onBoard->count() }} parcels · {{ $onBoard->where('status', 'loaded')->count() }} loaded · {{ $onBoard->where('status', 'received')->count() }} received · {{ number_format($trip->weightKg(), 2) }} kg</span>
                 </div>
                 <table class="data-table">
-                    <thead><tr><th>Tracking</th><th>Receiver</th><th>Going to</th><th>Weight</th><th>Status</th><th>Loaded</th><th>Received</th>@if($sender && in_array($trip->status, \App\Models\LinehaulTrip::BEFORE_DEPARTURE, true))<th></th>@endif</tr></thead>
+                    <thead><tr><th>Waybill</th><th>Receiver</th><th>Going to</th><th>Weight</th><th>Status</th><th>Loaded</th><th>Received</th>@if($sender && in_array($trip->status, \App\Models\LinehaulTrip::BEFORE_DEPARTURE, true))<th></th>@endif</tr></thead>
                     <tbody>
                     @forelse ($items as $i)
                         <tr data-trip-parcel="{{ $i->parcel->tracking_number ?? $i->parcel_id }}">
                             <td>
                                 @if ($i->parcel && (int) $i->parcel->current_sorting_center_id === (int) auth()->id())
-                                    <a href="{{ route('sc.tracking.show', $i->parcel) }}" class="id-link">{{ $i->parcel->tracking_number }}</a>
+                                    <a href="{{ route('sc.tracking.show', $i->parcel) }}" class="id-link">{{ $i->parcel->waybill_number ?? $i->parcel->tracking_number }}</a>
                                 @else
-                                    <span class="id-link">{{ $i->parcel->tracking_number ?? '—' }}</span>
+                                    <span class="id-link">{{ $i->parcel->waybill_number ?? $i->parcel->tracking_number ?? '—' }}</span>
                                 @endif
                             </td>
                             <td>{{ $i->parcel->receiver_name ?? '—' }}</td>

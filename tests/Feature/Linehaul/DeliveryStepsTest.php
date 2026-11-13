@@ -138,6 +138,43 @@ class DeliveryStepsTest extends TestCase
             ->assertSessionHasErrors('trip');
     }
 
+    public function test_the_courier_can_cancel_while_loading(): void
+    {
+        $this->forDavao();
+        $this->create();
+        $trip = LinehaulTrip::sole();
+        app(Linehaul::class)->autoAddParcels($this->logistics1, $trip);
+        $trip->items()->update(['status' => 'loaded', 'loaded_at' => now()]);
+        $trip->forceFill(['courier_id' => $this->courier1->id, 'status' => 'loading', 'loading_at' => now()])->save();
+
+        $this->actingAs($this->courier1->user)->get(route('courier.trips'))->assertOk()->assertSee('data-courier-cancel', false);
+        $this->actingAs($this->courier1->user)->from(route('courier.trips'))->post(route('courier.trips.decline', $trip->id), ['reason' => 'Vehicle problem'])
+            ->assertSessionHas('success');
+        $trip->refresh();
+        $this->assertSame(['scheduled', null, 1], [$trip->status, $trip->courier_id, $trip->onBoard()->where('status', 'pending')->count()]);
+        $this->assertSame(1, $trip->stage());
+    }
+
+    public function test_the_courier_departs_from_anywhere(): void
+    {
+        $this->forDavao();
+        $this->create();
+        $trip = LinehaulTrip::sole();
+        app(Linehaul::class)->autoAddParcels($this->logistics1, $trip);
+        $trip->items()->update(['status' => 'loaded', 'loaded_at' => now()]);
+        $trip->forceFill(['courier_id' => $this->courier1->id, 'status' => 'loading', 'loading_at' => now(), 'handover_status' => 'accepted'])->save();
+
+        // Far from the hub (about 50 km), and with no location at all: Depart is just the signal.
+        app(Linehaul::class)->depart($this->courier1, $trip->id, 14.2, 121.4);
+        $this->assertSame('in_transit', $trip->fresh()->status);
+        $this->assertSame(1, $trip->locations()->count());
+
+        $trip->fresh()->forceFill(['status' => 'loading', 'departed_at' => null])->save();
+        $trip->items()->update(['status' => 'loaded']);
+        app(Linehaul::class)->depart($this->courier1, $trip->id, null, null);
+        $this->assertSame('in_transit', $trip->fresh()->status);
+    }
+
     public function test_the_five_steps(): void
     {
         $this->forDavao();

@@ -200,7 +200,7 @@ class StaffController extends Controller
         return response()->json(['hubs' => $this->myHubs()]);
     }
 
-    /** Where the hub is: couriers depart and arrive within 500 m of it. */
+    /** Where the hub is: couriers mark Arrived within 500 m of it (Depart has no location check). */
     private const LOCATION_RULES = ['latitude' => 'nullable|numeric|between:-90,90|required_with:longitude', 'longitude' => 'nullable|numeric|between:-180,180|required_with:latitude'];
 
     /** code (HUB-QC: unique), name, address, latitude, longitude. */

@@ -155,7 +155,7 @@
                         <form method="POST" action="{{ route('courier.trips.loading', $trip->id) }}">@csrf<button class="cx-btn cx-btn-orange">Start loading</button></form>
                     @endif
                 @elseif ($trip->status === 'loading')
-                    <p><b>Next:</b> scan the QR code on every parcel as it goes on the truck ({{ $loaded }}/{{ $total }} loaded), then depart.</p>
+                    <p><b>Next:</b> scan the waybill on every parcel as it goes on the truck ({{ $loaded }}/{{ $total }} loaded), then depart.</p>
                 @elseif ($trip->status === 'in_transit' && $trip->needs_rescan)
                     <p class="tr-wait">You took over this trip after a breakdown. Scan every parcel again before continuing ({{ $loaded }}/{{ $total }}).</p>
                 @elseif ($trip->status === 'in_transit')
@@ -173,9 +173,9 @@
             {{-- Loading: scan, list and depart --}}
             @if ($scanning)
                 <div class="tr-scan">
-                    @include('partials.waybill-scanner', ['lookup' => route('courier.trips.scan', $trip->id), 'label' => 'Scan parcel QR'])
+                    @include('partials.waybill-scanner', ['lookup' => route('courier.trips.scan', $trip->id), 'label' => 'Scan waybill'])
                     <form method="POST" action="{{ route('courier.trips.scan', $trip->id) }}" class="tr-type">@csrf
-                        <input name="tracking_number" class="cx-input" placeholder="or type the waybill or tracking number" required maxlength="50" autocomplete="off" aria-label="Tracking number">
+                        <input name="tracking_number" class="cx-input" placeholder="or type the waybill number (PH…)" required maxlength="50" autocomplete="off" aria-label="Waybill number">
                         <button class="cx-btn cx-btn-outline">Load</button>
                     </form>
                     <div class="tr-bar" aria-label="{{ $loaded }} of {{ $total }} loaded"><i style="width:{{ $total ? round($loaded / $total * 100) : 0 }}%"></i></div>
@@ -183,11 +183,11 @@
             @endif
             @if ($total)
                 <table class="cx-table tr-parcels">
-                    <thead><tr><th>Tracking</th><th>Going to</th><th>Weight</th><th>On truck</th></tr></thead>
+                    <thead><tr><th>Waybill</th><th>Going to</th><th>Weight</th><th>On truck</th></tr></thead>
                     <tbody>
                     @foreach ($parcels as $item)
                         <tr data-trip-parcel="{{ $item->parcel?->tracking_number }}">
-                            <td style="font-family:monospace;font-weight:700;">{{ $item->parcel?->tracking_number }}@if($item->parcel?->waybill_number)<div style="font-weight:500;font-size:11.5px;color:#8a7f78;">Waybill {{ $item->parcel->waybill_number }}</div>@endif</td>
+                            <td style="font-family:monospace;font-weight:700;">{{ $item->parcel?->waybill_number ?? $item->parcel?->tracking_number }}@if($item->parcel?->waybill_number)<div style="font-weight:500;font-size:11.5px;color:#8a7f78;">{{ $item->parcel->tracking_number }}</div>@endif</td>
                             <td>{{ $item->parcel?->destination_municipality }}</td>
                             <td>{{ $item->parcel?->weight_kg ? number_format((float) $item->parcel->weight_kg, 2) . ' kg' : '—' }}</td>
                             <td>@if (in_array($item->status, ['loaded', 'received'], true))<span class="cx-pill cx-pill-green">{{ ucfirst($item->status) }}</span>@else<span class="cx-pill cx-pill-gray">Not yet</span>@endif</td>
@@ -202,6 +202,19 @@
                     <button class="cx-btn cx-btn-orange" @disabled($loaded < $total || ! $total)>Depart</button>
                     @if ($loaded < $total)<span class="tr-hint">Scan every parcel first ({{ $total - $loaded }} left).</span>@endif
                 </form>
+                {{-- Can't take it after all: the trip goes back to the hub (the parcels come off the truck). --}}
+                <details class="tr-delay" style="margin-top:10px;" data-courier-cancel>
+                    <summary>Cancel trip</summary>
+                    <form method="POST" action="{{ route('courier.trips.decline', $trip->id) }}" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;"
+                          onsubmit="return confirm('Cancel {{ $trip->code }}? It goes back to the hub and the parcels come off the truck.');">
+                        @csrf
+                        <select name="reason" required class="cx-input" style="width:auto;padding:9px 10px;" aria-label="Reason for cancelling">
+                            <option value="">Cancel because…</option>
+                            @foreach ($declineReasons as $r)<option value="{{ $r }}">{{ $r }}</option>@endforeach
+                        </select>
+                        <button class="cx-btn cx-btn-outline">Cancel trip</button>
+                    </form>
+                </details>
             @endif
 
             {{-- In Transit: report a delay --}}

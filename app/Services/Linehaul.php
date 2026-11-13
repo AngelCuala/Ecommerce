@@ -18,7 +18,7 @@ use Illuminate\Validation\ValidationException;
 /**
  * Hub-to-hub (linehaul) trips (A38–A41). The company creates a trip from one of its hubs to another with parcels
  * waiting at the origin, and assigns an On Duty courier. The courier accepts, scans every parcel while loading,
- * departs within 500 m of the origin; the parcels are In Transit. At the destination (within 500 m) hub
+ * departs (no location check); the parcels are In Transit. At the destination (within 500 m) hub
  * staff scan each parcel in; closing receiving pays the courier.
  */
 class Linehaul
@@ -433,13 +433,15 @@ class Linehaul
     public function decline(Courier $c, int $id, ?string $reason): LinehaulTrip
     {
         $trip = $this->courierTrip($c, $id);
-        if (! in_array($trip->status, ['assigned', 'accepted'], true)) {
-            $this->fail('reason', "{$trip->code} is {$trip->label()} and can no longer be declined.");
+        // Until the truck departs (while loading it is "Cancel trip"): the trip goes back to the hub with no truck.
+        if (! in_array($trip->status, ['assigned', 'accepted', 'loading'], true)) {
+            $this->fail('reason', "{$trip->code} is {$trip->label()} and can no longer be declined or cancelled.");
         }
         if (! in_array($reason, self::DECLINE_REASONS, true)) {
             $this->fail('reason', 'Choose why you are declining (' . implode(', ', self::DECLINE_REASONS) . ').');
         }
-        $trip->update(['status' => 'scheduled', 'courier_id' => null, 'assigned_at' => null, 'accepted_at' => null]);
+        $trip->items()->where('status', 'loaded')->update(['status' => 'pending', 'loaded_at' => null]);
+        $trip->update(['status' => 'scheduled', 'courier_id' => null, 'assigned_at' => null, 'accepted_at' => null, 'loading_at' => null]);
         $trip->log('declined', $reason, ['courier_id' => $c->id, 'old_value' => $c->fullName()]);
         $this->notify($trip->sorting_center_id, "{$trip->code} was declined", "{$c->fullName()} declined {$trip->code} ({$trip->route()}): $reason. It is Unassigned again.");
 
@@ -497,12 +499,15 @@ class Linehaul
         if ($missing->isNotEmpty()) {
             $this->fail('trip', 'Scan every parcel before departing. Not loaded yet: ' . $missing->implode(', ') . '.');
         }
-        $this->at($trip->origin, $lat, $lng, 'depart');
+        // Depart is the courier's signal that the truck is leaving: no need to be at the hub (a far trip, or GPS off).
+        // The location is kept when the phone sends one.
 
         DB::transaction(function () use ($trip, $lat, $lng) {
             $trip->update(['status' => 'in_transit', 'departed_at' => now()]);
             $trip->log('departed', null);
-            $trip->locations()->create(['lat' => $lat, 'lng' => $lng, 'recorded_at' => now()]);
+            if ($lat !== null && $lng !== null) {
+                $trip->locations()->create(['lat' => $lat, 'lng' => $lng, 'recorded_at' => now()]);
+            }
             foreach ($trip->onBoard()->with('parcel')->get() as $item) {
                 $p = $item->parcel;
                 $p->linehaulStep = true;

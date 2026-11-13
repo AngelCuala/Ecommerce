@@ -51,7 +51,7 @@ class TripsController extends Controller
         $best = $this->linehaul->bestHubFor($p, auth()->user());
 
         return [
-            'id' => $p->id, 'tracking' => $p->tracking_number, 'weight_kg' => (float) $p->weight_kg, 'receiver' => $p->receiver_name,
+            'id' => $p->id, 'tracking' => $p->tracking_number, 'waybill' => $p->waybill_number, 'weight_kg' => (float) $p->weight_kg, 'receiver' => $p->receiver_name,
             'destination' => trim($p->destination_municipality . ', ' . $p->destination_province, ', '), 'status_label' => $p->statusLabel(),
             'best_hub_id' => $best?->id, 'best_hub' => $best ? \App\Support\SortingCenters::nameOf($best->company) . ' (' . $best->code . ')' : null,
         ];

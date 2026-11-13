@@ -57,7 +57,7 @@ class LinehaulJson
         ];
         if ($detail) {
             $row['items'] = $items->map(fn ($i) => [
-                'parcel_id' => $i->parcel_id, 'tracking' => $i->parcel?->tracking_number, 'weight_kg' => (float) $i->parcel?->weight_kg,
+                'parcel_id' => $i->parcel_id, 'tracking' => $i->parcel?->tracking_number, 'waybill' => $i->parcel?->waybill_number, 'weight_kg' => (float) $i->parcel?->weight_kg,
                 'status' => $i->status, 'loaded_at' => $i->loaded_at?->toIso8601String(), 'received_at' => $i->received_at?->toIso8601String(),
                 'receiver' => $i->parcel?->receiver_name, 'destination' => $i->parcel?->destination_municipality,
             ])->values();
