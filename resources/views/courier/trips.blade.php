@@ -55,7 +55,7 @@
     .tr-scan { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 14px; }
     .tr-type { display: flex; gap: 8px; flex: 1 1 260px; }
     .tr-type .cx-input { flex: 1; text-transform: uppercase; }
-    .tr-type .cx-input::placeholder, #seal_number::placeholder { text-transform: none; }
+    .tr-type .cx-input::placeholder { text-transform: none; }
     .tr-bar { flex: 1 0 100%; height: 6px; border-radius: 999px; background: #f1ede9; overflow: hidden; }
     .tr-bar i { display: block; height: 100%; border-radius: inherit; background: #10b981; transition: width .3s; }
     .tr-parcels { margin-top: 14px; }
@@ -155,22 +155,22 @@
                         <form method="POST" action="{{ route('courier.trips.loading', $trip->id) }}">@csrf<button class="cx-btn cx-btn-orange">Start loading</button></form>
                     @endif
                 @elseif ($trip->status === 'loading')
-                    <p><b>Next:</b> scan the QR code on every parcel as it goes on the truck ({{ $loaded }}/{{ $total }} loaded), then seal the truck and depart.</p>
+                    <p><b>Next:</b> scan the QR code on every parcel as it goes on the truck ({{ $loaded }}/{{ $total }} loaded), then depart.</p>
                 @elseif ($trip->status === 'in_transit' && $trip->needs_rescan)
                     <p class="tr-wait">You took over this trip after a breakdown. Scan every parcel again before continuing ({{ $loaded }}/{{ $total }}).</p>
                 @elseif ($trip->status === 'in_transit')
-                    <p><b>On the road</b> since {{ $trip->departed_at?->format('g:i A') }} · seal {{ $trip->seal_number }}{{ $trip->delayed && $trip->eta_at ? ' · delayed (' . $trip->delay_reason . '), new ETA ' . $trip->eta_at->timezone(config('app.business_timezone'))->format('M j, g:i A') : '' }}.
+                    <p><b>On the road</b> since {{ $trip->departed_at?->format('g:i A') }}{{ $trip->delayed && $trip->eta_at ? ' · delayed (' . $trip->delay_reason . '), new ETA ' . $trip->eta_at->timezone(config('app.business_timezone'))->format('M j, g:i A') : '' }}.
                         When you reach {{ $trip->destination?->code }}, mark the trip Arrived.</p>
                     <form method="POST" action="{{ route('courier.trips.arrived', $trip->id) }}" data-located="destination">@csrf
                         <input type="hidden" name="lat"><input type="hidden" name="lng">
                         <button class="cx-btn cx-btn-green">I've arrived at {{ $trip->destination?->code }}</button>
                     </form>
                 @elseif ($trip->status === 'arrived')
-                    <p class="tr-ok">Arrived at {{ $trip->destination?->code }} {{ $trip->arrived_at?->format('g:i A') }}. Hand the truck over: {{ $trip->destination?->code }} checks seal {{ $trip->seal_number }} and scans the parcels in. You're paid when they finish receiving.</p>
+                    <p class="tr-ok">Arrived at {{ $trip->destination?->code }} {{ $trip->arrived_at?->format('g:i A') }}. Hand the truck over: {{ $trip->destination?->code }} scans the parcels in. You're paid when they finish receiving.</p>
                 @endif
             </div>
 
-            {{-- Loading: scan, list, seal and depart --}}
+            {{-- Loading: scan, list and depart --}}
             @if ($scanning)
                 <div class="tr-scan">
                     @include('partials.waybill-scanner', ['lookup' => route('courier.trips.scan', $trip->id), 'label' => 'Scan parcel QR'])
@@ -199,11 +199,7 @@
             @if ($trip->status === 'loading')
                 <form method="POST" action="{{ route('courier.trips.depart', $trip->id) }}" class="tr-depart" data-located="origin">@csrf
                     <input type="hidden" name="lat"><input type="hidden" name="lng">
-                    <div>
-                        <label class="tr-label" for="seal_number">Seal number</label>
-                        <input id="seal_number" name="seal_number" class="cx-input" placeholder="BH-0004521" value="{{ old('seal_number') }}" required pattern="[Bb][Hh]-\d{7}" title="BH- followed by 7 digits" maxlength="10" style="text-transform:uppercase;">
-                    </div>
-                    <button class="cx-btn cx-btn-orange" @disabled($loaded < $total || ! $total)>Seal &amp; depart</button>
+                    <button class="cx-btn cx-btn-orange" @disabled($loaded < $total || ! $total)>Depart</button>
                     @if ($loaded < $total)<span class="tr-hint">Scan every parcel first ({{ $total - $loaded }} left).</span>@endif
                 </form>
             @endif

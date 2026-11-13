@@ -16,7 +16,7 @@ use Illuminate\Validation\ValidationException;
  * Hub Trips on the website, for a logistics company's truck courier (4-wheelers, hub to hub):
  * go On Duty (pre-trip checklist and location) so the company can assign trips, stay Online while the
  * site is open (a ping every minute), go Off Duty, and accept or decline an assigned trip.
- * Same rules as the courier app (App\Services\Linehaul); loading, sealing and departing stay in the app.
+ * Same rules as the courier app (App\Services\Linehaul); loading and departing stay in the app.
  */
 class TruckDutyController extends Controller
 {
@@ -145,19 +145,19 @@ class TruckDutyController extends Controller
 
             return $request->expectsJson() ? response()->json(['ok' => false, 'message' => $msg], 422) : back()->with('error', $msg);
         }
-        $msg = $r['message'] . ($r['loaded'] === $r['total'] ? ' Every parcel is on board: seal the truck and depart.' : '');
+        $msg = $r['message'] . ($r['loaded'] === $r['total'] ? ' Every parcel is on board: depart.' : '');
 
         return $request->expectsJson()
             ? response()->json(['ok' => true, 'message' => $msg, 'url' => route('courier.trips', ['loaded' => $r['loaded']]) . '#trip'] + $r)
             : back()->with('success', $msg);
     }
 
-    /** Every parcel loaded, the seal number, at the origin hub. */
+    /** Every parcel loaded, at the origin hub. */
     public function depart(Request $request, int $trip): RedirectResponse
     {
         [$lat, $lng] = $this->loc($request);
 
-        return $this->step(fn (Courier $c) => $this->linehaul->depart($c, $trip, $request->input('seal_number'), $lat, $lng),
+        return $this->step(fn (Courier $c) => $this->linehaul->depart($c, $trip, $lat, $lng),
             ':code departed. Drive safely; report a delay here if anything holds you up.');
     }
 
@@ -174,7 +174,7 @@ class TruckDutyController extends Controller
         [$lat, $lng] = $this->loc($request);
 
         return $this->step(fn (Courier $c) => $this->linehaul->arrived($c, $trip, $lat, $lng),
-            ':code arrived. The receiving hub checks the seal and scans the parcels in.');
+            ':code arrived. The receiving hub scans the parcels in.');
     }
 
     /** The courier's note about a missing or damaged parcel, when the receiving hub asks for one. */

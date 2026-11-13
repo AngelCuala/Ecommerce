@@ -76,6 +76,68 @@ class DeliveryStepsTest extends TestCase
         $this->assertNull($empty->fresh()->courier_id);
     }
 
+    public function test_a_trip_can_be_cancelled_and_removed_for_good(): void
+    {
+        $parcel = $this->forDavao();
+        $this->create()->assertSessionHas('success');
+        $trip = LinehaulTrip::sole();
+        app(Linehaul::class)->autoAddParcels($this->logistics1, $trip);
+        $trip->events()->create(['type' => 'note', 'note' => 'x', 'user_id' => $this->logistics1->id]);
+
+        // Only the sending hub; the page offers it.
+        $this->actingAs($this->logistics2)->post(route('sc.trips.remove', $trip))->assertForbidden();
+        $this->actingAs($this->logistics1)->get(route('sc.trips.show', $trip))->assertOk()->assertSee('data-trip-remove', false);
+
+        // Cancel, then remove: the trip and its history are gone, the parcel stays at the hub with no trip.
+        $this->actingAs($this->logistics1)->from(route('sc.trips.show', $trip))->post(route('sc.trips.cancel', $trip), ['reason' => 'Truck is not available'])
+            ->assertSessionHas('success');
+        $this->actingAs($this->logistics1)->post(route('sc.trips.remove', $trip))->assertRedirect(route('sc.trips'))->assertSessionHas('success');
+        $this->assertNull(LinehaulTrip::find($trip->id));
+        $this->assertSame(0, \App\Models\LinehaulTripEvent::where('linehaul_trip_id', $trip->id)->count());
+        $this->assertSame(0, \App\Models\LinehaulTripParcel::where('linehaul_trip_id', $trip->id)->count());
+        $this->assertSame('sorted', $parcel->fresh()->status);
+
+        // A trip on the road can't be removed.
+        $this->create();
+        $road = LinehaulTrip::latest('id')->first();
+        $road->forceFill(['status' => 'in_transit', 'departed_at' => now()])->save();
+        $this->actingAs($this->logistics1)->from(route('sc.trips.show', $road))->post(route('sc.trips.remove', $road))->assertSessionHasErrors('trip');
+        $this->assertNotNull(LinehaulTrip::find($road->id));
+    }
+
+    public function test_a_trip_can_be_edited_before_it_departs(): void
+    {
+        $this->forDavao();
+        $this->create()->assertSessionHas('success');
+        $trip = LinehaulTrip::sole();
+        app(Linehaul::class)->autoAddParcels($this->logistics1, $trip);
+        $this->actingAs($this->logistics1)->get(route('sc.trips.show', $trip))->assertOk()->assertSee('data-trip-edit', false);
+
+        // The departure time.
+        $when = now()->addDay()->setTime(9, 30)->format('Y-m-d\TH:i');
+        $this->actingAs($this->logistics1)->from(route('sc.trips.show', $trip))->post(route('sc.trips.update', $trip), ['scheduled_departure_at' => $when])
+            ->assertSessionHas('success', fn ($m) => str_contains($m, 'departure'));
+        $this->assertSame('09:30', $trip->fresh()->scheduled_departure_at->format('H:i'));
+
+        // Where it goes (no truck yet): its parcels come off; the new sorting center accepts it first.
+        $other = \App\Models\User::where('role', 'sorting_center')->whereNotIn('id', [$this->logistics1->id, $this->logistics2->id])->first()
+            ?? $this->company('third@hub.example.com', 'Third Hub', 'Third Hub Inc.', 'Third#Hub26');
+        $hub3 = \App\Models\LogisticsHub::create(['sorting_center_id' => $other->id, 'code' => 'HUB-3RD', 'name' => 'Third Hub', 'address' => 'Somewhere', 'latitude' => 14.2, 'longitude' => 121.1]);
+        $this->actingAs($this->logistics1)->from(route('sc.trips.show', $trip))->post(route('sc.trips.update', $trip), ['destination_hub_id' => $hub3->id])
+            ->assertSessionHas('success', fn ($m) => str_contains($m, 'HUB-3RD'));
+        $trip->refresh();
+        $this->assertSame([$hub3->id, 'pending', 0], [(int) $trip->destination_hub_id, $trip->handover_status, $trip->onBoard()->count()]);
+
+        // With a truck assigned, the destination stays; another hub can't edit; after departure nothing can.
+        $trip->forceFill(['courier_id' => $this->courier1->id, 'status' => 'assigned'])->save();
+        $this->actingAs($this->logistics1)->from(route('sc.trips.show', $trip))->post(route('sc.trips.update', $trip), ['destination_hub_id' => $this->hubDvo->id])
+            ->assertSessionHasErrors('destination_hub_id');
+        $this->actingAs($this->logistics2)->post(route('sc.trips.update', $trip), ['scheduled_departure_at' => $when])->assertForbidden();
+        $trip->forceFill(['status' => 'in_transit'])->save();
+        $this->actingAs($this->logistics1)->from(route('sc.trips.show', $trip))->post(route('sc.trips.update', $trip), ['scheduled_departure_at' => $when])
+            ->assertSessionHasErrors('trip');
+    }
+
     public function test_the_five_steps(): void
     {
         $this->forDavao();

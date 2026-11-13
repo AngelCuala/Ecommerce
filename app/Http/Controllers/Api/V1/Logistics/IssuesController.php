@@ -15,7 +15,7 @@ use App\Support\ApiJson;
 use App\Support\LogisticsJson;
 use Illuminate\Http\JsonResponse;
 
-/** The website's Failed Deliveries, Flagged Parcels, Return Items and hub-to-hub sorting, for the app. */
+/** The website's Failed Deliveries, Return Items and hub-to-hub sorting, for the app. */
 class IssuesController extends Controller
 {
     use CallsWeb;

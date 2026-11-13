@@ -141,27 +141,15 @@
             @if ($receiver && $trip->status === 'arrived')
                 <div class="card" data-trip-receive>
                     <div class="card-header"><h2>Receive the parcels</h2><span class="card-meta">Arrived {{ $trip->arrived_at?->format('M j, g:i A') }}</span></div>
-                    @if (! $trip->received_seal)
-                        <form method="POST" action="{{ route('sc.trips.seal', $trip) }}" style="display:grid;gap:10px;padding:14px 18px;">
-                            @csrf
-                            <div class="text-muted" style="font-size:13px;">1. Check the seal on the truck. The manifest says <b>{{ $trip->seal_number }}</b>.</div>
-                            <div style="display:flex;gap:8px;flex-wrap:wrap;">
-                                <input name="seal_number" class="form-input" placeholder="BH-0000000" required style="max-width:180px;" value="{{ old('seal_number') }}">
-                                <input name="note" class="form-input" placeholder="Note if it does not match (10+ characters)" style="flex:1;min-width:220px;" value="{{ old('note') }}">
-                                <button class="btn btn-blue">Check seal</button>
-                            </div>
-                        </form>
-                    @else
                         <form method="POST" action="{{ route('sc.trips.receive', $trip) }}" class="ts-recv"
                               data-confirm="Ticked parcels become yours and wait in Parcel Sorting. Unticked ones are marked Missing in Transit." data-confirm-title="Receive this trip?" data-confirm-ok="Receive">
                             @csrf
-                            <div class="text-muted" style="font-size:13px;padding:12px 18px 6px;">2. Untick any parcel that is not on the truck. Seal {{ $trip->received_seal }}{{ $trip->seal_discrepancy ? ' (does not match the manifest)' : ' (matches)' }}.</div>
+                            <div class="text-muted" style="font-size:13px;padding:12px 18px 6px;">Untick any parcel that is not on the truck.</div>
                             @foreach ($toReceive as $i)
                                 <label><input type="checkbox" name="found[]" value="{{ $i->parcel_id }}" checked> <span style="font-weight:700;">{{ $i->parcel->tracking_number ?? '—' }}</span> <span class="text-muted">{{ $i->parcel->receiver_name ?? '' }} · {{ $i->parcel->destination_municipality ?? '' }}</span></label>
                             @endforeach
                             <div style="padding:12px 18px;"><button class="btn btn-green" style="width:100%;">Receive {{ $toReceive->count() }} parcel(s) — ready for sorting</button></div>
                         </form>
-                    @endif
                 </div>
             @endif
 
@@ -288,8 +276,6 @@
                         <p class="text-muted" style="font-size:12px;margin-top:6px;">No courier yet. Riders with a van, truck or car are your Linehaul couriers.</p>
                     @endif
                 @endif
-                <div class="ts-kv" style="margin-top:8px;"><span>Seal</span><span>{{ $trip->seal_number ?: '—' }}{{ $trip->received_seal ? ' · found ' . $trip->received_seal : '' }}</span></div>
-                @if ($trip->seal_discrepancy)<div class="ts-kv"><span>Seal check</span><span style="color:var(--accent-red);font-weight:700;">Does not match</span></div>@endif
                 @if ($trip->courier_note)<div class="ts-kv"><span>Courier note</span><span>{{ $trip->courier_note }}</span></div>@endif
             </div>
 
@@ -304,6 +290,30 @@
                 @endif
             </div>
 
+            {{-- Edit (the sending sorting center, before departure) --}}
+            @if ($sender && in_array($trip->status, \App\Models\LinehaulTrip::BEFORE_DEPARTURE, true))
+                <form method="POST" action="{{ route('sc.trips.update', $trip) }}" class="card" style="padding:16px 18px;display:grid;gap:8px;" data-trip-edit
+                      @unless ($trip->courier_id) data-confirm="Changing where it goes takes its parcels off (they stay at {{ $trip->origin->code }}) and the new sorting center accepts it first." data-confirm-title="Save changes to {{ $trip->code }}?" data-confirm-ok="Save" @endunless>
+                    @csrf
+                    <div style="font-weight:800;">Edit trip</div>
+                    <label class="text-muted" style="font-size:12px;">Goes to
+                        <select name="destination_hub_id" class="form-select" @disabled($trip->courier_id) style="margin-top:4px;">
+                            @foreach ($destinations as $h)
+                                <option value="{{ $h->id }}" @selected((int) $trip->destination_hub_id === $h->id)>{{ \App\Support\SortingCenters::nameOf($h->company) }} — {{ $h->code }}</option>
+                            @endforeach
+                        </select>
+                    </label>
+                    @if ($trip->courier_id)<div class="text-muted" style="font-size:11.5px;">A truck is assigned: to change where it goes, cancel or remove this trip and create a new one.</div>@endif
+                    <label class="text-muted" style="font-size:12px;">Planned departure <span style="font-weight:400;">(empty: as soon as loaded)</span>
+                        <input type="datetime-local" name="scheduled_departure_at" class="form-input" style="margin-top:4px;"
+                               value="{{ $trip->scheduled_departure_at?->copy()->tz(config('app.business_timezone'))->format('Y-m-d\TH:i') }}">
+                    </label>
+                    @error('destination_hub_id')<p style="color:var(--accent-red);font-size:12px;">{{ $message }}</p>@enderror
+                    @error('scheduled_departure_at')<p style="color:var(--accent-red);font-size:12px;">{{ $message }}</p>@enderror
+                    <button class="btn btn-blue btn-sm" style="justify-self:start;">Save changes</button>
+                </form>
+            @endif
+
             {{-- Cancel (the sending sorting center, before departure) --}}
             @if ($sender && in_array($trip->status, \App\Models\LinehaulTrip::BEFORE_DEPARTURE, true))
                 <form method="POST" action="{{ route('sc.trips.cancel', $trip) }}" class="card" style="padding:16px 18px;display:grid;gap:8px;"
@@ -312,6 +322,16 @@
                     <div style="font-weight:800;">Cancel trip</div>
                     <input name="reason" class="form-input" placeholder="Reason" required minlength="5" maxlength="300">
                     <button class="btn btn-red btn-sm">Cancel trip</button>
+                </form>
+            @endif
+            {{-- Remove (the sending sorting center): a trip that has not departed, or a cancelled one, is deleted for good. --}}
+            @if ($sender && in_array($trip->status, [...\App\Models\LinehaulTrip::BEFORE_DEPARTURE, 'cancelled'], true))
+                <form method="POST" action="{{ route('sc.trips.remove', $trip) }}" class="card" style="padding:16px 18px;display:grid;gap:8px;" data-trip-remove
+                      data-confirm="{{ $trip->code }} and its history are deleted for good. Its parcels stay at {{ $trip->origin->code }}." data-confirm-title="Remove {{ $trip->code }}?" data-confirm-ok="Remove">
+                    @csrf
+                    <div style="font-weight:800;">Remove trip</div>
+                    <div class="text-muted" style="font-size:12.5px;">Deletes the trip and its history. Its parcels stay at {{ $trip->origin->code }}.</div>
+                    <button class="btn btn-ghost btn-sm" style="color:var(--accent-red);justify-self:start;">Remove trip</button>
                 </form>
             @endif
 
@@ -323,7 +343,7 @@
                         <div class="ts-ev">
                             <b>{{ $eventLabels[$e->type] ?? ucfirst(str_replace('_', ' ', $e->type)) }}</b>
                             @if ($e->reason) — {{ $e->reason }}@endif
-                            @if ($e->new_value && in_array($e->type, ['departed', 'seal_discrepancy'])) · seal {{ $e->new_value }}@endif
+                            
                             <small>{{ $e->created_at?->format('M j, g:i A') }}{{ $e->courier ? ' · ' . $e->courier->fullName() : '' }}{{ $e->user && ! $e->courier ? ' · ' . (\App\Support\SortingCenters::nameOf($e->user) ?? $e->user->name) : '' }}</small>
                         </div>
                     @empty

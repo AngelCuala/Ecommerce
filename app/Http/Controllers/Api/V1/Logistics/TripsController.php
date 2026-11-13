@@ -15,7 +15,7 @@ use Illuminate\Http\Request;
 
 /**
  * The company's hub-to-hub trips: create, assign or reassign a courier, take parcels off, cancel; at the
- * destination check the seal, scan parcels in, mark damage and close receiving. Also the couriers' duty board.
+ * destination scan parcels in, mark damage and close receiving. Also the couriers' duty board.
  */
 class TripsController extends Controller
 {
@@ -37,7 +37,7 @@ class TripsController extends Controller
         return $trip;
     }
 
-    /** The receiving company's trip (accept, seal, receive). */
+    /** The receiving company's trip (accept, receive). */
     private function receiving(LinehaulTrip $trip): LinehaulTrip
     {
         abort_unless($trip->receiverId() === (int) auth()->id(), 403, 'Only the receiving sorting center can do this.');
@@ -225,15 +225,24 @@ class TripsController extends Controller
         return $this->show($t, "{$t->code} was cancelled.");
     }
 
-    // ── Receiving at the destination hub ──
-
-    /** seal_number, note (when it does not match). */
-    public function seal(Request $r, LinehaulTrip $trip): JsonResponse
+    /** destination_hub_id (before a truck is assigned), scheduled_departure_at (empty: as soon as loaded). */
+    public function update(Request $r, LinehaulTrip $trip): JsonResponse
     {
-        $t = $this->linehaul->confirmSeal($this->receiving($trip), $r->input('seal_number'), $r->input('note'));
+        $r->validate(['destination_hub_id' => 'nullable|integer', 'scheduled_departure_at' => 'nullable|date']);
+        $changes = $this->linehaul->updateTrip(auth()->user(), $this->mine($trip), $r->only(['destination_hub_id', 'scheduled_departure_at']));
 
-        return $this->show($t, $t->seal_discrepancy ? 'Seal discrepancy recorded. You can scan the parcels in.' : 'Seal matches. Scan the parcels in.');
+        return $this->show($trip->fresh(), $changes ? "{$trip->code} " . implode('; ', $changes) . '.' : 'Nothing was changed.');
     }
+
+    /** Remove a trip for good (not departed, or cancelled). */
+    public function remove(LinehaulTrip $trip): JsonResponse
+    {
+        $code = $this->linehaul->remove(auth()->user(), $this->mine($trip));
+
+        return response()->json(['message' => "{$code} was removed. Its parcels stay at the origin hub."]);
+    }
+
+    // ── Receiving at the destination hub ──
 
     /** hub_id, tracking. */
     public function receive(Request $r): JsonResponse

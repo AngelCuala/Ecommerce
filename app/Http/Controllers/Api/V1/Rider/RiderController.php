@@ -233,6 +233,38 @@ class RiderController extends Controller
         ]);
     }
 
+    /** E-wallet: the pay the hub sent in, pay earned but not sent yet, history and the GCash cash-out. */
+    public function wallet(): JsonResponse
+    {
+        $d = $this->pageData($this->web(WebRider::class, 'wallet'));
+        $e = fn (\App\Models\RiderWalletEntry $x) => ['id' => $x->id, 'type' => $x->type, 'type_label' => $x->typeLabel(), 'note' => $x->note,
+            'status' => $x->status, 'status_label' => $x->statusLabel(), 'amount' => (float) $x->amount, 'reference' => $x->reference,
+            'reject_reason' => $x->reject_reason, 'gcash_number' => $x->gcash_number, 'from' => $x->sortingCenter ? \App\Support\SortingCenters::displayName($x->sortingCenter) : null,
+            'at' => $x->created_at?->toIso8601String()];
+
+        return response()->json([
+            'company'  => $d['rider']->companyName(),
+            'balance'  => (float) $d['balance'],
+            'to_send'  => (float) $d['toSend'],
+            'unsent'   => $d['unsent']->map(fn ($r) => RiderJson::walletRow($r))->values(),
+            'entries'  => collect($d['entries']->items())->map($e)->values(),
+            'pending_cashout' => $d['pendingCashout'] ? $e($d['pendingCashout']) : null,
+            'last_gcash' => $d['lastGcash'] ? ['number' => $d['lastGcash']->gcash_number, 'name' => $d['lastGcash']->gcash_name] : null,
+            'cashout_min' => \App\Services\RiderWallet::CASHOUT_MIN,
+            'pay' => ['pickup' => RiderDispatch::PAY_PICKUP, 'delivery' => RiderDispatch::PAY_DELIVERY],
+        ]);
+    }
+
+    /** amount, gcash_number (09XXXXXXXXX), gcash_name. */
+    public function cashout(): JsonResponse
+    {
+        $json = $this->actionJson($this->web(WebRider::class, 'cashout'));
+        if ($json->getStatusCode() === 200) {
+            $json->setData($json->getData(true) + $this->wallet()->getData(true));
+        }
+        return $json;
+    }
+
     /** amount, request_token (one remittance per token, like the website). */
     public function remit(): JsonResponse
     {

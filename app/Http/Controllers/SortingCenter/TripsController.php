@@ -14,7 +14,7 @@ use Illuminate\Http\Request;
  * Linehaul Trips (website), which replace SC Transfers: a hub-to-hub trip of the company's courier (truck /
  * 4-wheeler) to another sorting center's hub nearer the buyer. That sorting center
  * accepts the trip before it departs; both companies track it and message each other on it; on arrival the
- * receiving company checks the seal and receives the parcels, which then wait in its Parcel Sorting.
+ * receiving company receives the parcels, which then wait in its Parcel Sorting.
  */
 class TripsController extends Controller
 {
@@ -33,11 +33,11 @@ class TripsController extends Controller
         'created' => 'Trip created', 'assigned' => 'Rider assigned', 'reassigned' => 'Rider reassigned', 'accepted' => 'Rider accepted',
         'declined' => 'Rider declined', 'unassigned' => 'Rider removed', 'reassigned_away' => 'Reassigned to another rider',
         'handover_accepted' => 'Receiving sorting center accepted the trip', 'handover_rejected' => 'Receiving sorting center rejected the trip',
-        'loading' => 'Loading started', 'departed' => 'Departed (sealed)', 'delay' => 'Delay reported', 'breakdown' => 'Vehicle breakdown reported',
+        'loading' => 'Loading started', 'departed' => 'Departed', 'delay' => 'Delay reported', 'breakdown' => 'Vehicle breakdown reported',
         'arrived' => 'Arrived at the destination hub', 'seal_ok' => 'Seal checked: matches', 'seal_discrepancy' => 'Seal does not match',
         'damaged' => 'Parcel marked damaged', 'missing' => 'Parcel missing', 'parcel_removed' => 'Parcel taken off the trip',
         'rescanned' => 'Parcels rescanned', 'parcels_added' => 'Parcels added', 'courier_note' => 'Rider note', 'completed' => 'Received and completed',
-        'completed_discrepancy' => 'Completed with discrepancy', 'cancelled' => 'Trip cancelled',
+        'completed_discrepancy' => 'Completed with discrepancy', 'cancelled' => 'Trip cancelled', 'edited' => 'Trip edited',
     ];
 
     public const PARCEL_LABELS = [
@@ -165,7 +165,11 @@ class TripsController extends Controller
             ->each(fn (Parcel $p) => $p->best_hub = $this->linehaul->bestHubFor($p, $this->me())?->load('company'))
             ->sortBy(fn (Parcel $p) => $p->best_hub?->id === (int) $trip->destination_hub_id ? 0 : 1)->values() : collect();
 
-        return view('sc.trip-show', compact('trip', 'items', 'events', 'messages', 'last', 'sender', 'receiver', 'couriers', 'offDuty', 'addable'));
+        // Edit: the other sorting centers' hubs it can go to.
+        $destinations = $open ? LogisticsHub::with('company')->where('sorting_center_id', '!=', $me)->get()
+            ->sortBy(fn ($h) => SortingCenters::nameOf($h->company) . ' ' . $h->code)->values() : collect();
+
+        return view('sc.trip-show', compact('trip', 'items', 'events', 'messages', 'last', 'sender', 'receiver', 'couriers', 'offDuty', 'addable', 'destinations'));
     }
 
     /** The sending company assigns (or reassigns) its On Duty courier. */
@@ -219,6 +223,26 @@ class TripsController extends Controller
         return back()->with('success', "{$trip->code} was cancelled. Its parcels stay at {$trip->origin->code}.");
     }
 
+    /** Edit a trip before it departs: the planned departure, and where it goes (before a truck is assigned). */
+    public function update(Request $request, LinehaulTrip $trip)
+    {
+        $this->sent($trip);
+        $request->validate(['destination_hub_id' => 'nullable|integer', 'scheduled_departure_at' => 'nullable|date']);
+        $changes = $this->linehaul->updateTrip($this->me(), $trip, $request->only(['destination_hub_id', 'scheduled_departure_at']));
+
+        return back()->with('success', $changes ? "{$trip->code} " . implode('; ', $changes) . '.' : 'Nothing was changed.');
+    }
+
+    /** Remove a trip for good (not departed, or cancelled): its parcels stay at the origin hub. */
+    public function remove(LinehaulTrip $trip)
+    {
+        $this->sent($trip);
+        $origin = $trip->origin?->code ?? 'the origin hub';
+        $code = $this->linehaul->remove($this->me(), $trip);
+
+        return redirect()->route('sc.trips')->with('success', "{$code} was removed. Its parcels stay at {$origin}.");
+    }
+
     /** The receiving sorting center accepts or rejects the trip before it departs. */
     public function respond(Request $request, LinehaulTrip $trip)
     {
@@ -236,16 +260,6 @@ class TripsController extends Controller
         $this->linehaul->postMessage($this->me(), $trip, $request->input('body'));
 
         return redirect()->to(route('sc.trips.show', $trip) . '#messages');
-    }
-
-    /** The receiving company checks the seal on arrival. */
-    public function seal(Request $request, LinehaulTrip $trip)
-    {
-        $this->visible($trip);
-        abort_unless($trip->receiverId() === (int) auth()->id(), 403, 'Only the receiving sorting center checks the seal.');
-        $this->linehaul->confirmSeal($trip, $request->input('seal_number'), $request->input('note'));
-
-        return back()->with('success', 'Seal checked. Receive the parcels below.');
     }
 
     /** The receiving company receives the parcels (unticked ones become Missing in Transit); they can then be sorted. */

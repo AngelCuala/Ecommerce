@@ -222,9 +222,10 @@ Route::middleware(['auth', 'is_sc', 'prevent.back'])->prefix('sc')->name('sc.')-
     Route::post('/trips/{trip}/parcels/{parcel}/remove', [\App\Http\Controllers\SortingCenter\TripsController::class, 'removeParcel'])->whereNumber('trip')->name('trips.parcels.remove');
     Route::post('/trips/{trip}/assign',      [\App\Http\Controllers\SortingCenter\TripsController::class, 'assign'])->whereNumber('trip')->name('trips.assign');
     Route::post('/trips/{trip}/cancel',      [\App\Http\Controllers\SortingCenter\TripsController::class, 'cancel'])->whereNumber('trip')->name('trips.cancel');
+    Route::post('/trips/{trip}/remove',      [\App\Http\Controllers\SortingCenter\TripsController::class, 'remove'])->whereNumber('trip')->name('trips.remove');
+    Route::post('/trips/{trip}/edit',        [\App\Http\Controllers\SortingCenter\TripsController::class, 'update'])->whereNumber('trip')->name('trips.update');
     Route::post('/trips/{trip}/respond',     [\App\Http\Controllers\SortingCenter\TripsController::class, 'respond'])->whereNumber('trip')->name('trips.respond');
     Route::post('/trips/{trip}/message',     [\App\Http\Controllers\SortingCenter\TripsController::class, 'message'])->whereNumber('trip')->name('trips.message');
-    Route::post('/trips/{trip}/seal',        [\App\Http\Controllers\SortingCenter\TripsController::class, 'seal'])->whereNumber('trip')->name('trips.seal');
     Route::post('/trips/{trip}/receive',     [\App\Http\Controllers\SortingCenter\TripsController::class, 'receive'])->whereNumber('trip')->name('trips.receive');
     Route::post('/transfers/initiate',                          [\App\Http\Controllers\SortingCenterController::class, 'initiateTransfer'])->name('transfers.initiate');
     Route::post('/transfers/{transfer}/accept',                 [\App\Http\Controllers\SortingCenterController::class, 'acceptTransfer'])->name('transfers.accept');

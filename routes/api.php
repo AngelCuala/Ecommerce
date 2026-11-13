@@ -69,6 +69,8 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         Route::get('/commissions',                   [Seller\PanelController::class, 'commissions'])->name('commissions');
         Route::get('/commissions/export',            [Seller\PanelController::class, 'exportCommissions'])->name('commissions.export');
         Route::get('/earnings',                      [Seller\PanelController::class, 'earnings'])->name('earnings');
+        Route::get('/strikes',                       [Seller\StrikesController::class, 'index'])->name('strikes');
+        Route::post('/strikes/{strike}/appeal',      [Seller\StrikesController::class, 'appeal'])->whereNumber('strike')->middleware('throttle:10,1')->name('strikes.appeal');
         Route::post('/earnings/payouts',             [Seller\PanelController::class, 'requestPayout'])->name('earnings.payout');
         Route::get('/reviews',                       [Seller\PanelController::class, 'reviews'])->name('reviews');
         Route::post('/reviews/{review}/reply',       [Seller\PanelController::class, 'reply'])->name('reviews.reply');
@@ -176,6 +178,8 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
             Route::get('/history',                         [Rider\RiderController::class, 'history'])->name('history');
             Route::get('/earnings',                        [Rider\RiderController::class, 'earnings'])->name('earnings');
             Route::get('/cod',                             [Rider\RiderController::class, 'cod'])->name('cod');
+            Route::get('/wallet',                          [Rider\RiderController::class, 'wallet'])->name('wallet');
+            Route::post('/wallet/cashout',                 [Rider\RiderController::class, 'cashout'])->middleware('throttle:10,1')->name('wallet.cashout');
             Route::post('/cod/remit',                      [Rider\RiderController::class, 'remit'])->name('cod.remit');
             Route::get('/cod/remittances/{remittance}',    [Rider\RiderController::class, 'remittanceReceipt'])->whereNumber('remittance')->name('cod.receipt');
             Route::post('/jobs/{kind}/{job}/acknowledge',  [Rider\RiderController::class, 'acknowledge'])->whereIn('kind', ['pickup', 'delivery'])->whereNumber('job')->name('jobs.acknowledge');
@@ -236,6 +240,11 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         Route::post('/deliveries/{delivery}/reschedule', [Logistics\HubController::class, 'reschedule'])->whereNumber('delivery')->name('deliveries.reschedule');
         Route::post('/deliveries/{delivery}/return',     [Logistics\HubController::class, 'returnToSender'])->whereNumber('delivery')->name('deliveries.return');
         Route::get('/rts',                               [Logistics\HubController::class, 'rts'])->name('rts');
+        // Rider Pay: send riders' pay to their e-wallet; GCash cash-outs
+        Route::get('/rider-pay',                         [Logistics\RiderPayController::class, 'index'])->name('rider-pay');
+        Route::post('/rider-pay/{rider}/send',           [Logistics\RiderPayController::class, 'send'])->whereNumber('rider')->name('rider-pay.send');
+        Route::post('/rider-pay/cashouts/{entry}/paid',  [Logistics\RiderPayController::class, 'paid'])->whereNumber('entry')->name('rider-pay.cashout.paid');
+        Route::post('/rider-pay/cashouts/{entry}/reject', [Logistics\RiderPayController::class, 'reject'])->whereNumber('entry')->name('rider-pay.cashout.reject');
         Route::post('/rts/{parcel}',                     [Logistics\HubController::class, 'assignRts'])->whereNumber('parcel')->name('rts.assign');
         Route::get('/transfers',                         [Logistics\HubController::class, 'transfers'])->name('transfers');
         Route::post('/transfers',                        [Logistics\HubController::class, 'initiateTransfer'])->name('transfers.initiate');
@@ -289,7 +298,8 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         Route::post('/trips/{trip}/message',             [Logistics\TripsController::class, 'message'])->whereNumber('trip')->name('trips.message');
         Route::post('/trips/{trip}/receive-all',         [Logistics\TripsController::class, 'receiveAll'])->whereNumber('trip')->name('trips.receive-all');
         Route::post('/trips/{trip}/cancel',              [Logistics\TripsController::class, 'cancel'])->whereNumber('trip')->name('trips.cancel');
-        Route::post('/trips/{trip}/seal',                [Logistics\TripsController::class, 'seal'])->whereNumber('trip')->name('trips.seal');
+        Route::post('/trips/{trip}/remove',              [Logistics\TripsController::class, 'remove'])->whereNumber('trip')->name('trips.remove');
+        Route::post('/trips/{trip}/edit',                [Logistics\TripsController::class, 'update'])->whereNumber('trip')->name('trips.update');
         Route::post('/trips/{trip}/close',               [Logistics\TripsController::class, 'close'])->whereNumber('trip')->name('trips.close');
         Route::post('/trips/{trip}/parcels/{parcel}/remove',  [Logistics\TripsController::class, 'removeParcel'])->whereNumber('trip')->name('trips.parcels.remove');
         Route::post('/trips/{trip}/parcels/{parcel}/damaged', [Logistics\TripsController::class, 'damaged'])->whereNumber('trip')->name('trips.parcels.damaged');   // POST: multipart photo

@@ -44,7 +44,7 @@ class CourierWebTripTest extends TestCase
         $this->assertSame('loading', $trip->fresh()->status);
 
         // Scan: the QR pop-up (JSON) and the typed form; a wrong code is refused.
-        $page()->assertSee('Scan parcel QR')->assertSee('0/2 loaded')->assertSee('Seal &amp; depart', false);
+        $page()->assertSee('Scan parcel QR')->assertSee('0/2 loaded')->assertSee('>Depart</button>', false)->assertDontSee('seal_number', false);
         // The waybill's QR code holds the waybill number (PH…), not the tracking number.
         $waybill = $parcels[0]->fresh()->waybill_number;
         $this->assertNotEmpty($waybill);
@@ -52,14 +52,13 @@ class CourierWebTripTest extends TestCase
             ->assertOk()->assertJson(['ok' => true, 'loaded' => 1, 'total' => 2])->assertJsonPath('message', fn ($m) => str_contains($m, $parcels[0]->tracking_number))->assertJsonPath('url', fn ($u) => str_contains($u, '/courier/trips'));
         $this->actingAs($c)->postJson(route('courier.trips.scan', $trip->id), ['tracking_number' => 'TRK-0000000'])
             ->assertStatus(422)->assertJson(['ok' => false])->assertJsonPath('message', fn ($m) => str_contains($m, 'not found'));
-        $post('depart', ['seal_number' => 'BH-0004521', 'lat' => self::AT_QC[0], 'lng' => self::AT_QC[1]])
+        $post('depart', ['lat' => self::AT_QC[0], 'lng' => self::AT_QC[1]])
             ->assertSessionHas('error', fn ($m) => str_contains($m, $parcels[1]->tracking_number));
         $post('scan', ['tracking_number' => strtolower($parcels[1]->tracking_number)])->assertSessionHas('success', fn ($m) => str_contains($m, 'Every parcel is on board'));
 
-        // Depart at the origin hub with the seal.
-        $post('depart', ['seal_number' => 'BH-123', 'lat' => self::AT_QC[0], 'lng' => self::AT_QC[1]])->assertSessionHas('error', fn ($m) => str_contains($m, 'BH-'));
-        $post('depart', ['seal_number' => 'BH-0004521', 'lat' => self::AT_DVO[0], 'lng' => self::AT_DVO[1]])->assertSessionHas('error', fn ($m) => str_contains($m, 'HUB-QC'));
-        $post('depart', ['seal_number' => 'bh-0004521', 'lat' => self::AT_QC[0], 'lng' => self::AT_QC[1]])->assertSessionHas('success');
+        // Depart at the origin hub (no seal number: the trip's code identifies it).
+        $post('depart', ['lat' => self::AT_DVO[0], 'lng' => self::AT_DVO[1]])->assertSessionHas('error', fn ($m) => str_contains($m, 'HUB-QC'));
+        $post('depart', ['lat' => self::AT_QC[0], 'lng' => self::AT_QC[1]])->assertSessionHas('success');
         $this->assertSame('in_transit', $trip->fresh()->status);
         $this->assertSame('linehaul', $parcels[0]->fresh()->status);
 
@@ -73,8 +72,7 @@ class CourierWebTripTest extends TestCase
         $this->assertSame('arrived', $trip->fresh()->status);
         $page()->assertSee('Arrived at HUB-DVO');
 
-        // The receiving hub checks the seal and receives: the trip is paid, like a rider's finished job.
-        app(Linehaul::class)->confirmSeal($trip->fresh(), 'BH-0004521', null);
+        // The receiving hub receives the parcels straight away (no seal check): the trip is paid, like a rider's finished job.
         app(Linehaul::class)->receiveScan($this->logistics2, $this->hubDvo->id, $parcels[1]->fresh()->waybill_number);   // by waybill too
         app(Linehaul::class)->receiveAll($this->logistics2, $trip->fresh());
         $this->assertContains($trip->fresh()->status, LinehaulTrip::DONE);

@@ -43,7 +43,7 @@ class HubController extends Controller
             'stats' => $d['stats'],
             'shipment_counts' => collect(LogisticsJson::BUCKET_LABELS)->map(fn ($label, $key) => ['key' => $key, 'label' => $label,
                 'count' => (int) ($d['shipmentCounts'][$key] ?? 0)])->values(),
-            'recent' => $d['recentParcels']->map(fn ($x) => LogisticsJson::delivery($x))->values(),
+            'recent' => $d['recentParcels']->map(fn ($x) => LogisticsJson::delivery($x) + ['page' => $x->parcel ? TrackingController::pageKey($x->parcel) : null])->values(),
             'area_rates' => $d['areaRates']->map(fn ($a) => ['id' => $a->id, 'name' => $a->name, 'total' => (int) $a->total,
                 'delivered' => (int) $a->delivered, 'rate' => $a->total > 0 ? (int) round($a->delivered / $a->total * 100) : 0])->values(),
         ]);

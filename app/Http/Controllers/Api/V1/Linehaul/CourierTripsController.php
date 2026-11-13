@@ -126,7 +126,7 @@ class CourierTripsController extends Controller
     public function depart(Request $r, int $id): JsonResponse
     {
         [$lat, $lng] = $this->loc($r);
-        $t = $this->linehaul->depart($this->me(), $id, $r->input('seal_number'), $lat, $lng);
+        $t = $this->linehaul->depart($this->me(), $id, $lat, $lng);
         return $this->tripJson($t, "{$t->code} departed: In Transit to {$t->destination->code}.");
     }
 
@@ -145,7 +145,7 @@ class CourierTripsController extends Controller
     {
         [$lat, $lng] = $this->loc($r);
         $t = $this->linehaul->arrived($this->me(), $id, $lat, $lng);
-        return $this->tripJson($t, "Arrived at {$t->destination->code}. Hub staff will check the seal and scan the parcels in.");
+        return $this->tripJson($t, "Arrived at {$t->destination->code}. Hub staff will scan the parcels in.");
     }
 
     public function note(Request $r, int $id): JsonResponse
