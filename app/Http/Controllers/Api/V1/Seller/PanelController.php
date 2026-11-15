@@ -61,6 +61,7 @@ class PanelController extends Controller
             'sold_out_count'       => (int) $d['productCounts']['out_of_stock'],
             'unread_notifications' => auth()->user()->notifications()->whereNull('read_at')->count(),
             // Warnings from ALVY (Admin → Reports & Complaints), shown until the seller taps "I understand".
+            'trusted'          => \App\Support\TrustedSeller::progress(auth()->user()),   // badge: trusted, checks, strikes
             'violations'       => \App\Models\SellerViolation::where('seller_id', auth()->id())->where('acknowledged', false)->with('product:id,title')->latest()->get()
                 ->map(fn ($v) => ['id' => $v->id, 'action' => \App\Models\SellerViolation::actionLabels()[$v->action] ?? 'Warning',
                     'type' => \App\Models\SellerViolation::typeLabels()[$v->type] ?? $v->type, 'product' => $v->product?->title,

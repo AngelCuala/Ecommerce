@@ -34,6 +34,7 @@ class LinehaulJson
         $items = $t->onBoard()->with('parcel')->get();
         $row = [
             'id' => $t->id, 'code' => $t->code, 'status' => $t->status, 'status_label' => $t->label(),
+            'stage' => $t->stage(), 'stage_label' => $t->stageLabel(),
             'origin' => self::hub($t->origin), 'destination' => self::hub($t->destination), 'route' => $t->route(),
             'parcels' => $items->count(), 'loaded' => $items->where('status', 'loaded')->count(), 'received' => $items->where('status', 'received')->count(),
             'weight_kg' => round((float) $items->sum(fn ($i) => (float) $i->parcel?->weight_kg), 2),
@@ -56,7 +57,7 @@ class LinehaulJson
         ];
         if ($detail) {
             $row['items'] = $items->map(fn ($i) => [
-                'parcel_id' => $i->parcel_id, 'tracking' => $i->parcel?->tracking_number, 'weight_kg' => (float) $i->parcel?->weight_kg,
+                'parcel_id' => $i->parcel_id, 'tracking' => $i->parcel?->tracking_number, 'waybill' => $i->parcel?->waybill_number, 'weight_kg' => (float) $i->parcel?->weight_kg,
                 'status' => $i->status, 'loaded_at' => $i->loaded_at?->toIso8601String(), 'received_at' => $i->received_at?->toIso8601String(),
                 'receiver' => $i->parcel?->receiver_name, 'destination' => $i->parcel?->destination_municipality,
             ])->values();

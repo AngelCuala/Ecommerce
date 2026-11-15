@@ -155,7 +155,8 @@ class ApiJson
             'rating_breakdown' => collect(range(5, 1))->mapWithKeys(fn ($s) => [$s => (int) ($d['ratingBreakdown'][$s] ?? 0)])->all(),
             'sold'     => (int) ($d['sold'] ?? 0),
             'wished'   => (bool) ($d['wished'] ?? false),
-            'seller'   => $seller ? ['id' => $seller->id, 'name' => $seller->storeName(), 'logo_url' => self::file($seller->sellerApplication?->logo_path)] : null,
+            'seller'   => $seller ? ['id' => $seller->id, 'name' => $seller->storeName(), 'logo_url' => self::file($seller->sellerApplication?->logo_path),
+                'trusted' => \App\Support\TrustedSeller::is($seller)] : null,
             'vouchers' => collect($d['vouchers'] ?? [])->map(fn ($v) => self::voucher($v, in_array($v->id, $d['claimed'] ?? [])))->values()->all(),
             'reviews'  => self::page($d['reviews'], fn ($r) => self::review($r)),
             'related'  => collect($d['related'] ?? [])->map(fn ($p) => self::productCard($p))->values()->all(),
@@ -417,6 +418,7 @@ class ApiJson
             'logo_url' => self::file($app?->logo_path), 'banner_url' => self::file($app?->banner_path),
             'location' => collect([$app?->municipality, $app?->province])->filter()->implode(', ') ?: null,
             'on_vacation' => (bool) $app?->is_on_vacation,
+            'trusted' => \App\Support\TrustedSeller::is($seller),   // "Trusted Seller" badge
         ];
     }
 }
