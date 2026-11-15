@@ -13,7 +13,7 @@ use Illuminate\Support\Facades\Storage;
 use Tests\Concerns\LinehaulTestData;
 use Tests\TestCase;
 
-/** Hub-to-hub trips: duty and checklist, assignment, loading, seal and depart, delay and breakdown, receiving and pay. */
+/** Hub-to-hub trips: duty and checklist, assignment, loading and depart, delay and breakdown, receiving and pay. */
 class LinehaulTripsTest extends TestCase
 {
     use RefreshDatabase, LinehaulTestData;
@@ -115,16 +115,13 @@ class LinehaulTripsTest extends TestCase
         $other = $this->parcel('picked_up', ['current_hub_id' => $this->hubQc->id]);
         $this->as($c)->postJson("/api/v1/linehaul/trips/{$trip->id}/scan", ['tracking' => $other->tracking_number])->assertJsonValidationErrors(['tracking' => 'not in this trip']);
 
-        $this->as($c)->postJson("/api/v1/linehaul/trips/{$trip->id}/depart", ['seal_number' => 'BH-0004521'] + $this->at(self::AT_QC))
+        $this->as($c)->postJson("/api/v1/linehaul/trips/{$trip->id}/depart", $this->at(self::AT_QC))
             ->assertJsonValidationErrors(['trip' => $parcels[4]->tracking_number]);
         $this->as($this->hub)->postJson("/api/v1/logistics/trips/{$trip->id}/parcels/{$parcels[4]->id}/remove")->assertOk()->assertJsonPath('trip.parcels', 4);
         $this->assertSame($this->hubQc->id, $parcels[4]->fresh()->current_hub_id);
 
-        foreach (['', 'BH-000452', 'BH-00045210', 'BH-ABC4521'] as $seal) {
-            $this->as($c)->postJson("/api/v1/linehaul/trips/{$trip->id}/depart", ['seal_number' => $seal] + $this->at(self::AT_QC))->assertJsonValidationErrors(['seal_number' => 'BH-']);
-        }
-        $this->as($c)->postJson("/api/v1/linehaul/trips/{$trip->id}/depart", ['seal_number' => 'BH-0004521'] + $this->at(self::AT_PSG))->assertJsonValidationErrors(['location' => 'HUB-QC']);
-        $this->as($c)->postJson("/api/v1/linehaul/trips/{$trip->id}/depart", ['seal_number' => 'BH-0004521'] + $this->at(self::AT_QC))
+        // Departing no longer checks where the truck is (Linehaul::depart); arriving still does.
+        $this->as($c)->postJson("/api/v1/linehaul/trips/{$trip->id}/depart", $this->at(self::AT_QC))
             ->assertOk()->assertJsonPath('trip.status_label', 'In Transit');
         $this->assertSame('linehaul', $parcels[0]->fresh()->status);
         $this->assertSame(1, OrderStatusEvent::where('order_id', $parcels[0]->order_id)->where('note', 'like', '%In Transit (HUB-QC → HUB-PSG)%')->count());
@@ -144,9 +141,6 @@ class LinehaulTripsTest extends TestCase
         $this->as($c)->postJson("/api/v1/linehaul/trips/{$trip->id}/arrived", $this->at(self::AT_PSG))->assertOk()->assertJsonPath('trip.status_label', 'Arrived');
         $this->as($c)->postJson("/api/v1/logistics/trips/{$trip->id}/close")->assertForbidden();
 
-        $this->as($this->hub2)->postJson('/api/v1/logistics/trips/receive', ['hub_id' => $this->hubPsg->id, 'tracking' => $parcels[0]->tracking_number])
-            ->assertJsonValidationErrors(['tracking' => 'seal']);
-        $this->as($this->hub2)->postJson("/api/v1/logistics/trips/{$trip->id}/seal", ['seal_number' => 'BH-0004521'])->assertOk();
         $this->as($this->hub)->postJson('/api/v1/logistics/trips/receive', ['hub_id' => $this->hubStr->id, 'tracking' => $parcels[0]->tracking_number])
             ->assertStatus(422);   // not at the trip's destination hub
         foreach (array_slice($parcels, 0, 4) as $p) {
@@ -192,7 +186,7 @@ class LinehaulTripsTest extends TestCase
         foreach ($parcels as $p) {
             $this->as($c1)->postJson("/api/v1/linehaul/trips/{$trip->id}/scan", ['tracking' => $p->tracking_number]);
         }
-        $this->as($c1)->postJson("/api/v1/linehaul/trips/{$trip->id}/depart", ['seal_number' => 'BH-0004521'] + $this->at(self::AT_QC))->assertOk();
+        $this->as($c1)->postJson("/api/v1/linehaul/trips/{$trip->id}/depart", $this->at(self::AT_QC))->assertOk();
 
         // Reassigning In Transit needs a breakdown report first.
         $this->onDuty($this->courier2);
@@ -210,7 +204,6 @@ class LinehaulTripsTest extends TestCase
         }
         $this->assertSame('linehaul', $parcels[0]->fresh()->status);
         $this->as($c2)->postJson("/api/v1/linehaul/trips/{$trip->id}/arrived", $this->at(self::AT_PSG))->assertOk();
-        $this->as($this->hub2)->postJson("/api/v1/logistics/trips/{$trip->id}/seal", ['seal_number' => 'BH-0004521']);
         foreach ($parcels as $p) {
             $this->as($this->hub2)->postJson('/api/v1/logistics/trips/receive', ['hub_id' => $this->hubPsg->id, 'tracking' => $p->tracking_number]);
         }
@@ -221,7 +214,7 @@ class LinehaulTripsTest extends TestCase
         $this->assertTrue($trip->events()->where('type', 'reassigned')->where('reason', 'Vehicle breakdown')->exists());
     }
 
-    public function test_seal_missing_and_damaged_discrepancies(): void
+    public function test_missing_and_damaged_discrepancies(): void
     {
         $parcels = $this->tripParcels();
         $trip = $this->trip1(true, $parcels);
@@ -231,12 +224,9 @@ class LinehaulTripsTest extends TestCase
         foreach ($parcels as $p) {
             $this->as($c)->postJson("/api/v1/linehaul/trips/{$trip->id}/scan", ['tracking' => $p->tracking_number]);
         }
-        $this->as($c)->postJson("/api/v1/linehaul/trips/{$trip->id}/depart", ['seal_number' => 'BH-0004521'] + $this->at(self::AT_QC));
+        $this->as($c)->postJson("/api/v1/linehaul/trips/{$trip->id}/depart", $this->at(self::AT_QC));
         $this->as($c)->postJson("/api/v1/linehaul/trips/{$trip->id}/arrived", $this->at(self::AT_PSG));
 
-        $this->as($this->hub2)->postJson("/api/v1/logistics/trips/{$trip->id}/seal", ['seal_number' => 'BH-0004522'])->assertJsonValidationErrors(['note' => 'does not match']);
-        $this->as($this->hub2)->postJson("/api/v1/logistics/trips/{$trip->id}/seal", ['seal_number' => 'BH-0004522', 'note' => 'Seal number differs from the manifest.'])
-            ->assertOk()->assertJsonPath('trip.seal_discrepancy', true);
 
         foreach (array_slice($parcels, 0, 3) as $p) {
             $this->as($this->hub2)->postJson('/api/v1/logistics/trips/receive', ['hub_id' => $this->hubPsg->id, 'tracking' => $p->tracking_number])->assertOk();
@@ -254,7 +244,7 @@ class LinehaulTripsTest extends TestCase
 
         $this->as($c)->postJson("/api/v1/linehaul/trips/{$trip->id}/note", ['note' => 'short'])->assertJsonValidationErrors('note');
         $this->as($c)->postJson("/api/v1/linehaul/trips/{$trip->id}/note", ['note' => 'Parcel was loaded at HUB-QC; not found in the truck.'])->assertOk();
-        $this->assertTrue($trip->events()->where('type', 'seal_discrepancy')->exists() && $trip->events()->where('type', 'missing')->exists());
+        $this->assertTrue($trip->events()->where('type', 'missing')->exists());
     }
 
     public function test_courier_profile_changes_are_flagged_for_reverification(): void

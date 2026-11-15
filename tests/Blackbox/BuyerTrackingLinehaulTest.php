@@ -46,11 +46,10 @@ class BuyerTrackingLinehaulTest extends TestCase
         $this->withToken($c1)->postJson("/api/v1/linehaul/trips/{$trip->id}/accept")->assertOk();
         $this->withToken($c1)->postJson("/api/v1/linehaul/trips/{$trip->id}/loading")->assertOk();
         $this->withToken($c1)->postJson("/api/v1/linehaul/trips/{$trip->id}/scan", ['tracking' => $parcel->tracking_number])->assertOk();
-        $this->withToken($c1)->postJson("/api/v1/linehaul/trips/{$trip->id}/depart", ['seal_number' => 'BH-0004521', 'lat' => self::AT_QC[0], 'lng' => self::AT_QC[1]])->assertOk();
+        $this->withToken($c1)->postJson("/api/v1/linehaul/trips/{$trip->id}/depart", ['lat' => self::AT_QC[0], 'lng' => self::AT_QC[1]])->assertOk();
         $this->withToken($c1)->postJson("/api/v1/linehaul/trips/{$trip->id}/arrived", ['lat' => self::AT_PSG[0], 'lng' => self::AT_PSG[1]])->assertOk();
-        // 4. HUB-PSG's sorting center checks the seal and scans it in.
+        // 4. HUB-PSG's sorting center scans it in.
         $psg = $this->pasig->createToken('t')->plainTextToken;
-        $this->withToken($psg)->postJson("/api/v1/logistics/trips/{$trip->id}/seal", ['seal_number' => 'BH-0004521'])->assertOk();
         $this->withToken($psg)->postJson('/api/v1/logistics/trips/receive', ['hub_id' => $this->hubPsg->id, 'tracking' => $parcel->tracking_number])->assertOk();
         $this->withToken($psg)->postJson("/api/v1/logistics/trips/{$trip->id}/close")->assertOk();
         // 5. It is sorted to the buyer's barangay, then Rider 2 goes out for delivery.

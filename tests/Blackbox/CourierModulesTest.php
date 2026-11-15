@@ -51,7 +51,7 @@ class CourierModulesTest extends TestCase
         return $this->withToken($this->hub)->json($method, '/api/v1/logistics' . $uri, $data);
     }
 
-    /** The sorting center that owns HUB-PSG: it checks the seal, receives the parcels and closes receiving. */
+    /** The sorting center that owns HUB-PSG: it receives the parcels and closes receiving. */
     private function ps(string $method, string $uri, array $data = [])
     {
         return $this->withToken($this->pasig->createToken('t')->plainTextToken)->json($method, '/api/v1/logistics' . $uri, $data);
@@ -66,7 +66,7 @@ class CourierModulesTest extends TestCase
         foreach ($parcels as $p) {
             $this->c1('POST', "/trips/{$trip->id}/scan", ['tracking' => $p->tracking_number]);
         }
-        $this->c1('POST', "/trips/{$trip->id}/depart", ['seal_number' => 'BH-0004521'] + $this->at(self::AT_QC))->assertOk();
+        $this->c1('POST', "/trips/{$trip->id}/depart", $this->at(self::AT_QC))->assertOk();
 
         return $trip->fresh();
     }
@@ -209,7 +209,7 @@ class CourierModulesTest extends TestCase
         $this->record('COU-LOAD-003', $twice->status() === 422 && $this->c1('GET', "/trips/{$trip->id}")->json('trip.loaded') === 4, 'Second scan: "' . $this->msg($twice, 'tracking') . '" Counted once.');
 
         // COU-LOAD-004 (4 of 5 scanned)
-        $d1 = $this->c1('POST', "/trips/{$trip->id}/depart", ['seal_number' => 'BH-0004521'] + $this->at(self::AT_QC));
+        $d1 = $this->c1('POST', "/trips/{$trip->id}/depart", $this->at(self::AT_QC));
         $rm = $this->lg('POST', "/trips/{$trip->id}/parcels/{$parcels[4]->id}/remove");
         $back = $parcels[4]->fresh();
         $this->record('COU-LOAD-004', $d1->status() === 422 && str_contains($this->msg($d1, 'trip'), $parcels[4]->tracking_number) && $rm->json('trip.parcels') === 4
@@ -219,22 +219,12 @@ class CourierModulesTest extends TestCase
         $this->record('COU-LOAD-001', $l->json('trip.status_label') === 'Loading' && $counts === [1, 2, 3, 4],
             'Loading: the counter goes ' . implode(' → ', $counts) . ' (of the trip\'s parcels) and each scanned parcel is ticked. (The 5th parcel is the one taken off in COU-LOAD-004.)');
 
-        // COU-LOAD-005
-        $seals = [];
-        foreach (['' => false, 'BH-000452' => false, 'BH-00045210' => false, 'BH-ABC4521' => false] as $seal => $ok) {
-            $x = $this->c1('POST', "/trips/{$trip->id}/depart", ['seal_number' => $seal] + $this->at(self::AT_QC));
-            $seals[] = ($seal ?: 'empty') . ($x->status() === 422 ? ' rejected' : ' ACCEPTED');
-        }
-        $stillLoading = $trip->fresh()->status === 'loading';
-
-        // COU-LOAD-007 (far from HUB-QC)
-        $far = $this->c1('POST', "/trips/{$trip->id}/depart", ['seal_number' => 'BH-0004521'] + $this->at(self::AT_PSG));
-        $this->record('COU-LOAD-007', $far->status() === 422 && $trip->fresh()->status === 'loading', 'Blocked: "' . $this->msg($far, 'location') . '" The trip stays Loading.');
+        // COU-LOAD-007 (far from HUB-QC): removed on Nov 13, Depart no longer checks where the truck is.
+        $this->notBuilt('COU-LOAD-007', 'Removed (Nov 13): Depart is the courier signal that the truck is leaving, so it no longer needs the truck at the hub (far trips, GPS off).');
 
         // COU-LOAD-005 / 006
-        $go = $this->c1('POST', "/trips/{$trip->id}/depart", ['seal_number' => 'BH-0004521'] + $this->at(self::AT_QC));
-        $this->record('COU-LOAD-005', ! preg_grep('/ACCEPTED/', $seals) && $stillLoading && $go->status() === 200,
-            implode('; ', $seals) . ': "Enter the seal number as BH- followed by 7 digits (e.g. BH-0004521)." The trip stayed Loading; BH-0004521 accepted.');
+        $go = $this->c1('POST', "/trips/{$trip->id}/depart", $this->at(self::AT_QC));
+        $this->notBuilt('COU-LOAD-005', 'The truck seal number was removed (Nov 13): the courier departs without typing a seal.');
         $line = OrderStatusEvent::where('order_id', $parcels[0]->order_id)->where('note', 'like', '%In Transit (HUB-QC → HUB-PSG)%')->get();
         $seller = $this->withToken($this->seller1->createToken('t')->plainTextToken)->getJson('/api/v1/seller/orders/' . $parcels[0]->order_id)->getContent();
         $buyer = $this->withToken($this->buyer1->createToken('t')->plainTextToken)->getJson('/api/v1/orders/' . $parcels[0]->order_id)->getContent();
@@ -317,7 +307,6 @@ class CourierModulesTest extends TestCase
         $arr = $this->c1('POST', "/trips/{$trip->id}/arrived", $this->at(self::AT_PSG));
         $own = $this->withToken($this->tok($this->courier1))->postJson("/api/v1/logistics/trips/{$trip->id}/close");
         $this->record('COU-ARR-006', $own->status() === 403 && $trip->fresh()->status === 'arrived', "Refused (HTTP {$own->status()}). The trip stays Arrived until hub staff close receiving.");
-        $this->ps('POST', "/trips/{$trip->id}/seal", ['seal_number' => 'BH-0004521']);
         $wrong = $this->lg('POST', '/trips/receive', ['hub_id' => $this->hubStr->id, 'tracking' => $parcels[0]->tracking_number]);
         $this->record('COU-ARR-005', $wrong->status() === 422 && $parcels[0]->fresh()->status === 'linehaul', 'Rejected: "' . $this->msg($wrong, 'tracking') . '" The status did not change.');
         foreach ($parcels as $p) {
@@ -337,11 +326,7 @@ class CourierModulesTest extends TestCase
         $p2 = $this->tripParcels();
         $t2 = $this->departed($p2);
         $this->c1('POST', "/trips/{$t2->id}/arrived", $this->at(self::AT_PSG));
-        $noNote = $this->ps('POST', "/trips/{$t2->id}/seal", ['seal_number' => 'BH-0004522']);
-        $withNote = $this->ps('POST', "/trips/{$t2->id}/seal", ['seal_number' => 'BH-0004522', 'note' => 'Seal number differs from the manifest.']);
-        $this->record('COU-ARR-002', $noNote->status() === 422 && $withNote->json('trip.seal_discrepancy') === true && $t2->events()->where('type', 'seal_discrepancy')->exists()
-            && UserNotification::where('user_id', $this->logistics1->id)->where('title', 'like', 'Seal discrepancy%')->exists(),
-            'Without a note: "' . $this->msg($noNote, 'note') . '" With the note: flagged Seal Discrepancy, Logistics 1 notified, and the trip log has it (old BH-0004521, new BH-0004522, the note).');
+        $this->notBuilt('COU-ARR-002', 'The truck seal number was removed (Nov 13): the receiving hub no longer checks a seal.');
         foreach (array_slice($p2, 0, 3) as $p) {
             $this->ps('POST', '/trips/receive', ['hub_id' => $this->hubPsg->id, 'tracking' => $p->tracking_number]);
         }
@@ -373,7 +358,6 @@ class CourierModulesTest extends TestCase
         }
         $still = $p3[0]->fresh()->status === 'linehaul';
         $this->withToken($c2)->postJson("/api/v1/linehaul/trips/{$t3->id}/arrived", $this->at(self::AT_PSG))->assertOk();
-        $this->ps('POST', "/trips/{$t3->id}/seal", ['seal_number' => 'BH-0004521']);
         foreach ($p3 as $p) {
             $this->ps('POST', '/trips/receive', ['hub_id' => $this->hubPsg->id, 'tracking' => $p->tracking_number]);
         }

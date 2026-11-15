@@ -53,9 +53,9 @@ This is the whole system in one story. Every step links to the page that explain
    → [Sorting center](05-sorting-center.md#step-1-the-seller-asks-for-a-pickup)
 4. At the hub, staff **scan and receive** the parcel, then **sort** it. Maria lives in Santa Cruz,
    which this company doesn't deliver to, so the parcel is sorted to the Santa Cruz sorting center.
-5. A **truck rider** loads it with other parcels going the same way, seals the truck and drives to
+5. A **truck rider** loads it with other parcels going the same way and drives to
    the Santa Cruz hub. → [Trucks](06-riders-and-hub-to-hub-trips.md#trucks-hub-to-hub-trips)
-6. **The Santa Cruz sorting center** checks the seal, receives the parcels and sorts Maria's to her
+6. **The Santa Cruz sorting center** receives the parcels and sorts Maria's to her
    barangay. Its rider delivers it, takes a proof-of-delivery photo and collects the cash.
    → [Riders](06-riders-and-hub-to-hub-trips.md#a-delivery-step-by-step)
 7. **Maria** taps *Order Received* (or the order completes by itself after 7 days). Now the

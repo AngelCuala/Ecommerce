@@ -77,7 +77,7 @@ companies: the one sending (origin) and the one receiving (destination).
 ### What the receiving company does
 
 1. **Accepts the trip** before it leaves. The truck can't start loading until it does.
-2. When the truck arrives, staff **check the seal number**, **scan each parcel in**, mark any that
+2. When the truck arrives, staff **scan each parcel in**, mark any that
    are damaged or missing, and **close receiving**. The parcels then wait in its Parcel Sorting,
    and it carries on as in [page 5](05-sorting-center.md#step-4-sorting).
 
@@ -92,9 +92,8 @@ The truck rider uses the **Hub Jobs** page:
 2. **Accept** the trip (or decline it with a reason; a declined trip pays nothing).
 3. **Start loading** once the receiving company has accepted, and **scan every parcel** as it goes
    on the truck.
-4. **Seal and depart.** The rider closes the cargo door with a numbered plastic seal and types
-   the seal number (`BH-` followed by 7 digits). They must be within 500 metres of the origin hub,
-   and every parcel must be scanned.
+4. **Depart.** Once every parcel is scanned on, the rider taps *Depart*. It doesn't check where the truck
+   is (a far trip, or GPS off), but the location is saved when the phone sends one.
 5. On the road they can **report a delay** with a reason and a new arrival time.
 6. **Arrived**, when within 500 metres of the destination hub.
 
@@ -124,7 +123,7 @@ orders still use that system and keep working; new orders always go through a so
 | Returns | [ReturnShipments](../app/Services/ReturnShipments.php) |
 | Truck rider's Hub Jobs | [Courier/TruckDutyController](../app/Http/Controllers/Courier/TruckDutyController.php), views `courier/trips`, `trip-history`, `trip-pay` |
 | Sorting center's trip pages | [SortingCenter/TripsController](../app/Http/Controllers/SortingCenter/TripsController.php), views `sc/trips`, `sc/trip-show` |
-| All the trip rules (500 m, seal, pay) | [Linehaul](../app/Services/Linehaul.php) |
+| All the trip rules (arriving within 500 m, pay) | [Linehaul](../app/Services/Linehaul.php) |
 | Trip records | [LinehaulTrip](../app/Models/LinehaulTrip.php), [LinehaulTripParcel](../app/Models/LinehaulTripParcel.php), [LinehaulTripEvent](../app/Models/LinehaulTripEvent.php), [LinehaulTripMessage](../app/Models/LinehaulTripMessage.php) |
 | Safety checklist | [CourierChecklist](../app/Models/CourierChecklist.php) |
 | The app's truck screens | [Api/V1/Linehaul/CourierTripsController](../app/Http/Controllers/Api/V1/Linehaul/CourierTripsController.php) |
