@@ -2,7 +2,7 @@
 
 namespace App\Support;
 
-use App\Http\Controllers\CartController;
+use App\Http\Controllers\Buyer\CartController;
 use App\Models\Product;
 use App\Models\User;
 use App\Models\WishlistItem;

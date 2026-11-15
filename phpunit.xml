@@ -35,6 +35,9 @@
         <env name="DB_DATABASE" value=":memory:"/>
         <env name="DB_URL" value=""/>
         <env name="MAIL_MAILER" value="array"/>
+        <!-- The project's commission rates, whatever a local .env sets (10% on items, nothing on shipping). -->
+        <env name="MARKETPLACE_COMMISSION" value="10"/>
+        <env name="SORTING_CENTER_COMMISSION" value="0"/>
         <!-- Never call the real ID-check API from tests; tests that need a verdict fake the checker. -->
         <env name="ID_CHECK_ENABLED" value="false"/>
         <!-- Older test fixtures use addresses all over the country; ServiceAreaTest turns the Laguna rule on itself. -->

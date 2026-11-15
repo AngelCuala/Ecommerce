@@ -51,10 +51,6 @@ trait CallsWeb
     /** What a web action did, as JSON: {message, warning, redirect} or 422 {message, errors}. */
     protected function actionJson(mixed $response, array $extra = []): JsonResponse
     {
-        if ($response instanceof JsonResponse) {
-            return $response;
-        }
-
         $session = request()->hasSession() ? request()->session() : null;
         $flashed = $session ? (array) $session->get('_flash.new', []) : [];
         $get = fn (string $key) => in_array($key, $flashed, true) ? $session->get($key) : null;
@@ -70,6 +66,16 @@ trait CallsWeb
                 $session->forget($key);
             }
             $session->put('_flash.new', []);
+        }
+
+        // A web action that already answers in JSON (e.g. the product form's background save, {redirect}) still
+        // flashes its message: pass it on, so the app shows "submitted for admin approval" like the website does.
+        if ($response instanceof JsonResponse) {
+            $data = $response->getData(true);
+            if (is_array($data) && ! array_key_exists('message', $data) && $message !== null && $response->getStatusCode() < 400) {
+                $response->setData($data + ['message' => $message, 'warning' => $warning !== null]);
+            }
+            return $response;
         }
 
         if ($errors instanceof ViewErrorBag && $errors->any()) {

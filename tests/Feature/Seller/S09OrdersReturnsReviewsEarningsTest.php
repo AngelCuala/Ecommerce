@@ -139,13 +139,14 @@ class S09OrdersReturnsReviewsEarningsTest extends TestCase
         $company = $this->company();
         $this->actingAs($this->seller1)->get(route('seller.orders.show', $order->id))->assertSee('choose the logistics company')->assertSee('Bilis Hatid Express Inc.');
         $this->actingAs($this->seller1)->post(route('seller.orders.handover', $order->id), ['sorting_center_id' => $company->id, 'pickup_scheduled_at' => now()->addHour()->format('Y-m-d H:i')])
-            ->assertSessionHas('success', fn ($m) => str_contains($m, 'offered to Pedro Jose Garcia'));
+            ->assertSessionHas('success', fn ($m) => str_contains($m, 'Pickup requested') && str_contains($m, 'Bilis Hatid Express Inc.'));
         $this->assertSame('ready', $order->fresh()->sellerStep());
 
-        // The logistics company sees it in its pickup queue, and its rider got the job offer.
+        // The logistics company gets a pickup request; once it confirms it, the job waits in its Rider Dispatch.
         $parcel = \App\Models\Parcel::where('order_id', $order->id)->sole();
-        $this->assertSame(['pickup_approved', $company->id], [$parcel->status, (int) $parcel->current_sorting_center_id]);
-        $this->assertSame(1, \App\Models\RiderJobOffer::where('parcel_id', $parcel->id)->count());
+        $this->assertSame(['pending_pickup', $company->id], [$parcel->status, (int) $parcel->current_sorting_center_id]);
+        $this->actingAs($company)->post(route('sc.pickup-requests.approve', $parcel))->assertSessionHas('success');
+        $this->assertSame('pickup_approved', $parcel->fresh()->status);
         $this->actingAs($company)->get(route('sc.dispatch'))->assertSee($parcel->tracking_number);
         $this->assertFalse(Delivery::where('order_id', $order->id)->exists());
 

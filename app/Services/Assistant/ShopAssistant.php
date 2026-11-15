@@ -2,8 +2,8 @@
 
 namespace App\Services\Assistant;
 
-use App\Http\Controllers\CartController;
-use App\Http\Controllers\OrderController;
+use App\Http\Controllers\Buyer\CartController;
+use App\Http\Controllers\Buyer\OrderController;
 use App\Models\Message;
 use App\Models\Order;
 use App\Models\User;

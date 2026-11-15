@@ -2,7 +2,7 @@
 
 namespace App\Console\Commands;
 
-use App\Http\Controllers\AppDownloadController;
+use App\Http\Controllers\Storefront\AppDownloadController;
 use Illuminate\Console\Command;
 
 /**

@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\Api\V1\Buyer;
 
 use App\Http\Controllers\Api\V1\Concerns\CallsWeb;
-use App\Http\Controllers\AssistantController as WebAssistant;
+use App\Http\Controllers\Shared\AssistantController as WebAssistant;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 

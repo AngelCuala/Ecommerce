@@ -150,8 +150,10 @@ class R01ProfileAndAvailabilityTest extends TestCase
         $parcel = $this->parcel();
         $this->assertSame($this->rider2->id, $this->dispatcher()->offer($parcel)->rider_id);
         $this->assertSame(0, RiderJobOffer::where('rider_id', $this->rider1->id)->count());
-        $this->actingAs($this->logistics1)->get(route('sc.dispatch'))
-            ->assertSee('<option value="' . $this->rider1->id . '" disabled>', false)->assertSee('<option value="' . $this->rider2->id . '" data-available', false);
+        // Offline riders are left out of Auto-assign; staff can still pick them by hand (listed as offline).
+        $this->assertNotContains($this->rider1->id, $this->dispatcher()->eligibleRiders($this->logistics1->id)->pluck('id')->all());
+        $this->actingAs($this->logistics1)->get(route('sc.dispatch'))->assertSee(' · offline</option>', false)
+            ->assertSee('<option value="' . $this->rider2->id . '" data-available', false);
     }
 
     /** RID-AVAIL-003 (A14) */
@@ -165,7 +167,7 @@ class R01ProfileAndAvailabilityTest extends TestCase
         $this->actingAs($this->rider1->user)->get(route('courier.rider'))->assertSee($delivery->parcel->waybill_number ?: $delivery->parcel->tracking_number);   // jobs show the waybill number
 
         $this->assertNull($this->dispatcher()->offer($this->parcel()));   // no new offers while offline
-        $this->actingAs($this->rider1->user)->post(route('courier.rider.deliveries.deliver', $delivery->id), [
+        $this->actingAs($this->rider1->user)->post(route('courier.rider.deliveries.deliver', $delivery->id), ['tracking_number' => $delivery->parcel->tracking_number, 
             'pod_photo' => UploadedFile::fake()->image('pod_photo.jpg'), 'otp' => $delivery->otp_code, 'cod_collected' => '490.00',
         ])->assertSessionHas('success');
         $this->assertSame('delivered', $delivery->fresh()->status);

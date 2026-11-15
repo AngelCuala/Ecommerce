@@ -4,7 +4,7 @@
     $withItems = $shortcuts->filter(fn ($c) => $c->count > 0);
     $promoCats = ($withItems->count() >= 2 ? $withItems : $shortcuts)->shuffle()->take(2)->values();
     // Category photos (Unsplash License) in public/images/categories: <slug>.jpg square, <slug>-wide.jpg for the banner tiles.
-    $photo = fn ($slug, $wide = false) => \App\Http\Controllers\CategoryPageController::photo($slug, $wide);
+    $photo = fn ($slug, $wide = false) => \App\Http\Controllers\Storefront\CategoryPageController::photo($slug, $wide);
     // Banner carousel: the admin's event slides (Admin → Home Banners) first, then ALVY's own.
     $slides = array_map(fn ($sl) => $sl + ['url' => \App\Models\HomeBanner::urlFor($sl['slug'])], \App\Models\HomeBanner::slides());
 @endphp

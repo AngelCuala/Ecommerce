@@ -31,7 +31,7 @@ class R05DeliveryFailedAndEarningsTest extends TestCase
     private function deliver(ParcelDelivery $d, array $over = [], $rider = null)
     {
         return $this->actingAs(($rider ?? $this->rider1)->user)->from(route('courier.rider.deliveries.show', $d->id))
-            ->post(route('courier.rider.deliveries.deliver', $d->id), array_merge([
+            ->post(route('courier.rider.deliveries.deliver', $d->id), array_merge(['tracking_number' => $d->parcel->tracking_number, 
                 'pod_photo' => UploadedFile::fake()->image('pod_photo.jpg')->size(1100), 'cod_collected' => '490.00',
             ], $over));
     }

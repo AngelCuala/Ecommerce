@@ -39,6 +39,7 @@ class BuyerTrackingLinehaulTest extends TestCase
         $tab = $order->fresh()->status;
         // 2. HUB-QC scans it in.
         $this->withToken($hub)->postJson('/api/v1/logistics/incoming/scan', ['tracking_number' => $parcel->tracking_number, 'hub_id' => $this->hubQc->id])->assertOk();
+        $this->withToken($hub)->postJson("/api/v1/logistics/incoming/{$parcel->id}/receive", ['hub_id' => $this->hubQc->id])->assertOk();   // scanning only finds it
         // 3. Courier 1 carries it to HUB-PSG.
         $trip = $this->trip1(true, [$parcel->fresh()]);
         $c1 = $this->courier1->user->createToken('t')->plainTextToken;
@@ -47,11 +48,13 @@ class BuyerTrackingLinehaulTest extends TestCase
         $this->withToken($c1)->postJson("/api/v1/linehaul/trips/{$trip->id}/scan", ['tracking' => $parcel->tracking_number])->assertOk();
         $this->withToken($c1)->postJson("/api/v1/linehaul/trips/{$trip->id}/depart", ['seal_number' => 'BH-0004521', 'lat' => self::AT_QC[0], 'lng' => self::AT_QC[1]])->assertOk();
         $this->withToken($c1)->postJson("/api/v1/linehaul/trips/{$trip->id}/arrived", ['lat' => self::AT_PSG[0], 'lng' => self::AT_PSG[1]])->assertOk();
-        // 4. HUB-PSG checks the seal and scans it in.
-        $this->withToken($hub)->postJson("/api/v1/logistics/trips/{$trip->id}/seal", ['seal_number' => 'BH-0004521'])->assertOk();
-        $this->withToken($hub)->postJson('/api/v1/logistics/trips/receive', ['hub_id' => $this->hubPsg->id, 'tracking' => $parcel->tracking_number])->assertOk();
-        $this->withToken($hub)->postJson("/api/v1/logistics/trips/{$trip->id}/close")->assertOk();
-        // 5. Rider 2 goes out for delivery.
+        // 4. HUB-PSG's sorting center checks the seal and scans it in.
+        $psg = $this->pasig->createToken('t')->plainTextToken;
+        $this->withToken($psg)->postJson("/api/v1/logistics/trips/{$trip->id}/seal", ['seal_number' => 'BH-0004521'])->assertOk();
+        $this->withToken($psg)->postJson('/api/v1/logistics/trips/receive', ['hub_id' => $this->hubPsg->id, 'tracking' => $parcel->tracking_number])->assertOk();
+        $this->withToken($psg)->postJson("/api/v1/logistics/trips/{$trip->id}/close")->assertOk();
+        // 5. It is sorted to the buyer's barangay, then Rider 2 goes out for delivery.
+        $parcel->refresh()->update(['status' => 'sorted']);
         $delivery = $this->deliveryFor($this->rider2, 'assigned', $parcel->fresh());
         $this->withToken($this->rider2->user->createToken('t')->plainTextToken)->postJson("/api/v1/rider/deliveries/{$delivery->id}/start")->assertOk();
 

@@ -1,7 +1,7 @@
 <x-layout :title="$active['name'] . ' — ALVY'">
 @php
     // Category photos (Unsplash License) live in public/images/categories/<slug>.jpg
-    $photo = fn ($slug) => \App\Http\Controllers\CategoryPageController::photo($slug);
+    $photo = fn ($slug) => \App\Http\Controllers\Storefront\CategoryPageController::photo($slug);
     $catUrl = fn ($sub = null) => route('categories.show', $active['slug']) . ($sub ? '?sub=' . urlencode($sub) : '');
 @endphp
 <style>

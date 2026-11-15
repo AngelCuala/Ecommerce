@@ -99,33 +99,122 @@
 </div>
 
 <h2 class="cx-section-title">Accepted tasks</h2>
+{{-- Each accepted job shows its steps, what to do next, and one button for that step. --}}
 <div style="margin-bottom:28px;" data-section="accepted">
     @foreach ($okPickups as $pu)
-        <div class="card cx-item">
-            <a href="{{ route('courier.rider.pickups.show', $pu->id) }}" class="cx-item-row" style="display:flex;">
-                <div><p class="cx-item-title">Pickup · {{ $pu->parcel->waybill_number ?: $pu->parcel->tracking_number }}</p><p class="cx-item-meta">{{ $pu->parcel->seller->name ?? '' }} — {{ $pu->parcel->pickup_address }}</p></div>
-                <span class="cx-pill {{ $pu->en_route_at ? 'cx-pill-blue' : 'cx-pill-amber' }}">{{ $pu->en_route_at ? 'On the way' : 'Accepted' }}</span>
+        @php
+            $onTheWay = (bool) $pu->en_route_at;
+            $steps = [
+                ['Accepted', $pu->acknowledged_at->format('M j, g:i A'), 'done'],
+                ['On the way', $onTheWay ? $pu->en_route_at->format('g:i A') : null, $onTheWay ? 'done' : 'now'],
+                ['Picked up at seller', null, $onTheWay ? 'now' : 'todo'],
+            ];
+        @endphp
+        <div class="card cx-item jb-card" data-job-card="pickup-{{ $pu->id }}">
+            <a href="{{ route('courier.rider.pickups.show', $pu->id) }}" class="jb-head">
+                <div style="min-width:0;">
+                    <p class="cx-item-title">Pickup · {{ $pu->parcel->waybill_number ?: $pu->parcel->tracking_number }}</p>
+                    <p class="cx-item-meta">{{ $pu->parcel->seller->name ?? '' }} — {{ $pu->parcel->pickup_address }}</p>
+                </div>
+                <span class="jb-details">Details <span aria-hidden="true">›</span></span>
             </a>
-            <div style="{{ $line }}">
-                <span class="cx-item-meta" data-acknowledged="pickup-{{ $pu->id }}">Accepted {{ $pu->acknowledged_at->format('M j, g:i A') }}</span>
-                @unless ($pu->en_route_at)
-                    <form method="POST" action="{{ route('courier.rider.pickups.arriving', $pu->id) }}">@csrf<button class="cx-btn cx-btn-outline" style="{{ $small }}" data-arriving="{{ $pu->id }}">On my way</button></form>
-                @endunless
-                <a href="{{ route('courier.rider.pickups.show', $pu->id) }}" class="cx-btn cx-btn-orange" style="{{ $small }}">Confirm pickup at seller</a>
+            <ol class="jb-steps" aria-label="Pickup steps">
+                @foreach ($steps as $i => [$label, $at, $state])
+                    <li class="jb-step is-{{ $state }}" @if ($i === 0) data-acknowledged="pickup-{{ $pu->id }}" @endif>
+                        <span class="jb-dot">@if ($state === 'done')<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" aria-hidden="true"><path d="m5 12 5 5 9-10"/></svg>@else{{ $i + 1 }}@endif</span>
+                        <span class="jb-step-text"><span class="jb-step-label">{{ $label }}</span>@if ($at)<span class="jb-step-at">{{ $at }}</span>@endif</span>
+                    </li>
+                @endforeach
+            </ol>
+            <div class="jb-next">
+                <p class="jb-hint">
+                    @if ($onTheWay)
+                        <strong>Next:</strong> at the seller, take a photo of the parcel and scan its waybill.
+                    @else
+                        <strong>Next:</strong> head to the seller. Tap <em>I'm on my way</em> so they know you're coming.
+                    @endif
+                </p>
+                <div class="jb-actions">
+                    @if ($onTheWay)
+                        <a href="{{ route('courier.rider.pickups.show', $pu->id) }}" class="cx-btn cx-btn-orange" style="{{ $small }}">Confirm pickup at seller</a>
+                    @else
+                        <a href="{{ route('courier.rider.pickups.show', $pu->id) }}" class="jb-link">Already there? Confirm pickup</a>
+                        <form method="POST" action="{{ route('courier.rider.pickups.arriving', $pu->id) }}" onsubmit="this.querySelector('button').disabled = true;">@csrf
+                            <button class="cx-btn cx-btn-orange" style="{{ $small }}" data-arriving="{{ $pu->id }}">I'm on my way</button>
+                        </form>
+                    @endif
+                </div>
             </div>
         </div>
     @endforeach
     @foreach ($okDeliveries as $d)
-        <div class="card cx-item">
-            <a href="{{ route('courier.rider.deliveries.show', $d->id) }}" class="cx-item-row" style="display:flex;">
-                <div><p class="cx-item-title">Delivery · {{ $d->parcel->waybill_number ?: $d->parcel->tracking_number }}</p><p class="cx-item-meta">{{ $d->parcel->receiver_name }} — {{ $d->parcel->dropoff_address }} · attempt {{ $d->attempt }} of {{ \App\Models\ParcelDelivery::MAX_ATTEMPTS }}</p></div>
-                <span class="cx-pill cx-pill-amber">Collect at hub</span>
+        @php
+            $steps = [
+                ['Accepted', $d->acknowledged_at->format('M j, g:i A'), 'done'],
+                ['Collect at hub', null, 'now'],
+                ['Delivered to buyer', null, 'todo'],
+            ];
+        @endphp
+        <div class="card cx-item jb-card" data-job-card="delivery-{{ $d->id }}">
+            <a href="{{ route('courier.rider.deliveries.show', $d->id) }}" class="jb-head">
+                <div style="min-width:0;">
+                    <p class="cx-item-title">Delivery · {{ $d->parcel->waybill_number ?: $d->parcel->tracking_number }}</p>
+                    <p class="cx-item-meta">{{ $d->parcel->receiver_name }} — {{ $d->parcel->dropoff_address }} · attempt {{ $d->attempt }} of {{ \App\Models\ParcelDelivery::MAX_ATTEMPTS }}</p>
+                </div>
+                <span class="jb-details">Details <span aria-hidden="true">›</span></span>
             </a>
-            <div style="{{ $line }}"><span class="cx-item-meta" data-acknowledged="delivery-{{ $d->id }}">Accepted {{ $d->acknowledged_at->format('M j, g:i A') }}</span></div>
+            <ol class="jb-steps" aria-label="Delivery steps">
+                @foreach ($steps as $i => [$label, $at, $state])
+                    <li class="jb-step is-{{ $state }}" @if ($i === 0) data-acknowledged="delivery-{{ $d->id }}" @endif>
+                        <span class="jb-dot">@if ($state === 'done')<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" aria-hidden="true"><path d="m5 12 5 5 9-10"/></svg>@else{{ $i + 1 }}@endif</span>
+                        <span class="jb-step-text"><span class="jb-step-label">{{ $label }}</span>@if ($at)<span class="jb-step-at">{{ $at }}</span>@endif</span>
+                    </li>
+                @endforeach
+            </ol>
+            <div class="jb-next">
+                <p class="jb-hint"><strong>Next:</strong> collect the parcel at {{ $rider->companyName() }} hub, then tap <em>Start delivery</em>.</p>
+                <div class="jb-actions">
+                    <form method="POST" action="{{ route('courier.rider.deliveries.start', $d->id) }}" onsubmit="this.querySelector('button').disabled = true;">@csrf
+                        <button class="cx-btn cx-btn-orange" style="{{ $small }}" data-start-delivery="{{ $d->id }}">Start delivery</button>
+                    </form>
+                </div>
+            </div>
         </div>
     @endforeach
     @if ($okPickups->isEmpty() && $okDeliveries->isEmpty())<div class="card cx-empty"><p class="cx-empty-title">Nothing accepted yet</p></div>@endif
 </div>
+
+@push('styles')
+<style>
+    .jb-card { padding: 16px 18px; }
+    .jb-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; text-decoration: none; color: inherit; }
+    .jb-details { flex-shrink: 0; font-size: 12px; font-weight: 600; color: var(--text-muted); padding-top: 2px; }
+    .jb-head:hover .jb-details { color: var(--accent); }
+
+    /* The steps: done (green check), now (orange), still to come (grey), joined by a line. */
+    .jb-steps { list-style: none; margin: 14px 0 0; padding: 0; display: grid; grid-template-columns: repeat(3, 1fr); }
+    .jb-step { position: relative; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 6px; min-width: 0; }
+    .jb-step:not(:last-child)::after { content: ""; position: absolute; top: 12px; left: calc(50% + 16px); right: calc(-50% + 16px); height: 2px; background: var(--border); }
+    .jb-step.is-done:not(:last-child)::after { background: var(--green); }
+    .jb-dot { width: 26px; height: 26px; border-radius: 999px; display: grid; place-items: center; font-size: 12px; font-weight: 700;
+              background: var(--border-dim); color: var(--text-muted); border: 2px solid var(--border); }
+    .jb-step.is-done .jb-dot { background: var(--green); border-color: var(--green); color: #fff; }
+    .jb-step.is-now .jb-dot { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+    .jb-step-text { display: flex; flex-direction: column; gap: 1px; }
+    .jb-step-label { font-size: 12px; font-weight: 600; color: var(--text-sub); }
+    .jb-step.is-now .jb-step-label { color: var(--text); }
+    .jb-step-at { font-size: 11px; color: var(--text-muted); }
+
+    .jb-next { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+               margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border-dim); }
+    .jb-hint { font-size: 12.5px; color: var(--text-sub); margin: 0; flex: 1 1 240px; }
+    .jb-hint strong { color: var(--text); }
+    .jb-actions { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-left: auto; }
+    .jb-link { font-size: 12.5px; font-weight: 600; color: var(--accent); text-decoration: none; }
+    .jb-link:hover { text-decoration: underline; }
+    @media (max-width: 480px) { .jb-actions { width: 100%; justify-content: space-between; } }
+</style>
+@endpush
 
 <h2 class="cx-section-title">Packages collected</h2>
 <div style="margin-bottom:28px;" data-section="collected">

@@ -26,7 +26,7 @@ class ScToastMessagesTest extends TestCase
             ->assertSee('Parcel PH000000000000000 not found at your sorting center.')
             ->assertDontSee('class="flash flash-error"', false);
 
-        $parcel = $this->parcel('pickup_approved');
+        $parcel = $this->parcel('in_transit_to_hub');   // the rider picked it up at the seller
         $this->actingAs($this->logistics1)->from(route('sc.tracking.show', $parcel))->followingRedirects()
             ->post(route('sc.tracking.receive', $parcel), ['confirm_received' => '1', 'condition' => 'good'])
             ->assertOk()

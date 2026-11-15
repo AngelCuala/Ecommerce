@@ -4,7 +4,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Api\V1\Concerns\CallsWeb;
 use App\Http\Controllers\Controller;
-use App\Http\Controllers\PasswordChangeController;
+use App\Http\Controllers\Shared\PasswordChangeController;
 use Illuminate\Http\JsonResponse;
 
 /**

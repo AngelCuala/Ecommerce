@@ -424,7 +424,7 @@
                         <label class="pf-label" for="cancel-reason">Cancel order</label>
                         <select id="cancel-reason" name="cancellation_reason" class="pf-input">
                             <option value="">Choose a reason</option>
-                            @foreach (\App\Http\Controllers\OrderController::CANCEL_REASONS as $reason)<option>{{ $reason }}</option>@endforeach
+                            @foreach (\App\Http\Controllers\Buyer\OrderController::CANCEL_REASONS as $reason)<option>{{ $reason }}</option>@endforeach
                         </select>
                         <button class="pf-btn-ghost w-full rounded-lg border py-2 text-sm font-semibold" style="border-color:#FCA5A5;color:#B91C1C;">Cancel order</button>
                     </form>

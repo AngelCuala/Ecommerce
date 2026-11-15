@@ -152,6 +152,7 @@ class BuyerModulesTest extends TestCase
         $l = collect($this->api('GET', '/cart')->json('stores.0.lines'))->first();
         $this->record('BUY-CART-006', (float) ($l['unit_price'] ?? 0) === 420.0, 'Cart shows ₱' . number_format((float) ($l['unit_price'] ?? 0), 2) . ' after the seller changed the price to ₱420.00.');
         $this->p02->update(['price' => 450]);
+        $this->assertNotEmpty(static::$results);   // the cases above were recorded
     }
 
     public function test_vouchers_checkout_orders_reviews(): void

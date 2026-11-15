@@ -99,10 +99,12 @@ trait RiderTestData
         return $d->fresh();
     }
 
-    protected function pickupFor(Rider $rider, ?Parcel $parcel = null): ParcelPickup
+    /** A pickup job given to the rider. $accepted: the rider already pressed Accept (needed before confirming the pickup). */
+    protected function pickupFor(Rider $rider, ?Parcel $parcel = null, bool $accepted = true): ParcelPickup
     {
         $parcel ??= $this->parcel();
-        return ParcelPickup::create(['parcel_id' => $parcel->id, 'rider_id' => $rider->id, 'sorting_center_id' => $parcel->current_sorting_center_id, 'status' => 'assigned']);
+        return ParcelPickup::create(['parcel_id' => $parcel->id, 'rider_id' => $rider->id, 'sorting_center_id' => $parcel->current_sorting_center_id, 'status' => 'assigned',
+            'acknowledged_at' => $accepted ? now() : null]);
     }
 
     protected function dispatcher(): RiderDispatch

@@ -82,7 +82,7 @@
         <a href="{{ route('home') }}" class="hover:underline">Home</a>
         <span>/</span>
         @if ($product->category)
-            @php $catSlug = collect(\App\Http\Controllers\CategoryPageController::catalog())->firstWhere('name', $product->category->name)['slug'] ?? null; @endphp
+            @php $catSlug = collect(\App\Http\Controllers\Storefront\CategoryPageController::catalog())->firstWhere('name', $product->category->name)['slug'] ?? null; @endphp
             @if ($catSlug)<a href="{{ route('categories.show', $catSlug) }}" class="hover:underline">{{ $product->category->name }}</a>@else<span>{{ $product->category->name }}</span>@endif
             <span>/</span>
         @endif

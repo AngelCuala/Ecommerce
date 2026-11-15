@@ -3,13 +3,13 @@
 namespace App\Http\Controllers\Api\V1\Buyer;
 
 use App\Http\Controllers\Api\V1\Concerns\CallsWeb;
-use App\Http\Controllers\CartController;
-use App\Http\Controllers\CheckoutController;
+use App\Http\Controllers\Buyer\CartController;
+use App\Http\Controllers\Buyer\CheckoutController;
 use App\Http\Controllers\Controller;
-use App\Http\Controllers\OrderController;
-use App\Http\Controllers\PaymentController;
-use App\Http\Controllers\ProfileController;
-use App\Http\Controllers\ReviewController;
+use App\Http\Controllers\Buyer\OrderController;
+use App\Http\Controllers\Buyer\PaymentController;
+use App\Http\Controllers\Buyer\ProfileController;
+use App\Http\Controllers\Buyer\ReviewController;
 use App\Models\OrderItem;
 use App\Models\Review;
 use App\Support\ApiJson;
@@ -165,7 +165,7 @@ class ShoppingController extends Controller
     /** A rejected GCash payment: upload the right receipt (payment_proof) and its Ref No. (payment_reference). */
     public function gcashResubmit(int $id): JsonResponse
     {
-        return $this->actionJson($this->web(\App\Http\Controllers\GcashResubmitController::class, 'store', ['id' => $id]));
+        return $this->actionJson($this->web(\App\Http\Controllers\Buyer\GcashResubmitController::class, 'store', ['id' => $id]));
     }
 
     public function cancel(int $id): JsonResponse

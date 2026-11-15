@@ -2,7 +2,7 @@
 
 namespace App\Support;
 
-use App\Http\Controllers\OrderController;
+use App\Http\Controllers\Buyer\OrderController;
 use App\Models\CartItem;
 use App\Models\Order;
 use App\Models\ParcelDelivery;

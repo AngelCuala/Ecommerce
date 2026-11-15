@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\Seller;
 
 use App\Http\Controllers\Controller;
-use App\Http\Controllers\CategoryPageController;
+use App\Http\Controllers\Storefront\CategoryPageController;
 use App\Models\Product;
 use App\Models\ProductImage;
 use App\Models\Category;

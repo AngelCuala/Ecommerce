@@ -42,7 +42,7 @@ class WaybillScannerPopupTest extends TestCase
     {
         $parcel = $this->parcel('pickup_approved');
         $pickup = $this->pickupFor($this->rider1, $parcel);
-        $this->actingAs($this->rider1->user)->post(route('courier.rider.pickups.confirm', $pickup->id), ['tracking_number' => $parcel->tracking_number]);
+        $this->actingAs($this->rider1->user)->post(route('courier.rider.pickups.confirm', $pickup->id), ['tracking_number' => $parcel->tracking_number, 'proof_photo' => \Illuminate\Http\UploadedFile::fake()->image('pickup.jpg')]);
         return $parcel->fresh();
     }
 

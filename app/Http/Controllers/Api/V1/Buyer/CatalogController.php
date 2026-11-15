@@ -3,13 +3,13 @@
 namespace App\Http\Controllers\Api\V1\Buyer;
 
 use App\Http\Controllers\Api\V1\Concerns\CallsWeb;
-use App\Http\Controllers\CategoryPageController;
+use App\Http\Controllers\Storefront\CategoryPageController;
 use App\Http\Controllers\Controller;
-use App\Http\Controllers\HomeController;
-use App\Http\Controllers\PolicyController;
-use App\Http\Controllers\ProductController;
-use App\Http\Controllers\ShopController;
-use App\Http\Controllers\StoreController;
+use App\Http\Controllers\Storefront\HomeController;
+use App\Http\Controllers\Storefront\PolicyController;
+use App\Http\Controllers\Storefront\ProductController;
+use App\Http\Controllers\Storefront\ShopController;
+use App\Http\Controllers\Storefront\StoreController;
 use App\Support\ApiJson;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;

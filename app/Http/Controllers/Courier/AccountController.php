@@ -89,7 +89,7 @@ class AccountController extends Controller
         ]);
 
         // The new password is used once the code emailed to the account is entered.
-        return \App\Http\Controllers\PasswordChangeController::start(auth()->user(), $request->password, redirect()->route('courier.account.security'));
+        return \App\Http\Controllers\Shared\PasswordChangeController::start(auth()->user(), $request->password, redirect()->route('courier.account.security'));
     }
 
     /** Mask an email: j********@****.com */

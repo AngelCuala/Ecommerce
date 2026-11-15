@@ -2,7 +2,7 @@
 
 namespace App\Support;
 
-use App\Http\Controllers\CategoryPageController;
+use App\Http\Controllers\Storefront\CategoryPageController;
 use App\Models\Order;
 use App\Models\Product;
 use Illuminate\Database\Eloquent\Builder;

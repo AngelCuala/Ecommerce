@@ -16,8 +16,11 @@
     $stage = $trip->stage();
     $stageAt = [1 => $trip->created_at, 2 => $trip->assigned_at, 3 => $stage >= 3 ? ($trip->items->where('status', 'loaded')->max('loaded_at') ?? $trip->loading_at) : null,
         4 => $trip->departed_at, 5 => $trip->completed_at];
+    // [label, when it was reached, current step, finished]. A step's bar turns orange only once it is finished, so a new
+    // delivery with no parcels yet shows no orange (its label is orange: that is the step to work on).
     $steps = collect(\App\Models\LinehaulTrip::STAGES)->map(fn ($label, $n) => [
-        $n === 5 ? 'Received by ' . ($trip->destination->code ?? 'the hub') : $label, $stage >= $n ? ($stageAt[$n] ?? $trip->updated_at) : null, $n === $stage])->values()->all();
+        $n === 5 ? 'Received by ' . ($trip->destination->code ?? 'the hub') : $label, $stage >= $n ? ($stageAt[$n] ?? $trip->updated_at) : null, $n === $stage,
+        $stage > $n || ($n === 5 && $stage === 5)])->values()->all();
     $canMessage = $trip->crossCompany();
 @endphp
 
@@ -112,8 +115,8 @@
                     <div class="ts-hub" style="text-align:right;"><b>{{ $trip->destination->code ?? '?' }}</b><span>{{ $trip->destination->name ?? '' }}</span>@if($trip->crossCompany())<span>{{ $receiverName }}</span>@endif</div>
                 </div>
                 <div class="ts-steps">
-                    @foreach ($steps as $n => [$label, $at, $current])
-                        <div class="ts-step {{ $at ? 'is-done' : '' }} {{ $current ? 'is-now' : '' }}" data-stage="{{ $n + 1 }}"><i></i><b>{{ $n + 1 }}. {{ $label }}</b><div>{{ $at?->format('M j, g:i A') ?? '—' }}</div></div>
+                    @foreach ($steps as $n => [$label, $at, $current, $finished])
+                        <div class="ts-step {{ $finished ? 'is-done' : '' }} {{ $current ? 'is-now' : '' }}" data-stage="{{ $n + 1 }}"><i></i><b>{{ $n + 1 }}. {{ $label }}</b><div>{{ $at?->format('M j, g:i A') ?? '—' }}</div></div>
                     @endforeach
                 </div>
                 @if ($sender && $stage >= 1 && $stage <= 3)

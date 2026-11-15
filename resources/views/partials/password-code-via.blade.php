@@ -1,6 +1,6 @@
 {{-- Inside a password form: where the confirmation code goes. Shown only when SMS is set up and the account has a mobile number. --}}
 @php($pcUser = auth()->user())
-@if ($pcUser && \App\Http\Controllers\PasswordChangeController::smsPossible($pcUser))
+@if ($pcUser && \App\Http\Controllers\Shared\PasswordChangeController::smsPossible($pcUser))
     <fieldset style="border:0;margin:0 0 12px;padding:0;">
         <legend style="font-size:13px;font-weight:600;color:#44403C;margin-bottom:6px;">Send the confirmation code to</legend>
         <label style="display:flex;gap:8px;align-items:center;font-size:14px;margin-bottom:4px;cursor:pointer;">

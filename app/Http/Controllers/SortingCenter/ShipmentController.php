@@ -131,7 +131,11 @@ class ShipmentController extends Controller
         $areas = ($next['type'] ?? null) === 'local' ? \App\Models\DeliveryArea::where('sorting_center_id', $me->id)->orderBy('name')->get() : collect();
         $suggestedArea = $areas->isNotEmpty() ? app(\App\Services\ParcelService::class)->suggestArea($parcel, $areas) : null;
 
-        return view('sc.tracking.show', compact('parcel', 'events', 'transfer', 'canReceive', 'next', 'hubs', 'transporters', 'areas', 'suggestedArea'));
+        // The linehaul trip it is on (not finished yet), for the "Send to another sorting center" steps.
+        $trip = \App\Models\LinehaulTrip::whereNotIn('status', ['cancelled', ...\App\Models\LinehaulTrip::DONE])
+            ->whereHas('items', fn ($q) => $q->where('parcel_id', $parcel->id)->whereIn('status', ['pending', 'loaded']))->latest('id')->first();
+
+        return view('sc.tracking.show', compact('parcel', 'events', 'transfer', 'canReceive', 'next', 'hubs', 'transporters', 'areas', 'suggestedArea', 'trip'));
     }
 
     /** Confirm Package Received: only with the explicit confirmation, after checking the parcel. */

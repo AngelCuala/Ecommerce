@@ -75,7 +75,7 @@ class WaybillTest extends TestCase
     public function test_scanning_the_waybill_receives_the_parcel(): void
     {
         $sc = $this->sc('scan@e.com');
-        $p = $this->parcel($sc);
+        $p = $this->parcel($sc, ['status' => 'in_transit_to_hub']);   // the rider picked it up at the seller
 
         $this->actingAs($sc)->post(route('sc.parcels.scan'), ['tracking_number' => strtolower($p->waybill_number)])->assertRedirect(route('sc.tracking.show', $p));
         $this->assertNull($p->fresh()->received_at);   // found, not yet received

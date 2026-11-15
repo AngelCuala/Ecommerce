@@ -97,13 +97,14 @@ class PushNotificationTest extends TestCase
         $this->assertSame(0, PushDevice::count());
     }
 
-    public function test_a_rider_with_push_stays_online_in_the_background(): void
+    public function test_an_online_rider_stays_online_in_the_background(): void
     {
+        // Closing the app doesn't make a rider Offline (with or without push): only 12 hours unseen does.
         $this->rider1->update(['is_online' => true, 'last_seen_at' => now()->subHours(2)]);
-        $this->assertFalse($this->rider1->fresh()->isOnlineNow());   // no push: offline after 30 minutes unseen
+        $this->assertTrue($this->rider1->fresh()->isOnlineNow());
 
         PushDevice::create(['user_id' => $this->rider1->user_id, 'token' => 'rider-phone']);
-        $this->assertTrue($this->rider1->fresh()->isOnlineNow());     // offers reach the phone anyway
+        $this->assertTrue($this->rider1->fresh()->isOnlineNow());
 
         $this->rider1->update(['last_seen_at' => now()->subHours(13)]);
         $this->assertFalse($this->rider1->fresh()->isOnlineNow());   // 12 hours unseen

@@ -99,9 +99,9 @@ class RiderAssignmentNotificationTest extends TestCase
 
     public function test_auto_assign_offer_carries_the_details_too(): void
     {
+        // Auto-assign now gives jobs straight to the barangay rider; a job offer (still accepted from older apps) carries the details too.
         $parcel = $this->parcel('pickup_approved');
-        $this->asHub()->post(route('sc.dispatch.auto', $parcel))->assertSessionHas('success');
-        $offer = RiderJobOffer::where('parcel_id', $parcel->id)->sole();
+        $offer = $this->dispatcher()->offer($parcel);
         $note = UserNotification::where('dedupe_key', 'rider-offer:' . $offer->id)->sole();
         $this->assertStringContainsString('Accept within', $note->body);
         $this->assertStringContainsString('Destination:', $note->body);

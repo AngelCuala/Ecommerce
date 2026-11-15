@@ -2,7 +2,7 @@
 
 namespace App\Services\Assistant;
 
-use App\Http\Controllers\OrderController;
+use App\Http\Controllers\Buyer\OrderController;
 use App\Models\CartItem;
 use App\Models\FlashSale;
 use App\Models\Order;

@@ -156,7 +156,7 @@ class SellerApiTest extends TestCase
         $this->online($this->rider1);
         $this->api('POST', "/orders/{$order->id}/handover", ['sorting_center_id' => $this->logistics1->id,
             'pickup_scheduled_at' => now()->addHour()->copy()->tz(config('app.business_timezone'))->format('Y-m-d H:i')])->assertOk()
-            ->assertJsonPath('order.seller_step', 'ready')->assertJsonPath('order.parcel.status', 'pickup_approved');
+            ->assertJsonPath('order.seller_step', 'ready')->assertJsonPath('order.parcel.status', 'pending_pickup');   // the company confirms the request next
         $waybill = $this->api('GET', "/orders/{$order->id}/waybill")->assertOk()->json('waybill');
         $this->assertSame('ALVY', substr($waybill['tracking'], 0, 4));
         $this->assertSame(['COD', 'Maria Clara Handicrafts'], [$waybill['payment_method'], $waybill['seller']['name']]);

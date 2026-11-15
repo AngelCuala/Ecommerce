@@ -55,7 +55,7 @@ class RiderApiTest extends TestCase
     public function test_online_offers_accept_decline_and_pickup(): void
     {
         $jobs = $this->api('GET', '/rider/jobs')->assertOk();
-        $this->assertSame(['Bilis Hatid Express Inc.', false, 3], [$jobs->json('rider.company'), $jobs->json('rider.online'), $jobs->json('rider.max_active')]);
+        $this->assertSame(['Bilis Hatid Express Inc.', false, null], [$jobs->json('rider.company'), $jobs->json('rider.online'), $jobs->json('rider.max_active')]);   // no job limit
 
         $this->api('POST', '/rider/online', ['online' => true])->assertOk()
             ->assertJsonPath('message', 'You are Online. New job offers will appear here.')->assertJsonPath('rider.online', true);
@@ -78,7 +78,7 @@ class RiderApiTest extends TestCase
         $this->assertSame(['Maria Clara Handicrafts', true, 1], [$detail['seller'], $detail['can_confirm'], $detail['items']]);
 
         $this->api('POST', "/rider/pickups/{$pickup->id}/confirm", ['tracking_number' => 'ALVY-WRONG'])->assertStatus(422)
-            ->assertJsonValidationErrors(['tracking_number' => 'The tracking number does not match this job. Check the waybill on the parcel.']);
+            ->assertJsonValidationErrors(['tracking_number' => 'This waybill does not match this job. Check the label on the parcel.']);
         $this->api('POST', "/rider/pickups/{$pickup->id}/confirm", ['tracking_number' => strtolower($pickup->parcel->tracking_number)])->assertOk()
             ->assertJsonPath('pickup.status', 'picked_up')->assertJsonPath('pickup.can_confirm', false);
 

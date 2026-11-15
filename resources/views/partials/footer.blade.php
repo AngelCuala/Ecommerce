@@ -1,5 +1,5 @@
 @php
-    $footerCats = array_slice(\App\Http\Controllers\CategoryPageController::catalog(), 0, 4);
+    $footerCats = array_slice(\App\Http\Controllers\Storefront\CategoryPageController::catalog(), 0, 4);
     $policy = fn ($key) => route('policies.show', $key);
     $columns = [
         'Shop' => array_merge(

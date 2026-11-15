@@ -232,6 +232,12 @@ class RiderDispatch
 
             $offer->update(['status' => 'accepted', 'responded_at' => now()]);
             $this->assign($parcel, $offer->kind, $rider, null);
+
+            // Accepting the offer is the rider's acceptance of the job: confirming the pickup (or starting the
+            // delivery) must not ask them to accept it a second time.
+            $job = $offer->kind === RiderJobOffer::PICKUP ? ParcelPickup::class : ParcelDelivery::class;
+            $job::where('parcel_id', $parcel->id)->where('rider_id', $rider->id)->where('status', 'assigned')
+                ->whereNull('acknowledged_at')->update(['acknowledged_at' => now()]);
         });
     }
 

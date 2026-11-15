@@ -28,7 +28,7 @@ class VoucherRules
     }
 
     /**
-     * Runs [$then] with the request's [$fields] (typed in Philippine time) converted to UTC, as vouchers and
+     * Runs [$then] with the request's [$fields] (typed in Philippine time) converted to the app's timezone, as vouchers and
      * promotions do, so "after:now" checks and the saved values are right. On a validation error the form
      * gets back what was typed. Used by flash sales, product sale dates, pickup schedules and announcements.
      */
@@ -44,20 +44,28 @@ class VoucherRules
         }
     }
 
-    /** A datetime-local value typed in business time, as a UTC string (unparseable values pass through to validation). Also used for promotions. */
+    /**
+     * A datetime-local value typed in business time, as a string in the app's own timezone (config app.timezone),
+     * which is how Laravel saves and compares dates ("after:now", the database). Unparseable values pass through to
+     * validation. Also used for promotions.
+     *
+     * The name is from when the app ran in UTC. Since the app itself runs in Philippine time, converting to UTC here
+     * made every typed time 8 hours early ("must start in the future" for a sale starting within 8 hours, and saved
+     * times 8 hours off), so it converts to whatever the app's timezone is.
+     */
     public static function toUtc($value)
     {
         if (! is_string($value) || trim($value) === '') {
             return $value;
         }
         try {
-            return \Carbon\Carbon::parse($value, config('app.business_timezone'))->utc()->format('Y-m-d H:i:s');
+            return \Carbon\Carbon::parse($value, config('app.business_timezone'))->tz(config('app.timezone'))->format('Y-m-d H:i:s');
         } catch (\Throwable $e) {
             return $value;
         }
     }
 
-    /** A stored UTC time as a datetime-local value in business time, for the form. */
+    /** A stored time as a datetime-local value in business time, for the form. */
     public static function forInput($at): ?string
     {
         return $at ? $at->copy()->tz(config('app.business_timezone'))->format('Y-m-d\TH:i') : null;

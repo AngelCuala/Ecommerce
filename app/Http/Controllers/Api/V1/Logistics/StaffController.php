@@ -4,7 +4,7 @@ namespace App\Http\Controllers\Api\V1\Logistics;
 
 use App\Http\Controllers\Api\V1\Concerns\CallsWeb;
 use App\Http\Controllers\Controller;
-use App\Http\Controllers\SortingCenterController as WebSc;
+use App\Http\Controllers\SortingCenter\SortingCenterController as WebSc;
 use App\Models\Courier;
 use App\Models\LogisticsHub;
 use App\Models\Rider;

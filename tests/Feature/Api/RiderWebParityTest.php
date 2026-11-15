@@ -33,16 +33,17 @@ class RiderWebParityTest extends TestCase
 
     public function test_acknowledge_on_my_way_and_decline_an_assigned_job(): void
     {
-        $pu = $this->pickupFor($this->rider1);
+        $pu = $this->pickupFor($this->rider1, null, false);
         $jobs = $this->api('GET', '/jobs')->assertOk();
         $this->assertFalse($jobs->json('pickups.0.acknowledged'));
-        $this->assertContains('Vehicle problem', $jobs->json('decline_reasons'));
+        $this->assertSame([], $jobs->json('decline_reasons'));   // barangay jobs can't be declined
 
         $this->api('POST', "/jobs/pickup/{$pu->id}/acknowledge")->assertOk()->assertJsonPath('pickups.0.acknowledged', true);
         $this->api('POST', "/pickups/{$pu->id}/arriving")->assertOk()->assertJsonPath('pickups.0.on_the_way', true);
-        $this->api('POST', "/jobs/pickup/{$pu->id}/decline")->assertStatus(422);
-        $this->api('POST', "/jobs/pickup/{$pu->id}/decline", ['reason' => 'Vehicle problem'])->assertOk();
-        $this->assertSame('declined', ParcelPickup::find($pu->id)->status);
+        // Older app versions still show Decline: it is refused and the job stays with the rider (the hub reassigns it).
+        $this->api('POST', "/jobs/pickup/{$pu->id}/decline", ['reason' => 'Vehicle problem'])->assertStatus(422)
+            ->assertJsonPath('message', fn ($m) => str_contains($m, 'cannot be declined'));
+        $this->assertSame('assigned', ParcelPickup::find($pu->id)->status);
 
         // Another rider's job: not found.
         $other = $this->pickupFor($this->rider2);

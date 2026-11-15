@@ -54,18 +54,23 @@
                 <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M3 7h18M3 12h18M3 17h12"/><circle cx="19" cy="17" r="2"/></svg>
                 Shipment Board
             </a>
+            {{-- How much work waits on each page (App\Support\SortingCenterBadges). --}}
+            @php $navBadges = \App\Support\SortingCenterBadges::for((int) auth()->id()); @endphp
             <p class="nav-section">Parcels</p>
             <a href="{{ route('sc.pickup-requests') }}" class="nav-link {{ request()->routeIs('sc.pickup-requests') ? 'active' : '' }}">
                 <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M20 7H4a2 2 0 00-2 2v10a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2z"/><path d="M16 3l-4 4-4-4"/></svg>
                 Pickup Requests
+                @if ($navBadges['pickups'])<span data-nav-count="pickups" style="margin-left:auto;background:var(--accent-orange);color:#fff;border-radius:999px;padding:1px 7px;font-size:10px;font-weight:700;" title="Pickup requests to confirm">{{ $navBadges['pickups'] }}</span>@endif
             </a>
             <a href="{{ route('sc.parcel-sorting') }}" class="nav-link {{ request()->routeIs('sc.parcel-sorting') ? 'active' : '' }}">
                 <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M3 6h18M7 12h10M11 18h2"/></svg>
                 Parcel Sorting
+                @if ($navBadges['sorting'])<span data-nav-count="sorting" style="margin-left:auto;background:var(--accent-orange);color:#fff;border-radius:999px;padding:1px 7px;font-size:10px;font-weight:700;" title="Parcels waiting to be sorted">{{ $navBadges['sorting'] }}</span>@endif
             </a>
             <a href="{{ route('sc.delivery-assignment') }}" class="nav-link {{ request()->routeIs('sc.delivery-assignment', 'sc.dispatch*', 'sc.delivery-monitoring') ? 'active' : '' }}">
                 <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
                 Deliveries
+                @if ($navBadges['dispatch'])<span data-nav-count="dispatch" style="margin-left:auto;background:var(--accent-orange);color:#fff;border-radius:999px;padding:1px 7px;font-size:10px;font-weight:700;" title="Pickups and deliveries waiting for a rider">{{ $navBadges['dispatch'] }}</span>@endif
             </a>
             @php
                 $navMe = auth()->id();
@@ -114,6 +119,7 @@
             <a href="{{ route('sc.remittances') }}" class="nav-link {{ request()->routeIs('sc.remittances*') ? 'active' : '' }}">
                 <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/></svg>
                 COD Remittances
+                @if ($navBadges['remittances'])<span data-nav-count="remittances" style="margin-left:auto;background:var(--accent-orange);color:#fff;border-radius:999px;padding:1px 7px;font-size:10px;font-weight:700;" title="Cash remittances to confirm">{{ $navBadges['remittances'] }}</span>@endif
             </a>
             <a href="{{ route('sc.rider-pay') }}" class="nav-link {{ request()->routeIs('sc.rider-pay*') ? 'active' : '' }}">
                 <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 7h15a3 3 0 013 3v7a3 3 0 01-3 3H6a3 3 0 01-3-3V7zm0 0l2.5-3h11L18 7M16.5 13.5h.01"/></svg>

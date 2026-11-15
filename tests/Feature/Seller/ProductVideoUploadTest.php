@@ -3,6 +3,7 @@
 namespace Tests\Feature\Seller;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use App\Http\Controllers\Seller\BookController;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Tests\Concerns\SellerTestData;
@@ -44,14 +45,16 @@ class ProductVideoUploadTest extends TestCase
     public function test_a_video_over_the_limit_says_so(): void
     {
         $this->save(['video' => UploadedFile::fake()->create('big.mp4', 60 * 1024, 'video/mp4')])
-            ->assertSessionHasErrors(['video' => 'The video can be at most 50 MB.']);
+            // 50 MB, or less when this server's PHP accepts smaller uploads (XAMPP: 40 MB).
+            ->assertSessionHasErrors(['video' => 'The video can be at most ' . BookController::videoLimitMb() . ' MB.']);
         $this->assertNull($this->p02->fresh()->video_path);
     }
 
     public function test_the_form_shows_the_video_error_and_the_limit(): void
     {
-        $this->actingAs($this->seller1)->withSession(['errors' => (new \Illuminate\Support\ViewErrorBag)->put('default', new \Illuminate\Support\MessageBag(['video' => ['The video can be at most 50 MB.']]))])
+        $mb = BookController::videoLimitMb();
+        $this->actingAs($this->seller1)->withSession(['errors' => (new \Illuminate\Support\ViewErrorBag)->put('default', new \Illuminate\Support\MessageBag(['video' => ["The video can be at most {$mb} MB."]]))])
             ->get(route('seller.books.edit', $this->p02->id))->assertOk()
-            ->assertSee('The video can be at most 50 MB.')->assertSee('up to 50 MB');
+            ->assertSee("The video can be at most {$mb} MB.")->assertSee("up to {$mb} MB");
     }
 }

@@ -45,22 +45,23 @@ class L03DispatchAndHubTest extends TestCase
     // ── L3 Dispatch & Assignment ────────────────────────────────
 
     /** LOG-DISP-001 */
-    public function test_log_disp_001_auto_assign_offers_the_nearest_rider_first(): void
+    public function test_log_disp_001_auto_assign_gives_the_job_to_the_barangay_rider(): void
     {
         $commonwealth = DeliveryArea::create(['sorting_center_id' => $this->logistics1->id, 'name' => 'Commonwealth', 'code' => 'QC-COMMONWEALTH']);
         $this->rider1->update(['area_id' => $commonwealth->id]);   // near Seller 1's pickup address
         $this->online($this->rider1, $this->rider2);
         $parcel = $this->parcel('pickup_approved');
 
+        // Auto-assign gives the job straight to the rider who covers the seller's barangay (no offer to accept).
         $this->asL1()->post(route('sc.dispatch.auto', $parcel))->assertSessionHas('success', fn ($m) => str_contains($m, 'Pedro Jose Garcia'));
-        $this->assertSame($this->rider1->id, (int) RiderJobOffer::where('parcel_id', $parcel->id)->sole()->rider_id);
+        $this->assertSame($this->rider1->id, (int) ParcelPickup::where('parcel_id', $parcel->id)->sole()->rider_id);
 
-        // Distance, not the order riders were added in, decides: with Rider 2 near instead, Rider 2 is first.
+        // The barangay, not the order riders were added in, decides: with Rider 2 covering it instead, Rider 2 gets it.
         $this->rider1->update(['area_id' => $this->central->id]);
         $this->rider2->update(['area_id' => $commonwealth->id]);
         $other = $this->parcel('pickup_approved');
         $this->asL1()->post(route('sc.dispatch.auto', $other))->assertSessionHas('success');
-        $this->assertSame($this->rider2->id, (int) RiderJobOffer::where('parcel_id', $other->id)->sole()->rider_id);
+        $this->assertSame($this->rider2->id, (int) ParcelPickup::where('parcel_id', $other->id)->sole()->rider_id);
     }
 
     /** LOG-DISP-002 */
@@ -83,16 +84,19 @@ class L03DispatchAndHubTest extends TestCase
         $this->online($this->rider2);
         $parcel = $this->parcel('pickup_approved');
 
+        // Auto-assign only uses Online, active riders: Rider 1 is Offline, Rider 3 is Suspended.
         $eligible = $this->asL1()->get(route('sc.dispatch'))->assertOk()->viewData('eligible')->pluck('id')->all();
-        $this->assertSame([$this->rider2->id], $eligible);   // Rider 1 is Offline, Rider 3 is Suspended
+        $this->assertSame([$this->rider2->id], $eligible);
 
+        // By hand, a suspended rider is refused; an offline one may still be given the job.
         $this->asL1()->post(route('sc.dispatch.assign', $parcel), ['rider_id' => $this->rider3->id])->assertSessionHas('error', 'Ramon Cruz is suspended.');
-        $this->asL1()->post(route('sc.dispatch.assign', $parcel), ['rider_id' => $this->rider1->id])->assertSessionHas('error', 'Pedro Jose Garcia is offline.');
         $this->assertSame(0, ParcelPickup::where('parcel_id', $parcel->id)->count());
+        $this->asL1()->post(route('sc.dispatch.assign', $parcel), ['rider_id' => $this->rider1->id])->assertSessionHas('success');
+        $this->assertSame($this->rider1->id, ParcelPickup::where('parcel_id', $parcel->id)->sole()->rider_id);
     }
 
     /** LOG-DISP-004 */
-    public function test_log_disp_004_rider_at_the_job_limit(): void
+    public function test_log_disp_004_riders_have_no_job_limit(): void
     {
         $this->online($this->rider2);
         foreach (range(1, 3) as $i) {
@@ -100,10 +104,9 @@ class L03DispatchAndHubTest extends TestCase
         }
         $parcel = $this->parcel('pickup_approved');
 
-        $this->asL1()->post(route('sc.dispatch.assign', $parcel), ['rider_id' => $this->rider2->id])
-            ->assertSessionHas('error', 'Mark Anthony Bautista already has 3 active jobs.');
-        $this->assertSame(3, $this->rider2->fresh()->activeJobsCount());
-        $this->assertSame(0, ParcelPickup::where('parcel_id', $parcel->id)->count());
+        // Riders are assigned per barangay with no job limit (RiderDispatch): a 4th job is still given.
+        $this->asL1()->post(route('sc.dispatch.assign', $parcel), ['rider_id' => $this->rider2->id])->assertSessionHas('success');
+        $this->assertSame(4, $this->rider2->fresh()->activeJobsCount());
     }
 
     /** LOG-DISP-005 */
@@ -152,33 +155,30 @@ class L03DispatchAndHubTest extends TestCase
     }
 
     /** LOG-DISP-007 */
-    public function test_log_disp_007_bulk_assignment_over_the_limit(): void
+    public function test_log_disp_007_bulk_assignment(): void
     {
         $this->online($this->rider2);
         $parcels = collect(range(1, 5))->map(fn () => $this->parcel('pickup_approved'));
 
+        // No job limit: all five go to the rider.
         $this->asL1()->post(route('sc.dispatch.bulk'), ['rider_id' => $this->rider2->id, 'parcel_ids' => $parcels->pluck('id')->all()])
-            ->assertSessionHas('warning', fn ($m) => str_starts_with($m, '3 assigned to Mark Anthony Bautista. 2 skipped:') && substr_count($m, 'already has 3 active jobs') === 2);
-
-        $this->assertSame(3, $this->rider2->fresh()->activeJobsCount());
-        foreach ($parcels->slice(3) as $left) {
-            $this->assertSame(0, ParcelPickup::where('parcel_id', $left->id)->count());
-            $this->assertSame('pickup', $this->dispatcher()->jobKind($left->fresh()));   // still waiting in the queue
-        }
+            ->assertSessionHas('success', fn ($m) => str_contains($m, '5') && str_contains($m, 'Mark Anthony Bautista'));
+        $this->assertSame(5, $this->rider2->fresh()->activeJobsCount());
     }
 
     /** LOG-DISP-008 */
     public function test_log_disp_008_parcel_that_is_not_ready(): void
     {
         $this->online($this->rider1);
-        $packed = $this->parcel('pending_pickup');   // the order is only Packed: no pickup confirmed yet
+        // At the hub but not sorted yet: neither a pickup nor a delivery job.
+        $packed = $this->parcel('picked_up');
 
         $board = $this->asL1()->get(route('sc.dispatch'))->assertOk();
         $this->assertFalse($board->viewData('jobs')->concat($board->viewData('unassigned'))->contains('id', $packed->id));
         $this->asL1()->post(route('sc.dispatch.assign', $packed), ['rider_id' => $this->rider1->id])
-            ->assertSessionHas('error', "{$packed->tracking_number} is not ready for a rider (Ready for Pickup).");
+            ->assertSessionHas('error', fn ($m) => str_contains($m, "{$packed->tracking_number} is not ready for a rider"));
         $this->assertSame(0, ParcelPickup::where('parcel_id', $packed->id)->count());
-        $this->assertSame('pending_pickup', $packed->fresh()->status);
+        $this->assertSame('picked_up', $packed->fresh()->status);
     }
 
     // ── L4 Hub & Warehouse Operations ───────────────────────────

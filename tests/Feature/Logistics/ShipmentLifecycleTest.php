@@ -57,7 +57,7 @@ class ShipmentLifecycleTest extends TestCase
     {
         $parcel = $this->parcel('pickup_approved');
         $pickup = $this->pickupFor($this->rider1, $parcel);
-        $this->actingAs($this->rider1->user)->post(route('courier.rider.pickups.confirm', $pickup->id), ['tracking_number' => $parcel->tracking_number])->assertSessionHas('success');
+        $this->actingAs($this->rider1->user)->post(route('courier.rider.pickups.confirm', $pickup->id), ['tracking_number' => $parcel->tracking_number, 'proof_photo' => \Illuminate\Http\UploadedFile::fake()->image('pickup.jpg')])->assertSessionHas('success');
         return $parcel->fresh();
     }
 
@@ -74,7 +74,7 @@ class ShipmentLifecycleTest extends TestCase
         // Assigned is not collected; "on my way" is not collected either.
         $this->actingAs($this->rider1->user)->post(route('courier.rider.pickups.arriving', $pickup->id))->assertSessionHas('success');
         $this->assertSame('pickup_approved', $parcel->fresh()->status);
-        $this->actingAs($this->rider1->user)->post(route('courier.rider.pickups.confirm', $pickup->id), ['tracking_number' => $parcel->tracking_number])->assertSessionHas('success');
+        $this->actingAs($this->rider1->user)->post(route('courier.rider.pickups.confirm', $pickup->id), ['tracking_number' => $parcel->tracking_number, 'proof_photo' => \Illuminate\Http\UploadedFile::fake()->image('pickup.jpg')])->assertSessionHas('success');
         $this->assertSame('in_transit_to_hub', $parcel->fresh()->status);
 
         // The hub scans (finds) it, then confirms receipt explicitly.
@@ -92,7 +92,7 @@ class ShipmentLifecycleTest extends TestCase
         $this->actingAs($this->rider2->user)->post(route('courier.rider.jobs.acknowledge', ['kind' => 'delivery', 'job' => $d->id]))->assertSessionHas('success');
         $this->actingAs($this->rider2->user)->post(route('courier.rider.deliveries.start', $d->id))->assertSessionHas('success');
         $d->refresh();
-        $this->actingAs($this->rider2->user)->post(route('courier.rider.deliveries.deliver', $d->id), [
+        $this->actingAs($this->rider2->user)->post(route('courier.rider.deliveries.deliver', $d->id), ['tracking_number' => $d->parcel->tracking_number, 
             'pod_photo' => UploadedFile::fake()->image('pod.jpg')->size(300), 'otp' => $d->otp_code, 'cod_collected' => (string) $d->cod_amount,
         ])->assertSessionHas('success');
 
@@ -202,7 +202,8 @@ class ShipmentLifecycleTest extends TestCase
 
         $this->travel(2)->hours();
         $this->as($this->logistics1)->get(route('sc.tracking', ['tab' => 'delayed']))->assertOk()->assertSee($parcel->tracking_number);
-        $this->as($this->logistics2)->get(route('sc.transfers'))->assertOk();   // checked again: still one flag
+        // Checked again by the other center (the old Transfers page now opens Linehaul Trips): still one flag.
+        $this->as($this->logistics2)->get(route('sc.tracking', ['tab' => 'delayed']))->assertOk();
         $this->assertNotNull($t->fresh()->delayed_at);
         $this->assertSame('Delayed', $t->fresh()->statusLabel());
         $this->assertSame(1, ShipmentEvent::where('event_type', 'transfer_delayed')->count());
@@ -251,23 +252,20 @@ class ShipmentLifecycleTest extends TestCase
 
     // 7 ─────────────────────────────────────────────────────────
 
-    public function test_7_rider_declines_a_delivery_assignment(): void
+    public function test_7_rider_cannot_decline_a_delivery_and_the_hub_reassigns_it(): void
     {
         $parcel = $this->parcel('sorted', ['received_at' => now()]);
         $this->as($this->logistics1)->post(route('sc.dispatch.assign', $parcel), ['rider_id' => $this->rider2->id])->assertSessionHas('success');
         $d = ParcelDelivery::where('parcel_id', $parcel->id)->sole();
 
-        $this->actingAs($this->rider2->user)->post(route('courier.rider.jobs.decline', ['kind' => 'delivery', 'job' => $d->id]))->assertSessionHasErrors('reason');
-        $this->actingAs($this->rider2->user)->post(route('courier.rider.jobs.decline', ['kind' => 'delivery', 'job' => $d->id]), ['reason' => 'Vehicle problem'])->assertSessionHas('success');
+        // Riders are assigned per barangay: a job given by the hub can't be declined (older apps still show the button).
+        $this->actingAs($this->rider2->user)->post(route('courier.rider.jobs.decline', ['kind' => 'delivery', 'job' => $d->id]), ['reason' => 'Vehicle problem'])
+            ->assertSessionHas('error', fn ($m) => str_contains($m, 'cannot be declined'));
+        $this->assertSame(['assigned', 'assigned'], [$d->fresh()->status, $parcel->fresh()->status]);
 
-        $this->assertSame('declined', $d->fresh()->status);   // kept in the history
-        $this->assertSame('sorted', $parcel->fresh()->status);
-        $this->assertSame('Vehicle problem', ShipmentEvent::where('event_type', 'delivery_rider_declined')->sole()->note);
-        $this->assertTrue(UserNotification::where('user_id', $this->logistics1->id)->where('title', 'Delivery declined')->exists());
-
-        // An authorized reassignment works.
-        $this->as($this->logistics1)->post(route('sc.dispatch.assign', $parcel), ['rider_id' => $this->rider1->id])->assertSessionHas('success');
-        $this->assertSame(2, ParcelDelivery::where('parcel_id', $parcel->id)->count());
+        // The hub reassigns it instead.
+        $this->as($this->logistics1)->post(route('sc.dispatch.reassign', $parcel), ['rider_id' => $this->rider1->id])->assertSessionHas('success');
+        $this->assertSame($this->rider1->id, ParcelDelivery::where('parcel_id', $parcel->id)->where('status', 'assigned')->sole()->rider_id);
     }
 
     // 8 + 9 ─────────────────────────────────────────────────────

@@ -113,6 +113,10 @@ class RiderController extends Controller
     /** Kept for older app versions that still show Decline: barangay jobs cannot be declined. */
     public function declineJob(Request $request, string $kind, int $job)
     {
+        // Like every other job action: someone else's job is not found (nothing about it is shown).
+        $model = $kind === 'pickup' ? ParcelPickup::class : ParcelDelivery::class;
+        $model::where('rider_id', $this->rider()->id)->whereKey($job)->firstOrFail();
+
         // Riders are assigned per barangay, so a job given by the hub is not declined; the hub reassigns it if needed.
         return back()->with('error', 'Jobs are assigned to the rider of each barangay and cannot be declined. If you cannot do it, contact your hub so they can reassign it.');
     }

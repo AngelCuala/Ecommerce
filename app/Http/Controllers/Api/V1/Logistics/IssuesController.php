@@ -6,7 +6,7 @@ use App\Http\Controllers\Api\V1\Concerns\CallsWeb;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\SortingCenter\IssuesController as WebIssues;
 use App\Http\Controllers\SortingCenter\ReturnsController as WebReturns;
-use App\Http\Controllers\SortingCenterController as WebSc;
+use App\Http\Controllers\SortingCenter\SortingCenterController as WebSc;
 use App\Models\Parcel;
 use App\Models\ParcelDelivery;
 use App\Models\ReturnShipment;

@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
-use App\Http\Controllers\CategoryPageController;
+use App\Http\Controllers\Storefront\CategoryPageController;
 use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
 use App\Models\HomeBanner;

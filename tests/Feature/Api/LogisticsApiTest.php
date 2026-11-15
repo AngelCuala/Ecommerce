@@ -73,14 +73,16 @@ class LogisticsApiTest extends TestCase
         $this->assertSame($parcel->tracking_number, $this->api('GET', '/pickup-requests')->assertOk()->json('data.0.tracking'));
         // A request not routed to any company yet can be opened too (any company may confirm it, like on the website).
         $unrouted = $this->parcel('pending_pickup', ['current_sorting_center_id' => null]);
-        $this->api('GET', "/parcels/{$unrouted->id}")->assertOk()->assertJsonPath('parcel.status_label', 'Ready for Pickup');
+        $this->api('GET', "/parcels/{$unrouted->id}")->assertOk()->assertJsonPath('parcel.status_label', 'Pickup Requested');
         $this->api('POST', "/pickup-requests/{$parcel->id}/approve")->assertOk()
-            ->assertJsonPath('message', "Pickup for {$parcel->tracking_number} confirmed.");
+            ->assertJsonPath('message', "Pickup for {$parcel->tracking_number} confirmed. Assign a rider in Rider Dispatch.");
         $this->api('POST', "/pickup-requests/{$parcel->id}/approve")->assertStatus(422)
             ->assertJsonPath('message', "{$parcel->tracking_number} is already Pickup Confirmed.");
 
         $this->api('POST', '/incoming/scan', ['tracking_number' => 'ALVY-NOPE'])->assertStatus(422)
             ->assertJsonPath('message', \App\Support\WaybillScan::NOT_FOUND);
+        // A rider picks it up at the seller (the hub can only receive it after that).
+        $parcel->refresh()->update(['status' => 'in_transit_to_hub']);
         // Scanning finds the parcel; receiving it is confirmed separately.
         $this->api('POST', '/incoming/scan', ['tracking_number' => $parcel->tracking_number])->assertOk()
             ->assertJsonPath('message', "Found {$parcel->tracking_number}. Opening the parcel…")->assertJsonPath('parcel_id', $parcel->id);
@@ -92,7 +94,7 @@ class LogisticsApiTest extends TestCase
         $this->api('POST', "/sorting/{$parcel->id}", ['area_id' => 99999])->assertStatus(422)
             ->assertJsonValidationErrors(['area_id' => 'That barangay is outside your municipality coverage.']);
         $this->api('POST', "/sorting/{$parcel->id}", ['area_id' => $this->central->id])->assertOk()
-            ->assertJsonPath('message', "{$parcel->tracking_number} sorted to Central. No rider is online right now, so the delivery is waiting in Rider Dispatch.")->assertJsonCount(0, 'pending');
+            ->assertJsonPath('message', "{$parcel->tracking_number} sorted to Central. The delivery is waiting in Rider Dispatch.")->assertJsonCount(0, 'pending');
 
         $a = $this->api('GET', '/assignment')->assertOk();
         $this->assertSame($parcel->id, $a->json('data.0.id'));
@@ -122,7 +124,8 @@ class LogisticsApiTest extends TestCase
         $board = $this->api('GET', '/dispatch')->assertOk();
         $this->assertSame([$parcel->id, 'pickup'], [$board->json('jobs.0.id'), $board->json('jobs.0.job_kind')]);
 
-        $this->api('POST', "/dispatch/{$parcel->id}/auto")->assertOk()->assertJsonPath('jobs.0.offer.seconds_left', fn ($s) => $s > 0);
+        // Auto-assign gives the job to the rider of the seller's barangay; nobody covers it here, so it says so.
+        $this->api('POST', "/dispatch/{$parcel->id}/auto")->assertStatus(422)->assertJsonPath('message', fn ($m) => str_contains($m, 'Assign a rider manually'));
         $other = $this->parcel('pickup_approved');
         $this->api('POST', "/dispatch/{$other->id}/assign", ['rider_id' => $this->rider3->id])->assertStatus(422)
             ->assertJsonPath('message', 'Ramon Cruz is suspended.');

@@ -7,7 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Controllers\SortingCenter\CourierApplicationController as WebCouriers;
 use App\Http\Controllers\SortingCenter\LogisticsController as WebLogistics;
 use App\Http\Controllers\SortingCenter\RiderWorkController as WebRiderWork;
-use App\Http\Controllers\SortingCenterController as WebSc;
+use App\Http\Controllers\SortingCenter\SortingCenterController as WebSc;
 use App\Models\Courier;
 use App\Models\Parcel;
 use App\Models\Rider;

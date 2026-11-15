@@ -26,7 +26,7 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
     Route::post('/auth/forgot-password', [AuthController::class, 'forgotPassword'])->middleware('throttle:20,1')->name('auth.forgot-password');
 
     // The newest published app build (no sign-in: checked as the app opens).
-    Route::get('/app/version', [\App\Http\Controllers\AppDownloadController::class, 'version'])->middleware('throttle:120,1')->name('app.version');
+    Route::get('/app/version', [\App\Http\Controllers\Storefront\AppDownloadController::class, 'version'])->middleware('throttle:120,1')->name('app.version');
 
     Route::middleware('auth:sanctum')->group(function () {
         Route::get('/me',           [AuthController::class, 'me'])->name('me');

@@ -2,15 +2,15 @@
 
 namespace App\Http\Controllers\Api\V1\Buyer;
 
-use App\Http\Controllers\AddressController;
+use App\Http\Controllers\Buyer\AddressController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\Concerns\CallsWeb;
 use App\Http\Controllers\Controller;
-use App\Http\Controllers\FlashSaleReminderController;
-use App\Http\Controllers\ProfileController;
-use App\Http\Controllers\StoreController;
-use App\Http\Controllers\VoucherWalletController;
-use App\Http\Controllers\WishlistController;
+use App\Http\Controllers\Buyer\FlashSaleReminderController;
+use App\Http\Controllers\Buyer\ProfileController;
+use App\Http\Controllers\Storefront\StoreController;
+use App\Http\Controllers\Buyer\VoucherWalletController;
+use App\Http\Controllers\Buyer\WishlistController;
 use App\Models\FlashSale;
 use App\Models\UserAddress;
 use App\Models\Voucher;
@@ -183,7 +183,7 @@ class AccountController extends Controller
      */
     public function becomeSeller(): JsonResponse
     {
-        return $this->actionJson($this->web(\App\Http\Controllers\SellerApplicationController::class, 'store'),
+        return $this->actionJson($this->web(\App\Http\Controllers\Seller\SellerApplicationController::class, 'store'),
             ['user' => AuthController::userPayload(auth()->user()->fresh())]);
     }
 
