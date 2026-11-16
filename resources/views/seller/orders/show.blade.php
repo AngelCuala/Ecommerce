@@ -48,10 +48,17 @@
             <div class="pl-head"><h2>Return / refund request</h2><span class="pl-tag pending">{{ $rr->status === 'disputed' ? 'In Dispute' : ucfirst($rr->status) }}</span></div>
             <div class="pl-body space-y-2 text-sm">
                 <p><strong>Reason:</strong> {{ $rr->reason }}</p>
+                @if ($rs = $rr->shipment)
+                    <p class="rounded-md px-3 py-2 text-xs" style="background:#EFF6FF;color:#1E40AF;" data-return-shipment="{{ $rs->status }}">
+                        <strong>Item coming back:</strong> {{ $rs->statusLabel() }}
+                        @if ($rs->status === 'to_seller' && $rs->sellerRider) · rider {{ $rs->sellerRider->full_name }} @endif
+                        @if ($rs->returned_at) · {{ $rs->returned_at->format('M j, g:i A') }} @endif
+                    </p>
+                @endif
                 @if ($rr->details)<p class="pl-muted">{{ $rr->details }}</p>@endif
                 <div class="flex flex-wrap gap-2">
                     @foreach ($rr->photos() as $ph)
-                        <a href="{{ asset('storage/' . $ph) }}" target="_blank" class="inline-block"><img src="{{ asset('storage/' . $ph) }}" alt="Evidence photo" class="h-28 rounded-md border object-cover" style="border-color:#ECE7E3;"></a>
+                        <a href="{{ \App\Support\ProtectedFile::url($ph) }}" target="_blank" class="inline-block"><img src="{{ \App\Support\ProtectedFile::url($ph) }}" alt="Evidence photo" class="h-28 rounded-md border object-cover" style="border-color:#ECE7E3;"></a>
                     @endforeach
                 </div>
                 @if ($rr->status === 'requested')<p class="text-xs" style="color:#B45309;">Answer by {{ $rr->created_at->addDays(\App\Models\ReturnRequest::RESPOND_DAYS)->format('M j, Y g:i A') }}, or it is approved automatically.</p>@endif
@@ -94,7 +101,7 @@
                             <li class="flex items-center gap-2 text-sm" style="color:{{ $done ? '#222' : '#a39890' }};">
                                 <span class="flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-semibold"
                                       style="{{ $done ? 'background:#fa4e1c;color:#fff;' : 'border:1px solid #D6D3D1;color:#a39890;' }}">{{ $i + 1 }}</span>
-                                <span class="hidden sm:inline">{{ $step }}</span>
+                                <span class="hidden sm:inline">{{ ['Pending' => 'Placed', 'Completed' => 'Received by buyer'][$step] ?? $step }}</span>
                             </li>
                         @endforeach
                     </ol>
@@ -139,7 +146,7 @@
                 </div>
                 <dl class="pl-dl pl-body !py-3">
                     <div><dt>Name</dt><dd>{{ $order->full_name }}</dd></div>
-                    <div><dt>Phone</dt><dd>{{ $order->phone }}</dd></div>
+                    <div><dt>Phone</dt><dd title="Hidden: ALVY's riders contact the buyer">{{ \App\Support\ContactGuard::maskPhone($order->phone) }}</dd></div>
                     <div><dt>Email</dt><dd class="break-all">{{ $order->email }}</dd></div>
                     <div><dt>Address</dt><dd class="max-w-[24rem]">{{ $order->fullAddress() }}</dd></div>
                     @if ($order->buyer_note)
@@ -156,35 +163,17 @@
         {{-- ═══ Right ═══ --}}
         <div class="space-y-5">
 
-            {{-- GCash paid outside ALVY: the receipt the buyer uploaded. Accepting the order confirms the money arrived. --}}
+            {{-- GCash paid to ALVY and checked by an admin before the order reached the seller: nothing to collect. --}}
             @if ($order->isGcashReceipt())
-                @php $checking = $order->payment_status === 'For verification'; @endphp
                 <section class="pl-card overflow-hidden" data-gcash-proof>
                     <div class="flex items-center justify-between gap-2 border-b px-4 py-3" style="border-color:#DBEAFE;background:#F5F9FF;">
                         <h2 class="flex items-center gap-2 text-sm font-bold" style="color:#1E3A8A;">
                             <span class="flex h-6 w-6 items-center justify-center rounded-md text-[11px] font-extrabold text-white" style="background:#007DFE;">G</span>
-                            GCash payment
+                            Paid with GCash
                         </h2>
-                        <span class="rounded-full px-2.5 py-0.5 text-[11px] font-bold" style="{{ $order->payment_status === 'Paid' ? 'background:#ECFDF5;color:#047857;' : ($checking ? 'background:#FFFBEB;color:#B45309;' : 'background:#F5F5F4;color:#57534E;') }}">{{ $checking ? 'Check the receipt' : $order->payment_status }}</span>
+                        <span class="rounded-full px-2.5 py-0.5 text-[11px] font-bold" style="{{ $order->payment_status === 'Paid' ? 'background:#ECFDF5;color:#047857;' : 'background:#F5F5F4;color:#57534E;' }}">{{ $order->payment_status }}</span>
                     </div>
-                    <div class="space-y-3 px-4 py-4 text-sm">
-                        @if ($order->payment_proof_path)
-                            @php $proofUrl = \App\Support\Portal::route('orders.payment-proof', $order); @endphp
-                            <a href="{{ $proofUrl }}" target="_blank" rel="noopener" class="group relative block overflow-hidden rounded-lg border" style="border-color:#DBEAFE;" title="Open the full receipt">
-                                <img src="{{ $proofUrl }}" alt="GCash receipt from the buyer" class="max-h-72 w-full bg-white object-contain">
-                                <span class="absolute inset-x-0 bottom-0 py-1 text-center text-[11px] font-semibold text-white" style="background:linear-gradient(0deg,rgba(0,0,0,.55),transparent);">Open full receipt</span>
-                            </a>
-                        @else
-                            <p class="text-xs pl-muted">No receipt was uploaded.</p>
-                        @endif
-                        <dl class="grid grid-cols-2 gap-2 text-xs">
-                            <div><dt class="pl-muted">Amount to receive</dt><dd class="font-bold" style="color:#222;">₱{{ number_format($order->total_price, 2) }}</dd></div>
-                            <div><dt class="pl-muted">Ref No.</dt><dd class="font-mono font-semibold" style="color:#222;">{{ $order->payment_reference ?: 'not given' }}</dd></div>
-                        </dl>
-                        @if ($checking)
-                            <p class="rounded-md px-3 py-2 text-xs" style="background:#FFFBEB;color:#92400E;">Open your GCash app and check that ₱{{ number_format($order->total_price, 2) }} arrived{{ $order->payment_reference ? ' with this Ref No.' : '' }}. Accepting the order marks it as paid. Didn't receive it? Cancel the order with "GCash payment not received".</p>
-                        @endif
-                    </div>
+                    <p class="px-4 py-3 text-xs" style="color:#1E3A8A;">The buyer paid ₱{{ number_format($order->total_price, 2) }} to ALVY's GCash and ALVY confirmed it. No cash to collect on delivery: your share goes to your Earnings when the order is completed.</p>
                 </section>
             @endif
 
@@ -198,7 +187,7 @@
                         @endforeach
                     </ol>
                     @if ($sellerStep === 'new')
-                        <form method="POST" action="{{ route('seller.orders.accept', $order->id) }}">@csrf<button class="pl-btn w-full">{{ $order->isGcashReceipt() && $order->payment_status === 'For verification' ? 'Payment received · Accept order' : 'Accept order' }}</button></form>
+                        <form method="POST" action="{{ route('seller.orders.accept', $order->id) }}">@csrf<button class="pl-btn w-full">Accept order</button></form>
                     @elseif ($sellerStep === 'accepted')
                         <form method="POST" action="{{ route('seller.orders.pack', $order->id) }}">@csrf<button class="pl-btn w-full">Mark as packed</button></form>
                     @elseif ($sellerStep === 'packed')
@@ -254,6 +243,10 @@
                         <div><dt>Tracking no.</dt><dd class="font-medium">{{ $parcel->tracking_number }}</dd></div>
                         <div><dt>Sorting center</dt><dd>{{ $parcel->currentSortingCenter->name ?? 'Awaiting assignment' }}</dd></div>
                         <div><dt>Status</dt><dd>{{ $parcel->statusLabel() }}</dd></div>
+                        @php $pickupJob = $parcel->pickups()->with('rider')->whereNotIn('status', ['cancelled'])->latest('id')->first(); @endphp
+                        @if (in_array($parcel->status, ['pending_pickup', 'pickup_approved', 'in_transit_to_hub'], true) || $pickupJob)
+                            <div><dt>Pickup rider</dt><dd class="font-medium">{{ $pickupJob?->rider?->full_name ?? 'Waiting for the logistics company to assign a rider' }}@if ($pickupJob?->rider?->phone) · {{ $pickupJob->rider->phone }}@endif</dd></div>
+                        @endif
                     </dl>
                     @if ($parcel->failure_reason && in_array($parcel->status, ['pickup_rejected', 'failed', 'returned']))
                         <p class="mx-5 mb-3 rounded-md px-3 py-2 text-xs" style="background:#FEF2F2;color:#B91C1C;">Reason: {{ $parcel->failure_reason }}</p>
@@ -285,14 +278,6 @@
                                 </select>
                                 @error('sorting_center_id')<p class="text-xs" style="color:#B91C1C;">{{ $message }}</p>@enderror
                                 <p class="mt-1 text-xs pl-muted">One of their riders picks the parcel up from you and brings it to their hub.</p>
-                            </div>
-                            <div>
-                                <label for="pickup_scheduled_at" class="pl-label">Pickup date and time</label>
-                                <input type="datetime-local" id="pickup_scheduled_at" name="pickup_scheduled_at" class="input text-sm" required min="{{ now()->tz(config('app.business_timezone'))->format('Y-m-d\TH:i') }}">
-                            </div>
-                            <div>
-                                <label for="notes" class="pl-label">Notes <span style="color:#a39890;font-weight:400;">— optional</span></label>
-                                <textarea id="notes" name="notes" rows="2" class="input text-sm" placeholder="Instructions for the rider"></textarea>
                             </div>
                             <button type="submit" class="pl-btn w-full">Ready for pickup</button>
                         </form>

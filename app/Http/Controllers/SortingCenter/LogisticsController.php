@@ -83,7 +83,7 @@ class LogisticsController extends Controller
         $status = $request->get('status');
         $q = trim((string) $request->get('q'));
 
-        $query = $this->bucketQuery($status, $from, $to)->with(['order', 'seller'])
+        $query = $this->bucketQuery($status, $from, $to)->with(['order', 'seller.sellerApplication'])
             ->when($q !== '', function ($query) use ($q) {
                 $id = ctype_digit(ltrim(preg_replace('/^(ORD|#)-?/i', '', $q), '0')) ? (int) preg_replace('/\D/', '', $q) : null;
                 $query->where(fn ($w) => $w->where('tracking_number', $q)
@@ -223,7 +223,7 @@ class LogisticsController extends Controller
             RiderJobOffer::where('parcel_id', $parcel->id)->where('status', 'pending')->update(['status' => 'cancelled']);
             $parcel->update([
                 'status' => $data['type'], 'failure_reason' => $data['reason'],
-                'exception_photo_path' => $request->hasFile('photo') ? $request->file('photo')->store('parcel-exceptions', 'public') : null,
+                'exception_photo_path' => $request->hasFile('photo') ? $request->file('photo')->store('parcel-exceptions', \App\Support\ProtectedFile::DISK) : null,
             ]);
 
             // The buyer can't receive it: the order is refunded (claim) — no stock comes back.

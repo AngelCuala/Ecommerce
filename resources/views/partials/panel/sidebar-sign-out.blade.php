@@ -1,5 +1,6 @@
 {{-- Sign Out button pinned to the very bottom of the admin sidebar (admins have no account page) --}}
 <div class="shrink-0 border-t px-3 py-3" style="border-color:#ECE7E3;">
+    <div class="mb-3 px-1">@include('partials.theme-toggle', ['variant' => 'row'])</div>
     <form action="{{ \App\Support\Portal::route('logout') }}" method="POST">
         @csrf
         <button type="submit"

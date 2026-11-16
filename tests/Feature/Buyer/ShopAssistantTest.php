@@ -67,6 +67,12 @@ class ShopAssistantTest extends TestCase
         return ($as ? $this->actingAs($as) : $this)->postJson(route('assistant.ask'), ['message' => $message]);
     }
 
+    /** This chat's ref for a product ("P3"): the assistant never sees database ids. */
+    private function ref(\App\Models\Product $p): string
+    {
+        return app(AssistantTools::class)->ref($p->id);
+    }
+
     private function tool(string $name, array $input = [], ?User $user = null): array
     {
         return app(AssistantTools::class)->run($name, $input, $user);
@@ -94,11 +100,32 @@ class ShopAssistantTest extends TestCase
 
     public function test_2_product_comparison_uses_current_data(): void
     {
-        $r = $this->tool('compare_products', ['product_ids' => [$this->p05->id, $this->p06->id, 999999]]);
+        $r = $this->tool('compare_products', ['product_ids' => [$this->ref($this->p05), $this->ref($this->p06), 'P999']]);
         $this->assertSame(['USB-C Fast Charger 20W', 'Wireless Earbuds X2'], array_column($r['products'], 'name'));
         $this->assertSame('Black, White', $r['products'][1]['options']);
-        $this->assertSame([999999], $r['not_available']);
-        $this->assertSame(['error' => 'Give 2 to 4 product_ids to compare.'], $this->tool('compare_products', ['product_ids' => [$this->p05->id]]));
+        $this->assertSame(['P999'], $r['not_available']);
+        $this->assertSame(['error' => 'Give 2 to 4 product refs (from a search) to compare.'], $this->tool('compare_products', ['product_ids' => [$this->ref($this->p05)]]));
+    }
+
+    public function test_the_same_item_from_two_sellers_compares_the_sellers_too(): void
+    {
+        $a = $this->product($this->seller1, $this->gadgets, 'Power Bank 10000mAh', 599, 10, 0.3);
+        $b = $this->product($this->seller2, $this->gadgets, 'Power Bank 10000mAh', 649, 30, 0.3);
+        // Seller 2's power bank sold 3 and got a 5-star review; seller 1's hasn't sold yet.
+        $order = Order::create(['user_id' => $this->buyer2->id, 'status' => Order::COMPLETED, 'completed_at' => now(), 'full_name' => 'A',
+            'phone' => '0917', 'email' => 'a@x.test', 'address_line' => 'X', 'city' => 'X', 'zip_code' => '1', 'shipping_address' => 'X',
+            'total_price' => 1947, 'payment_method' => 'COD', 'payment_status' => 'Paid']);
+        $item = \App\Models\OrderItem::create(['order_id' => $order->id, 'product_id' => $b->id, 'quantity' => 3, 'price' => 649]);
+        \App\Models\Review::create(['product_id' => $b->id, 'user_id' => $this->buyer2->id, 'order_id' => $order->id, 'order_item_id' => $item->id, 'rating' => 5]);
+        \App\Models\StoreFollow::create(['user_id' => $this->buyer2->id, 'seller_id' => $this->seller2->id]);
+
+        $r = collect($this->tool('compare_products', ['product_ids' => [$this->ref($a), $this->ref($b)]])['products'])->keyBy('ref');
+        $this->assertSame(0, $r[$this->ref($a)]['units_sold']);
+        $this->assertSame('no store reviews yet', $r[$this->ref($a)]['store']['rating']);
+        $this->assertSame(3, $r[$this->ref($b)]['units_sold']);
+        $this->assertSame('5/5 from 1 reviews (all its products)', $r[$this->ref($b)]['store']['rating']);
+        $this->assertSame(1, $r[$this->ref($b)]['store']['followers']);
+        $this->assertNotSame($r[$this->ref($a)]['seller'], $r[$this->ref($b)]['seller']);
     }
 
     public function test_3_misspelled_product_names_still_find_the_product(): void
@@ -111,15 +138,15 @@ class ShopAssistantTest extends TestCase
 
     public function test_4_current_inventory_and_options(): void
     {
-        $r = $this->tool('get_product_details', ['product_id' => $this->p01->id]);
+        $r = $this->tool('get_product_details', ['product_id' => $this->ref($this->p01)]);
         $this->assertSame(['name' => 'Black / M', 'price' => '₱249.00', 'stock' => 0], collect($r['options'])->firstWhere('name', 'Black / M'));
         $this->assertSame('36 in stock', $r['stock']);
 
         // Stock changes while chatting: the next lookup sees it.
         $this->p03->update(['stock' => 0]);
-        $this->assertSame('sold out', $this->tool('get_product_details', ['product_id' => $this->p03->id])['stock']);
+        $this->assertSame('sold out', $this->tool('get_product_details', ['product_id' => $this->ref($this->p03)])['stock']);
         $this->p03->update(['is_archived' => true]);
-        $this->assertArrayHasKey('error', $this->tool('get_product_details', ['product_id' => $this->p03->id]));
+        $this->assertArrayHasKey('error', $this->tool('get_product_details', ['product_id' => $this->ref($this->p03)]));
     }
 
     public function test_5_active_promotions(): void
@@ -157,7 +184,7 @@ class ShopAssistantTest extends TestCase
 
         $r = $this->tool('get_order_tracking', ['order_number' => $order->number()], $this->buyer1);
         $this->assertSame($order->number(), $r['number']);
-        $this->assertNotEmpty($r['tracking_number']);
+        $this->assertArrayNotHasKey('tracking_number', $r);   // an id the assistant doesn't need (it's on the order page)
         $this->assertSame('ALVY does not record delivery date estimates; do not give one.', $r['estimated_delivery']);
         $this->assertNotEmpty($r['last_confirmed_location']);
     }
@@ -214,13 +241,15 @@ class ShopAssistantTest extends TestCase
 
     public function test_add_to_cart_asks_for_the_option_and_only_adds_after_confirm(): void
     {
-        $r = $this->tool('prepare_add_to_cart', ['product_id' => $this->p01->id], $this->buyer1);
+        $r = $this->tool('prepare_add_to_cart', ['product_id' => $this->ref($this->p01)], $this->buyer1);
         $this->assertContains('Black / M (sold out)', $r['options']);
-        $this->assertSame('Sold out.', $this->tool('prepare_add_to_cart', ['product_id' => $this->p01->id, 'variation' => 'Black / M'], $this->buyer1)['error']);
+        $this->assertSame('Sold out.', $this->tool('prepare_add_to_cart', ['product_id' => $this->ref($this->p01), 'variation' => 'Black / M'], $this->buyer1)['error']);
 
-        $this->model->replies = [ScriptedAssistantModel::tool('prepare_add_to_cart', ['product_id' => $this->p01->id, 'variation' => 'natural / m', 'quantity' => 2]),
+        $this->model->replies = [ScriptedAssistantModel::tool('prepare_add_to_cart', ['product_id' => $this->ref($this->p01), 'variation' => 'natural / m', 'quantity' => 2]),
             ScriptedAssistantModel::text('Ready! Press Confirm to add it.')];
-        $res = $this->ask('Add 2 of the Natural / M tote to my cart', $this->buyer1)->assertOk();
+        // The ref was given in an earlier search of this chat (same session).
+        $res = $this->withSession([AssistantTools::REFS_KEY => session(AssistantTools::REFS_KEY), ShopAssistant::OWNER_KEY => $this->buyer1->id])
+            ->ask('Add 2 of the Natural / M tote to my cart', $this->buyer1)->assertOk();
         $this->assertSame('Add 2 × "Abaca Woven Tote Bag" (Natural / M) to your cart', $res->json('actions.0.label'));
         $this->assertSame(0, CartItem::where('user_id', $this->buyer1->id)->where('product_id', $this->p01->id)->count());
 
@@ -229,7 +258,7 @@ class ShopAssistantTest extends TestCase
         $this->assertSame(2, $line->quantity);
 
         // Another buyer can't use the token (it lives in the first buyer's session; history and actions reset per account).
-        $this->assertSame(['error' => 'The buyer is not signed in. Ask them to sign in at /login first.'], $this->tool('prepare_add_to_cart', ['product_id' => $this->p02->id]));
+        $this->assertSame(['error' => 'The buyer is not signed in. Ask them to sign in at /login first.'], $this->tool('prepare_add_to_cart', ['product_id' => $this->ref($this->p02)]));
     }
 
     public function test_contact_support_sends_a_message_to_alvy_after_confirm(): void
@@ -277,7 +306,7 @@ class ShopAssistantTest extends TestCase
 
         $this->ask('Is the second one available?', $this->buyer1)->assertOk();
         $previous = $this->model->calls[2]['messages'][1]['content'];
-        $this->assertStringContainsString('[product_id ' . $this->p03->id . ']', $previous);
+        $this->assertStringContainsString('[ref ' . $this->ref($this->p03) . ']', $previous);
         $this->assertStringContainsString('Re-check prices, stock and statuses', $previous);
 
         // Another account in the same browser never sees this conversation.
@@ -373,5 +402,37 @@ class ShopAssistantTest extends TestCase
         $this->assertSame('/policies/privacy_policy', $r['link']);
         $this->assertNotEmpty($r['text']);
         $this->assertSame(['error' => 'Unknown policy topic.'], $this->tool('get_policy', ['topic' => '../../.env']));
+    }
+
+    public function test_personal_data_never_reaches_the_ai(): void
+    {
+        $this->model->replies = [ScriptedAssistantModel::text('I can\'t see those details.')];
+        $this->ask('Hi, my number is 0917 123 4567 (or +63 918-765-4321), email juan.dc@gmail.com, card 4111 1111 1111 1111. Where is order #000060? Budget ₱1,500.', $this->buyer1)->assertOk();
+
+        $sent = $this->model->calls[0];
+        $question = end($sent['messages'])['content'];
+        $this->assertSame('Hi, my number is [phone number hidden] (or [phone number hidden]), email [email hidden], card [number hidden]. Where is order #000060? Budget ₱1,500.', $question);
+        // Not the buyer's name or email either, and the chat history keeps only the redacted text.
+        $this->assertStringNotContainsString($this->buyer1->name, $sent['system']);
+        $this->assertStringNotContainsString($this->buyer1->email, json_encode($sent));
+        $this->assertStringNotContainsString('0917', json_encode(session(ShopAssistant::SESSION_KEY)));
+
+        // No database ids: products are this chat's refs, and they only work in this chat.
+        $found = $this->tool('search_products', ['query' => 'tote'], $this->buyer1)['products'][0];
+        $this->assertArrayNotHasKey('product_id', $found);
+        $this->assertMatchesRegularExpression('/^P\d+$/', $found['ref']);
+        $this->assertSame('Abaca Woven Tote Bag', $this->tool('get_product_details', ['product_id' => $found['ref']], $this->buyer1)['name']);
+        $this->assertArrayHasKey('error', $this->tool('get_product_details', ['product_id' => (string) $this->p01->id], $this->buyer1));
+        app(ShopAssistant::class)->reset();
+        $this->assertArrayHasKey('error', $this->tool('get_product_details', ['product_id' => $found['ref']], $this->buyer1));
+
+        // Addresses: city and province only, never the street, barangay, recipient or phone.
+        $addresses = json_encode($this->tool('get_my_addresses', [], $this->buyer1));
+        $this->assertStringContainsString('Home', $addresses);
+        foreach (['Kalayaan', 'Central', (string) $this->addr1->phone, (string) $this->addr1->full_name] as $private) {
+            if ($private !== '') {
+                $this->assertStringNotContainsString($private, $addresses);
+            }
+        }
     }
 }

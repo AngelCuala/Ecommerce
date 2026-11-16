@@ -15,6 +15,21 @@ class UserNotification extends Model
         'read_at' => 'datetime',
     ];
 
+    /** Every in-app notification also goes to the user's phones as a push notification (when Firebase is set up). */
+    protected static function booted(): void
+    {
+        static::created(function (UserNotification $n) {
+            if (! \App\Models\PushDevice::where('user_id', $n->user_id)->exists()) {
+                return;
+            }
+            try {
+                app(\App\Services\FcmPush::class)->notification($n);
+            } catch (\Throwable $e) {
+                report($e);   // a push failing never stops what made the notification
+            }
+        });
+    }
+
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);

@@ -101,12 +101,10 @@ class OrderController extends Controller
         if ($order->sellerStep() !== 'new') {
             return back()->with('error', 'Only a new order can be accepted.');
         }
-        // GCash with a receipt: accepting means the seller saw the money arrive.
-        $gcash = $order->isGcashReceipt() && $order->payment_status === 'For verification';
-        $order->update(['status' => Order::PROCESSING, 'accepted_at' => now()] + ($gcash ? ['payment_status' => 'Paid'] : []));
-        \App\Models\ActivityLog::note('Order ' . $order->number() . ' accepted' . ($gcash ? ' · GCash payment confirmed' : ''), $order);
+        $order->update(['status' => Order::PROCESSING, 'accepted_at' => now()]);
+        \App\Models\ActivityLog::note('Order ' . $order->number() . ' accepted', $order);
 
-        return back()->with('success', 'Order ' . $order->number() . ' accepted' . ($gcash ? ' and its GCash payment marked as received' : '') . '. Pack it next.');
+        return back()->with('success', 'Order ' . $order->number() . ' accepted. Pack it next.');
     }
 
     /** Step 2: Accepted → Packed. */
@@ -128,7 +126,9 @@ class OrderController extends Controller
     {
         $order = $this->ownOrder($id);
         if (! $order->isCancellableBySeller()) {
-            return back()->with('error', 'This order has already been handed to the courier, so it can no longer be cancelled.');
+            return back()->with('error', $order->isGcashReceipt()
+                ? 'This order was paid to ALVY by GCash, so only ALVY can cancel it. Please message ALVY.'
+                : 'This order has already been handed to the courier, so it can no longer be cancelled.');
         }
         $data = $request->validate([
             'reason' => ['required', 'string', 'max:200'],
@@ -236,34 +236,14 @@ class OrderController extends Controller
         ]);
         \App\Models\ActivityLog::change('Return requested', $approved ? 'Return approved' : 'Return rejected', $data['seller_note'] ?? null);
 
-        if ($approved && $return->isPartial()) {
-            // A8: only these items are refunded; the rest of the order goes on as delivered.
-            \Illuminate\Support\Facades\DB::transaction(function () use ($order, $return) {
-                foreach (OrderItem::where('order_id', $order->id)->whereIn('id', $return->item_ids)->get() as $item) {
-                    $item->forceFill(['refunded_at' => now(), 'refund_amount' => \App\Models\ReturnRequest::itemRefund($item)])->save();
-                }
-                $order->forceFill(['status' => Order::DELIVERED])->saveQuietly();
-                $order->events()->create(['status' => Order::DELIVERED, 'note' => 'Partial refund of ₱' . number_format($return->refund_amount, 2) . ' approved', 'created_at' => now()]);
-                if ($order->isPaidOnline()) {
-                    app(\App\Services\PaymentService::class)->refund($order, 'Partial return approved', (float) $return->refund_amount);
-                } else {
-                    $order->forceFill(['refunded_amount' => (float) $order->refunded_amount + (float) $return->refund_amount])->saveQuietly();
-                }
-                \App\Models\UserNotification::create(['user_id' => $order->user_id, 'title' => 'Partial refund approved', 'type' => 'success',
-                    'body' => 'The seller approved your return for order ' . $order->number() . '. ₱' . number_format($return->refund_amount, 2)
-                        . ($order->isPaidOnline() ? ' goes back to your payment method.' : ' goes to your refund account.'),
-                    'link' => route('profile.orders.show', $order->id, false)]);
-            });
-
-            return back()->with('success', 'Partial return approved. The buyer will be refunded ₱' . number_format($return->refund_amount, 2) . '.');
+        if ($approved) {
+            return back()->with('success', app(\App\Services\ReturnDecisions::class)->approve($return, 'The seller'));
         }
 
-        // Approved: refunded. Rejected: back to Delivered, so the buyer can still confirm it.
-        // A COD order's refund goes to the buyer's refund account (A31): record it like the gateway does for online orders.
-        $order->update(['status' => $approved ? Order::REFUNDED : Order::DELIVERED]
-            + ($approved && ! $order->isPaidOnline() ? ['refunded_amount' => (float) $return->refund_amount] : []));
+        // Rejected: back to Delivered, so the buyer can still confirm it (or escalate it to ALVY).
+        $order->update(['status' => Order::DELIVERED]);
 
-        return back()->with('success', $approved ? 'Return approved. The buyer will be refunded.' : 'Return rejected. The buyer was told why.');
+        return back()->with('success', 'Return rejected. The buyer was told why.');
     }
 
     /** Schedule courier pickup & create/update delivery record */
@@ -286,21 +266,21 @@ class OrderController extends Controller
 
     /**
      * Ready for Pickup: the seller chooses the logistics company (sorting center); that company's
-     * riders pick the parcel up. The job goes straight to its Rider Dispatch and is offered to
-     * an Online rider right away.
+     * riders pick the parcel up. The job waits in its Rider Dispatch until the company auto-assigns it to the
+     * rider of the seller's barangay (or assigns a rider manually).
      */
     public function handover(Request $request, int $id)
     {
-        // The pickup time is Philippine time (stored as UTC).
-        \App\Support\VoucherRules::inBusinessTime($request, ['pickup_scheduled_at'], fn () => $request->validate([
+        // Just the logistics company: it assigns a rider, who comes when the job is accepted (no pickup date/time to pick).
+        // Older app versions may still send pickup_scheduled_at / notes; they are accepted but not required.
+        $request->validate([
             'sorting_center_id'   => ['required', 'integer', \Illuminate\Validation\Rule::exists('users', 'id')->where('role', 'sorting_center')->where('approval_status', 'approved')],
-            'pickup_scheduled_at' => 'required|date',
+            'pickup_scheduled_at' => 'nullable|date',
             'notes'               => 'nullable|string|max:500',
         ], [
             'sorting_center_id.required' => 'Choose the logistics company whose rider will pick up the parcel.',
             'sorting_center_id.exists'   => 'Choose one of the listed logistics companies.',
-            'pickup_scheduled_at.required' => 'Choose the pickup date and time.',
-        ]));
+        ]);
 
         $order = $this->ownOrder($id);
         // Steps can't be skipped: New → Accepted → Packed → Ready for Pickup.
@@ -326,22 +306,18 @@ class OrderController extends Controller
         $sc = \App\Models\User::findOrFail($request->sorting_center_id);
         $svc = app(\App\Services\ParcelService::class);
 
-        $offer = \Illuminate\Support\Facades\DB::transaction(function () use ($order, $sc, $request, $svc) {
-            $parcel = $svc->createForSeller($order, auth()->user(), $request->pickup_scheduled_at, $request->notes, $sc);
-            // The seller chose the company, so the pickup is confirmed for it right away.
-            $parcel->update(['status' => 'pickup_approved', 'current_sorting_center_id' => $sc->id, 'verified_at' => now(), 'failure_reason' => null]);
+        \Illuminate\Support\Facades\DB::transaction(function () use ($order, $sc, $request, $svc) {
+            $parcel = $svc->createForSeller($order, auth()->user(), null, $request->notes, $sc);
+            // A request for the chosen company: it confirms the request in Pickup Requests, then assigns a rider.
+            $parcel->update(['status' => 'pending_pickup', 'current_sorting_center_id' => $sc->id, 'failure_reason' => null]);
             $svc->syncOrder($parcel);
-            $svc->notify($sc->id, 'New pickup', "{$parcel->tracking_number} from " . auth()->user()->storeName() . ' is ready for pickup'
-                . ' (' . \Carbon\Carbon::parse($request->pickup_scheduled_at)->tz(config('app.business_timezone'))->format('M j, g:i A') . ').', 'info', route('sc.dispatch'));
-
-            return app(\App\Services\RiderDispatch::class)->offer($parcel->fresh());
+            $svc->notify($sc->id, 'New pickup request', "{$parcel->tracking_number} from " . auth()->user()->storeName() . ' is ready for pickup. Assign a rider.', 'info', route('sc.pickup-requests'));
         });
 
         $name = \App\Models\SortingCenterApplication::where('user_id', $sc->id)->where('status', 'approved')->value('business_name') ?: $sc->name;
-        \App\Models\ActivityLog::note('Order ' . $order->number() . ' ready for pickup by ' . $name, $order);
+        \App\Models\ActivityLog::note('Order ' . $order->number() . ' pickup requested from ' . $name, $order);
 
-        return back()->with('success', "Ready for Pickup. A rider from {$name} will pick it up"
-            . ($offer ? ' (offered to ' . $offer->rider->full_name . ').' : '; the job is waiting in their dispatch for an available rider.'));
+        return back()->with('success', "Pickup requested. {$name} will confirm it and assign a rider to pick it up.");
     }
 
     /** Mark as handed over to courier → status becomes Shipped */

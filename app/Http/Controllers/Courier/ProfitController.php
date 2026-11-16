@@ -32,8 +32,7 @@ class ProfitController extends Controller
         // Work in progress: what open jobs will pay once completed.
         $pending = 0.0;
         if ($rider) {
-            $pending += ParcelPickup::where('rider_id', $rider->id)->where('status', 'assigned')->count() * RiderDispatch::PAY_PICKUP
-                + ParcelDelivery::where('rider_id', $rider->id)->whereIn('status', ParcelDelivery::OPEN)->count() * RiderDispatch::PAY_DELIVERY;
+            $pending += RiderDispatch::pendingPay($rider);
         }
         if ($courier?->isApproved()) {
             $pending += (float) Delivery::where('courier_id', $courier->id)->whereIn('status', ['accepted', 'picked_up', 'in_transit'])->sum('delivery_fee');

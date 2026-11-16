@@ -240,17 +240,36 @@
             }
         }, true);
 
+        // Server errors (a failed submit): put each one under its field, even fields the page has no
+        // error line for (address, birthday, sex, "outside the delivery area" …), and remember the earliest step.
+        var ALIAS = { region_code: 'region', province_code: 'province', municipality_code: 'municipality',
+                      barangay_code: 'barangay', phone: 'contact_no', municipality_psgc: 'municipality', barangay_psgc: 'barangay' };
+        var serverErrors = window.RegisterServerErrors || {};
+        var badStep = -1;
+        Object.keys(serverErrors).forEach(function (key) {
+            var name = ALIAS[key] || key.split('.')[0];
+            var el = form.querySelector('.wiz-step [name="' + name + '"]') || form.querySelector('.wiz-step [name^="' + name + '"]');
+            if (!el || el.disabled) return;
+            var slot = errorSlot(el);
+            if (!slot.textContent.trim()) slot.textContent = serverErrors[key][0];
+            markTarget(el).classList.add('is-invalid');
+            var i = stepIndexOf(el);
+            if (i > 0 && (badStep === -1 || i < badStep)) badStep = i;
+        });
+
         // Where to start: the step with a server error, else Personal if a role came
-        // in the link (/register?role=seller), else the account-type step.
+        // in the link (/register?role=seller) or back from a failed submit, else the account-type step.
         var start = role() ? 1 : 0;
         var bad = Array.prototype.find.call(
             form.querySelectorAll('.wiz-step .field-error, .wiz-step .is-invalid'),
             function (el) { return el.classList.contains('is-invalid') || el.textContent.trim(); }
         );
-        if (bad) {
-            start = Math.max(0, stepIndexOf(bad));
-        } else if (document.querySelector('[data-wiz-terms-error]')) {
-            start = stepsFor(role()).length - 1;
+        if (badStep !== -1) {
+            start = badStep;
+        } else if (bad && stepIndexOf(bad) > 0) {
+            start = stepIndexOf(bad);
+        } else if (document.querySelector('[data-wiz-terms-error]') || Object.keys(serverErrors).length && role()) {
+            start = stepsFor(role()).length - 1;   // e.g. the terms, or an error with no field: back to the last step
         }
         go(start, false);
     });

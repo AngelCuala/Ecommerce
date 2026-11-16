@@ -230,8 +230,8 @@ class RegisteredUserController extends Controller
                 'street'         => trim($validated['house_number'] . ' ' . $validated['street']),
                 'contact_no'     => $validated['contact_no'],
                 // "or_cr_image" is the driver's license upload; "vehicle_reg_image" is the OR/CR.
-                'id_license_path' => $request->file('or_cr_image')->store('courier-licenses', 'public'),
-                'or_cr_path'      => $request->file('vehicle_reg_image')->store('courier-vehicle-regs', 'public'),
+                'id_license_path' => $request->file('or_cr_image')->store('courier-licenses', \App\Support\ProtectedFile::DISK),
+                'or_cr_path'      => $request->file('vehicle_reg_image')->store('courier-vehicle-regs', \App\Support\ProtectedFile::DISK),
             ];
 
             \App\Models\Courier::create($courierData);

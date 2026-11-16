@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\Seller;
 
 use App\Http\Controllers\Controller;
-use App\Http\Controllers\CategoryPageController;
+use App\Http\Controllers\Storefront\CategoryPageController;
 use App\Models\Product;
 use App\Models\ProductImage;
 use App\Models\Category;
@@ -40,6 +40,12 @@ class BookController extends Controller
             'health'      => ['Brand', 'Ingredients', 'Expiration Date', 'Skin Type'],
             'cosmetic'    => ['Brand', 'Ingredients', 'Expiration Date', 'Skin Type'],
         ];
+    }
+
+    /** The product video limit in MB: 50, or less when the server (PHP) takes smaller uploads. */
+    public static function videoLimitMb(): int
+    {
+        return max(1, min(50, intdiv(\Illuminate\Http\UploadedFile::getMaxFilesize(), 1048576)));
     }
 
     /** Resolve the spec field list for a given category name. */
@@ -176,44 +182,58 @@ class BookController extends Controller
             return $blocked;
         }
         // The same form sent twice (double click, Enter twice, Back and resubmit) creates one product.
-        if ($token = $request->input('form_token')) {
-            if (! \Illuminate\Support\Facades\Cache::add('product-form:' . auth()->id() . ':' . $token, true, now()->addHour())) {
-                return redirect()->route('seller.books.index')->with('success', 'This product was already saved.');
-            }
+        $tokenKey = ($token = $request->input('form_token')) ? 'product-form:' . auth()->id() . ':' . $token : null;
+        if ($tokenKey && ! \Illuminate\Support\Facades\Cache::add($tokenKey, true, now()->addHour())) {
+            return $this->saved($request, route('seller.books.index'), 'This product was already saved.');
         }
-        $data = $this->validateProduct($request);
+        try {
+            $data = $this->validateProduct($request);
 
-        $book = DB::transaction(function () use ($request, $data) {
-            $payload = $this->buildPayload($request, $data);
-            $payload['seller_id'] = auth()->id();
-            // New products wait for an admin before they appear in the shop.
-            $payload['approval_status'] = 'pending';
+            $book = DB::transaction(function () use ($request, $data) {
+                $payload = $this->buildPayload($request, $data);
+                $payload['seller_id'] = auth()->id();
+                // New products wait for an admin before they appear in the shop.
+                $payload['approval_status'] = 'pending';
 
-            if ($request->hasFile('cover_image')) {
-                $payload['image'] = $request->file('cover_image')->store('products', 'public');
+                if ($request->hasFile('cover_image')) {
+                    $payload['image'] = $request->file('cover_image')->store('products', 'public');
+                }
+                if ($request->hasFile('video')) {
+                    $payload['video_path'] = $request->file('video')->store('products/videos', 'public');
+                }
+
+                $book = Product::create($payload);
+
+                // Auto product code once we have an id.
+                $book->product_code = 'ALVY-' . str_pad((string) $book->id, 6, '0', STR_PAD_LEFT);
+                $book->save();
+
+                $this->syncImages($request, $book);
+                $this->syncVariations($request, $book);
+                $this->syncStoreCategories($request, $book);
+
+                return $book;
+            });
+        } catch (\Throwable $e) {
+            // Nothing was saved: the same form can be sent again.
+            if ($tokenKey) {
+                \Illuminate\Support\Facades\Cache::forget($tokenKey);
             }
-            if ($request->hasFile('video')) {
-                $payload['video_path'] = $request->file('video')->store('products/videos', 'public');
-            }
-
-            $book = Product::create($payload);
-
-            // Auto product code once we have an id.
-            $book->product_code = 'ALVY-' . str_pad((string) $book->id, 6, '0', STR_PAD_LEFT);
-            $book->save();
-
-            $this->syncImages($request, $book);
-            $this->syncVariations($request, $book);
-            $this->syncStoreCategories($request, $book);
-
-            return $book;
-        });
+            throw $e;
+        }
 
         \App\Models\ActivityLog::note('"' . $book->title . '" (' . $book->product_code . ') · ₱' . number_format((float) $book->price, 2)
             . ' · stock ' . $book->stock . ($book->status === 'draft' ? ' · draft' : ' · sent for approval'), $book);
 
-        return redirect()->route('seller.books.index')
-            ->with('success', $this->successMessage($book, $request));
+        return $this->saved($request, route('seller.books.index'), $this->successMessage($book, $request));
+    }
+
+    /** After a save: the form page sends in the background and goes to the given address itself. */
+    private function saved(Request $request, string $url, string $message)
+    {
+        session()->flash('success', $message);
+
+        return $request->expectsJson() ? response()->json(['redirect' => $url]) : redirect($url);
     }
 
     public function edit(Product $book)
@@ -237,8 +257,13 @@ class BookController extends Controller
             if ($request->hasFile('cover_image')) {
                 $payload['image'] = $request->file('cover_image')->store('products', 'public');
             }
-            if ($request->hasFile('video')) {
-                $payload['video_path'] = $request->file('video')->store('products/videos', 'public');
+            // A new video replaces the old one; "Remove video" takes it off.
+            if ($request->hasFile('video') || ($request->boolean('remove_video') && $book->video_path)) {
+                $payload['video_path'] = $request->hasFile('video') ? $request->file('video')->store('products/videos', 'public') : null;
+                if ($book->video_path) {
+                    $old = $book->video_path;
+                    DB::afterCommit(fn () => \Illuminate\Support\Facades\Storage::disk('public')->delete($old));
+                }
             }
 
             // Editing an approved product needs no new approval; fixing a rejected one
@@ -264,8 +289,7 @@ class BookController extends Controller
         \App\Models\ActivityLog::note('"' . $saved->title . '" (' . $saved->product_code . ') · ₱' . number_format((float) $saved->price, 2)
             . ' · stock ' . $saved->stock, $saved);
 
-        return redirect()->route('seller.books.index', session('seller_inventory_query', []))
-            ->with('success', $this->successMessage($saved, $request));
+        return $this->saved($request, route('seller.books.index', session('seller_inventory_query', [])), $this->successMessage($saved, $request));
     }
 
     public function destroy(Product $book)
@@ -343,6 +367,13 @@ class BookController extends Controller
     /** Bulk Deactivate / Bulk Delete on selected products. Products with unfinished orders are never deleted. */
     public function bulk(Request $request)
     {
+        // Shown as a pop-up: the product list has no field to put a validation error under.
+        if (! in_array($request->input('action'), ['deactivate', 'activate', 'delete'], true)) {
+            return back()->with('error', 'Choose an action first (Deactivate, Reactivate or Delete).');
+        }
+        if (! array_filter((array) $request->input('ids', []), 'is_numeric')) {
+            return back()->with('error', 'Tick at least one product.');
+        }
         $data = $request->validate([
             'action' => 'required|in:deactivate,activate,delete',
             'ids'    => 'required|array|min:1',
@@ -460,7 +491,7 @@ class BookController extends Controller
             return null;
         }
 
-        return back()->withInput()->withErrors(['publish' => 'Your store must be verified before you can publish products. You can save this product as a draft for now.']);
+        throw \Illuminate\Validation\ValidationException::withMessages(['publish' => 'Your store must be verified before you can publish products. You can save this product as a draft for now.']);
     }
 
     private function validateProduct(Request $request, ?int $bookId = null, ?Product $book = null): array
@@ -490,6 +521,12 @@ class BookController extends Controller
         $typedSale = $request->only('sale_starts_at', 'sale_ends_at');
         $request->merge(array_map(fn ($v) => \App\Support\VoucherRules::toUtc($v), $typedSale));
 
+        // With variations the stock is their total (syncVariations saves it). The form's box is locked then, so it sends nothing.
+        $rows = collect((array) $request->input('variations', []))->filter(fn ($v) => trim((string) ($v['name'] ?? '')) !== '');
+        if ($rows->isNotEmpty()) {
+            $request->merge(['stock' => min(99999, $rows->sum(fn ($v) => (int) ($v['stock'] ?? 0)))]);
+        }
+
         // "20.00" from a saved sale is the whole percentage 20.
         if (is_string($pct = $request->input('discount_percent')) && preg_match('/^\d+\.0+$/', $pct)) {
             $request->merge(['discount_percent' => (string) (int) $pct]);
@@ -497,16 +534,16 @@ class BookController extends Controller
 
         $money = ['numeric', 'min:1', 'max:1000000', 'decimal:0,2'];
         $rules = [
-            'title'            => $req . '|string|min:5|max:120',
+            'title'            => [...explode('|', $req . '|string|min:5|max:120'), new \App\Rules\NoContactDetails],
             'category_id'      => array_filter([$req, 'exists:categories,id',
                                     ($allowed = $this->allowedCategoryIds($book)) ? Rule::in($allowed) : null]),
             // A subcategory must belong to the chosen category.
             'subcategory'      => ['nullable', 'string', 'max:255',
                                     Rule::in($this->subcategoryMap()[Category::whereKey((int) $request->input('category_id'))->value('name')] ?? [])],
-            'brand'            => 'nullable|string|max:255',
+            'brand'            => ['nullable', 'string', 'max:255', new \App\Rules\NoContactDetails],
             'condition'        => ['nullable', Rule::in(self::CONDITIONS)],   // no longer on the form: kept as it is ("New")
             'sale_type'        => ['nullable', Rule::in(['none', 'price', 'percent'])],
-            'description'      => $req . '|string|min:20|max:3000',
+            'description'      => [...explode('|', $req . '|string|min:20|max:3000'), new \App\Rules\NoContactDetails],
             'store_category_ids'   => 'nullable|array|max:3',
             'store_category_ids.*' => ['integer', Rule::exists('store_categories', 'id')->where('seller_id', auth()->id())],
 
@@ -544,7 +581,7 @@ class BookController extends Controller
                     }
                 }],
             'images.*'         => 'nullable|image|mimes:jpg,jpeg,png|max:5120',
-            'video'            => 'nullable|mimetypes:video/mp4,video/quicktime,video/webm|max:20480',
+            'video'            => 'nullable|mimetypes:video/mp4,video/quicktime,video/webm|max:' . (self::videoLimitMb() * 1024),   // up to 50 MB: a phone video
 
             // Specs (free-form key/value from category schema)
             'specs'            => 'nullable|array',
@@ -582,6 +619,9 @@ class BookController extends Controller
         $stockMsg = 'Stock must be a whole number from 0 to 99,999.';
         $messages = [
             'title.required'        => 'Please enter a product name.',
+            'video.mimetypes'       => 'The video must be an MP4, MOV or WebM file.',
+            'video.max'             => 'The video can be at most ' . self::videoLimitMb() . ' MB.',
+            'video.uploaded'        => 'The video could not be uploaded. It must be at most ' . self::videoLimitMb() . ' MB.',
             'title.min'             => 'The product name must be 5 to 120 characters.',
             'title.max'             => 'The product name must be 5 to 120 characters.',
             'description.required'  => 'Please describe the product (20 to 3,000 characters).',
@@ -739,6 +779,8 @@ class BookController extends Controller
             return $validator->validate();
         } catch (\Illuminate\Validation\ValidationException $e) {
             $request->merge($typedSale);
+            // Which fields stopped a seller's save (messages only, not what was typed), to help with "it won't save".
+            \Illuminate\Support\Facades\Log::info('Product form not saved', ['seller' => auth()->id(), 'product' => $bookId, 'errors' => $e->errors()]);
             throw $e;
         }
     }

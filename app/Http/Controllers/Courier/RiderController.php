@@ -32,6 +32,22 @@ class RiderController extends Controller
     public function __construct(private RiderDispatch $dispatch, private RiderWallet $wallet) {}
 
     /** The signed-in rider (seen now, so Online stays fresh). */
+    /** The app build that sends the pickup photo and the delivery waybill scan (older builds: optional until they update). */
+    public const APP_BUILD_WITH_SCANS = 10;
+
+    /** Required on the website and from the app build that has the camera steps. */
+    private function scanRequired(Request $request): bool
+    {
+        return ! $request->is('api/*') || (int) $request->header('X-App-Build') >= self::APP_BUILD_WITH_SCANS;
+    }
+
+    /** Does a scanned code (waybill QR / barcode, or a typed number) belong to this parcel? */
+    public static function scanMatches(?string $scanned, \App\Models\Parcel $parcel): bool
+    {
+        $code = strtoupper(trim((string) $scanned));
+        return $code !== '' && in_array($code, array_filter([strtoupper($parcel->tracking_number), strtoupper((string) $parcel->waybill_number)]), true);
+    }
+
     private function rider(): Rider
     {
         $rider = Rider::with('sortingCenter')->where('user_id', auth()->id())->first();
@@ -48,6 +64,9 @@ class RiderController extends Controller
     {
         $this->dispatch->expireStale();
         $rider = $this->rider();
+        if ($rider->isTruck()) {
+            return redirect()->route('courier.trips');   // a 4-wheel rider's Hub Jobs are hub-to-hub trips
+        }
 
         $offers = RiderJobOffer::where('rider_id', $rider->id)->where('status', 'pending')->where('expires_at', '>', now())
             ->with('parcel.order', 'parcel.seller')->latest()->get();
@@ -58,8 +77,12 @@ class RiderController extends Controller
         $transfers = \App\Models\ParcelTransfer::where('transporter_rider_id', $rider->id)->whereIn('status', ['pending', 'in_transit'])
             ->with('parcel', 'fromSortingCenter', 'toSortingCenter')->latest()->get();
         $recent = ParcelDelivery::where('rider_id', $rider->id)->whereIn('status', ['delivered', 'failed'])->with('parcel')->latest('updated_at')->take(10)->get();
+        // Buyers' returns: collect from the buyer, or bring back to the seller.
+        $returnJobs = \App\Models\ReturnShipment::where(fn ($q) => $q->where(fn ($w) => $w->where('pickup_rider_id', $rider->id)->where('status', 'pickup_assigned'))
+                ->orWhere(fn ($w) => $w->where('seller_rider_id', $rider->id)->where('status', 'to_seller')))
+            ->with('order', 'parcel.seller')->oldest('updated_at')->get();
 
-        return view('courier.rider.jobs', compact('rider', 'offers', 'pickups', 'deliveries', 'returns', 'transfers', 'recent'));
+        return view('courier.rider.jobs', compact('rider', 'offers', 'pickups', 'deliveries', 'returns', 'transfers', 'recent', 'returnJobs'));
     }
 
     /**
@@ -87,37 +110,15 @@ class RiderController extends Controller
 
     public const DECLINE_REASONS = ['Vehicle problem', 'Outside my area', 'Too many jobs', 'Not available at that time', 'Other'];
 
-    /**
-     * The rider can't do a job a hub assigned (before starting it): the reason is recorded, the job
-     * is closed (kept in the history) and the parcel waits for an authorized reassignment.
-     */
+    /** Kept for older app versions that still show Decline: barangay jobs cannot be declined. */
     public function declineJob(Request $request, string $kind, int $job)
     {
-        $rider = $this->rider();
-        $data = $request->validate(['reason' => ['required', \Illuminate\Validation\Rule::in(self::DECLINE_REASONS)]], ['reason.required' => 'Choose why you can\'t do it.']);
+        // Like every other job action: someone else's job is not found (nothing about it is shown).
+        $model = $kind === 'pickup' ? ParcelPickup::class : ParcelDelivery::class;
+        $model::where('rider_id', $this->rider()->id)->whereKey($job)->firstOrFail();
 
-        return DB::transaction(function () use ($rider, $kind, $job, $data) {
-            $model = $kind === 'pickup' ? ParcelPickup::class : ParcelDelivery::class;
-            $row = $model::where('rider_id', $rider->id)->lockForUpdate()->whereKey($job)->firstOrFail();   // someone else's job: 404
-            if ($row->status !== 'assigned') {
-                return back()->with('error', 'This job has already moved on (' . $row->statusLabel() . '). It can no longer be declined.');
-            }
-            $parcel = \App\Models\Parcel::lockForUpdate()->findOrFail($row->parcel_id);
-            $row->update(['status' => 'declined', 'remarks' => 'Declined by the rider: ' . $data['reason']]);
-            app(\App\Services\ShipmentTracker::class)->record($parcel, $kind . '_rider_declined', [$kind . '_id' => $row->id, 'note' => $data['reason'],
-                'dedupe_key' => "rider-job:{$kind}:{$row->id}:declined"]);
-            if ($kind === 'delivery') {
-                $parcel->update(['status' => 'sorted', 'unassigned_at' => now()]);
-            } else {
-                $parcel->forceFill(['unassigned_at' => now()])->save();
-            }
-            if ($parcel->current_sorting_center_id) {
-                app(ParcelService::class)->notify((int) $parcel->current_sorting_center_id, ucfirst($kind) . ' declined',
-                    "{$rider->full_name} declined the {$kind} of {$parcel->tracking_number}: {$data['reason']}. Please reassign it.", 'warning', route('sc.dispatch'));
-            }
-
-            return redirect()->route('courier.rider')->with('success', ucfirst($kind) . ' declined. The hub will reassign it.');
-        });
+        // Riders are assigned per barangay, so a job given by the hub is not declined; the hub reassigns it if needed.
+        return back()->with('error', 'Jobs are assigned to the rider of each barangay and cannot be declined. If you cannot do it, contact your hub so they can reassign it.');
     }
 
     /** "On my way" to the seller: Rider Arriving (the parcel is not collected yet). */
@@ -156,9 +157,68 @@ class RiderController extends Controller
         return back()->with('success', "{$parcel->tracking_number} handed back to the seller.");
     }
 
+    // ── Return Items: collect a buyer's return (like a pickup), then bring it to the seller ──
+
+    private function myReturn(int $id): \App\Models\ReturnShipment
+    {
+        $rider = $this->rider();
+        return \App\Models\ReturnShipment::where(fn ($q) => $q->where('pickup_rider_id', $rider->id)->orWhere('seller_rider_id', $rider->id))
+            ->with('order.items.product', 'parcel.seller.sellerApplication', 'returnRequest')->findOrFail($id);   // someone else's: 404
+    }
+
+    public function returnPickup(int $return)
+    {
+        return view('courier.rider.return-pickup', ['rider' => $this->rider(), 'rs' => $this->myReturn($return)]);
+    }
+
+    public function acceptReturnPickup(int $return)
+    {
+        try {
+            app(\App\Services\ReturnShipments::class)->acknowledge($this->myReturn($return), $this->rider());
+        } catch (\RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+        return back()->with('success', 'Return pickup accepted. Go to the buyer, take a photo of the item and scan its waybill.');
+    }
+
+    public function confirmReturnPickup(Request $request, int $return)
+    {
+        $data = $request->validate([
+            'tracking_number' => 'required|string|max:50',
+            'proof_photo'     => 'required|file|image|mimes:jpg,jpeg,png|mimetypes:image/jpeg,image/png|max:5120',
+        ], [
+            'tracking_number.required' => 'Scan the waybill or type its tracking number.',
+            'proof_photo.required'     => 'Take a photo of the item as proof of pickup.',
+            'proof_photo.image'        => 'The proof of pickup must be a JPG or PNG photo.',
+            'proof_photo.max'          => 'The photo must be 5 MB or smaller.',
+        ]);
+        try {
+            app(\App\Services\ReturnShipments::class)->confirmPickup($this->myReturn($return), $this->rider(), $data['tracking_number'], $request->file('proof_photo'));
+        } catch (\InvalidArgumentException $e) {
+            return back()->withInput()->withErrors(['tracking_number' => $e->getMessage()]);
+        } catch (\RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+        return redirect()->route('courier.rider')->with('success', 'Return picked up. Bring it to the hub.');
+    }
+
+    public function returnHandedToSeller(Request $request, int $return)
+    {
+        $request->validate(['proof_photo' => 'nullable|file|image|mimes:jpg,jpeg,png|max:5120']);
+        try {
+            app(\App\Services\ReturnShipments::class)->handedToSeller($this->myReturn($return), $this->rider(), $request->file('proof_photo'));
+        } catch (\RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+        return redirect()->route('courier.rider')->with('success', 'Returned item handed back to the seller.');
+    }
+
     public function toggleOnline(Request $request)
     {
         $rider = $this->rider();
+        if ($rider->isTruck()) {
+            return redirect()->route('courier.trips')->with('info', 'Go Online here: answer the truck checklist first.');
+        }
         $goOnline = $request->has('online') ? $request->boolean('online') : ! $rider->is_online;
 
         if ($goOnline && $rider->isSuspended()) {
@@ -212,20 +272,36 @@ class RiderController extends Controller
     public function confirmPickup(Request $request, int $pickup)
     {
         $rider = $this->rider();
-        $data = $request->validate(['tracking_number' => 'required|string|max:50'], ['tracking_number.required' => 'Scan the waybill or type its tracking number.']);
+        // The proof photo is required on the website; the app sends it once its pickup screen has the camera step.
+        $photo = $this->scanRequired($request) ? 'required' : 'nullable';
+        $data = $request->validate([
+            'tracking_number' => 'required|string|max:50',
+            'proof_photo'     => $photo . '|file|image|mimes:jpg,jpeg,png|mimetypes:image/jpeg,image/png|max:5120',
+        ], [
+            'tracking_number.required' => 'Scan the waybill or type its tracking number.',
+            'proof_photo.required'     => 'Take a photo of the parcel as proof of pickup.',
+            'proof_photo.image'        => 'The proof of pickup must be a JPG or PNG photo.',
+            'proof_photo.mimes'        => 'The proof of pickup must be a JPG or PNG photo.',
+            'proof_photo.mimetypes'    => 'The proof of pickup must be a JPG or PNG photo.',
+            'proof_photo.max'          => 'The photo must be 5 MB or smaller.',
+        ]);
 
-        return DB::transaction(function () use ($rider, $pickup, $data) {
+        return DB::transaction(function () use ($rider, $pickup, $data, $request) {
             $pickup = ParcelPickup::where('rider_id', $rider->id)->lockForUpdate()->findOrFail($pickup);
             $parcel = $pickup->parcel;
 
             if ($pickup->status !== 'assigned') {
                 return back()->with('error', 'This parcel is already picked up (' . $pickup->picked_up_at?->format('M j, g:i A') . ').');
             }
-            if (strtoupper(trim($data['tracking_number'])) !== strtoupper($parcel->tracking_number)) {
-                return back()->withInput()->withErrors(['tracking_number' => 'The tracking number does not match this job. Check the waybill on the parcel.']);
+            if (! $pickup->acknowledged_at) {
+                return back()->with('error', 'Accept this pickup job first, then confirm the pickup at the seller.');
+            }
+            if (! self::scanMatches($data['tracking_number'], $parcel)) {
+                return back()->withInput()->withErrors(['tracking_number' => 'This waybill does not match this job. Check the label on the parcel.']);
             }
 
-            $pickup->update(['status' => 'picked_up', 'picked_up_at' => now()]);
+            $proof = $request->hasFile('proof_photo') ? $request->file('proof_photo')->store('proof-of-pickup', \App\Support\ProtectedFile::DISK) : null;
+            $pickup->update(['status' => 'picked_up', 'picked_up_at' => now(), 'proof_path' => $proof]);
             $parcel->update(['status' => 'in_transit_to_hub']);
             $svc = app(ParcelService::class);
             $svc->syncOrder($parcel);
@@ -233,7 +309,7 @@ class RiderController extends Controller
             $svc->notifyBuyer($parcel, 'Order picked up', "{$svc->orderRef($parcel)} was picked up from the seller and is on its way to our hub.");
             \App\Models\ActivityLog::note('Picked up ' . $parcel->tracking_number, $parcel);
 
-            return redirect()->route('courier.rider')->with('success', "{$parcel->tracking_number} picked up. You earned ₱" . number_format(RiderDispatch::PAY_PICKUP, 2) . '. Bring it to the hub.');
+            return redirect()->route('courier.rider')->with('success', "{$parcel->tracking_number} picked up. You earned ₱" . number_format(RiderDispatch::pickupPay($parcel), 2) . '. Bring it to the hub.');
         });
     }
 
@@ -283,8 +359,11 @@ class RiderController extends Controller
         $cod = (float) $delivery->cod_amount > 0;
         $request->validate([
             'pod_photo'     => 'required|file|image|mimes:jpg,jpeg,png|mimetypes:image/jpeg,image/png|max:5120',
+            // Proof of delivery: the parcel photo and the rider's scan of its waybill.
+            'tracking_number' => ($this->scanRequired($request) ? 'required' : 'nullable') . '|string|max:50',
             'cod_collected' => $cod ? 'required|numeric|min:0' : 'nullable',
         ], [
+            'tracking_number.required' => 'Scan the waybill on the parcel.',
             'pod_photo.required'  => 'Take a proof-of-delivery photo.',
             'pod_photo.image'     => 'The proof of delivery must be a JPG or PNG photo.',
             'pod_photo.mimes'     => 'The proof of delivery must be a JPG or PNG photo.',
@@ -293,6 +372,9 @@ class RiderController extends Controller
             'cod_collected.required' => 'Enter the COD amount you collected.',
         ]);
 
+        if ($request->filled('tracking_number') && ! self::scanMatches($request->tracking_number, $delivery->parcel)) {
+            return back()->withInput()->withErrors(['tracking_number' => 'This waybill does not match this delivery. Check the label on the parcel.']);
+        }
         if ($cod && round((float) $request->cod_collected, 2) !== round((float) $delivery->cod_amount, 2)) {
             return back()->withInput()->withErrors(['cod_collected' => 'The COD amount doesn\'t match. Collect exactly ₱' . number_format($delivery->cod_amount, 2) . '.']);
         }
@@ -300,7 +382,7 @@ class RiderController extends Controller
         DB::transaction(function () use ($request, $delivery, $cod, $rider) {
             $delivery->update([
                 'status' => 'delivered', 'delivered_at' => now(),
-                'pod_path' => $request->file('pod_photo')->store('proof-of-delivery', 'public'),
+                'pod_path' => $request->file('pod_photo')->store('proof-of-delivery', \App\Support\ProtectedFile::DISK),
                 'cod_collected' => $cod ? round((float) $delivery->cod_amount, 2) : 0,
             ]);
             $parcel = $delivery->parcel;
@@ -315,7 +397,7 @@ class RiderController extends Controller
             \App\Models\ActivityLog::note('Delivered ' . $parcel->tracking_number, $parcel);
         });
 
-        return redirect()->route('courier.rider')->with('success', 'Delivered. You earned ₱' . number_format(RiderDispatch::PAY_DELIVERY, 2)
+        return redirect()->route('courier.rider')->with('success', 'Delivered. You earned ₱' . number_format(RiderDispatch::deliveryPay($delivery->parcel), 2)
             . ($cod ? ' and collected ₱' . number_format($delivery->cod_amount, 2) . ' COD to remit.' : '.'));
     }
 
@@ -335,28 +417,41 @@ class RiderController extends Controller
             }
 
             $parcel = $delivery->parcel;
-            $returnToSender = $data['reason'] === 'Refused' || $delivery->attempt >= ParcelDelivery::MAX_ATTEMPTS;
+            // Refused, or the last attempt (a wrong address always goes back to the seller): the order is cancelled and the parcel stays at the hub (no Return to Sender).
+            $final = $data['reason'] === 'Refused' || ($data['reason'] !== 'Wrong address' && $delivery->attempt >= ParcelDelivery::MAX_ATTEMPTS);
             $delivery->update(['status' => 'failed', 'failure_reason' => $data['reason'], 'remarks' => $data['reason']]);
-            $parcel->update(['status' => $returnToSender ? 'return_to_sender' : 'failed', 'failure_reason' => $data['reason']]);
+            $parcel->update(['status' => 'failed', 'failure_reason' => $data['reason']]);
 
             $svc = app(ParcelService::class);
             $ref = $svc->orderRef($parcel);
             $attempt = "attempt {$delivery->attempt} of " . ParcelDelivery::MAX_ATTEMPTS;
-            if ($returnToSender) {
-                $svc->notifyBuyer($parcel, 'Returning to seller', "{$ref} could not be delivered ({$data['reason']}, {$attempt}). It is being returned to the seller.", 'warning');
-                $svc->notifySeller($parcel, 'Parcel returning to you', "{$ref} ({$parcel->tracking_number}) is Return to Sender: {$data['reason']}, {$attempt}.", 'warning');
-            } else {
-                $svc->notifyBuyer($parcel, 'Delivery attempt failed', "{$ref} could not be delivered: {$data['reason']} ({$attempt}). We'll try again.", 'warning');
+            \App\Models\ActivityLog::note('Failed delivery ' . $parcel->tracking_number . ': ' . $data['reason'], $parcel);
+            if ($final) {
+                $svc->cancelUndeliverable($parcel->fresh(), "{$data['reason']}, {$attempt}");
+                return redirect()->route('courier.rider')->with('success', "{$parcel->tracking_number} could not be delivered, so the order was cancelled. Bring the parcel back to the hub.");
             }
+
+            // Wrong address: no point trying again — the parcel goes back to the seller (Return to Sender).
+            if ($data['reason'] === 'Wrong address') {
+                $parcel->update(['status' => 'return_to_sender', 'failure_reason' => 'Wrong address']);
+                $svc->syncOrder($parcel->fresh());
+                $svc->notifyBuyer($parcel, 'Delivery failed: wrong address', "{$ref} could not be delivered because the address is wrong. The parcel is being returned to the seller.", 'warning');
+                $svc->notifySeller($parcel, 'Parcel coming back', "{$parcel->tracking_number} could not be delivered (wrong address). A rider will bring it back to you; confirm when you receive it.", 'warning');
+                if ($scId = $parcel->current_sorting_center_id) {
+                    $svc->notify((int) $scId, 'Return to seller', "{$parcel->tracking_number}: wrong address. Assign a rider to bring it back to the seller.", 'warning', route('sc.rts'));
+                }
+                return redirect()->route('courier.rider')->with('success', "{$parcel->tracking_number}: wrong address. Bring the parcel back to the hub; it will be returned to the seller.");
+            }
+
+            // Buyer not home (and anything else not final): rescheduled at once for the next delivery run.
+            $parcel->update(['status' => 'sorted']);
+            $svc->notifyBuyer($parcel, 'Delivery rescheduled', "{$ref} could not be delivered: {$data['reason']} ({$attempt}). We'll deliver it again on the next delivery run, so please be home to receive it.", 'warning');
             if ($scId = $parcel->current_sorting_center_id) {
-                $svc->notify((int) $scId, 'Failed delivery', "{$parcel->tracking_number}: {$data['reason']} ({$attempt})" . ($returnToSender ? ' → Return to Sender.' : '. Reschedule it.'), 'warning');
+                $svc->notify((int) $scId, 'Delivery rescheduled', "{$parcel->tracking_number}: {$data['reason']} ({$attempt}). It is back in the queue: assign a rider for the next attempt.", 'warning', route('sc.delivery-assignment', ['area_id' => $parcel->area_id]));
             }
             $svc->syncOrder($parcel->fresh());
-            \App\Models\ActivityLog::note('Failed delivery ' . $parcel->tracking_number . ': ' . $data['reason'], $parcel);
 
-            return redirect()->route('courier.rider')->with('success', $returnToSender
-                ? "{$parcel->tracking_number} is Return to Sender. No further attempt."
-                : "Failed delivery recorded ({$attempt}). Logistics will reschedule it.");
+            return redirect()->route('courier.rider')->with('success', "Failed delivery recorded ({$attempt}). It was rescheduled for another attempt; bring the parcel back to the hub.");
         });
     }
 
@@ -451,6 +546,9 @@ class RiderController extends Controller
     public function history(Request $request)
     {
         $rider = $this->rider();
+        if ($rider->isTruck()) {
+            return redirect()->route('courier.trips.history', $request->only('from', 'to'));
+        }
         $request->validate(['from' => 'nullable|date', 'to' => 'nullable|date|after_or_equal:from'], ['to.after_or_equal' => 'The end date must be on or after the start date.']);
         $from = $request->filled('from') ? \Carbon\Carbon::parse($request->from)->startOfDay() : null;
         $to   = $request->filled('to') ? \Carbon\Carbon::parse($request->to)->endOfDay() : null;
@@ -462,9 +560,69 @@ class RiderController extends Controller
     /** Periods on Rider Pay. Days and weeks are counted in the business time zone (Philippine time), not UTC. */
     public const PAY_PERIODS = ['today' => 'Today', 'week' => 'This week', 'last_week' => 'Last week', 'month' => 'This month'];
 
+    /** E-wallet: the pay the hub sent in, and the pay earned but not sent yet. */
+    public function wallet()
+    {
+        $rider = $this->rider();
+        if ($rider->isTruck()) {
+            return redirect()->route('courier.trips.pay');
+        }
+
+        $b = $this->wallet->balances($rider);   // also adds any missing ledger lines
+
+        return view('courier.rider.wallet', [
+            'rider'    => $rider,
+            'balance'  => $b['available'],
+            'balances' => $b,
+            'expected' => $this->wallet->expectedJobs($rider),
+            'toSend'   => $b['to_send'],
+            'unsent'   => $this->wallet->unsentJobs($rider),
+            'entries'  => $rider->walletEntries()->with('sortingCenter', 'parcel')->orderByRaw('COALESCE(earned_at, created_at) DESC')->latest('id')->paginate(20),
+            'pendingCashout' => $this->wallet->pendingCashout($rider),
+            'lastGcash' => $rider->walletEntries()->where('type', 'cashout')->latest('id')->first(['gcash_number', 'gcash_name']),
+            'accounts' => \App\Models\PayoutAccount::where('user_id', $rider->user_id)->latest('updated_at')->get(),
+        ]);
+    }
+
+    /**
+     * Withdraw any amount up to the available balance (no minimum, no fee) to a saved GCash, Maya or bank account, or a
+     * new one (saved for next time). The rider's logistics company sends it from its bank. The older form fields
+     * (gcash_number, gcash_name) still work: a GCash account.
+     */
+    public function cashout(Request $request)
+    {
+        $rider = $this->rider();
+        if ($request->filled('gcash_number') && ! $request->filled('account_number') && ! $request->filled('payout_account_id')) {
+            $request->merge(['method' => 'gcash', 'account_number' => $request->gcash_number, 'account_name' => $request->gcash_name]);
+        }
+        $request->validate(['amount' => 'required|numeric|min:' . RiderWallet::CASHOUT_MIN . '|max:1000000'],
+            ['amount.min' => 'Enter an amount above ₱0.']);
+        if ($request->filled('payout_account_id')) {
+            $account = \App\Models\PayoutAccount::where('user_id', $rider->user_id)->findOrFail((int) $request->payout_account_id);
+        } else {
+            $data = $request->validate(\App\Models\PayoutAccount::rules(), ['account_name.required' => 'Enter the name on the account.',
+                'bank_name.required_if' => 'Enter the bank name.']);
+            $account = \App\Models\PayoutAccount::updateOrCreate(
+                ['user_id' => $rider->user_id, 'method' => $data['method'], 'account_number' => $data['account_number']],
+                ['account_name' => trim($data['account_name']), 'bank_name' => $data['method'] === 'bank' ? trim((string) $data['bank_name']) : null]);
+        }
+        try {
+            $entry = $this->wallet->requestCashout($rider, (float) $request->amount, $account->account_number, $account->account_name, $account->method, $account->bank_name);
+        } catch (\RuntimeException $e) {
+            return back()->withInput()->with('error', $e->getMessage());
+        }
+        $account->touch();
+
+        return back()->with('success', 'Withdrawal of ₱' . number_format(abs((float) $entry->amount), 2) . ' is processing. '
+            . $rider->companyName() . ' will send it to your ' . $entry->destination() . '.');
+    }
+
     public function earnings(Request $request)
     {
         $rider = $this->rider();
+        if ($rider->isTruck()) {
+            return redirect()->route('courier.trips.pay', $request->only('period'));
+        }
         $request->validate(['period' => 'nullable|in:' . implode(',', array_keys(self::PAY_PERIODS))]);
         $period = $request->input('period', 'week');
         $tz = config('app.business_timezone', 'Asia/Manila');
@@ -504,8 +662,7 @@ class RiderController extends Controller
         }
 
         // What jobs already given to the rider will pay once done.
-        $pending = ParcelPickup::where('rider_id', $rider->id)->where('status', 'assigned')->count() * RiderDispatch::PAY_PICKUP
-            + ParcelDelivery::where('rider_id', $rider->id)->whereIn('status', ParcelDelivery::OPEN)->count() * RiderDispatch::PAY_DELIVERY;
+        $pending = RiderDispatch::pendingPay($rider);
 
         return view('courier.rider.earnings', [
             'rider' => $rider, 'tz' => $tz, 'period' => $period, 'from' => $from, 'to' => $to,
@@ -523,6 +680,7 @@ class RiderController extends Controller
         return view('courier.rider.cod', [
             'rider'       => $rider,
             'balance'     => $this->wallet->codBalance($rider),
+            'next'        => $this->wallet->toRemit($rider),   // COD − the rider's unpaid pay = what to hand over
             'pending'     => $this->wallet->pendingRemittance($rider),
             'orders'      => $this->wallet->codOrders($rider),
             'remittances' => RiderRemittance::where('rider_id', $rider->id)->latest()->take(20)->get(),
@@ -530,13 +688,14 @@ class RiderController extends Controller
         ]);
     }
 
-    /** Hand COD cash to the logistics company; it stays Pending until they confirm (A24, A37). */
+    /**
+     * Hand COD cash to the logistics company; it stays Pending until they confirm (A24, A37). The amount is worked
+     * out, not typed: the COD on hand minus the rider's unpaid pay, which the rider keeps out of the cash.
+     */
     public function remit(Request $request)
     {
         $rider = $this->rider();
-        $data = $request->validate(['amount' => 'required|numeric|min:0.01|decimal:0,2', 'request_token' => 'required|uuid'], [
-            'amount.min' => 'Enter the amount you are handing over.',
-        ]);
+        $data = $request->validate(['request_token' => 'required|uuid']);
 
         return Cache::lock('rider-remit:' . $rider->id, 10)->block(8, function () use ($rider, $data) {
             if ($sent = RiderRemittance::where('request_token', $data['request_token'])->first()) {
@@ -545,19 +704,20 @@ class RiderController extends Controller
             if ($this->wallet->pendingRemittance($rider) > 0) {
                 return back()->withErrors(['amount' => 'You already have a remittance waiting for confirmation.']);
             }
-            $balance = $this->wallet->codBalance($rider);
-            if (round((float) $data['amount'], 2) > $balance) {
-                return back()->withInput()->withErrors(['amount' => 'You can remit up to your COD balance of ₱' . number_format($balance, 2) . '.']);
+            $next = $this->wallet->toRemit($rider);
+            if ($next['cod'] <= 0) {
+                return back()->withErrors(['amount' => 'You have no COD to remit.']);
             }
 
             $remit = RiderRemittance::create(['rider_id' => $rider->id, 'sorting_center_id' => $rider->sorting_center_id,
-                'amount' => round((float) $data['amount'], 2), 'expected_amount' => $balance, 'status' => 'pending', 'request_token' => $data['request_token']]);
+                'amount' => $next['remit'], 'pay_kept' => $next['pay'], 'expected_amount' => $next['cod'], 'status' => 'pending', 'request_token' => $data['request_token']]);
             UserNotification::create(['user_id' => $rider->sorting_center_id, 'title' => 'COD remittance to confirm',
-                'body' => "{$rider->full_name} remitted ₱" . number_format($remit->amount, 2) . ' of ₱' . number_format($balance, 2) . ' COD.'
-                    . ($remit->shortfall() > 0 ? ' Shortfall ₱' . number_format($remit->shortfall(), 2) . '.' : ''), 'type' => 'info', 'link' => route('sc.remittances')]);
-            \App\Models\ActivityLog::note('COD remittance ₱' . number_format($remit->amount, 2), $remit);
+                'body' => "{$rider->full_name} remitted ₱" . number_format($remit->amount, 2) . ' of ₱' . number_format($next['cod'], 2) . ' COD'
+                    . ($next['pay'] > 0 ? ', keeping ₱' . number_format($next['pay'], 2) . ' as their pay' : '') . '.', 'type' => 'info', 'link' => route('sc.remittances')]);
+            \App\Models\ActivityLog::note('COD remittance ₱' . number_format($remit->amount, 2) . ($next['pay'] > 0 ? ' (pay kept ₱' . number_format($next['pay'], 2) . ')' : ''), $remit);
 
-            return redirect()->route('courier.rider.cod.receipt', $remit)->with('success', 'Remittance of ₱' . number_format($remit->amount, 2) . ' sent. It stays Pending until ' . $rider->companyName() . ' confirms it.');
+            return redirect()->route('courier.rider.cod.receipt', $remit)->with('success', 'Remittance of ₱' . number_format($remit->amount, 2) . ' sent'
+                . ($next['pay'] > 0 ? ' (you kept ₱' . number_format($next['pay'], 2) . ' as your pay)' : '') . '. It stays Pending until ' . $rider->companyName() . ' confirms it.');
         });
     }
 

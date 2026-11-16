@@ -137,13 +137,13 @@ class B06CartVoucherCheckoutTest extends TestCase
 
         $p = $this->preview(['seller_vouchers' => [$this->seller1->id => 'MCH50'], 'platform_voucher' => 'PLAT100', 'shipping_voucher' => 'FREESHIP'])->json();
         $this->assertEquals(1098, $p['subtotal']);
-        $this->assertEquals(65, $p['stores'][$this->seller1->id]['shipping']);    // 1.2 kg → 2 kg within NCR
+        $this->assertEquals(50, $p['stores'][$this->seller1->id]['shipping']);    // 1.2 kg → 2 kg, same city (₱40 + ₱10)
         $this->assertEquals(120, $p['stores'][$this->seller2->id]['shipping']);   // 0.2 kg → 1 kg Visayas to NCR
-        $this->assertEquals(185, $p['shipping_total']);
+        $this->assertEquals(170, $p['shipping_total']);
         $this->assertEquals(50, $p['seller_discount']);
         $this->assertEquals(100, $p['platform_discount']);
         $this->assertEquals(50, $p['shipping_discount']);
-        $this->assertEquals(1083, $p['total']);
+        $this->assertEquals(1068, $p['total']);
 
         // A second Seller 1 voucher replaces the first instead of stacking.
         $swap = $this->preview(['seller_vouchers' => [$this->seller1->id => 'MCH50'], 'voucher_code' => 'MCH10'])->json();
@@ -152,11 +152,11 @@ class B06CartVoucherCheckoutTest extends TestCase
         $this->place(['seller_vouchers' => [$this->seller1->id => 'MCH50'], 'platform_voucher' => 'PLAT100', 'shipping_voucher' => 'FREESHIP'])
             ->assertSessionHasNoErrors()->assertRedirect(route('checkout.confirmation'));
 
-        // Two orders, one per store; together ₱1,083.00.
+        // Two orders, one per store; together ₱1,068.00.
         $s1 = Order::where('seller_id', $this->seller1->id)->firstOrFail();
         $s2 = Order::where('seller_id', $this->seller2->id)->firstOrFail();
-        $this->assertEquals(1083, round($s1->total_price + $s2->total_price, 2));
-        $this->assertEquals(65, $s1->shipping_fee);
+        $this->assertEquals(1068, round($s1->total_price + $s2->total_price, 2));
+        $this->assertEquals(50, $s1->shipping_fee);
         $this->assertEquals(120, $s2->shipping_fee);
         // Seller earnings (A8, A9): platform and shipping vouchers don't reduce them.
         $this->assertEquals(616.55, round(OrderItem::where('order_id', $s1->id)->sum('seller_earning'), 2));
@@ -166,7 +166,7 @@ class B06CartVoucherCheckoutTest extends TestCase
         $this->assertSame(7, $this->variation($this->p01, 'Natural / M')->stock);
         $this->assertSame(19, $this->p02->fresh()->stock);
 
-        $this->actingAs($this->buyer1)->get(route('checkout.confirmation'))->assertOk()->assertSee('₱1,083.00');
+        $this->actingAs($this->buyer1)->get(route('checkout.confirmation'))->assertOk()->assertSee('₱1,068.00');
     }
 
     /** BUY-VOU-004, 005, 006 (004 at ₱299.99 / ₱300.00 / ₱300.01 is in B15) */
@@ -264,7 +264,7 @@ class B06CartVoucherCheckoutTest extends TestCase
     public function test_shipping_depends_on_the_address(): void
     {
         $this->openCheckout($this->buyer1, [$this->cart($this->buyer1, $this->p02)]);
-        $this->assertEquals(50, $this->preview()->json('shipping_total'));                         // NCR → NCR, 0.8 kg
+        $this->assertEquals(40, $this->preview()->json('shipping_total'));                         // same city, 0.8 kg → 1 kg
         $this->addressFor($this->buyer1, self::CEBU_CITY);
         $cebu = $this->buyer1->addresses()->where('municipality_code', self::CEBU_CITY)->first();
         $this->assertEquals(120, $this->preview(['address_id' => $cebu->id])->json('shipping_total'));   // NCR → Visayas
@@ -273,11 +273,11 @@ class B06CartVoucherCheckoutTest extends TestCase
     /** BUY-CHK-003 */
     public function test_weight_is_rounded_up_to_the_next_kg(): void
     {
-        $line = $this->cart($this->buyer2, $this->p05, 5);   // 5 × 0.2 kg = 1.0 kg, Cebu → Cebu
+        $line = $this->cart($this->buyer2, $this->p05, 5);   // 5 × 0.2 kg = 1.0 kg, Cebu → Cebu (same city: ₱40 + ₱10 a kg)
         $this->openCheckout($this->buyer2, [$line]);
-        $this->assertEquals(60, $this->preview(['address_id' => $this->addr3->id], $this->buyer2)->json('shipping_total'));
+        $this->assertEquals(40, $this->preview(['address_id' => $this->addr3->id], $this->buyer2)->json('shipping_total'));
         $line->update(['quantity' => 6]);                    // 1.2 kg → 2 kg
-        $this->assertEquals(80, $this->preview(['address_id' => $this->addr3->id], $this->buyer2)->json('shipping_total'));
+        $this->assertEquals(50, $this->preview(['address_id' => $this->addr3->id], $this->buyer2)->json('shipping_total'));
     }
 
     /** BUY-CHK-004 */
@@ -355,6 +355,6 @@ class B06CartVoucherCheckoutTest extends TestCase
         $this->assertSame('COD', $order->payment_method);
         $this->assertSame('to_ship', $order->tab());
         $this->actingAs($this->seller1)->get(route('seller.orders.show', $order->id))
-            ->assertSee('Collect on delivery')->assertSee('₱500.00');   // ₱450 + ₱50 shipping
+            ->assertSee('Collect on delivery')->assertSee('₱490.00');   // ₱450 + ₱40 shipping (same city)
     }
 }

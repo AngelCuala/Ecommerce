@@ -92,6 +92,15 @@ class DashboardController extends Controller
         ));
     }
 
+    /** "I understand" on a warning from ALVY: it leaves the dashboard (it stays on the admin's record). */
+    public function acknowledgeViolation(int $violation)
+    {
+        $v = \App\Models\SellerViolation::where('seller_id', auth()->id())->findOrFail($violation);
+        $v->update(['acknowledged' => true]);
+
+        return back()->with('success', 'Thanks. Please follow ALVY\'s seller policies to avoid further action.');
+    }
+
     /** Seller notifications (orders, parcels, product reviews, payouts…), newest first. */
     public function notifications()
     {

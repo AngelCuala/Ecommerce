@@ -24,9 +24,9 @@
                 <td class="text-muted">ID Document</td>
                 <td>
                     @if(Str::endsWith($rider->id_document_path, ['.jpg','.jpeg','.png','.webp']))
-                        <img src="{{ asset('storage/'.$rider->id_document_path) }}" style="max-height:150px;border:1px solid var(--line);border-radius:var(--radius);">
+                        <img src="{{ \App\Support\ProtectedFile::url($rider->id_document_path) }}" style="max-height:150px;border:1px solid var(--line);border-radius:var(--radius);">
                     @else
-                        <a href="{{ asset('storage/'.$rider->id_document_path) }}" target="_blank" class="btn btn--sm">Download</a>
+                        <a href="{{ \App\Support\ProtectedFile::url($rider->id_document_path) }}" target="_blank" class="btn btn--sm">Download</a>
                     @endif
                 </td>
             </tr>

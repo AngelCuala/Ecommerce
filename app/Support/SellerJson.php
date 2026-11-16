@@ -126,7 +126,7 @@ class SellerJson
                 'price' => (float) $i->price, 'quantity' => (int) $i->quantity, 'image_url' => ApiJson::file($i->product?->image),
                 'refunded' => $i->refunded_at ? (float) $i->refund_amount : null,
             ])->values(),
-            // The website's Shipment tracking card, and GCash paid by receipt (accepting the order confirms the money arrived).
+            // The website's Shipment tracking card, and GCash paid to ALVY (an admin confirmed it before the seller saw the order).
             'tracking' => ApiJson::tracking($order),
             'payment' => ['method' => $order->paymentMethodLabel(), 'status' => $order->payment_status],
             'gcash' => $order->isGcashReceipt() ? [
@@ -134,11 +134,12 @@ class SellerJson
                 'amount' => (float) $order->total_price, 'checking' => $order->payment_status === 'For verification',
             ] : null,
             'waybill_number' => $parcel?->waybill_number,
-            'ship_to' => ['name' => $order->full_name, 'phone' => $order->phone, 'address' => $order->fullAddress(), 'note' => $order->buyer_note],
+            'ship_to' => ['name' => $order->full_name, 'phone' => ContactGuard::maskPhone($order->phone), 'address' => $order->fullAddress(), 'note' => $order->buyer_note],
             'timeline' => $order->events->map(fn ($e) => ['status' => $e->status, 'note' => $e->note, 'at' => $e->created_at?->toIso8601String()])->values(),
             'return' => $lastReturn ? [
                 'id' => $lastReturn->id, 'status' => $lastReturn->status, 'reason' => $lastReturn->reason, 'details' => $lastReturn->details,
                 'refund_amount' => (float) $lastReturn->refund_amount, 'seller_note' => $lastReturn->seller_note,
+                'item_coming_back' => $lastReturn->shipment ? ['status' => $lastReturn->shipment->status, 'label' => $lastReturn->shipment->statusLabel()] : null,
                 'photos' => array_map(fn ($p) => ApiJson::file($p), $lastReturn->photos()),
                 'answer_by' => $lastReturn->status === 'requested' ? $lastReturn->created_at->addDays(\App\Models\ReturnRequest::RESPOND_DAYS)->toIso8601String() : null,
                 'escalated_at' => $lastReturn->escalated_at?->toIso8601String(), 'dispute_note' => $lastReturn->dispute_note,
@@ -148,6 +149,9 @@ class SellerJson
                 'sorting_center' => $parcel->currentSortingCenter->name ?? null,
                 'failure_reason' => $parcel->failure_reason && in_array($parcel->status, ['pickup_rejected', 'failed', 'returned']) ? $parcel->failure_reason : null,
                 'returned_at' => $parcel->returned_at?->toIso8601String(),
+                // Who will pick it up (the website's "Pickup rider" row).
+                'pickup_rider' => ($job = $parcel->pickups()->with('rider')->where('status', '!=', 'cancelled')->latest('id')->first())?->rider
+                    ? ['name' => $job->rider->full_name, 'phone' => $job->rider->phone] : null,
             ] : null,
             'delivery' => $delivery ? ['status' => $delivery->status, 'tracking_number' => $delivery->tracking_number, 'notes' => $delivery->notes,
                 'pickup_scheduled_at' => $delivery->pickup_scheduled_at?->toIso8601String()] : null,
@@ -160,7 +164,7 @@ class SellerJson
                 'pack'            => in_array($order->status, ['Pending', 'Processing'], true) && $step === 'accepted',
                 'book_pickup'     => ! in_array($order->status, Order::LOGISTICS_DONE, true) && $canBook,
                 'waybill'         => $order->canPrintWaybill(),
-                'accept_label'    => $order->isGcashReceipt() && $order->payment_status === 'For verification' ? 'Payment received · Accept order' : 'Accept order',
+                'accept_label'    => 'Accept order',
                 'cancel'          => in_array($order->status, ['Pending', 'Processing'], true) && $order->isCancellableBySeller(),
                 'cancel_reasons'  => Order::SELLER_CANCEL_REASONS,
                 'handed_over'     => ! in_array($order->status, Order::LOGISTICS_DONE, true) && $delivery?->status === 'accepted',

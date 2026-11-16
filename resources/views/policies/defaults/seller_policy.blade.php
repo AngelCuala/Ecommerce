@@ -8,6 +8,7 @@
     $maxPhotos = \App\Models\Product::MAX_IMAGES;
     $area = \App\Support\ServiceArea::label();
     $policy = fn (string $key) => route('policies.show', $key);
+    $returnsOn = \App\Models\Order::returnsEnabled();
 @endphp
 <style>
     .pp h2 { margin: 1.75rem 0 .5rem; font-family: 'Nunito', ui-sans-serif, system-ui; font-size: 1.1rem; font-weight: 800; color: #222; }
@@ -29,8 +30,12 @@
         <strong>Effective date:</strong> October 22, 2026. This policy sets out the rules for selling on ALVY: who can sell,
         how listings, orders, shipping, returns and payments work, and what happens when the rules are broken.
         By opening a store on ALVY you agree to this policy, our <a href="{{ $policy('terms_of_service') }}">Terms of Service</a>,
-        <a href="{{ $policy('prohibited_items') }}">Prohibited Items Policy</a> and
-        <a href="{{ $policy('return_refund_policy') }}">Return &amp; Refund Policy</a>.
+        @if ($returnsOn)
+            <a href="{{ $policy('prohibited_items') }}">Prohibited Items Policy</a> and
+            <a href="{{ $policy('return_refund_policy') }}">Return &amp; Refund Policy</a>.
+        @else
+            and <a href="{{ $policy('prohibited_items') }}">Prohibited Items Policy</a>.
+        @endif
     </p>
 
     <h2>1. Who can sell on ALVY</h2>
@@ -127,6 +132,13 @@
     </ul>
 
     <h2>8. Returns and refunds</h2>
+    @if (! $returnsOn)
+    <ul>
+        <li>Buyer returns and refunds through ALVY are <strong>not available yet</strong>. If a buyer has a problem with an
+            order, they message you from the order page; please help them in good faith.</li>
+        <li>Orders complete when the buyer confirms receipt, or automatically {{ $returnDays }} days after delivery.</li>
+    </ul>
+    @else
     <ul>
         <li>Buyers can request a return or refund within <strong>{{ $returnDays }} days</strong> of delivery, with photos and a
             reason, as described in the <a href="{{ $policy('return_refund_policy') }}">Return &amp; Refund Policy</a>.</li>
@@ -136,23 +148,32 @@
             decision is final.</li>
         <li>For approved returns, the refunded amount (and its commission) is taken out of your earnings for that order.</li>
     </ul>
+    @endif
 
     <h2>9. Fees, earnings and payouts</h2>
     <table>
         <tr><th style="width:34%;">Commission</th><td>ALVY keeps <strong>{{ $rate }}%</strong> of the amount the buyer pays for each item (after your own discounts and vouchers). The rate in force when an order is placed is recorded with that order, so later rate changes don't affect it. Any change to the rate is announced before it applies.</td></tr>
         <tr><th>Your earnings</th><td>The item amount minus the commission. Shipping fees go to logistics and are not part of your earnings.</td></tr>
-        <tr><th>Pending</th><td>Earnings stay <em>pending</em> until the order is Completed (the buyer confirms receipt, or the return window ends).</td></tr>
+        <tr><th>On hold</th><td>A delivered order's earning stays <em>on hold</em> during the return window, with its expected release date, and becomes <em>available</em> when the order is Completed (the buyer confirms the item is OK, or the return window ends). A refunded order is reversed.</td></tr>
         <tr><th>Not earned</th><td>Cancelled, refunded and unpaid orders earn nothing, and no commission is charged on them.</td></tr>
-        <tr><th>Payouts</th><td>Request a payout of your available balance from <em>Earnings &amp; Payouts</em> (minimum ₱{{ $payoutMin }}). You can see every order's rate, commission and status on the <em>Commission</em> page.</td></tr>
+        <tr><th>Payouts</th><td>Withdraw any amount of your available balance from <em>Earnings &amp; Payouts</em> to your GCash, Maya or bank account, with no fee. ALVY sends it from its bank; a failed transfer goes back to your available balance. You can see every order's rate, commission and status on the <em>Commission</em> page.</td></tr>
     </table>
     <p>You are responsible for your own taxes and for issuing receipts or invoices as required by the BIR.</p>
 
     <h2>10. Conduct, reviews and buyer information</h2>
     <ul>
         <li>Be honest and polite in chat. Don't pressure buyers, ask them to cancel, or move the sale outside ALVY.</li>
+        <li><strong>Keep deals on ALVY.</strong> Don't share phone numbers, email addresses, links or social-media accounts
+            with buyers, in chat or in your listings and store details. ALVY hides them automatically. Each time you send them
+            in a chat counts as a strike: the 1st is a warning, the 2nd a final warning, and at the 3rd within 90 days ALVY
+            reviews your store and may suspend it. Listings and store details with contact details can't be saved. You can see
+            your strikes on the Contact strikes page and appeal any that were a mistake; an accepted appeal doesn't count.
+            Strike records are deleted after one year.</li>
+        <li>Stores with at least 10 completed orders, good ratings and no strikes earn the <strong>Trusted Seller</strong>
+            badge on the store and every product.</li>
         <li>Don't write, buy or arrange reviews of your own products, or offer rewards for good reviews. Reply to reviews
             professionally.</li>
-        <li>Buyer names, addresses and phone numbers are given to you only to fulfil their orders. Don't use them for
+        <li>Buyer names and addresses are given to you only to fulfil their orders (their phone number is shown only partly). Don't use them for
             anything else, share them, or contact buyers outside ALVY. Personal data must be handled according to the
             <a href="{{ $policy('privacy_policy') }}">Privacy Policy</a> and the Data Privacy Act of 2012 (RA 10173).</li>
         <li>Products must meet Philippine consumer-protection, product-safety and intellectual-property laws. Counterfeit or

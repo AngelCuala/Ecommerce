@@ -168,7 +168,7 @@ class DeliveryController extends Controller
                         'attempt'  => (int) $d->attempt,
                         'at'       => $done ? ($d->delivered_at ?? $d->updated_at) : $d->updated_at,
                         'cod'      => (float) ($done ? $d->cod_collected : $d->cod_amount),
-                        'pay'      => $done ? \App\Services\RiderDispatch::PAY_DELIVERY : 0.0,
+                        'pay'      => $done ? \App\Services\RiderDispatch::deliveryPay($d->parcel, $d->delivered_at ?? $d->updated_at) : 0.0,
                         'url'      => route('courier.rider.deliveries.show', $d->id),
                     ];
                 });

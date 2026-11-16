@@ -2,7 +2,7 @@
 
 namespace App\Support;
 
-use App\Http\Controllers\OrderController;
+use App\Http\Controllers\Buyer\OrderController;
 use App\Models\CartItem;
 use App\Models\Order;
 use App\Models\ParcelDelivery;
@@ -25,7 +25,7 @@ class ApiJson
 {
     public static function file(?string $path): ?string
     {
-        return $path ? asset('storage/' . $path) : null;
+        return ProtectedFile::url($path);   // IDs, proof of delivery, …: a signed link that expires; other uploads: the public address
     }
 
     public static function page(LengthAwarePaginator $p, callable $map): array
@@ -69,6 +69,7 @@ class ApiJson
             'slug'             => $product->slug,
             'title'            => $product->title,
             'image_url'        => self::file($product->image),
+            'thumb_url'        => $product->image ? $product->thumb_url : null,   // small WebP for product cards (the original until it exists)
             'category'         => $product->relationLoaded('category') ? $product->category?->name : null,
             'price'            => $price,
             'original_price'   => $hasDiscount ? (float) $product->price : null,
@@ -148,12 +149,14 @@ class ApiJson
                 'price' => round((float) $upcoming->flash_price, 2), 'quantity' => (int) $upcoming->quantity, 'reminded' => (bool) ($d['reminded'] ?? false)] : null,
             'details'  => $details,
             'specs'    => is_array($product->specs) ? array_filter($product->specs, fn ($v) => $v !== null && $v !== '') : [],
+            'video_url' => $product->video_path ? self::file($product->video_path) : null,
             'rating'   => $product->rating_avg,
             'rating_count'     => $product->rating_count,
             'rating_breakdown' => collect(range(5, 1))->mapWithKeys(fn ($s) => [$s => (int) ($d['ratingBreakdown'][$s] ?? 0)])->all(),
             'sold'     => (int) ($d['sold'] ?? 0),
             'wished'   => (bool) ($d['wished'] ?? false),
-            'seller'   => $seller ? ['id' => $seller->id, 'name' => $seller->storeName(), 'logo_url' => self::file($seller->sellerApplication?->logo_path)] : null,
+            'seller'   => $seller ? ['id' => $seller->id, 'name' => $seller->storeName(), 'logo_url' => self::file($seller->sellerApplication?->logo_path),
+                'trusted' => \App\Support\TrustedSeller::is($seller)] : null,
             'vouchers' => collect($d['vouchers'] ?? [])->map(fn ($v) => self::voucher($v, in_array($v->id, $d['claimed'] ?? [])))->values()->all(),
             'reviews'  => self::page($d['reviews'], fn ($r) => self::review($r)),
             'related'  => collect($d['related'] ?? [])->map(fn ($p) => self::productCard($p))->values()->all(),
@@ -253,6 +256,7 @@ class ApiJson
             ! $s, in_array($s, ['pending_pickup', 'pickup_approved', 'pickup_rejected', 'cancelled'], true) => 0,
             $s === 'in_transit_to_hub'                                                                  => 1,
             in_array($s, ['in_transit', 'failed'], true)                                               => 3,
+            $s === 'delivered' && $t['received']                                                        => 5,
             $s === 'delivered'                                                                          => 4,
             default                                                                                     => 2,
         };
@@ -263,9 +267,10 @@ class ApiJson
             'waybill_number'  => $t['parcel']?->waybill_number,
             'status'          => $t['status'],
             'location'        => $t['location'],
-            'milestones'      => ['Ordered', 'Collected', 'At sorting center', 'Out for delivery', 'Delivered'],
+            'milestones'      => ['Ordered', 'Collected', 'At sorting center', 'Out for delivery', 'Delivered', 'Received'],
             'reached'         => $reached,
             'delivered'       => $s === 'delivered',
+            'received'        => (bool) $t['received'],
             'trouble'         => in_array($s, ['failed', 'return_to_sender', 'returned', 'lost', 'damaged', 'cancelled', 'pickup_rejected'], true),
             'hubs'            => collect($t['hubs'])->pluck('name')->filter()->unique()->values(),
             'events'          => $t['events']->values()->map(fn ($e) => [
@@ -276,6 +281,34 @@ class ApiJson
             'delivered_at'    => $t['delivered_at']?->toIso8601String(),
             'attempts'        => $t['attempts'],
             'under_review'    => (bool) $t['under_review'],
+        ];
+    }
+
+    /**
+     * GCash paid to ALVY, as the order page shows it: being checked, or rejected with why, how to fix it and
+     * the QR/amount to upload the right receipt (POST orders/{id}/gcash-receipt). null for other payments.
+     */
+    public static function gcash(Order $order): ?array
+    {
+        if (! $order->isGcashReceipt()) {
+            return null;
+        }
+        $check = $order->payment_check ?? [];
+        $rejected = $order->status === Order::AWAITING_PAYMENT && $order->payment_status === 'Rejected';
+        $group = Order::where('checkout_group', $order->checkout_group)->get();
+        $account = \App\Support\AlvyGcash::account();
+
+        return [
+            'state'      => $order->status === Order::AWAITING_PAYMENT ? ($rejected ? 'rejected' : 'checking') : strtolower((string) $order->payment_status),
+            'reference'  => $order->payment_reference,
+            'amount'     => (float) ($order->payment_expected ?? $group->sum('total_price')),
+            'orders'     => $group->map->number()->values()->all(),
+            'problems'   => $rejected ? array_map(fn ($p) => ['reason' => $p['reason'], 'fix' => $p['fix']], $check['rejection']['problems'] ?? []) : [],
+            'fix_by'     => $rejected && ! empty($check['fix_by']) ? \Illuminate\Support\Carbon::parse($check['fix_by'])->toIso8601String() : null,
+            'try'        => (int) ($check['tries'] ?? 1),
+            'max_tries'  => \App\Services\GcashChecks::MAX_TRIES,
+            'can_resubmit' => $rejected,
+            'account'    => $rejected && $account ? $account : null,
         ];
     }
 
@@ -331,6 +364,7 @@ class ApiJson
             ] : null,
             'tracking' => self::tracking($order),
             'payment_proof' => $order->payment_proof_path ? ['reference' => $order->payment_reference, 'has_file' => true] : null,
+            'gcash' => self::gcash($order),
             'timeline' => $order->events->map(fn ($e) => [
                 'label' => self::EVENT_LABELS[$e->status] ?? $e->status, 'note' => $e->note, 'at' => $e->created_at?->toIso8601String(),
             ])->values()->all(),
@@ -338,6 +372,7 @@ class ApiJson
                 'status' => $return->status, 'status_label' => $return->statusLabel(), 'reason' => $return->reason,
                 'details' => $return->details, 'seller_note' => $return->seller_note, 'refund_amount' => (float) $return->refund_amount,
                 'photos' => array_map(fn ($p) => self::file($p), $return->photos()),
+                'pickup' => $return->shipment ? ['status' => $return->shipment->status, 'label' => $return->shipment->statusLabel()] : null,
             ] : null,
             'actions' => [
                 'pay'             => $order->canBePaid(),
@@ -383,6 +418,7 @@ class ApiJson
             'logo_url' => self::file($app?->logo_path), 'banner_url' => self::file($app?->banner_path),
             'location' => collect([$app?->municipality, $app?->province])->filter()->implode(', ') ?: null,
             'on_vacation' => (bool) $app?->is_on_vacation,
+            'trusted' => \App\Support\TrustedSeller::is($seller),   // "Trusted Seller" badge
         ];
     }
 }

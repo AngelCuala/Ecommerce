@@ -23,28 +23,31 @@ class DispatchRiderChoicesTest extends TestCase
         $this->online($this->rider1);   // rider2 offline, rider3 suspended
 
         $page = $this->actingAs($this->logistics1)->get(route('sc.dispatch'))->assertOk();
-        $page->assertSee('<option value="' . $this->rider1->id . '" data-available>Pedro Jose Garcia (0 jobs)</option>', false)
-            ->assertSee('<option value="' . $this->rider2->id . '" disabled>Mark Anthony Bautista · offline</option>', false)
+        // Staff may also give a job by hand to an offline rider (only Auto-assign needs Online): listed, marked offline.
+        $page->assertSee('<option value="' . $this->rider1->id . '" data-available>Pedro Jose Garcia', false)
+            ->assertSee('<option value="' . $this->rider2->id . '" data-available>Mark Anthony Bautista', false)
+            ->assertSee(' · offline</option>', false)
             ->assertSee('<option value="' . $this->rider3->id . '" disabled>Ramon Cruz · suspended</option>', false)
             ->assertSee('<optgroup label="Available">', false)
             ->assertDontSee('Agila Rider')                 // another company's rider
             ->assertDontSee('data-no-rider-online', false);
     }
 
-    public function test_with_nobody_online_the_riders_are_listed_and_a_hint_explains_it(): void
+    public function test_with_nobody_online_the_riders_can_still_be_picked_by_hand(): void
     {
         $this->actingAs($this->logistics1)->get(route('sc.dispatch'))->assertOk()
-            ->assertSee('Pedro Jose Garcia · offline')->assertSee('Mark Anthony Bautista · offline')
-            ->assertDontSee('<optgroup label="Available">', false)
-            ->assertSee('data-no-rider-online', false)
-            ->assertSee('Riders can be picked once they switch to Online');
+            ->assertSee('<optgroup label="Available">', false)
+            ->assertSee('<option value="' . $this->rider1->id . '" data-available>Pedro Jose Garcia', false)
+            ->assertDontSee('data-no-rider-online', false);   // that hint is only for a center with nobody who can take jobs
     }
 
-    public function test_an_offline_rider_still_cannot_be_assigned(): void
+    public function test_an_offline_rider_can_be_assigned_by_hand_but_not_by_auto_assign(): void
     {
         $parcel = \App\Models\Parcel::sole();
+        $this->assertNotContains($this->rider2->id, app(\App\Services\RiderDispatch::class)->eligibleRiders($this->logistics1->id)->pluck('id')->all());
         $this->actingAs($this->logistics1)->from(route('sc.dispatch'))
             ->post(route('sc.dispatch.assign', $parcel), ['rider_id' => $this->rider2->id])
-            ->assertSessionHas('error', 'Mark Anthony Bautista is offline.');
+            ->assertSessionHas('success');
+        $this->assertSame($this->rider2->id, \App\Models\ParcelPickup::where('parcel_id', $parcel->id)->sole()->rider_id);
     }
 }

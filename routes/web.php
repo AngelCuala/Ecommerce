@@ -17,36 +17,41 @@ use App\Http\Controllers\Admin\ActivityLogController as AdminActivityLogControll
 use App\Http\Controllers\Admin\NotificationController as AdminNotificationController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Auth\RegisteredUserController;
-use App\Http\Controllers\CartController;
-use App\Http\Controllers\CheckoutController;
+use App\Http\Controllers\Buyer\CartController;
+use App\Http\Controllers\Buyer\CheckoutController;
 use App\Http\Controllers\Courier\AccountController as CourierAccountController;
 use App\Http\Controllers\Courier\DashboardController as CourierDashboardController;
 use App\Http\Controllers\Courier\DeliveryController as CourierDeliveryController;
 use App\Http\Controllers\Courier\ProfitController as CourierProfitController;
 use App\Http\Controllers\Courier\RegistrationController as CourierRegistrationController;
-use App\Http\Controllers\HomeController;
-use App\Http\Controllers\MessageController;
-use App\Http\Controllers\ProductController;
-use App\Http\Controllers\ProfileController;
-use App\Http\Controllers\SellerApplicationController;
+use App\Http\Controllers\Storefront\HomeController;
+use App\Http\Controllers\Shared\MessageController;
+use App\Http\Controllers\Storefront\ProductController;
+use App\Http\Controllers\Buyer\ProfileController;
+use App\Http\Controllers\Seller\SellerApplicationController;
 use App\Http\Controllers\Seller\AccountController as SellerAccountController;
 use App\Http\Controllers\Seller\BookController as SellerBookController;
 use App\Http\Controllers\Seller\DashboardController as SellerDashboardController;
 use App\Http\Controllers\Seller\OrderController as SellerOrderController;
 use App\Http\Controllers\Seller\ReportController as SellerReportController;
-use App\Http\Controllers\ShopController;
+use App\Http\Controllers\Storefront\ShopController;
 use Illuminate\Support\Facades\Route;
 
 // ── One login per portal (App\Support\Portal) ─────────────────────
 // Each portal has its own sign-in, sign-out and hand-off address, and its own copy of the shared
 // pages its accounts use, so those pages read that portal's login.
 Route::get('/session/handoff/{token}', \App\Http\Controllers\Auth\PortalHandoffController::class)->middleware('throttle:30,1')->name('portal.handoff');
+
+// Private uploads (IDs, permits, proof of delivery, return photos, …): only through a signed link that expires (App\Support\ProtectedFile).
+Route::get('/files/{path}', \App\Http\Controllers\Shared\ProtectedFileController::class)->where('path', '.*')
+    ->middleware(['signed:relative', 'throttle:120,1'])->name('files.show');
+
 foreach (['seller', 'courier', 'admin', 'sc'] as $portal) {
     Route::prefix($portal)->name($portal . '.')->group(function () use ($portal) {
         Route::get('/session/handoff/{token}', \App\Http\Controllers\Auth\PortalHandoffController::class)->middleware('throttle:30,1')->name('portal.handoff');
-        if ($portal !== 'sc') {   // sorting centers keep their own /sc/login and /sc/logout
-            Route::get('/login', [AuthenticatedSessionController::class, 'create'])->name('login');
-            Route::post('/login', [AuthenticatedSessionController::class, 'store'])->name('login.attempt');
+        Route::get('/login', [AuthenticatedSessionController::class, 'create'])->name('login');
+        Route::post('/login', [AuthenticatedSessionController::class, 'store'])->name('login.attempt');
+        if ($portal !== 'sc') {   // sorting centers keep their own /sc/logout (SortingCenterController)
             Route::post('/logout', [AuthenticatedSessionController::class, 'destroy'])->middleware('auth')->name('logout');
         }
     });
@@ -66,14 +71,14 @@ Route::middleware('auth')->group(function () {
     Route::prefix('seller')->name('seller.')->group(function () use ($messages, $chat) {
         $messages();
         $chat();
-        Route::get('/orders/{order}/proof-of-delivery', [\App\Http\Controllers\ShipmentTrackingController::class, 'proofOfDelivery'])->whereNumber('order')->name('shipments.pod');
-        Route::get('/orders/{order}/payment-proof', [\App\Http\Controllers\ShipmentTrackingController::class, 'paymentProof'])->whereNumber('order')->name('orders.payment-proof');
+        Route::get('/orders/{order}/proof-of-delivery', [\App\Http\Controllers\Shared\ShipmentTrackingController::class, 'proofOfDelivery'])->whereNumber('order')->name('shipments.pod');
+        Route::get('/orders/{order}/payment-proof', [\App\Http\Controllers\Shared\ShipmentTrackingController::class, 'paymentProof'])->whereNumber('order')->name('orders.payment-proof');
     });
     Route::prefix('admin')->name('admin.')->group(function () use ($messages, $chat) {
         $messages();
         $chat();
-        Route::get('/orders/{order}/proof-of-delivery', [\App\Http\Controllers\ShipmentTrackingController::class, 'proofOfDelivery'])->whereNumber('order')->name('shipments.pod');
-        Route::get('/orders/{order}/payment-proof', [\App\Http\Controllers\ShipmentTrackingController::class, 'paymentProof'])->whereNumber('order')->name('orders.payment-proof');
+        Route::get('/orders/{order}/proof-of-delivery', [\App\Http\Controllers\Shared\ShipmentTrackingController::class, 'proofOfDelivery'])->whereNumber('order')->name('shipments.pod');
+        Route::get('/orders/{order}/payment-proof', [\App\Http\Controllers\Shared\ShipmentTrackingController::class, 'paymentProof'])->whereNumber('order')->name('orders.payment-proof');
     });
     Route::prefix('courier')->name('courier.')->group(function () use ($chat) {
         $chat();
@@ -81,8 +86,8 @@ Route::middleware('auth')->group(function () {
 });
 
 // ── Sorting Center Portal ────────────────────────────────────
-// Everyone signs in at /login (logistics companies too); the old logistics entrances lead there.
-Route::redirect('/sc/login', '/login')->name('sc.login');   // Portal::loginUrl('sc')
+// /sc/login (above) is the sorting center portal's own sign-in, so signing out there never lands in a buyer
+// account signed in to the shop in the same browser. /login works for logistics too; old entrances lead there.
 Route::get('/sc/register',  [\App\Http\Controllers\SortingCenter\RegistrationController::class, 'create'])->name('sc.register')->middleware('guest');
 Route::post('/sc/register', [\App\Http\Controllers\SortingCenter\RegistrationController::class, 'store'])->name('sc.register.store')->middleware('guest');
 
@@ -90,38 +95,55 @@ Route::post('/sc/register', [\App\Http\Controllers\SortingCenter\RegistrationCon
 Route::redirect('/sorting-center/login', '/login')->name('sorting-center.login');
 
 Route::middleware(['auth', 'is_sc', 'prevent.back'])->prefix('sc')->name('sc.')->group(function () {
-    Route::get('/dashboard',            [\App\Http\Controllers\SortingCenterController::class, 'dashboard'])->name('dashboard');
+    Route::get('/dashboard',            [\App\Http\Controllers\SortingCenter\SortingCenterController::class, 'dashboard'])->name('dashboard');
 
     // Coverage areas (barangays within the SC municipality)
-    Route::get('/areas',                [\App\Http\Controllers\SortingCenterController::class, 'areas'])->name('areas');
-    Route::post('/areas',               [\App\Http\Controllers\SortingCenterController::class, 'storeArea'])->name('areas.store');
-    Route::delete('/areas/{area}',      [\App\Http\Controllers\SortingCenterController::class, 'destroyArea'])->name('areas.destroy');
+    Route::get('/areas',                [\App\Http\Controllers\SortingCenter\SortingCenterController::class, 'areas'])->name('areas');
+    Route::post('/areas',               [\App\Http\Controllers\SortingCenter\SortingCenterController::class, 'storeArea'])->name('areas.store');
+    Route::delete('/areas/{area}',      [\App\Http\Controllers\SortingCenter\SortingCenterController::class, 'destroyArea'])->name('areas.destroy');
 
     // Riders
-    Route::get('/riders',               [\App\Http\Controllers\SortingCenterController::class, 'riders'])->name('riders');
-    Route::post('/riders',              [\App\Http\Controllers\SortingCenterController::class, 'storeRider'])->name('riders.store');
-    Route::post('/riders/{rider}/approve', [\App\Http\Controllers\SortingCenterController::class, 'approveRider'])->name('riders.approve');
-    Route::post('/riders/{rider}/reject',  [\App\Http\Controllers\SortingCenterController::class, 'rejectRider'])->name('riders.reject');
-    Route::post('/riders/{rider}/toggle',  [\App\Http\Controllers\SortingCenterController::class, 'toggleRider'])->name('riders.toggle');
+    Route::get('/riders',               [\App\Http\Controllers\SortingCenter\SortingCenterController::class, 'riders'])->name('riders');
+    Route::post('/riders',              [\App\Http\Controllers\SortingCenter\SortingCenterController::class, 'storeRider'])->name('riders.store');
+    Route::post('/riders/{rider}/approve', [\App\Http\Controllers\SortingCenter\SortingCenterController::class, 'approveRider'])->name('riders.approve');
+    Route::post('/riders/{rider}/reject',  [\App\Http\Controllers\SortingCenter\SortingCenterController::class, 'rejectRider'])->name('riders.reject');
+    Route::post('/riders/{rider}/toggle',  [\App\Http\Controllers\SortingCenter\SortingCenterController::class, 'toggleRider'])->name('riders.toggle');
     Route::get('/riders/{rider}',          [\App\Http\Controllers\SortingCenter\RiderWorkController::class, 'showRider'])->name('riders.show');
+    Route::post('/riders/{rider}/areas',   [\App\Http\Controllers\SortingCenter\SortingCenterController::class, 'addRiderArea'])->name('riders.areas.add');
+    Route::post('/riders/{rider}/areas/{area}/remove', [\App\Http\Controllers\SortingCenter\SortingCenterController::class, 'removeRiderArea'])->name('riders.areas.remove');
     Route::get('/riders/{rider}/documents/{document}', [\App\Http\Controllers\SortingCenter\RiderWorkController::class, 'riderDocument'])->whereIn('document', ['license', 'or-cr'])->name('riders.document');
     Route::post('/riders/{rider}/verify',  [\App\Http\Controllers\SortingCenter\RiderWorkController::class, 'verifyRider'])->name('riders.verify');
 
-    // Rider dispatch (auto-assign offers, manual assignment, Unassigned queue) and COD remittances
+    // Rider dispatch (Auto-assign to each barangay's rider, manual assignment) and COD remittances
     Route::get('/dispatch',                  [\App\Http\Controllers\SortingCenter\RiderWorkController::class, 'dispatchBoard'])->name('dispatch');
     Route::post('/dispatch/{parcel}/auto',   [\App\Http\Controllers\SortingCenter\RiderWorkController::class, 'autoAssign'])->name('dispatch.auto');
+    // Auto-assign every waiting pickup or delivery to the rider of its barangay.
+    Route::post('/dispatch/auto-all/{kind}', [\App\Http\Controllers\SortingCenter\RiderWorkController::class, 'autoAssignAll'])->whereIn('kind', ['pickup', 'delivery'])->name('dispatch.auto-all');
     Route::post('/dispatch/{parcel}/assign', [\App\Http\Controllers\SortingCenter\RiderWorkController::class, 'manualAssign'])->name('dispatch.assign');
     Route::get('/remittances',               [\App\Http\Controllers\SortingCenter\RiderWorkController::class, 'remittances'])->name('remittances');
+    Route::get('/rider-pay',                 [\App\Http\Controllers\SortingCenter\RiderWorkController::class, 'riderPay'])->name('rider-pay');
+    Route::post('/rider-pay/{rider}/send',   [\App\Http\Controllers\SortingCenter\RiderWorkController::class, 'sendPay'])->whereNumber('rider')->middleware('throttle:20,1')->name('rider-pay.send');
+    Route::post('/rider-pay/cashouts/{entry}/paid',   [\App\Http\Controllers\SortingCenter\RiderWorkController::class, 'cashoutPaid'])->whereNumber('entry')->name('rider-pay.cashout.paid');
+    Route::post('/rider-pay/cashouts/{entry}/reject', [\App\Http\Controllers\SortingCenter\RiderWorkController::class, 'cashoutReject'])->whereNumber('entry')->name('rider-pay.cashout.reject');
     Route::post('/remittances/{remittance}/confirm', [\App\Http\Controllers\SortingCenter\RiderWorkController::class, 'confirmRemittance'])->name('remittances.confirm');
+    Route::post('/remittances/{remittance}/deduct', [\App\Http\Controllers\SortingCenter\RiderWorkController::class, 'deductShortage'])->name('remittances.deduct');
 
     // Commission and net earnings: share of the shipping fee, ALVY's commission, rider pay
     Route::get('/commissions',               [\App\Http\Controllers\SortingCenter\CommissionController::class, 'index'])->name('commissions');
 
     // Logistics workbook (L1–L8): shipment list, reassign / bulk assign, exceptions, Return to Sender, rates and zones
-    Route::get('/shipments',                  [\App\Http\Controllers\SortingCenter\LogisticsController::class, 'shipments'])->name('shipments');
+    // Shipments is part of the Shipment Board now (one inventory list); old links keep their search.
+    Route::get('/shipments',                  fn (\Illuminate\Http\Request $r) => redirect()->route('sc.tracking', array_filter($r->only('q', 'from', 'to')
+        + ['bucket' => isset(\App\Models\Parcel::BUCKETS[$r->input('status')]) ? $r->input('status') : null])))->name('shipments');
     Route::post('/dispatch/bulk',             [\App\Http\Controllers\SortingCenter\LogisticsController::class, 'bulkAssign'])->name('dispatch.bulk');
     Route::post('/dispatch/{parcel}/reassign', [\App\Http\Controllers\SortingCenter\LogisticsController::class, 'reassign'])->name('dispatch.reassign');
     Route::post('/parcels/{parcel}/exception', [\App\Http\Controllers\SortingCenter\LogisticsController::class, 'markException'])->name('parcels.exception');
+    // Return to Sender was removed: undeliverable parcels cancel the order and stay at the hub (old links land on Shipments).
+    Route::get('/returns',                    [\App\Http\Controllers\SortingCenter\ReturnsController::class, 'index'])->name('returns');
+    Route::post('/returns/{return}/assign',   [\App\Http\Controllers\SortingCenter\ReturnsController::class, 'assignPickup'])->whereNumber('return')->name('returns.assign');
+    Route::post('/returns/{return}/receive',  [\App\Http\Controllers\SortingCenter\ReturnsController::class, 'receive'])->whereNumber('return')->name('returns.receive');
+    Route::post('/returns/{return}/to-seller', [\App\Http\Controllers\SortingCenter\ReturnsController::class, 'assignSeller'])->whereNumber('return')->name('returns.to-seller');
+    Route::get('/failed-deliveries',          [\App\Http\Controllers\SortingCenter\IssuesController::class, 'failed'])->name('failed-deliveries');
     Route::get('/rts',                        [\App\Http\Controllers\SortingCenter\LogisticsController::class, 'rtsQueue'])->name('rts');
     Route::post('/rts/{parcel}/assign',     [\App\Http\Controllers\SortingCenter\LogisticsController::class, 'assignRts'])->name('rts.assign');
     Route::get('/rates',                      [\App\Http\Controllers\SortingCenter\LogisticsController::class, 'rates'])->name('rates');
@@ -138,67 +160,85 @@ Route::middleware(['auth', 'is_sc', 'prevent.back'])->prefix('sc')->name('sc.')-
     Route::post('/courier-applications/{courier}/reject',      [\App\Http\Controllers\SortingCenter\CourierApplicationController::class, 'reject'])->name('courier-applications.reject');
 
     // Pickup requests
-    Route::get('/pickup-requests',      [\App\Http\Controllers\SortingCenterController::class, 'pickupRequests'])->name('pickup-requests');
-    Route::post('/pickup-requests/{parcel}/approve', [\App\Http\Controllers\SortingCenterController::class, 'approvePickup'])->name('pickup-requests.approve');
-    Route::post('/pickup-requests/{parcel}/reject',  [\App\Http\Controllers\SortingCenterController::class, 'rejectPickup'])->name('pickup-requests.reject');
+    Route::get('/pickup-requests',      [\App\Http\Controllers\SortingCenter\SortingCenterController::class, 'pickupRequests'])->name('pickup-requests');
+    Route::post('/pickup-requests/{parcel}/approve', [\App\Http\Controllers\SortingCenter\SortingCenterController::class, 'approvePickup'])->name('pickup-requests.approve');
+    Route::post('/pickup-requests/{parcel}/reject',  [\App\Http\Controllers\SortingCenter\SortingCenterController::class, 'rejectPickup'])->name('pickup-requests.reject');
 
     // Incoming parcels
-    Route::get('/incoming-parcels',     [\App\Http\Controllers\SortingCenterController::class, 'incomingParcels'])->name('incoming-parcels');
+    // Incoming Parcels was removed from the web portal: parcels are received on the Shipment Board (old links land there).
+    // (The logistics app still reads SortingCenterController::incomingParcels through the API.)
+    Route::get('/incoming-parcels',     fn () => redirect()->route('sc.tracking'))->name('incoming-parcels');
     // Printable waybills (one parcel, or several: ?ids[]=1&ids[]=2)
-    Route::get('/parcels/{parcel}/waybill', [\App\Http\Controllers\SortingCenterController::class, 'waybill'])->name('parcels.waybill');
-    Route::get('/waybills',          [\App\Http\Controllers\SortingCenterController::class, 'waybills'])->name('waybills');
-    Route::post('/parcels/scan',        [\App\Http\Controllers\SortingCenterController::class, 'scanParcel'])->name('parcels.scan');
-    Route::post('/parcels/{parcel}/advance', [\App\Http\Controllers\SortingCenterController::class, 'advanceParcel'])->name('parcels.advance');
-    Route::post('/parcels/{parcel}/sort',    [\App\Http\Controllers\SortingCenterController::class, 'sortParcel'])->name('parcels.sort');
-    Route::post('/parcels/{parcel}/assign',  [\App\Http\Controllers\SortingCenterController::class, 'assignParcel'])->name('parcels.assign');
+    Route::get('/parcels/{parcel}/waybill', [\App\Http\Controllers\SortingCenter\SortingCenterController::class, 'waybill'])->name('parcels.waybill');
+    Route::get('/waybills',          [\App\Http\Controllers\SortingCenter\SortingCenterController::class, 'waybills'])->name('waybills');
+    Route::post('/parcels/scan',        [\App\Http\Controllers\SortingCenter\SortingCenterController::class, 'scanParcel'])->name('parcels.scan');
+    Route::post('/parcels/{parcel}/advance', [\App\Http\Controllers\SortingCenter\SortingCenterController::class, 'advanceParcel'])->name('parcels.advance');
+    Route::post('/parcels/{parcel}/sort',    [\App\Http\Controllers\SortingCenter\SortingCenterController::class, 'sortParcel'])->name('parcels.sort');
+    Route::post('/parcels/{parcel}/sort-transfer', [\App\Http\Controllers\SortingCenter\SortingCenterController::class, 'sortForTransfer'])->name('parcels.sort-transfer');
+    Route::post('/parcels/{parcel}/assign',  [\App\Http\Controllers\SortingCenter\SortingCenterController::class, 'assignParcel'])->name('parcels.assign');
 
     // Parcel sorting
-    Route::get('/parcel-sorting',       [\App\Http\Controllers\SortingCenterController::class, 'parcelSorting'])->name('parcel-sorting');
+    Route::get('/parcel-sorting',       [\App\Http\Controllers\SortingCenter\SortingCenterController::class, 'parcelSorting'])->name('parcel-sorting');
 
     // Delivery assignment
-    Route::get('/delivery-assignment',  [\App\Http\Controllers\SortingCenterController::class, 'deliveryAssignment'])->name('delivery-assignment');
+    Route::get('/delivery-assignment',  [\App\Http\Controllers\SortingCenter\SortingCenterController::class, 'deliveryAssignment'])->name('delivery-assignment');
 
     // Delivery monitoring
-    Route::get('/delivery-monitoring',  [\App\Http\Controllers\SortingCenterController::class, 'deliveryMonitoring'])->name('delivery-monitoring');
-    Route::post('/deliveries/{delivery}/status', [\App\Http\Controllers\SortingCenterController::class, 'updateDeliveryStatus'])->name('deliveries.update-status');
-    Route::post('/deliveries/{delivery}/reschedule', [\App\Http\Controllers\SortingCenterController::class, 'rescheduleDelivery'])->name('deliveries.reschedule');
-    Route::post('/deliveries/{delivery}/return',     [\App\Http\Controllers\SortingCenterController::class, 'returnParcel'])->name('deliveries.return');
+    Route::get('/delivery-monitoring',  [\App\Http\Controllers\SortingCenter\SortingCenterController::class, 'deliveryMonitoring'])->name('delivery-monitoring');
+    Route::post('/deliveries/{delivery}/status', [\App\Http\Controllers\SortingCenter\SortingCenterController::class, 'updateDeliveryStatus'])->name('deliveries.update-status');
+    Route::post('/deliveries/{delivery}/reschedule', [\App\Http\Controllers\SortingCenter\SortingCenterController::class, 'rescheduleDelivery'])->name('deliveries.reschedule');
+    Route::post('/deliveries/{delivery}/return',     [\App\Http\Controllers\SortingCenter\SortingCenterController::class, 'returnParcel'])->name('deliveries.return');
 
     // Reports
-    Route::get('/reports',              [\App\Http\Controllers\SortingCenterController::class, 'reports'])->name('reports');
+    Route::get('/reports',              [\App\Http\Controllers\SortingCenter\SortingCenterController::class, 'reports'])->name('reports');
 
     // Chat
-    Route::get('/chat',                 [\App\Http\Controllers\SortingCenterController::class, 'chat'])->name('chat');
-    Route::post('/chat/send',           [\App\Http\Controllers\SortingCenterController::class, 'sendMessage'])->name('chat.send');
-    Route::get('/chat/poll',            [\App\Http\Controllers\SortingCenterController::class, 'pollMessages'])->name('chat.poll');
+    Route::get('/chat',                 [\App\Http\Controllers\SortingCenter\SortingCenterController::class, 'chat'])->name('chat');
+    Route::post('/chat/send',           [\App\Http\Controllers\SortingCenter\SortingCenterController::class, 'sendMessage'])->name('chat.send');
+    Route::get('/chat/poll',            [\App\Http\Controllers\SortingCenter\SortingCenterController::class, 'pollMessages'])->name('chat.poll');
 
     // Account
-    Route::get('/account',              [\App\Http\Controllers\SortingCenterController::class, 'account'])->name('account');
-    Route::put('/account',              [\App\Http\Controllers\SortingCenterController::class, 'updateAccount'])->name('account.update');
+    Route::get('/account',              [\App\Http\Controllers\SortingCenter\SortingCenterController::class, 'account'])->name('account');
+    Route::put('/account',              [\App\Http\Controllers\SortingCenter\SortingCenterController::class, 'updateAccount'])->name('account.update');
     // Security: change password (step 1 emails a code, step 2 enters it).
-    Route::get('/account/security',                   [\App\Http\Controllers\SortingCenterController::class, 'security'])->name('account.security');
-    Route::put('/account/security',                   [\App\Http\Controllers\SortingCenterController::class, 'changePassword'])->middleware('throttle:10,1')->name('account.password');
-    Route::post('/account/security/password/confirm', [\App\Http\Controllers\SortingCenterController::class, 'confirmPasswordChange'])->middleware('throttle:10,1')->name('account.password.confirm');
-    Route::post('/account/security/password/resend',  [\App\Http\Controllers\SortingCenterController::class, 'resendPasswordCode'])->middleware('throttle:3,1')->name('account.password.resend');
-    Route::post('/account/security/password/cancel',  [\App\Http\Controllers\SortingCenterController::class, 'cancelPasswordChange'])->name('account.password.cancel');
+    Route::get('/account/security',                   [\App\Http\Controllers\SortingCenter\SortingCenterController::class, 'security'])->name('account.security');
+    Route::put('/account/security',                   [\App\Http\Controllers\SortingCenter\SortingCenterController::class, 'changePassword'])->middleware('throttle:10,1')->name('account.password');
+    Route::post('/account/security/password/confirm', [\App\Http\Controllers\SortingCenter\SortingCenterController::class, 'confirmPasswordChange'])->middleware('throttle:10,1')->name('account.password.confirm');
+    Route::post('/account/security/password/resend',  [\App\Http\Controllers\SortingCenter\SortingCenterController::class, 'resendPasswordCode'])->middleware('throttle:3,1')->name('account.password.resend');
+    Route::post('/account/security/password/cancel',  [\App\Http\Controllers\SortingCenter\SortingCenterController::class, 'cancelPasswordChange'])->name('account.password.cancel');
 
     // Logout
-    Route::post('/logout',              [\App\Http\Controllers\SortingCenterController::class, 'logout'])->name('logout');
+    Route::post('/logout',              [\App\Http\Controllers\SortingCenter\SortingCenterController::class, 'logout'])->name('logout');
 
-    // ── SC-to-SC Transfers ────────────────────────────────────
-    Route::get('/transfers',                                    [\App\Http\Controllers\SortingCenterController::class, 'transfers'])->name('transfers');
-    Route::post('/transfers/initiate',                          [\App\Http\Controllers\SortingCenterController::class, 'initiateTransfer'])->name('transfers.initiate');
-    Route::post('/transfers/{transfer}/accept',                 [\App\Http\Controllers\SortingCenterController::class, 'acceptTransfer'])->name('transfers.accept');
-    Route::post('/transfers/{transfer}/reject',                 [\App\Http\Controllers\SortingCenterController::class, 'rejectTransfer'])->name('transfers.reject');
-    Route::post('/transfers/{transfer}/cancel',                 [\App\Http\Controllers\SortingCenterController::class, 'cancelTransfer'])->name('transfers.cancel');
-    Route::post('/transfers/{transfer}/dispatch',               [\App\Http\Controllers\SortingCenterController::class, 'dispatchTransfer'])->name('transfers.dispatch');
+    // ── SC-to-SC Transfers: replaced by Linehaul Trips (the old page opens the trips) ──
+    Route::redirect('/transfers', '/sc/trips')->name('transfers');
+    // Linehaul Trips: hub-to-hub trips of the company's couriers, to its own hubs or another sorting center's hub
+    // (which accepts the trip first). Both companies track it, message each other, and the receiver receives the parcels.
+    Route::get('/trips',                     [\App\Http\Controllers\SortingCenter\TripsController::class, 'index'])->name('trips');
+    Route::post('/trips',                    [\App\Http\Controllers\SortingCenter\TripsController::class, 'store'])->name('trips.store');
+    Route::post('/trips/auto-assign',        [\App\Http\Controllers\SortingCenter\TripsController::class, 'autoAssignAll'])->name('trips.auto-all');
+    Route::get('/trips/{trip}',              [\App\Http\Controllers\SortingCenter\TripsController::class, 'show'])->whereNumber('trip')->name('trips.show');
+    Route::post('/trips/{trip}/parcels',     [\App\Http\Controllers\SortingCenter\TripsController::class, 'addParcels'])->whereNumber('trip')->name('trips.parcels');
+    Route::post('/trips/{trip}/auto',        [\App\Http\Controllers\SortingCenter\TripsController::class, 'autoAdd'])->whereNumber('trip')->name('trips.auto');
+    Route::post('/trips/{trip}/parcels/{parcel}/remove', [\App\Http\Controllers\SortingCenter\TripsController::class, 'removeParcel'])->whereNumber('trip')->name('trips.parcels.remove');
+    Route::post('/trips/{trip}/assign',      [\App\Http\Controllers\SortingCenter\TripsController::class, 'assign'])->whereNumber('trip')->name('trips.assign');
+    Route::post('/trips/{trip}/cancel',      [\App\Http\Controllers\SortingCenter\TripsController::class, 'cancel'])->whereNumber('trip')->name('trips.cancel');
+    Route::post('/trips/{trip}/remove',      [\App\Http\Controllers\SortingCenter\TripsController::class, 'remove'])->whereNumber('trip')->name('trips.remove');
+    Route::post('/trips/{trip}/edit',        [\App\Http\Controllers\SortingCenter\TripsController::class, 'update'])->whereNumber('trip')->name('trips.update');
+    Route::post('/trips/{trip}/respond',     [\App\Http\Controllers\SortingCenter\TripsController::class, 'respond'])->whereNumber('trip')->name('trips.respond');
+    Route::post('/trips/{trip}/message',     [\App\Http\Controllers\SortingCenter\TripsController::class, 'message'])->whereNumber('trip')->name('trips.message');
+    Route::post('/trips/{trip}/receive',     [\App\Http\Controllers\SortingCenter\TripsController::class, 'receive'])->whereNumber('trip')->name('trips.receive');
+    Route::post('/transfers/initiate',                          [\App\Http\Controllers\SortingCenter\SortingCenterController::class, 'initiateTransfer'])->name('transfers.initiate');
+    Route::post('/transfers/{transfer}/accept',                 [\App\Http\Controllers\SortingCenter\SortingCenterController::class, 'acceptTransfer'])->name('transfers.accept');
+    Route::post('/transfers/{transfer}/reject',                 [\App\Http\Controllers\SortingCenter\SortingCenterController::class, 'rejectTransfer'])->name('transfers.reject');
+    Route::post('/transfers/{transfer}/cancel',                 [\App\Http\Controllers\SortingCenter\SortingCenterController::class, 'cancelTransfer'])->name('transfers.cancel');
+    Route::post('/transfers/{transfer}/dispatch',               [\App\Http\Controllers\SortingCenter\SortingCenterController::class, 'dispatchTransfer'])->name('transfers.dispatch');
 
     // Shipment Board: custody, sorting, transfers and exceptions for this center's parcels
     Route::get('/tracking',                         [\App\Http\Controllers\SortingCenter\ShipmentController::class, 'index'])->name('tracking');
     Route::get('/tracking/{parcel}',                [\App\Http\Controllers\SortingCenter\ShipmentController::class, 'show'])->name('tracking.show');
     Route::post('/tracking/{parcel}/receive',       [\App\Http\Controllers\SortingCenter\ShipmentController::class, 'receive'])->name('tracking.receive');
     Route::post('/tracking/{parcel}/start-sorting', [\App\Http\Controllers\SortingCenter\ShipmentController::class, 'startSorting'])->name('tracking.start-sorting');
-    Route::post('/tracking/{parcel}/exception',     [\App\Http\Controllers\SortingCenter\ShipmentController::class, 'reportException'])->name('tracking.exception');
     Route::post('/riders/{rider}/transport',        [\App\Http\Controllers\SortingCenter\ShipmentController::class, 'toggleTransport'])->name('riders.transport');
 });
 
@@ -213,39 +253,39 @@ Route::get('/', [HomeController::class, 'index'])->middleware('buyer_only')->nam
 Route::redirect('/logistics/login', '/login');
 
 Route::middleware('buyer_only')->group(function () {
-    Route::get('/categories', [\App\Http\Controllers\CategoryPageController::class, 'index'])->name('categories.page');
-    Route::get('/categories/{slug}', [\App\Http\Controllers\CategoryPageController::class, 'show'])->name('categories.show');
+    Route::get('/categories', [\App\Http\Controllers\Storefront\CategoryPageController::class, 'index'])->name('categories.page');
+    Route::get('/categories/{slug}', [\App\Http\Controllers\Storefront\CategoryPageController::class, 'show'])->name('categories.show');
     Route::get('/shop', [ShopController::class, 'index'])->name('shop.index');
-    Route::get('/vouchers', [\App\Http\Controllers\VoucherWalletController::class, 'center'])->name('vouchers.center');
+    Route::get('/vouchers', [\App\Http\Controllers\Buyer\VoucherWalletController::class, 'center'])->name('vouchers.center');
     Route::get('/products/{slug}', [ProductController::class, 'show'])->name('products.show');
 
     // ALVY Assistant (AI help chat on the shop pages; guests and buyers)
-    Route::get('/assistant/history',  [\App\Http\Controllers\AssistantController::class, 'history'])->name('assistant.history');
-    Route::post('/assistant/ask',     [\App\Http\Controllers\AssistantController::class, 'ask'])->middleware('throttle:10,1')->name('assistant.ask');
-    Route::post('/assistant/reset',   [\App\Http\Controllers\AssistantController::class, 'reset'])->name('assistant.reset');
-    Route::post('/assistant/actions/{token}', [\App\Http\Controllers\AssistantController::class, 'confirm'])->middleware('throttle:10,1')->name('assistant.confirm');
-    Route::get('/store/{sellerId}', [\App\Http\Controllers\StoreController::class, 'show'])->whereNumber('sellerId')->name('stores.show');
+    Route::get('/assistant/history',  [\App\Http\Controllers\Shared\AssistantController::class, 'history'])->name('assistant.history');
+    Route::post('/assistant/ask',     [\App\Http\Controllers\Shared\AssistantController::class, 'ask'])->middleware('throttle:10,1')->name('assistant.ask');
+    Route::post('/assistant/reset',   [\App\Http\Controllers\Shared\AssistantController::class, 'reset'])->name('assistant.reset');
+    Route::post('/assistant/actions/{token}', [\App\Http\Controllers\Shared\AssistantController::class, 'confirm'])->middleware('throttle:10,1')->name('assistant.confirm');
+    Route::get('/store/{sellerId}', [\App\Http\Controllers\Storefront\StoreController::class, 'show'])->whereNumber('sellerId')->name('stores.show');
 });
 Route::get('/dbconn', fn() => view('dbconn'));
-Route::get('/policies/{key}', [\App\Http\Controllers\PolicyController::class, 'show'])->name('policies.show');
+Route::get('/policies/{key}', [\App\Http\Controllers\Storefront\PolicyController::class, 'show'])->name('policies.show');
 
 // Get the app: the Android app to download (it uses this same site as its backend).
-Route::get('/app',          [\App\Http\Controllers\AppDownloadController::class, 'show'])->name('app.page');
-Route::get('/app/download', [\App\Http\Controllers\AppDownloadController::class, 'download'])->name('app.download');
+Route::get('/app',          [\App\Http\Controllers\Storefront\AppDownloadController::class, 'show'])->name('app.page');
+Route::get('/app/download', [\App\Http\Controllers\Storefront\AppDownloadController::class, 'download'])->name('app.download');
 
 // A rider or courier made by a logistics company sets a password from the emailed link (24 hours).
-Route::get('/activate/{token}',  [\App\Http\Controllers\AccountActivationController::class, 'show'])->name('account.activate');
-Route::post('/activate/{token}', [\App\Http\Controllers\AccountActivationController::class, 'store'])->middleware('throttle:10,1')->name('account.activate.store');
+Route::get('/activate/{token}',  [\App\Http\Controllers\Shared\AccountActivationController::class, 'show'])->name('account.activate');
+Route::post('/activate/{token}', [\App\Http\Controllers\Shared\AccountActivationController::class, 'store'])->middleware('throttle:10,1')->name('account.activate.store');
 
 // ── PSGC Address API proxy (server-side to avoid CORS/SSL issues) ──
 // Map pin → address (OpenStreetMap lookup, matched to the PSGC lists)
-Route::get('/api/geo/reverse', [\App\Http\Controllers\GeoController::class, 'reverse'])->middleware('throttle:30,1')->name('geo.reverse');
-Route::get('/api/geo/search',  [\App\Http\Controllers\GeoController::class, 'search'])->middleware('throttle:30,1')->name('geo.search');
-Route::get('/api/psgc/regions',                          [\App\Http\Controllers\PsgcController::class, 'regions']);
-Route::get('/api/psgc/regions/{code}/provinces',         [\App\Http\Controllers\PsgcController::class, 'provincesByRegion']);
-Route::get('/api/psgc/provinces',                        [\App\Http\Controllers\PsgcController::class, 'provinces']);
-Route::get('/api/psgc/provinces/{code}/municipalities',  [\App\Http\Controllers\PsgcController::class, 'municipalities']);
-Route::get('/api/psgc/municipalities/{code}/barangays',  [\App\Http\Controllers\PsgcController::class, 'barangays']);
+Route::get('/api/geo/reverse', [\App\Http\Controllers\Shared\GeoController::class, 'reverse'])->middleware('throttle:30,1')->name('geo.reverse');
+Route::get('/api/geo/search',  [\App\Http\Controllers\Shared\GeoController::class, 'search'])->middleware('throttle:30,1')->name('geo.search');
+Route::get('/api/psgc/regions',                          [\App\Http\Controllers\Shared\PsgcController::class, 'regions']);
+Route::get('/api/psgc/regions/{code}/provinces',         [\App\Http\Controllers\Shared\PsgcController::class, 'provincesByRegion']);
+Route::get('/api/psgc/provinces',                        [\App\Http\Controllers\Shared\PsgcController::class, 'provinces']);
+Route::get('/api/psgc/provinces/{code}/municipalities',  [\App\Http\Controllers\Shared\PsgcController::class, 'municipalities']);
+Route::get('/api/psgc/municipalities/{code}/barangays',  [\App\Http\Controllers\Shared\PsgcController::class, 'barangays']);
 Route::get('/login',    [AuthenticatedSessionController::class, 'create'])->name('login');
 Route::post('/login',   [AuthenticatedSessionController::class, 'store'])->name('login.attempt');
 Route::middleware('guest')->group(function () {
@@ -268,6 +308,10 @@ Route::post('/register',[RegisteredUserController::class, 'store'])->middleware(
 
 Route::post('/logout', [AuthenticatedSessionController::class, 'destroy'])
     ->middleware('auth')->name('logout');
+
+// Profile photo for every role (buyer, seller, courier): saved as soon as it is chosen.
+Route::post('/account/photo', [\App\Http\Controllers\Shared\ProfilePhotoController::class, 'update'])
+    ->middleware(['auth', 'throttle:20,1'])->name('account.photo');
 
 // ── Authenticated (buyer-only) ────────────────────────────────
 Route::middleware(['auth', 'buyer_only', 'prevent.back'])->group(function () {
@@ -303,25 +347,27 @@ Route::middleware(['auth', 'buyer_only', 'prevent.back'])->group(function () {
     Route::get('/profile/addresses',          [ProfileController::class, 'addresses'])->name('profile.addresses');
 
     // Address CRUD
-    Route::post('/profile/addresses',                       [\App\Http\Controllers\AddressController::class, 'store'])->name('addresses.store');
-    Route::patch('/profile/addresses/{address}',            [\App\Http\Controllers\AddressController::class, 'update'])->name('addresses.update');
-    Route::delete('/profile/addresses/{address}',           [\App\Http\Controllers\AddressController::class, 'destroy'])->name('addresses.destroy');
-    Route::patch('/profile/addresses/{address}/set-default',[\App\Http\Controllers\AddressController::class, 'setDefault'])->name('addresses.set-default');
+    Route::post('/profile/addresses',                       [\App\Http\Controllers\Buyer\AddressController::class, 'store'])->name('addresses.store');
+    Route::patch('/profile/addresses/{address}',            [\App\Http\Controllers\Buyer\AddressController::class, 'update'])->name('addresses.update');
+    Route::delete('/profile/addresses/{address}',           [\App\Http\Controllers\Buyer\AddressController::class, 'destroy'])->name('addresses.destroy');
+    Route::patch('/profile/addresses/{address}/set-default',[\App\Http\Controllers\Buyer\AddressController::class, 'setDefault'])->name('addresses.set-default');
 
     // Buyer confirm delivery
-    Route::post('/orders/{id}/confirm-delivery', [\App\Http\Controllers\OrderController::class, 'confirmDelivery'])->name('orders.confirm-delivery');
+    Route::post('/orders/{id}/confirm-delivery', [\App\Http\Controllers\Buyer\OrderController::class, 'confirmDelivery'])->name('orders.confirm-delivery');
 
     // Buyer cancel order
-    Route::post('/orders/{id}/cancel', [\App\Http\Controllers\OrderController::class, 'cancelByBuyer'])->name('orders.cancel');
+    Route::post('/orders/{id}/cancel', [\App\Http\Controllers\Buyer\OrderController::class, 'cancelByBuyer'])->name('orders.cancel');
+    Route::post('/orders/{id}/gcash-receipt', [\App\Http\Controllers\Buyer\GcashResubmitController::class, 'store'])->whereNumber('id')->middleware('throttle:10,1')->name('orders.gcash-resubmit');
 
     // ── Buyer modules (B1–B14) ──
     Route::get('/profile/orders/{id}',            [ProfileController::class, 'orderShow'])->whereNumber('id')->name('profile.orders.show');
-    Route::post('/orders/{id}/return',            [\App\Http\Controllers\OrderController::class, 'requestReturn'])->name('orders.return');
-    Route::post('/orders/{id}/escalate',          [\App\Http\Controllers\OrderController::class, 'escalateReturn'])->name('orders.escalate');
-    Route::post('/reviews/item/{item}',           [\App\Http\Controllers\ReviewController::class, 'store'])->name('reviews.store');
-    Route::patch('/reviews/{review}',             [\App\Http\Controllers\ReviewController::class, 'update'])->name('reviews.update');
+    Route::post('/orders/{id}/return',            [\App\Http\Controllers\Buyer\OrderController::class, 'requestReturn'])->name('orders.return');
+    Route::post('/orders/{id}/escalate',          [\App\Http\Controllers\Buyer\OrderController::class, 'escalateReturn'])->name('orders.escalate');
+    Route::post('/reviews/item/{item}',           [\App\Http\Controllers\Buyer\ReviewController::class, 'store'])->name('reviews.store');
+    Route::patch('/reviews/{review}',             [\App\Http\Controllers\Buyer\ReviewController::class, 'update'])->name('reviews.update');
 
     Route::post('/checkout/preview',              [CheckoutController::class, 'preview'])->name('checkout.preview');
+    Route::post('/checkout/quantity',             [CheckoutController::class, 'quantity'])->name('checkout.quantity');
 
     Route::get('/notifications/{id}/open',        [ProfileController::class, 'openNotification'])->name('notifications.open');
     Route::post('/notifications/read-all',        [ProfileController::class, 'readAllNotifications'])->name('notifications.read-all');
@@ -333,32 +379,32 @@ Route::middleware(['auth', 'buyer_only', 'prevent.back'])->group(function () {
     Route::post('/profile/security/resend',       [ProfileController::class, 'resendContactCode'])->middleware('throttle:3,1')->name('profile.contact.resend');
     Route::post('/profile/security/cancel',       [ProfileController::class, 'cancelContactChange'])->name('profile.contact.cancel');
 
-    Route::get('/wishlist',                       [\App\Http\Controllers\WishlistController::class, 'index'])->name('wishlist.index');
-    Route::post('/wishlist/{productId}',          [\App\Http\Controllers\WishlistController::class, 'toggle'])->name('wishlist.toggle');
-    Route::post('/store/{sellerId}/follow',       [\App\Http\Controllers\StoreController::class, 'toggleFollow'])->name('stores.follow');
-    Route::get('/following',                      [\App\Http\Controllers\StoreController::class, 'following'])->name('stores.following');
-    Route::get('/my-vouchers',                    [\App\Http\Controllers\VoucherWalletController::class, 'index'])->name('vouchers.wallet');
-    Route::post('/vouchers/claim-all',            [\App\Http\Controllers\VoucherWalletController::class, 'claimAll'])->middleware('throttle:10,1')->name('vouchers.claim-all');
-    Route::post('/vouchers/{voucher}/claim',      [\App\Http\Controllers\VoucherWalletController::class, 'claim'])->name('vouchers.claim');
+    Route::get('/wishlist',                       [\App\Http\Controllers\Buyer\WishlistController::class, 'index'])->name('wishlist.index');
+    Route::post('/wishlist/{productId}',          [\App\Http\Controllers\Buyer\WishlistController::class, 'toggle'])->name('wishlist.toggle');
+    Route::post('/store/{sellerId}/follow',       [\App\Http\Controllers\Storefront\StoreController::class, 'toggleFollow'])->name('stores.follow');
+    Route::get('/following',                      [\App\Http\Controllers\Storefront\StoreController::class, 'following'])->name('stores.following');
+    Route::get('/my-vouchers',                    [\App\Http\Controllers\Buyer\VoucherWalletController::class, 'index'])->name('vouchers.wallet');
+    Route::post('/vouchers/claim-all',            [\App\Http\Controllers\Buyer\VoucherWalletController::class, 'claimAll'])->middleware('throttle:10,1')->name('vouchers.claim-all');
+    Route::post('/vouchers/{voucher}/claim',      [\App\Http\Controllers\Buyer\VoucherWalletController::class, 'claim'])->name('vouchers.claim');
 
     // Online payment (e-wallet / card) and flash sale reminders
-    Route::post('/orders/{id}/pay',               [\App\Http\Controllers\PaymentController::class, 'pay'])->name('orders.pay');
-    Route::get('/payments/{payment}/return',      [\App\Http\Controllers\PaymentController::class, 'back'])->name('payments.return');
-    Route::get('/payments/{payment}/sandbox',     [\App\Http\Controllers\PaymentController::class, 'sandbox'])->name('payments.sandbox');
-    Route::post('/payments/{payment}/sandbox',    [\App\Http\Controllers\PaymentController::class, 'sandboxAction'])->name('payments.sandbox.act');
-    Route::post('/flash-sales/{flashSale}/remind', [\App\Http\Controllers\FlashSaleReminderController::class, 'toggle'])->name('flash-sales.remind');
+    Route::post('/orders/{id}/pay',               [\App\Http\Controllers\Buyer\PaymentController::class, 'pay'])->name('orders.pay');
+    Route::get('/payments/{payment}/return',      [\App\Http\Controllers\Buyer\PaymentController::class, 'back'])->name('payments.return');
+    Route::get('/payments/{payment}/sandbox',     [\App\Http\Controllers\Buyer\PaymentController::class, 'sandbox'])->name('payments.sandbox');
+    Route::post('/payments/{payment}/sandbox',    [\App\Http\Controllers\Buyer\PaymentController::class, 'sandboxAction'])->name('payments.sandbox.act');
+    Route::post('/flash-sales/{flashSale}/remind', [\App\Http\Controllers\Buyer\FlashSaleReminderController::class, 'toggle'])->name('flash-sales.remind');
 });
 
 // ── Authenticated (all roles) ─────────────────────────────────
 Route::middleware('auth')->group(function () {
 
     // A password change waits for the code emailed to the account (every account type).
-    Route::post('/account/password/verify', [\App\Http\Controllers\PasswordChangeController::class, 'verify'])->middleware('throttle:10,1')->name('password.change.verify');
-    Route::post('/account/password/resend', [\App\Http\Controllers\PasswordChangeController::class, 'resend'])->middleware('throttle:3,1')->name('password.change.resend');
-    Route::post('/account/password/cancel', [\App\Http\Controllers\PasswordChangeController::class, 'cancel'])->name('password.change.cancel');
+    Route::post('/account/password/verify', [\App\Http\Controllers\Shared\PasswordChangeController::class, 'verify'])->middleware('throttle:10,1')->name('password.change.verify');
+    Route::post('/account/password/resend', [\App\Http\Controllers\Shared\PasswordChangeController::class, 'resend'])->middleware('throttle:3,1')->name('password.change.resend');
+    Route::post('/account/password/cancel', [\App\Http\Controllers\Shared\PasswordChangeController::class, 'cancel'])->name('password.change.cancel');
     // Proof-of-delivery photo (the controller checks: the order's buyer, its seller, or an admin)
-    Route::get('/orders/{order}/proof-of-delivery', [\App\Http\Controllers\ShipmentTrackingController::class, 'proofOfDelivery'])->whereNumber('order')->name('shipments.pod');
-        Route::get('/orders/{order}/payment-proof', [\App\Http\Controllers\ShipmentTrackingController::class, 'paymentProof'])->whereNumber('order')->name('orders.payment-proof');
+    Route::get('/orders/{order}/proof-of-delivery', [\App\Http\Controllers\Shared\ShipmentTrackingController::class, 'proofOfDelivery'])->whereNumber('order')->name('shipments.pod');
+        Route::get('/orders/{order}/payment-proof', [\App\Http\Controllers\Shared\ShipmentTrackingController::class, 'paymentProof'])->whereNumber('order')->name('orders.payment-proof');
 
     // Seller application — a buyer upgrading to a shop
     Route::get('/become-seller',  [SellerApplicationController::class, 'create'])->middleware('buyer_only')->name('seller.apply');
@@ -395,6 +441,7 @@ Route::middleware(['auth', 'role:seller,admin', 'seller.approved', 'prevent.back
 
     Route::get('/',                          [SellerDashboardController::class, 'index'])->name('dashboard');
     Route::get('/notifications',             [SellerDashboardController::class, 'notifications'])->name('notifications');
+    Route::post('/violations/{violation}/acknowledge', [SellerDashboardController::class, 'acknowledgeViolation'])->whereNumber('violation')->name('violations.acknowledge');
     Route::get('/notifications/{id}/open',   [SellerDashboardController::class, 'openNotification'])->whereNumber('id')->name('notifications.open');
     Route::post('/notifications/read-all',   [SellerDashboardController::class, 'readAllNotifications'])->name('notifications.read-all');
     Route::get('/books',                     [SellerBookController::class, 'index'])->name('books.index');
@@ -433,6 +480,9 @@ Route::middleware(['auth', 'role:seller,admin', 'seller.approved', 'prevent.back
 
     // Earnings and payouts
     Route::get('/earnings',                  [\App\Http\Controllers\Seller\EarningsController::class, 'index'])->name('earnings');
+    // Contact strikes (sharing contact details with buyers) and appeals
+    Route::get('/strikes',                   [\App\Http\Controllers\Seller\StrikesController::class, 'index'])->name('strikes');
+    Route::post('/strikes/{strike}/appeal',  [\App\Http\Controllers\Seller\StrikesController::class, 'appeal'])->whereNumber('strike')->middleware('throttle:10,1')->name('strikes.appeal');
     Route::post('/earnings/payouts',         [\App\Http\Controllers\Seller\EarningsController::class, 'requestPayout'])->name('earnings.payout');
 
     Route::get('/orders',                    [SellerOrderController::class, 'index'])->name('orders.index');
@@ -488,6 +538,16 @@ Route::middleware(['auth', 'role:admin', 'prevent.back'])
     Route::patch('/vouchers/{voucher}/toggle', [\App\Http\Controllers\Admin\VoucherController::class, 'toggle'])->name('vouchers.toggle');
     Route::delete('/vouchers/{voucher}',       [\App\Http\Controllers\Admin\VoucherController::class, 'destroy'])->name('vouchers.destroy');
 
+    // Home page banner: the admin's slides for events and sales (website and app)
+    Route::get('/banners',                   [\App\Http\Controllers\Admin\HomeBannerController::class, 'index'])->name('banners.index');
+    Route::get('/banners/create',            [\App\Http\Controllers\Admin\HomeBannerController::class, 'create'])->name('banners.create');
+    Route::post('/banners',                  [\App\Http\Controllers\Admin\HomeBannerController::class, 'store'])->name('banners.store');
+    Route::post('/banners/settings',         [\App\Http\Controllers\Admin\HomeBannerController::class, 'settings'])->name('banners.settings');
+    Route::get('/banners/{banner}/edit',     [\App\Http\Controllers\Admin\HomeBannerController::class, 'edit'])->name('banners.edit');
+    Route::put('/banners/{banner}',          [\App\Http\Controllers\Admin\HomeBannerController::class, 'update'])->name('banners.update');
+    Route::patch('/banners/{banner}/toggle', [\App\Http\Controllers\Admin\HomeBannerController::class, 'toggle'])->name('banners.toggle');
+    Route::delete('/banners/{banner}',       [\App\Http\Controllers\Admin\HomeBannerController::class, 'destroy'])->name('banners.destroy');
+
     // New seller products waiting for approval
     Route::get('/product-approvals',                      [\App\Http\Controllers\Admin\ProductApprovalController::class, 'index'])->name('product-approvals.index');
     Route::patch('/product-approvals/{product}/approve',  [\App\Http\Controllers\Admin\ProductApprovalController::class, 'approve'])->name('product-approvals.approve');
@@ -499,14 +559,31 @@ Route::middleware(['auth', 'role:admin', 'prevent.back'])
     Route::put('/categories/{id}',       [AdminCategoryController::class, 'update'])->name('categories.update');
     Route::delete('/categories/{id}',    [AdminCategoryController::class, 'destroy'])->name('categories.destroy');
 
+    // GCash paid to ALVY: check receipts, send refunds, set ALVY's QR
+    Route::get('/gcash-payments',                      [\App\Http\Controllers\Admin\GcashPaymentController::class, 'index'])->name('gcash.index');
+    Route::post('/gcash-payments/{group}/approve',     [\App\Http\Controllers\Admin\GcashPaymentController::class, 'approve'])->whereUuid('group')->name('gcash.approve');
+    Route::post('/gcash-payments/{group}/reject',      [\App\Http\Controllers\Admin\GcashPaymentController::class, 'reject'])->whereUuid('group')->name('gcash.reject');
+    Route::post('/gcash-payments/refunds/{order}',     [\App\Http\Controllers\Admin\GcashPaymentController::class, 'refunded'])->whereNumber('order')->name('gcash.refunded');
+
+    // Seller withdrawals: ALVY sends them from its bank, then marks them completed (bank reference) or failed
+    Route::get('/seller-payouts',                      [\App\Http\Controllers\Admin\SellerPayoutController::class, 'index'])->name('seller-payouts.index');
+    Route::post('/seller-payouts/{payout}/paid',       [\App\Http\Controllers\Admin\SellerPayoutController::class, 'paid'])->whereNumber('payout')->name('seller-payouts.paid');
+    Route::post('/seller-payouts/{payout}/failed',     [\App\Http\Controllers\Admin\SellerPayoutController::class, 'failed'])->whereNumber('payout')->name('seller-payouts.failed');
+    Route::post('/gcash-payments/account',             [\App\Http\Controllers\Admin\GcashPaymentController::class, 'updateAccount'])->name('gcash.account');
+
     Route::get('/orders',                [AdminOrderController::class, 'index'])->name('orders.index');
     Route::get('/orders/{id}',           [AdminOrderController::class, 'show'])->name('orders.show');
-    Route::patch('/orders/{id}',         [AdminOrderController::class, 'update'])->name('orders.update');
-    Route::post('/orders/{id}/dispute',  [AdminOrderController::class, 'resolveDispute'])->name('orders.dispute');
+    // Statuses follow seller → logistics → rider: these admin routes only answer "not allowed" (AdminCannotChangeShipmentStatus).
+    Route::patch('/orders/{id}',         [AdminOrderController::class, 'update'])->name('orders.update')->middleware(\App\Http\Middleware\AdminCannotChangeShipmentStatus::class);
+    // Return Disputes: a seller rejected a return and the buyer escalated it; the admin decides (refund or close).
+    Route::get('/disputes',                      [\App\Http\Controllers\Admin\ReturnDisputeController::class, 'index'])->name('disputes.index');
+    Route::get('/disputes/{return}',             [\App\Http\Controllers\Admin\ReturnDisputeController::class, 'show'])->name('disputes.show');
+    Route::post('/disputes/{return}/decide',     [\App\Http\Controllers\Admin\ReturnDisputeController::class, 'decide'])->name('disputes.decide');
 
     // Buyer management
     Route::get('/customers',                        [AdminCustomerController::class, 'index'])->name('customers.index');
     Route::get('/riders',                           [\App\Http\Controllers\Admin\RiderDirectoryController::class, 'index'])->name('riders.index');
+    Route::get('/sorting-centers',                  [\App\Http\Controllers\Admin\SortingCenterDirectoryController::class, 'index'])->name('sorting-centers.index');
     Route::get('/customers/{id}',                   [AdminCustomerController::class, 'show'])->name('customers.show');
     Route::get('/customers/{id}/valid-id',          [AdminCustomerController::class, 'validId'])->name('customers.validId');
     Route::patch('/customers/{id}/approve',         [AdminCustomerController::class, 'approve'])->name('customers.approve');
@@ -569,6 +646,8 @@ Route::middleware(['auth', 'role:admin', 'prevent.back'])
     Route::get('/compliance',                    [AdminComplianceController::class, 'index'])->name('compliance.index');
     Route::get('/compliance/{sellerId}',         [AdminComplianceController::class, 'show'])->name('compliance.show');
     Route::post('/compliance',                   [AdminComplianceController::class, 'store'])->name('compliance.store');
+    Route::post('/compliance/{sellerId}/strikes-reviewed', [AdminComplianceController::class, 'reviewStrikes'])->whereNumber('sellerId')->name('compliance.strikes-reviewed');
+    Route::post('/compliance/strikes/{strike}/appeal', [AdminComplianceController::class, 'decideAppeal'])->whereNumber('strike')->name('compliance.strike-appeal');
 
     // Platform settings
     Route::get('/settings',                              [AdminSettingsController::class, 'index'])->name('settings.index');
@@ -604,20 +683,20 @@ Route::middleware(['auth', 'role:admin', 'prevent.back'])
         Route::post('/riders/{rider}/toggle-active',     [\App\Http\Controllers\Admin\Logistics\RiderController::class, 'toggleActive'])->name('riders.toggle-active');
 
         Route::get('/pickup-requests',                   [\App\Http\Controllers\Admin\Logistics\PickupRequestController::class, 'index'])->name('pickup-requests.index');
-        Route::post('/pickup-requests/{parcel}/approve', [\App\Http\Controllers\Admin\Logistics\PickupRequestController::class, 'approve'])->name('pickup-requests.approve');
-        Route::post('/pickup-requests/{parcel}/reject',  [\App\Http\Controllers\Admin\Logistics\PickupRequestController::class, 'reject'])->name('pickup-requests.reject');
+        Route::post('/pickup-requests/{parcel}/approve', [\App\Http\Controllers\Admin\Logistics\PickupRequestController::class, 'approve'])->name('pickup-requests.approve')->middleware(\App\Http\Middleware\AdminCannotChangeShipmentStatus::class);
+        Route::post('/pickup-requests/{parcel}/reject',  [\App\Http\Controllers\Admin\Logistics\PickupRequestController::class, 'reject'])->name('pickup-requests.reject')->middleware(\App\Http\Middleware\AdminCannotChangeShipmentStatus::class);
 
         Route::get('/parcels',                           [\App\Http\Controllers\Admin\Logistics\ParcelController::class, 'index'])->name('parcels.index');
         // Must come before /parcels/{parcel}, or "sorting" is treated as a parcel ID.
         Route::get('/parcels/sorting',                   [\App\Http\Controllers\Admin\Logistics\ParcelController::class, 'sorting'])->name('parcels.sorting');
         Route::get('/parcels/{parcel}',                 [\App\Http\Controllers\Admin\Logistics\ParcelController::class, 'show'])->name('parcels.show');
-        Route::post('/parcels/{parcel}/mark-picked-up',  [\App\Http\Controllers\Admin\Logistics\ParcelController::class, 'markPickedUp'])->name('parcels.mark-picked-up');
-        Route::post('/parcels/{parcel}/sort',            [\App\Http\Controllers\Admin\Logistics\ParcelController::class, 'sort'])->name('parcels.sort');
+        Route::post('/parcels/{parcel}/mark-picked-up',  [\App\Http\Controllers\Admin\Logistics\ParcelController::class, 'markPickedUp'])->name('parcels.mark-picked-up')->middleware(\App\Http\Middleware\AdminCannotChangeShipmentStatus::class);
+        Route::post('/parcels/{parcel}/sort',            [\App\Http\Controllers\Admin\Logistics\ParcelController::class, 'sort'])->name('parcels.sort')->middleware(\App\Http\Middleware\AdminCannotChangeShipmentStatus::class);
 
         Route::get('/deliveries/assign',                 [\App\Http\Controllers\Admin\Logistics\DeliveryController::class, 'assignmentIndex'])->name('deliveries.assign-index');
-        Route::post('/deliveries/{parcel}/assign',       [\App\Http\Controllers\Admin\Logistics\DeliveryController::class, 'assign'])->name('deliveries.assign');
+        Route::post('/deliveries/{parcel}/assign',       [\App\Http\Controllers\Admin\Logistics\DeliveryController::class, 'assign'])->name('deliveries.assign')->middleware(\App\Http\Middleware\AdminCannotChangeShipmentStatus::class);
         Route::get('/deliveries/monitor',                [\App\Http\Controllers\Admin\Logistics\DeliveryController::class, 'monitor'])->name('deliveries.monitor');
-        Route::post('/deliveries/{delivery}/status',     [\App\Http\Controllers\Admin\Logistics\DeliveryController::class, 'updateStatus'])->name('deliveries.update-status');
+        Route::post('/deliveries/{delivery}/status',     [\App\Http\Controllers\Admin\Logistics\DeliveryController::class, 'updateStatus'])->name('deliveries.update-status')->middleware(\App\Http\Middleware\AdminCannotChangeShipmentStatus::class);
 
         Route::get('/reports',                           [\App\Http\Controllers\Admin\Logistics\ReportController::class, 'index'])->name('reports.index');
         Route::get('/reports/export',                    [\App\Http\Controllers\Admin\Logistics\ReportController::class, 'export'])->name('reports.export');
@@ -633,6 +712,21 @@ Route::middleware(['auth', 'role:courier,admin', 'prevent.back'])
     ->prefix('courier')->name('courier.')->group(function () {
 
     Route::get('/',                            [CourierDashboardController::class, 'index'])->name('dashboard');
+
+    // Hub Trips: a logistics company's truck courier goes On Duty here (or in the app) to be assigned hub-to-hub trips
+    Route::get('/trips',                       [\App\Http\Controllers\Courier\TruckDutyController::class, 'index'])->name('trips');
+    Route::get('/trips/history',               [\App\Http\Controllers\Courier\TruckDutyController::class, 'history'])->name('trips.history');
+    Route::get('/trips/pay',                   [\App\Http\Controllers\Courier\TruckDutyController::class, 'pay'])->name('trips.pay');
+    Route::post('/trips/duty',                 [\App\Http\Controllers\Courier\TruckDutyController::class, 'duty'])->middleware('throttle:20,1')->name('trips.duty');
+    Route::post('/trips/ping',                 [\App\Http\Controllers\Courier\TruckDutyController::class, 'ping'])->middleware('throttle:10,1')->name('trips.ping');
+    Route::post('/trips/{trip}/accept',        [\App\Http\Controllers\Courier\TruckDutyController::class, 'accept'])->whereNumber('trip')->name('trips.accept');
+    Route::post('/trips/{trip}/decline',       [\App\Http\Controllers\Courier\TruckDutyController::class, 'decline'])->whereNumber('trip')->name('trips.decline');
+    Route::post('/trips/{trip}/loading',        [\App\Http\Controllers\Courier\TruckDutyController::class, 'startLoading'])->whereNumber('trip')->name('trips.loading');
+    Route::post('/trips/{trip}/scan',           [\App\Http\Controllers\Courier\TruckDutyController::class, 'scan'])->whereNumber('trip')->middleware('throttle:60,1')->name('trips.scan');
+    Route::post('/trips/{trip}/depart',         [\App\Http\Controllers\Courier\TruckDutyController::class, 'depart'])->whereNumber('trip')->name('trips.depart');
+    Route::post('/trips/{trip}/delay',          [\App\Http\Controllers\Courier\TruckDutyController::class, 'delay'])->whereNumber('trip')->name('trips.delay');
+    Route::post('/trips/{trip}/arrived',        [\App\Http\Controllers\Courier\TruckDutyController::class, 'arrived'])->whereNumber('trip')->name('trips.arrived');
+    Route::post('/trips/{trip}/note',           [\App\Http\Controllers\Courier\TruckDutyController::class, 'note'])->whereNumber('trip')->name('trips.note');
     Route::get('/notifications',               [CourierDashboardController::class, 'notifications'])->name('notifications');
     Route::get('/notifications/{id}/open',     [CourierDashboardController::class, 'openNotification'])->whereNumber('id')->name('notifications.open');
     Route::post('/notifications/read-all',     [CourierDashboardController::class, 'readAllNotifications'])->name('notifications.read-all');
@@ -657,6 +751,10 @@ Route::middleware(['auth', 'role:courier,admin', 'prevent.back'])
     Route::get('/rider/deliveries/{delivery}',          [\App\Http\Controllers\Courier\RiderController::class, 'delivery'])->whereNumber('delivery')->name('rider.deliveries.show');
     Route::post('/rider/deliveries/{delivery}/start',   [\App\Http\Controllers\Courier\RiderController::class, 'startDelivery'])->whereNumber('delivery')->name('rider.deliveries.start');
     Route::post('/rider/deliveries/{delivery}/deliver', [\App\Http\Controllers\Courier\RiderController::class, 'deliver'])->whereNumber('delivery')->name('rider.deliveries.deliver');
+    Route::get('/rider/return-pickups/{return}',          [\App\Http\Controllers\Courier\RiderController::class, 'returnPickup'])->whereNumber('return')->name('rider.return-pickups.show');
+    Route::post('/rider/return-pickups/{return}/accept',  [\App\Http\Controllers\Courier\RiderController::class, 'acceptReturnPickup'])->whereNumber('return')->name('rider.return-pickups.accept');
+    Route::post('/rider/return-pickups/{return}/confirm', [\App\Http\Controllers\Courier\RiderController::class, 'confirmReturnPickup'])->whereNumber('return')->name('rider.return-pickups.confirm');
+    Route::post('/rider/return-pickups/{return}/handed',  [\App\Http\Controllers\Courier\RiderController::class, 'returnHandedToSeller'])->whereNumber('return')->name('rider.return-pickups.handed');
     Route::post('/rider/returns/{parcel}/returned', [\App\Http\Controllers\Courier\RiderController::class, 'returnedToSeller'])->whereNumber('parcel')->name('rider.returns.returned');
     Route::post('/rider/deliveries/{delivery}/fail',    [\App\Http\Controllers\Courier\RiderController::class, 'fail'])->whereNumber('delivery')->name('rider.deliveries.fail');
     Route::get('/rider/profile/{rider?}',          [\App\Http\Controllers\Courier\RiderController::class, 'profile'])->whereNumber('rider')->name('rider.profile');
@@ -664,6 +762,8 @@ Route::middleware(['auth', 'role:courier,admin', 'prevent.back'])
     Route::get('/rider/{rider}/documents/{document}', [\App\Http\Controllers\Courier\RiderController::class, 'document'])->whereNumber('rider')->whereIn('document', ['license', 'or-cr'])->name('rider.document');
     Route::get('/rider/history',                   [\App\Http\Controllers\Courier\RiderController::class, 'history'])->name('rider.history');
     Route::get('/rider/earnings',                  [\App\Http\Controllers\Courier\RiderController::class, 'earnings'])->name('rider.earnings');
+    Route::get('/rider/wallet',                    [\App\Http\Controllers\Courier\RiderController::class, 'wallet'])->name('rider.wallet');
+    Route::post('/rider/wallet/cashout',           [\App\Http\Controllers\Courier\RiderController::class, 'cashout'])->middleware('throttle:10,1')->name('rider.wallet.cashout');
     Route::get('/rider/cod',                       [\App\Http\Controllers\Courier\RiderController::class, 'cod'])->name('rider.cod');
     Route::post('/rider/cod/remit',                [\App\Http\Controllers\Courier\RiderController::class, 'remit'])->name('rider.cod.remit');
     Route::get('/rider/cod/remittances/{remittance}/receipt', [\App\Http\Controllers\Courier\RiderController::class, 'remittanceReceipt'])->whereNumber('remittance')->name('rider.cod.receipt');

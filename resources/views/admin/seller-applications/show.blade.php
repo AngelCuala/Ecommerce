@@ -4,7 +4,7 @@
     $owner  = trim($a->first_name . ' ' . $a->last_name) ?: ($a->user->name ?? '—');
     $isCorp = $a->seller_type === 'Corporation';
     $image  = fn (?string $p) => $p && in_array(strtolower(pathinfo($p, PATHINFO_EXTENSION)), ['jpg', 'jpeg', 'png', 'webp'], true);
-    $url    = fn (?string $p) => $p ? asset('storage/' . $p) : null;
+    $url    = fn (?string $p) => \App\Support\ProtectedFile::url($p);   // signed link that expires (private files)
 
     // Documents: the government ID first, then the business documents this seller type needs.
     $documents = collect([

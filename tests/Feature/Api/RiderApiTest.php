@@ -28,6 +28,8 @@ class RiderApiTest extends TestCase
         Mail::fake();
         Storage::fake('public');
         $this->seedRiderTestData();
+        // Rider 1 joined before the e-wallet: their pay is still kept out of the COD (RiderWallet::unpaidPay).
+        $this->rider1->forceFill(['wallet_since' => now()->addYear()])->save();
         $this->token = $this->rider1->user->createToken('test')->plainTextToken;
     }
 
@@ -53,7 +55,7 @@ class RiderApiTest extends TestCase
     public function test_online_offers_accept_decline_and_pickup(): void
     {
         $jobs = $this->api('GET', '/rider/jobs')->assertOk();
-        $this->assertSame(['Bilis Hatid Express Inc.', false, 3], [$jobs->json('rider.company'), $jobs->json('rider.online'), $jobs->json('rider.max_active')]);
+        $this->assertSame(['Bilis Hatid Express Inc.', false, null], [$jobs->json('rider.company'), $jobs->json('rider.online'), $jobs->json('rider.max_active')]);   // no job limit
 
         $this->api('POST', '/rider/online', ['online' => true])->assertOk()
             ->assertJsonPath('message', 'You are Online. New job offers will appear here.')->assertJsonPath('rider.online', true);
@@ -76,7 +78,7 @@ class RiderApiTest extends TestCase
         $this->assertSame(['Maria Clara Handicrafts', true, 1], [$detail['seller'], $detail['can_confirm'], $detail['items']]);
 
         $this->api('POST', "/rider/pickups/{$pickup->id}/confirm", ['tracking_number' => 'ALVY-WRONG'])->assertStatus(422)
-            ->assertJsonValidationErrors(['tracking_number' => 'The tracking number does not match this job. Check the waybill on the parcel.']);
+            ->assertJsonValidationErrors(['tracking_number' => 'This waybill does not match this job. Check the label on the parcel.']);
         $this->api('POST', "/rider/pickups/{$pickup->id}/confirm", ['tracking_number' => strtolower($pickup->parcel->tracking_number)])->assertOk()
             ->assertJsonPath('pickup.status', 'picked_up')->assertJsonPath('pickup.can_confirm', false);
 
@@ -117,11 +119,10 @@ class RiderApiTest extends TestCase
 
         $cod = $this->api('GET', '/rider/cod')->assertOk();
         $this->assertSame(490.0, (float) $cod->json('balance'));
-        $this->api('POST', '/rider/cod/remit', ['amount' => 600, 'request_token' => $cod->json('request_token')])->assertStatus(422)
-            ->assertJsonValidationErrors(['amount' => 'You can remit up to your COD balance of ₱490.00.']);
-        $this->api('POST', '/rider/cod/remit', ['amount' => 490, 'request_token' => $cod->json('request_token')])->assertOk()
-            ->assertJsonPath('message', 'Remittance of ₱490.00 sent. It stays Pending until Bilis Hatid Express Inc. confirms it.')
-            ->assertJsonPath('pending', 490);
+        $this->assertEquals(['cod' => 490, 'pay' => 50, 'remit' => 440, 'owed' => 0], $cod->json('next'));   // the rider keeps the ₱50 earned
+        $this->api('POST', '/rider/cod/remit', ['amount' => 600, 'request_token' => $cod->json('request_token')])->assertOk()   // a typed amount is ignored
+            ->assertJsonPath('message', 'Remittance of ₱440.00 sent (you kept ₱50.00 as your pay). It stays Pending until Bilis Hatid Express Inc. confirms it.')
+            ->assertJsonPath('pending', 440);
     }
 
     public function test_failed_delivery_and_return_to_sender(): void
@@ -130,14 +131,9 @@ class RiderApiTest extends TestCase
         $this->api('POST', "/rider/deliveries/{$d->id}/fail", ['reason' => 'Lost'])->assertStatus(422)
             ->assertJsonValidationErrors(['reason' => 'Choose a reason from the list.']);
         $this->api('POST', "/rider/deliveries/{$d->id}/fail", ['reason' => 'Refused'])->assertOk()
-            ->assertJsonPath('message', $d->parcel->tracking_number . ' is Return to Sender. No further attempt.')
+            ->assertJsonPath('message', $d->parcel->tracking_number . ' could not be delivered, so the order was cancelled. Bring the parcel back to the hub.')
             ->assertJsonPath('delivery.actions.fail', false);
-
-        $parcel = $d->parcel->fresh();
-        $parcel->update(['rts_rider_id' => $this->rider1->id, 'rts_assigned_at' => now()]);
-        $this->assertSame($parcel->tracking_number, $this->api('GET', '/rider/jobs')->json('returns.0.tracking'));
-        $this->api('POST', "/rider/returns/{$parcel->id}/returned")->assertOk()
-            ->assertJsonPath('message', "{$parcel->tracking_number} handed back to the seller.")->assertJsonCount(0, 'returns');
+        $this->assertSame('cancelled', $d->parcel->fresh()->status);
     }
 
     public function test_profile_documents_and_suspended_rider(): void

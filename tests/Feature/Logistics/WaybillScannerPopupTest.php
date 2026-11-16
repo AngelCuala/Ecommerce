@@ -42,7 +42,7 @@ class WaybillScannerPopupTest extends TestCase
     {
         $parcel = $this->parcel('pickup_approved');
         $pickup = $this->pickupFor($this->rider1, $parcel);
-        $this->actingAs($this->rider1->user)->post(route('courier.rider.pickups.confirm', $pickup->id), ['tracking_number' => $parcel->tracking_number]);
+        $this->actingAs($this->rider1->user)->post(route('courier.rider.pickups.confirm', $pickup->id), ['tracking_number' => $parcel->tracking_number, 'proof_photo' => \Illuminate\Http\UploadedFile::fake()->image('pickup.jpg')]);
         return $parcel->fresh();
     }
 
@@ -114,7 +114,7 @@ class WaybillScannerPopupTest extends TestCase
             ->assertSee('Position the waybill QR code inside the scanning frame.')->assertSee('Start Scanner')->assertSee('Stop Scanner')
             ->assertSee('js/vendor/zxing.min.js', false);
 
-        foreach ([route('sc.incoming-parcels'), route('sc.parcel-sorting'), route('sc.dashboard')] as $url) {
+        foreach ([route('sc.failed-deliveries'), route('sc.parcel-sorting'), route('sc.dashboard')] as $url) {
             $this->actingAs($this->logistics1)->get($url)->assertOk()->assertDontSee('data-waybill-scanner', false);
         }
         $this->actingAs($this->admin())->get(route('admin.dashboard'))->assertOk()->assertDontSee('data-waybill-scanner', false);

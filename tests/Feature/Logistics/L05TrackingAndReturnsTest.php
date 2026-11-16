@@ -29,7 +29,7 @@ class L05TrackingAndReturnsTest extends TestCase
 
     private function search(string $q)
     {
-        return $this->actingAs($this->logistics1)->get(route('sc.shipments', ['q' => $q]))->assertOk();
+        return $this->actingAs($this->logistics1)->get(route('sc.tracking', ['q' => $q]))->assertOk();
     }
 
     private function override($delivery, string $reason)
@@ -40,7 +40,7 @@ class L05TrackingAndReturnsTest extends TestCase
 
     private function exception(Parcel $parcel, array $data)
     {
-        return $this->actingAs($this->logistics1)->from(route('sc.shipments'))->post(route('sc.parcels.exception', $parcel), $data);
+        return $this->actingAs($this->logistics1)->from(route('sc.tracking.show', $parcel))->post(route('sc.parcels.exception', $parcel), $data);
     }
 
     // ── L5 Shipment Tracking & Exceptions ───────────────────────
@@ -58,7 +58,7 @@ class L05TrackingAndReturnsTest extends TestCase
         $this->assertSame([$ana->id], $this->search($ana->tracking_number)->viewData('parcels')->pluck('id')->all());
 
         foreach (['TRK-0000000', "' OR '1'='1", '<script>alert(1)</script>'] as $q) {
-            $res = $this->search($q)->assertSee('No shipments found.');
+            $res = $this->search($q)->assertSee('No parcels matching', false);
             $this->assertSame(0, $res->viewData('parcels')->total(), "Search for '{$q}'");
         }
         $this->search('<script>alert(1)</script>')->assertDontSee('<script>alert(1)</script>', false);
@@ -131,7 +131,7 @@ class L05TrackingAndReturnsTest extends TestCase
         $this->exception($parcel, ['type' => 'damaged', 'reason' => $reason, 'photo' => UploadedFile::fake()->image('pod_photo.jpg')])->assertSessionHas('success');
         $parcel->refresh();
         $this->assertSame('Damaged', $parcel->statusLabel());
-        Storage::disk('public')->assertExists($parcel->exception_photo_path);
+        Storage::disk('local')->assertExists($parcel->exception_photo_path);
         $this->assertTrue(UserNotification::where('user_id', $this->buyer1->id)->where('title', 'Parcel damaged')->exists());
         $this->assertTrue(UserNotification::where('user_id', $this->seller1->id)->where('title', 'Parcel damaged')->exists());
     }
@@ -142,12 +142,9 @@ class L05TrackingAndReturnsTest extends TestCase
     private function failedThreeTimes(): Parcel
     {
         $parcel = $this->parcel('sorted');
-        foreach (['Buyer not home', 'Wrong address', 'Buyer not home'] as $i => $reason) {
+        foreach (range(1, 3) as $i) {   // "Buyer not home" is rescheduled automatically after each try
             $d = $this->deliveryFor($this->rider1, 'out_for_delivery', $parcel->fresh());
-            $this->actingAs($this->rider1->user)->post(route('courier.rider.deliveries.fail', $d->id), ['reason' => $reason])->assertSessionHas('success');
-            if ($i < 2) {
-                $this->actingAs($this->logistics1)->post(route('sc.deliveries.reschedule', $d))->assertSessionHas('success');
-            }
+            $this->actingAs($this->rider1->user)->post(route('courier.rider.deliveries.fail', $d->id), ['reason' => 'Buyer not home'])->assertSessionHas('success');
         }
         return $parcel->fresh();
     }
@@ -178,32 +175,24 @@ class L05TrackingAndReturnsTest extends TestCase
         $this->assertSame($this->rider2->id, (int) $parcel->fresh()->rts_rider_id);
     }
 
-    /** LOG-RTS-001 */
-    public function test_log_rts_001_rts_queue_after_three_failed_attempts(): void
+    /** LOG-RTS-001 (Return to Sender removed): the third failed attempt cancels the order; the parcel stays at the hub. */
+    public function test_log_rts_001_third_failed_attempt_cancels_the_order(): void
     {
         $parcel = $this->failedThreeTimes();
-        $this->assertSame('Return to Sender', $parcel->statusLabel());
-
-        $this->actingAs($this->logistics1)->get(route('sc.rts'))->assertOk()
-            ->assertSee('data-rts="' . $parcel->tracking_number . '"', false)
-            ->assertSeeInOrder(['Attempt 1: Buyer not home', 'Attempt 2: Wrong address', 'Attempt 3: Buyer not home']);
+        $this->assertSame('cancelled', $parcel->status);
+        $this->assertSame(Order::CANCELLED, $parcel->order->fresh()->status);
+        $this->assertStringContainsString('kept at', $parcel->order->fresh()->cancellation_reason);
+        $this->assertSame(20, $this->p02->fresh()->stock);   // the order's unit is back on the shelf
     }
 
-    /** LOG-RTS-002 */
-    public function test_log_rts_002_deliver_back_to_the_seller(): void
+    /** LOG-RTS-002: a wrong address sends the parcel back to the seller; the Return to Seller page lists it. */
+    public function test_log_rts_002_wrong_address_goes_to_the_return_to_seller_page(): void
     {
-        $parcel = $this->failedThreeTimes();
-        $this->handBack($parcel);
-
-        $this->assertSame('Returned to Seller', $parcel->fresh()->statusLabel());
-        $order = $parcel->order->fresh();
-        $this->assertSame(Order::CANCELLED, $order->status);
-        $this->assertStringContainsString('Parcel returned to seller', $order->cancellation_reason);
-
-        $this->actingAs($this->buyer1)->get(route('profile.orders.show', $order->id))->assertOk()->assertSee('Order cancelled');
-        $this->actingAs($this->seller1)->get(route('seller.orders.show', $order->id))->assertOk()->assertSee('Returned, awaiting confirmation');
-        $this->actingAs($this->logistics1)->get(route('sc.rts'))->assertOk()->assertDontSee('data-rts="' . $parcel->tracking_number . '"', false)
-            ->assertSee($parcel->tracking_number);   // in the awaiting-confirmation list
+        $parcel = $this->parcel('sorted');
+        $d = $this->deliveryFor($this->rider1, 'out_for_delivery', $parcel);
+        $this->actingAs($this->rider1->user)->post(route('courier.rider.deliveries.fail', $d->id), ['reason' => 'Wrong address'])->assertSessionHas('success');
+        $this->assertSame('return_to_sender', $parcel->fresh()->status);
+        $this->actingAs($this->logistics1)->get(route('sc.rts'))->assertOk()->assertSee($parcel->tracking_number);
     }
 
     /** LOG-RTS-003 */

@@ -10,14 +10,18 @@ use App\Models\User;
 use App\Services\Linehaul;
 
 /**
- * The Courier Modules (C1–C7) test data: Logistics 1's hubs HUB-QC, HUB-PSG and HUB-STR (Logistics 2: HUB-DVO), Couriers 1–4
- * (Courier 3 suspended, Courier 4 at Agila) and TRIP-1's five parcels from Seller 1 waiting at HUB-QC.
+ * The Courier Modules (C1–C7) test data: Logistics 1's hubs HUB-QC and HUB-STR, Logistics 2's (Agila) HUB-DVO, the Pasig
+ * sorting center's HUB-PSG, Couriers 1–4 (Courier 3 suspended, Courier 4 at Agila) and TRIP-1's five parcels from Seller 1
+ * waiting at HUB-QC. A trip goes to another sorting center's hub (Linehaul::createTrip), so TRIP-1 runs HUB-QC → HUB-PSG.
  */
 trait LinehaulTestData
 {
     use RiderTestData;
 
     protected LogisticsHub $hubQc, $hubPsg, $hubStr, $hubDvo;
+
+    /** The sorting center that owns HUB-PSG and receives TRIP-1. */
+    protected User $pasig;
     protected Courier $courier1, $courier2, $courier3, $courier4;
 
     /** Where the hubs are (Commonwealth QC, Kapitolyo Pasig, Balibago Sta. Rosa, Buhangin Davao). */
@@ -31,13 +35,14 @@ trait LinehaulTestData
         $hub = fn (User $sc, string $code, string $name, string $address, array $at) => LogisticsHub::create([
             'sorting_center_id' => $sc->id, 'code' => $code, 'name' => $name, 'address' => $address, 'latitude' => $at[0], 'longitude' => $at[1]]);
         $this->hubQc = $hub($this->logistics1, 'HUB-QC', 'Bilis Hatid QC First-Mile Hub', '1200 Commonwealth Ave., Brgy. Holy Spirit, Quezon City', self::AT_QC);
-        $this->hubPsg = $hub($this->logistics1, 'HUB-PSG', 'Bilis Hatid Pasig Main Hub', 'Unit 5B, 88 West Capitol Drive, Brgy. Kapitolyo, Pasig City', self::AT_PSG);
+        $this->pasig = $this->company('admin@pasighub.example.com', 'Carlo Mendoza', 'Pasig Hub Logistics Inc.', 'Pasig#Hub2026');
+        $this->hubPsg = $hub($this->pasig, 'HUB-PSG', 'Bilis Hatid Pasig Main Hub', 'Unit 5B, 88 West Capitol Drive, Brgy. Kapitolyo, Pasig City', self::AT_PSG);
         $this->hubStr = $hub($this->logistics1, 'HUB-STR', 'Bilis Hatid Sta. Rosa Hub', 'Lot 3, Balibago Complex, Brgy. Balibago, Santa Rosa, Laguna', self::AT_STR);
         $this->hubDvo = $hub($this->logistics2, 'HUB-DVO', 'Agila Davao Hub', 'Door 3, 210 Sampaguita St., Brgy. Buhangin, Davao City', [7.1100, 125.6100]);
 
         $this->courier1 = $this->linehaulCourier($this->logistics1, $this->hubQc, 'ernesto.villareal@example.com', 'Ernesto', 'Villareal', 'Courier@2026',
             '4-Wheeler Closed Van Truck', 'NAB4521', 3000, 'N02-15-345678', 'B, B2, C');
-        $this->courier2 = $this->linehaulCourier($this->logistics1, $this->hubPsg, 'rogelio.dimaculangan@example.com', 'Rogelio', 'Dimaculangan', 'Linehaul#Rog26',
+        $this->courier2 = $this->linehaulCourier($this->logistics1, $this->hubStr, 'rogelio.dimaculangan@example.com', 'Rogelio', 'Dimaculangan', 'Linehaul#Rog26',
             'Van', 'CAV7788', 800, 'D10-12-654321', 'B, B2');
         $this->courier3 = $this->linehaulCourier($this->logistics1, $this->hubQc, 'courier.test01@example.com', 'Danilo', 'Ramos', 'Courier@2026',
             'Van', 'DAN3030', 800, 'D11-11-111111', 'B', 'suspended');
@@ -64,7 +69,7 @@ trait LinehaulTestData
     protected function onDuty(Courier ...$couriers): void
     {
         foreach ($couriers as $c) {
-            $at = $c->home_hub_id === $this->hubPsg->id ? self::AT_PSG : self::AT_QC;
+            $at = match ($c->home_hub_id) { $this->hubPsg->id => self::AT_PSG, $this->hubStr->id => self::AT_STR, default => self::AT_QC };
             $c->forceFill(['on_duty' => true, 'duty_since' => now(), 'checklist_at' => now(), 'last_lat' => $at[0], 'last_lng' => $at[1], 'last_seen_at' => now()])->save();
         }
     }
@@ -81,13 +86,15 @@ trait LinehaulTestData
         return $out;
     }
 
-    /** TRIP-1: HUB-QC → HUB-PSG with the 5 parcels, created by Logistics 1 (optionally assigned to Courier 1). */
+    /** TRIP-1: HUB-QC → HUB-PSG with the 5 parcels, created by Logistics 1 and accepted by the Pasig center (optionally assigned to Courier 1). */
     protected function trip1(bool $assign = true, ?array $parcels = null): LinehaulTrip
     {
         $parcels ??= $this->tripParcels();
         $this->actingAs($this->logistics1);
         $trip = app(Linehaul::class)->createTrip($this->logistics1, ['origin_hub_id' => $this->hubQc->id, 'destination_hub_id' => $this->hubPsg->id,
             'parcel_ids' => array_map(fn (Parcel $p) => $p->id, $parcels), 'scheduled_departure_at' => now()->addHour()]);
+        // The receiving sorting center accepts the trip before it can be loaded.
+        app(Linehaul::class)->respondHandover($this->pasig, $trip->fresh(), true);
         if ($assign) {
             $this->onDuty($this->courier1);
             app(Linehaul::class)->assign($this->logistics1, $trip, $this->courier1->id);

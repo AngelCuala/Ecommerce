@@ -101,6 +101,16 @@
         does not approve or reject your account by itself: a person from our team makes the final decision, and you can
         contact us if you think a check was wrong.
     </p>
+    <p>
+        <strong>Chat safety check.</strong> Messages between buyers and sellers are checked automatically for phone numbers,
+        email addresses, links and social-media accounts. These are hidden before the message is saved, so ALVY never keeps
+        them, and both people see a reminder to keep orders and payments on ALVY. For a seller, ALVY records only what kind of
+        detail was hidden (for example "phone number"), to enforce the Seller Policy. A seller can see every such record on
+        their Contact strikes page and appeal it; no account is suspended by the automatic check alone: an ALVY administrator
+        always decides. Sellers also see a buyer's phone number only partly (for example 0917•••4567): ALVY's riders contact
+        buyers about deliveries. ALVY does this to keep buyers safe from scams and to enforce its policies (our legitimate
+        interest, and our agreement with you in the Terms of Service).
+    </p>
 
     <h2>5. Who we share your information with</h2>
     <p>We share only what each party needs to do its job:</p>
@@ -118,6 +128,8 @@
         <li>Account information is kept while your account is active.</li>
         <li>Order, payment and tax-related records are kept for as long as Philippine law requires (generally up to ten years for tax records).</li>
         <li>ID photos and application documents are kept while your account is active and deleted or anonymized when no longer needed.</li>
+        <li>Chat safety records (that a seller sent a buyer a contact detail, and what kind: for example "phone number") are deleted
+            automatically one year after they were made. The contact details themselves are never stored.</li>
         <li>When you ask us to close your account, we delete or anonymize your information, except records we must keep by law or to settle disputes.</li>
     </ul>
 

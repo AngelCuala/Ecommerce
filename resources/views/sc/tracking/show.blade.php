@@ -48,6 +48,26 @@
         </table>
     </div>
 
+    @if ($parcel->status === 'pickup_approved' && (int) $parcel->current_sorting_center_id === $me)
+    <div class="card" style="padding:14px 16px;font-size:13px;color:var(--text-muted);">
+        Waiting for pickup. You can receive this parcel after the rider marks it <strong>Picked Up</strong> at the seller.
+    </div>
+    @endif
+
+    @php $pu = $parcel->pickups->whereIn('status', ['picked_up', 'received'])->sortByDesc('id')->first(); @endphp
+    @if ($pu)
+    <div class="card" style="padding:14px 16px;font-size:13px;">
+        <strong>Picked up by {{ $pu->rider?->full_name ?? '—' }}</strong>
+        @if ($pu->picked_up_at) on {{ $pu->picked_up_at->copy()->tz(config('app.business_timezone'))->format('M j, g:i A') }}@endif · waybill scanned
+        @if ($pu->proof_path)
+            <div style="margin-top:10px;"><a href="{{ \App\Support\ProtectedFile::url($pu->proof_path) }}" target="_blank" rel="noopener">
+                <img src="{{ \App\Support\ProtectedFile::url($pu->proof_path) }}" alt="Proof of pickup" style="max-height:220px;border-radius:8px;border:1px solid var(--border);"></a></div>
+        @else
+            <div class="text-muted" style="margin-top:6px;">No proof photo (picked up from the mobile app).</div>
+        @endif
+    </div>
+    @endif
+
     {{-- Confirm receipt: explicit, after checking the package --}}
     @if ($canReceive)
     <div class="card" style="border:2px solid var(--accent-blue);">
@@ -73,65 +93,130 @@
     </div>
     @endif
 
-    {{-- Sorting / transfer --}}
+    {{-- What happens to the parcel next, as steps: done (green), now (orange, with its one button), still to come. --}}
     @if ($parcel->isAtHub() && (int) $parcel->current_sorting_center_id === $me && ! $transfer)
-    <div class="card">
-        @php $local = ($next['type'] ?? null) === 'local'; @endphp
-        <div class="card-header"><h2>{{ $local ? 'Sort to barangay' : 'Sort or transfer' }}</h2></div>
-        <div style="padding:16px;display:grid;gap:14px;">
-            @if (! $local && $parcel->status === 'picked_up')
-                <form method="POST" action="{{ route('sc.tracking.start-sorting', $parcel) }}" onsubmit="return confirm('Start sorting?')">@csrf<button class="btn btn-ghost">Start sorting</button></form>
-            @endif
+    @php
+        $type = $next['type'] ?? 'review';
+        $local = $type === 'local';
+        $sortedForCenter = $parcel->status === 'sorted' && $parcel->next_center_id;
+        $toCenter = $sortedForCenter ? \App\Models\User::find($parcel->next_center_id) : ($next['center'] ?? null);
+        $toName = $toCenter ? \App\Support\SortingCenters::displayName($toCenter) : 'the other sorting center';
+        $openDelivery = $parcel->deliveries->first(fn ($d) => in_array($d->status, \App\Models\ParcelDelivery::OPEN, true));
+        $received = ['Received at hub', $parcel->received_at?->copy()->tz(config('app.business_timezone'))->format('M j, g:i A'), 'done'];
+
+        if ($local) {
+            $sorted = $parcel->status === 'sorted';
+            $steps = [
+                $received,
+                ['Sort to barangay', $sorted ? ($parcel->area?->name) : null, $sorted ? 'done' : 'now'],
+                ['Give to a rider', $openDelivery ? $openDelivery->rider?->full_name : null, $openDelivery ? 'done' : ($sorted ? 'now' : 'todo')],
+                ['Delivered to buyer', null, $openDelivery ? 'now' : 'todo'],
+            ];
+        } else {
+            $steps = [
+                $received,
+                // Putting it on a trip also counts as sorting it for that center.
+                ['Sort for ' . ($toCenter ? $toName : 'a sorting center'), null, ($sortedForCenter || $trip) ? 'done' : 'now'],
+                ['Put on a linehaul trip', $trip ? $trip->code : null, $trip ? 'done' : ($sortedForCenter ? 'now' : 'todo')],
+                ['Received by ' . $toName, $trip ? $trip->label() : null, $trip ? 'now' : 'todo'],
+            ];
+        }
+    @endphp
+    <div class="card" data-next-steps>
+        <div class="card-header"><h2>{{ $local ? 'Sort to barangay' : 'Send to another sorting center' }}</h2></div>
+        <div style="padding:16px;">
+            <p class="text-muted" style="font-size:12.5px;margin:0 0 4px;">
+                @if ($local)
+                    The buyer lives in <strong>{{ $parcel->destination_municipality }}</strong>, which this center serves: a rider of the buyer's barangay delivers it.
+                @elseif ($type === 'transfer' || $sortedForCenter)
+                    This center doesn't deliver to <strong>{{ $parcel->destination_municipality ?: 'this address' }}</strong>. A linehaul trip takes it to <strong>{{ $toName }}</strong> (serves this address), which delivers it.
+                @else
+                    No sorting center is set up for <strong>{{ $parcel->destination_municipality ?: 'this address' }}</strong> yet. Choose the one that should deliver it.
+                @endif
+            </p>
+
+            <ol class="ps-steps" aria-label="Steps">
+                @foreach ($steps as $i => [$stepLabel, $at, $state])
+                    <li class="ps-step is-{{ $state }}">
+                        <span class="ps-dot">@if ($state === 'done')<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" aria-hidden="true"><path d="m5 12 5 5 9-10"/></svg>@else{{ $i + 1 }}@endif</span>
+                        <span class="ps-label">{{ $stepLabel }}</span>
+                        @if ($at)<span class="ps-at">{{ $at }}</span>@endif
+                    </li>
+                @endforeach
+            </ol>
+
+            <div class="ps-next">
+                @if ($local && in_array($parcel->status, ['picked_up', 'sorting'], true))
+                    {{-- Step 2: sort it to the buyer's barangay. --}}
+                    <form method="POST" action="{{ route('sc.parcels.sort', $parcel) }}" class="ps-form" data-sort-form>
+                        @csrf
+                        <div style="flex:1 1 220px;">
+                            <label style="{{ $label }}" for="area_id"><strong>Next:</strong> choose the buyer's barangay</label>
+                            <select name="area_id" id="area_id" class="form-input" required>
+                                <option value="">— Choose —</option>
+                                @foreach ($areas as $a)<option value="{{ $a->id }}" @selected((int) old('area_id', $suggestedArea?->id) === $a->id)>{{ $a->name }}{{ $suggestedArea?->id === $a->id ? ' (from the address)' : '' }}</option>@endforeach
+                            </select>
+                            <p class="text-muted" style="font-size:11.5px;margin-top:4px;">Deliver to: {{ $parcel->dropoff_address }}</p>
+                            @error('area_id')<p style="color:#B91C1C;font-size:12px;">{{ $message }}</p>@enderror
+                        </div>
+                        <button class="btn btn-blue">Sort to barangay</button>
+                    </form>
+                @elseif ($local && $parcel->status === 'sorted')
+                    <p class="ps-hint" data-sorted-to>Sorted to <strong>{{ $parcel->area?->name ?? 'a barangay' }}</strong>. <strong>Next:</strong> give it to that barangay's rider in Rider Dispatch.</p>
+                    <a href="{{ route('sc.dispatch') }}" class="btn btn-blue">Open Rider Dispatch</a>
+                @elseif (! $local && $trip)
+                    <p class="ps-hint">On trip <strong>{{ $trip->code }}</strong>: {{ \Illuminate\Support\Str::lcfirst($trip->stageLabel()) }}. {{ $toName }} receives it when the truck arrives.</p>
+                    <a href="{{ route('sc.trips.show', $trip) }}" class="btn btn-blue">Open trip</a>
+                @elseif (! $local && ! $sortedForCenter && in_array($parcel->status, ['picked_up', 'sorting'], true))
+                    {{-- Step 2: sort it for the sorting center that serves the address. --}}
+                    <form method="POST" action="{{ route('sc.parcels.sort-transfer', $parcel) }}" class="ps-form">
+                        @csrf
+                        <div style="flex:1 1 220px;">
+                            <label style="{{ $label }}" for="center_id"><strong>Next:</strong> sort it for the sorting center that delivers it</label>
+                            <select name="center_id" id="center_id" class="form-input" required>
+                                <option value="">— Choose —</option>
+                                @foreach ($hubs as $h)<option value="{{ $h->id }}" @selected((int) old('center_id', $next['center']->id ?? 0) === $h->id)>{{ \App\Support\SortingCenters::displayName($h) }}{{ ($next['center']->id ?? 0) === $h->id ? ' (serves this address)' : '' }}</option>@endforeach
+                            </select>
+                            @error('center_id')<p style="color:#B91C1C;font-size:12px;">{{ $message }}</p>@enderror
+                        </div>
+                        <button class="btn btn-blue">Sort for this center</button>
+                    </form>
+                @elseif (! $local && ! $trip)
+                    <p class="ps-hint"><strong>Next:</strong> put it on a linehaul trip to {{ $toName }}. Parcels sorted for the same center travel together.</p>
+                    <a href="{{ route('sc.trips', ['parcel' => [$parcel->id], 'origin_hub_id' => $parcel->current_hub_id]) }}#create" class="btn btn-blue">Send on a linehaul trip</a>
+                @endif
+            </div>
 
             @if ($local && in_array($parcel->status, ['picked_up', 'sorting'], true))
-                {{-- The buyer lives in this hub's town: sort it to their barangay for last-mile delivery, no transfer. --}}
-                <p style="font-size:13px;">The buyer lives in <strong>{{ $parcel->destination_municipality }}</strong>, which this center serves. Sort it to the buyer's barangay and the delivery is offered to your riders.</p>
-                <form method="POST" action="{{ route('sc.parcels.sort', $parcel) }}" style="display:grid;gap:10px;" data-sort-form>
-                    @csrf
-                    <div>
-                        <label style="{{ $label }}" for="area_id">Buyer's barangay</label>
-                        <select name="area_id" id="area_id" class="form-input" required>
-                            <option value="">— Choose —</option>
-                            @foreach ($areas as $a)<option value="{{ $a->id }}" @selected((int) old('area_id', $suggestedArea?->id) === $a->id)>{{ $a->name }}{{ $suggestedArea?->id === $a->id ? ' (from the address)' : '' }}</option>@endforeach
-                        </select>
-                        <p class="text-muted" style="font-size:11.5px;margin-top:4px;">Deliver to: {{ $parcel->dropoff_address }}</p>
-                    </div>
-                    @error('area_id')<p style="color:#B91C1C;font-size:12px;">{{ $message }}</p>@enderror
-                    <button class="btn btn-blue" style="justify-self:start;">Sort to barangay</button>
-                </form>
-            @elseif ($local && $parcel->status === 'sorted')
-                <p style="font-size:13px;" data-sorted-to>Sorted to <strong>{{ $parcel->area?->name ?? 'a barangay' }}</strong> and ready for last-mile delivery.
-                    <a href="{{ route('sc.dispatch') }}" class="id-link">Rider Dispatch</a> shows who has the job.</p>
-            @endif
-
-            @if (in_array($parcel->status, ['picked_up', 'sorting', 'sorted'], true))
-            @if ($local)<details><summary class="text-muted" style="font-size:12.5px;cursor:pointer;">Send to another sorting center instead</summary>@endif
-            <form method="POST" action="{{ route('sc.transfers.initiate') }}" style="display:grid;gap:10px;{{ $local ? 'margin-top:10px;' : '' }}" onsubmit="return confirm('Create this transfer?')">
-                @csrf
-                <input type="hidden" name="parcel_id" value="{{ $parcel->id }}">
-                <div>
-                    <label style="{{ $label }}">Transfer to sorting center</label>
-                    <select name="to_sorting_center_id" class="form-input" required>
-                        <option value="">— Choose —</option>
-                        @foreach ($hubs as $h)<option value="{{ $h->id }}" @selected(($next['center']->id ?? null) === $h->id)>{{ \App\Support\SortingCenters::displayName($h) }} — {{ $h->assigned_municipality }}{{ ($next['center']->id ?? null) === $h->id ? ' (serves this address)' : '' }}</option>@endforeach
-                    </select>
-                </div>
-                <div>
-                    <label style="{{ $label }}">Transporter (optional)</label>
-                    <select name="transporter_rider_id" class="form-input">
-                        <option value="">— None —</option>
-                        @foreach ($transporters as $r)<option value="{{ $r->id }}">{{ $r->full_name }}</option>@endforeach
-                    </select>
-                    @if ($transporters->isEmpty())<p class="text-muted" style="font-size:11.5px;margin-top:4px;">No riders are allowed to transport transfers yet (set it on the rider's page).</p>@endif
-                </div>
-                <div><label style="{{ $label }}">Reason (required if not the suggested center)</label><input name="reason" class="form-input" maxlength="500"></div>
-                @error('to_sorting_center_id')<p style="color:#B91C1C;font-size:12px;">{{ $message }}</p>@enderror
-                <button class="btn btn-{{ $local ? 'ghost' : 'blue' }}" style="justify-self:start;">Create transfer</button>
-            </form>
-            @if ($local)</details>@endif
+                {{-- Rarely needed: a local parcel can still go to another center. --}}
+                <p class="text-muted" style="font-size:12px;margin:12px 0 0;">
+                    Or send it to another sorting center on a linehaul trip:
+                    <a href="{{ route('sc.trips', ['parcel' => [$parcel->id], 'origin_hub_id' => $parcel->current_hub_id]) }}#create" style="color:var(--accent-blue);font-weight:600;">Send on a linehaul trip</a>
+                </p>
             @endif
         </div>
     </div>
+    @push('styles')
+    <style>
+        .ps-steps { list-style: none; margin: 16px 0 0; padding: 0; display: grid; grid-template-columns: repeat(4, 1fr); }
+        .ps-step { position: relative; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 5px; min-width: 0; padding: 0 4px; }
+        .ps-step:not(:last-child)::after { content: ""; position: absolute; top: 12px; left: calc(50% + 16px); right: calc(-50% + 16px); height: 2px; background: var(--border); }
+        .ps-step.is-done:not(:last-child)::after { background: var(--accent-green); }
+        .ps-dot { width: 26px; height: 26px; border-radius: 999px; display: grid; place-items: center; font-size: 12px; font-weight: 700;
+                  background: var(--border-dim); color: var(--text-muted); border: 2px solid var(--border); }
+        .ps-step.is-done .ps-dot { background: var(--accent-green); border-color: var(--accent-green); color: #fff; }
+        .ps-step.is-now .ps-dot { background: #fff1ee; border-color: var(--accent-blue); color: var(--accent-blue); }
+        .ps-label { font-size: 12px; font-weight: 600; color: var(--text-sub); line-height: 1.3; }
+        .ps-step.is-now .ps-label { color: var(--text); }
+        .ps-at { font-size: 11px; color: var(--text-muted); }
+        .ps-next { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+                   margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border-dim); }
+        .ps-next:empty { display: none; }
+        .ps-hint { font-size: 12.5px; color: var(--text-sub); margin: 0; flex: 1 1 260px; }
+        .ps-hint strong { color: var(--text); }
+        .ps-form { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; width: 100%; }
+    </style>
+    @endpush
     @endif
 
     {{-- Active transfer --}}
@@ -176,35 +261,24 @@
 </div>
 
 <div style="display:flex;flex-direction:column;gap:18px;">
-    {{-- Exceptions --}}
+    @if ((int) $parcel->current_sorting_center_id === (int) $me && ! in_array($parcel->status, \App\Models\Parcel::CLOSED_STATUSES, true))
+    {{-- Lost / damaged: closes the parcel and opens a claim. --}}
     <div class="card">
-        <div class="card-header"><h2>Exceptions</h2></div>
         <div style="padding:14px 16px;display:grid;gap:10px;font-size:13px;">
-            @forelse ($parcel->exceptions->sortByDesc('id') as $x)
-                <div style="border:1px solid var(--border);border-radius:8px;padding:10px;" data-exception="{{ $x->type }}">
-                    <span class="badge {{ $x->isOpen() ? 'badge-red' : 'badge-green' }}">{{ $x->isOpen() ? 'Open' : 'Resolved' }}</span>
-                    <strong style="margin-left:6px;">{{ $x->typeLabel() }}</strong>
-                    <p class="text-muted" style="margin-top:4px;">{{ $x->details }}</p>
-                    @if ($x->resolution)<p style="margin-top:4px;">Resolution: {{ $x->resolution }}</p>@endif
-                </div>
-            @empty
-                <p class="text-muted">None.</p>
-            @endforelse
-            <form method="POST" action="{{ route('sc.tracking.exception', $parcel) }}" style="display:grid;gap:8px;border-top:1px solid var(--border);padding-top:12px;"
-                  data-confirm-title="Flag this shipment?" data-confirm="It will be marked as an exception for review, and an administrator will be notified." data-confirm-ok="Flag exception">
-                @csrf
-                <label style="{{ $label }}">Flag shipment exception</label>
-                <select name="type" class="form-input" required>
-                    <option value="damaged_on_arrival">Damaged</option>
-                    <option value="missing">Missing / not found</option>
-                    <option value="other">Other</option>
-                </select>
-                <textarea name="details" rows="2" class="form-input" placeholder="What is wrong?" required minlength="5" maxlength="500"></textarea>
-                @error('details')<p style="color:#B91C1C;font-size:12px;">{{ $message }}</p>@enderror
-                <button class="btn btn-ghost" style="justify-self:start;color:#DC2626;">Flag exception</button>
-            </form>
+                <details data-mark-lost>
+                    <summary style="cursor:pointer;font-size:12.5px;font-weight:600;color:#B91C1C;">Mark lost or damaged…</summary>
+                    <form method="POST" action="{{ route('sc.parcels.exception', $parcel) }}" enctype="multipart/form-data" style="display:grid;gap:8px;margin-top:8px;"
+                          data-confirm-title="Mark this parcel?" data-confirm="The parcel is closed and a claim is opened. The buyer and seller are notified." data-confirm-ok="Mark it">
+                        @csrf
+                        <select name="type" class="form-input" aria-label="Lost or damaged"><option value="lost">Lost</option><option value="damaged">Damaged</option></select>
+                        <input name="reason" class="form-input" placeholder="What happened (10–300 characters)" minlength="10" maxlength="300" required aria-label="Reason">
+                        <label class="text-muted" style="font-size:12px;">Photo (needed for Damaged) <input type="file" name="photo" accept="image/jpeg,image/png" style="font-size:11px;margin-top:2px;"></label>
+                        <button class="btn btn-red btn-sm" style="justify-self:start;">Mark {{ $parcel->tracking_number }}</button>
+                    </form>
+                </details>
         </div>
     </div>
+    @endif
 
     {{-- Transfers and riders --}}
     <div class="card">

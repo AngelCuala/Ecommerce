@@ -37,7 +37,7 @@ class R03JobsAndPickupTest extends TestCase
 
         $this->actingAs($this->rider1->user)->get(route('courier.rider'))->assertOk()
             ->assertSee('Maria Clara Santos')->assertSee('Commonwealth, Quezon City')
-            ->assertSee('Bilis Hatid Express Inc. hub')->assertSee('COD: ₱500.00', false)->assertSee('Pay: ₱30.00 pickup', false);
+            ->assertSee('Bilis Hatid Express Inc. hub')->assertSee('COD: ₱490.00', false)->assertSee('Pay: ₱30.00 pickup', false);
 
         $this->accept($offer)->assertSessionHas('success');
         $pickup = ParcelPickup::sole();
@@ -56,7 +56,8 @@ class R03JobsAndPickupTest extends TestCase
 
         $this->actingAs($this->rider1->user)->post(route('courier.rider.offers.decline', $offer->id))->assertSessionHas('success');
         $this->assertSame('declined', $offer->fresh()->status);
-        $next = $this->dispatcher()->pendingOffer($parcel);
+        $this->assertNull($this->dispatcher()->pendingOffer($parcel));   // nobody is asked by itself: the job waits for the hub
+        $next = $this->dispatcher()->offer($parcel);                      // the next Auto-assign skips Rider 1
         $this->assertSame($this->rider2->id, $next->rider_id);
         $this->actingAs($this->rider1->user)->get(route('courier.rider'))->assertDontSee($parcel->tracking_number);
         $this->assertSame(0, ParcelPickup::count());
@@ -78,7 +79,8 @@ class R03JobsAndPickupTest extends TestCase
         $this->online($this->rider1, $this->rider2);
         $this->accept($second)->assertSessionHas('error', fn ($m) => str_contains($m, 'expired'));
         $this->assertSame('expired', $second->fresh()->status);
-        $this->assertSame($this->rider1->id, $this->dispatcher()->pendingOffer($parcel)->rider_id);   // the next rider
+        $this->assertNull($this->dispatcher()->pendingOffer($parcel));                       // the job waits for the hub
+        $this->assertSame($this->rider1->id, $this->dispatcher()->offer($parcel)->rider_id);   // the next Auto-assign: the next rider
         $this->assertSame(1, ParcelPickup::count());
     }
 
@@ -96,8 +98,10 @@ class R03JobsAndPickupTest extends TestCase
         $this->assertTrue($this->dispatcher()->isUnassigned($parcel->fresh()));
         $this->assertNull($this->dispatcher()->pendingOffer($parcel));
         $this->assertNull($this->dispatcher()->offer($parcel));
-        $this->actingAs($this->logistics1)->get(route('sc.dispatch'))->assertSee('Unassigned queue')->assertSee('data-job="' . $parcel->tracking_number . '"', false)->assertSee('Unassigned');
-        $this->actingAs($this->logistics1)->post(route('sc.dispatch.auto', $parcel))->assertSessionHas('error', fn ($m) => str_contains($m, 'Unassigned queue'));
+        $this->actingAs($this->logistics1)->get(route('sc.dispatch'))->assertSee('Returned to the hub')->assertSee('data-job="' . $parcel->tracking_number . '"', false);
+        // The hub assigns it by hand.
+        $this->actingAs($this->logistics1)->post(route('sc.dispatch.assign', $parcel), ['rider_id' => $this->rider1->id])->assertSessionHas('success');
+        $this->assertSame($this->rider1->id, ParcelPickup::where('parcel_id', $parcel->id)->sole()->rider_id);
     }
 
     /** RID-JOB-005 (A37) */
@@ -124,7 +128,7 @@ class R03JobsAndPickupTest extends TestCase
     }
 
     /** RID-JOB-006 (A14) */
-    public function test_rid_job_006_concurrent_job_limit(): void
+    public function test_rid_job_006_no_job_limit(): void
     {
         $this->online($this->rider1);
         $this->pickupFor($this->rider1);
@@ -133,11 +137,10 @@ class R03JobsAndPickupTest extends TestCase
         $this->accept($third)->assertSessionHas('success');
         $this->assertSame(3, $this->rider1->activeJobsCount());
 
+        // Riders have no job limit (RiderDispatch): a 4th job is still given to them.
         $fourth = $this->parcel();
-        $this->assertNull($this->dispatcher()->offer($fourth));
-        $this->actingAs($this->logistics1)->post(route('sc.dispatch.assign', $fourth), ['rider_id' => $this->rider1->id])
-            ->assertSessionHas('error', 'Pedro Jose Garcia already has ' . RiderDispatch::MAX_ACTIVE . ' active jobs.');
-        $this->assertSame(3, $this->rider1->activeJobsCount());
+        $this->actingAs($this->logistics1)->post(route('sc.dispatch.assign', $fourth), ['rider_id' => $this->rider1->id])->assertSessionHas('success');
+        $this->assertSame(4, $this->rider1->activeJobsCount());
     }
 
     /** RID-JOB-007 (A22) */
@@ -171,7 +174,7 @@ class R03JobsAndPickupTest extends TestCase
     {
         $pickup = $this->pickupFor($this->rider1);
         $parcel = $pickup->parcel;
-        $this->actingAs($this->rider1->user)->post(route('courier.rider.pickups.confirm', $pickup->id), ['tracking_number' => $parcel->tracking_number])
+        $this->actingAs($this->rider1->user)->post(route('courier.rider.pickups.confirm', $pickup->id), ['tracking_number' => $parcel->tracking_number, 'proof_photo' => \Illuminate\Http\UploadedFile::fake()->image('pickup.jpg')])
             ->assertSessionHas('success', fn ($m) => str_contains($m, '₱30.00'));
 
         $pickup->refresh();
@@ -198,7 +201,7 @@ class R03JobsAndPickupTest extends TestCase
     {
         $pickup = $this->pickupFor($this->rider1);
         $typed = '  ' . strtolower($pickup->parcel->tracking_number) . ' ';
-        $this->actingAs($this->rider1->user)->post(route('courier.rider.pickups.confirm', $pickup->id), ['tracking_number' => $typed])->assertSessionHas('success');
+        $this->actingAs($this->rider1->user)->post(route('courier.rider.pickups.confirm', $pickup->id), ['tracking_number' => $typed, 'proof_photo' => \Illuminate\Http\UploadedFile::fake()->image('pickup.jpg')])->assertSessionHas('success');
         $this->assertSame('picked_up', $pickup->fresh()->status);
     }
 
@@ -208,8 +211,8 @@ class R03JobsAndPickupTest extends TestCase
         $pickup = $this->pickupFor($this->rider1);
         $other = $this->parcel();
         foreach ([$other->tracking_number, 'TRK-0000000'] as $wrong) {
-            $this->actingAs($this->rider1->user)->post(route('courier.rider.pickups.confirm', $pickup->id), ['tracking_number' => $wrong])
-                ->assertSessionHasErrors(['tracking_number' => 'The tracking number does not match this job. Check the waybill on the parcel.']);
+            $this->actingAs($this->rider1->user)->post(route('courier.rider.pickups.confirm', $pickup->id), ['tracking_number' => $wrong, 'proof_photo' => \Illuminate\Http\UploadedFile::fake()->image('pickup.jpg')])
+                ->assertSessionHasErrors(['tracking_number' => 'This waybill does not match this job. Check the label on the parcel.']);
         }
         $this->assertSame('assigned', $pickup->fresh()->status);
     }
@@ -218,7 +221,7 @@ class R03JobsAndPickupTest extends TestCase
     public function test_rid_pick_005_double_scan(): void
     {
         $pickup = $this->pickupFor($this->rider1);
-        $scan = fn () => $this->actingAs($this->rider1->user)->post(route('courier.rider.pickups.confirm', $pickup->id), ['tracking_number' => $pickup->parcel->tracking_number]);
+        $scan = fn () => $this->actingAs($this->rider1->user)->post(route('courier.rider.pickups.confirm', $pickup->id), ['tracking_number' => $pickup->parcel->tracking_number, 'proof_photo' => \Illuminate\Http\UploadedFile::fake()->image('pickup.jpg')]);
         $scan()->assertSessionHas('success');
         $scan()->assertSessionHas('error', fn ($m) => str_starts_with($m, 'This parcel is already picked up'));
         $this->assertSame(1, ParcelPickup::where('status', 'picked_up')->count());

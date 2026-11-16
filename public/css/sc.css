@@ -126,12 +126,15 @@ a:hover { text-decoration: underline; }
 .sidebar-user-role  { font-size: 11px; color: var(--text-muted); }
 
 .sidebar-nav { flex: 1; padding: 6px 12px; display: flex; flex-direction: column; gap: 2px; }
+/* Section labels group the menu (Overview, Parcels, Riders, Money, Hub). */
+.nav-section { margin: 14px 12px 4px; font-size: 10.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--text-muted); }
+.nav-section:first-child { margin-top: 4px; }
 
 .nav-link {
   display: flex;
   align-items: center;
   gap: 11px;
-  padding: 9px 12px;
+  padding: 8px 12px;
   font-size: 13px;
   font-weight: 500;
   color: var(--sidebar-link);
@@ -349,6 +352,10 @@ a:hover { text-decoration: underline; }
 .badge-red    { background: #fef3f2; color: var(--accent-red); }
 .badge-gray   { background: #f2f4f7; color: var(--text-sub); }
 .badge-purple { background: #f3ecfe; color: var(--accent-purple); }
+/* A status pill that opens a page: only the coloured pill is the link. */
+.status-link { display: inline-flex; text-decoration: none !important; }
+.status-link .badge { cursor: pointer; transition: filter .15s, box-shadow .15s; }
+.status-link:hover .badge, .status-link:focus-visible .badge { filter: brightness(.95); box-shadow: 0 0 0 2px currentColor; }
 
 /* ── Buttons ── */
 .btn {
@@ -670,3 +677,4 @@ select option { background: #fff; color: var(--text); }
 .sb-pill { flex-shrink: 0; border-radius: 999px; background: #FFE8DF; padding: 1px 7px; font-size: 10.5px; font-weight: 700; color: #C2410C; }
 .sb-user-go { flex-shrink: 0; color: #C4B5AB; transition: transform .15s, color .15s; }
 .sb-user:hover .sb-user-go { color: #d93d0e; transform: translateX(2px); }
+

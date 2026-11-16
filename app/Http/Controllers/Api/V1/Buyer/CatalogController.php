@@ -3,13 +3,13 @@
 namespace App\Http\Controllers\Api\V1\Buyer;
 
 use App\Http\Controllers\Api\V1\Concerns\CallsWeb;
-use App\Http\Controllers\CategoryPageController;
+use App\Http\Controllers\Storefront\CategoryPageController;
 use App\Http\Controllers\Controller;
-use App\Http\Controllers\HomeController;
-use App\Http\Controllers\PolicyController;
-use App\Http\Controllers\ProductController;
-use App\Http\Controllers\ShopController;
-use App\Http\Controllers\StoreController;
+use App\Http\Controllers\Storefront\HomeController;
+use App\Http\Controllers\Storefront\PolicyController;
+use App\Http\Controllers\Storefront\ProductController;
+use App\Http\Controllers\Storefront\ShopController;
+use App\Http\Controllers\Storefront\StoreController;
 use App\Support\ApiJson;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -28,7 +28,19 @@ class CatalogController extends Controller
             'featured'   => $d['featured']->map(fn ($p) => ApiJson::productCard($p))->values(),
             'trending'   => $d['trending']->map(fn ($p) => ApiJson::productCard($p))->values(),
             'categories' => $d['shortcuts']->map(fn ($c) => ['name' => $c->name, 'slug' => $c->slug, 'count' => $c->count,
-                'image_url' => asset('images/categories/' . $c->slug . '.jpg')])->values(),
+                'image_url' => CategoryPageController::photo($c->slug), 'wide_image_url' => CategoryPageController::photo($c->slug, true)])->values(),
+            // The big banner: the admin's event slides (Admin → Home Banners) first, then ALVY's own — as on the website.
+            'banners'    => collect(\App\Models\HomeBanner::slides())->map(fn ($s) => [
+                'image_url'     => $s['img'],
+                'focus'         => $s['pos'],
+                'eyebrow'       => $s['eyebrow'],
+                'title'         => $s['title'],
+                'highlight'     => $s['mark'],
+                'subtitle'      => $s['sub'],
+                'button'        => $s['button'],
+                'category_slug' => $s['slug'],
+                'category_name' => \App\Models\HomeBanner::categoryName($s['slug']),
+            ])->values(),
         ]);
     }
 
@@ -62,6 +74,8 @@ class CatalogController extends Controller
     {
         return response()->json(['categories' => collect(CategoryPageController::catalog())->map(fn ($c) => [
             'name' => $c['name'], 'slug' => $c['slug'], 'subcategories' => $c['subs'] ?? $c['subcategories'] ?? [],
+            'image_url' => CategoryPageController::photo($c['slug']),   // the same picture as the home shortcuts
+            'wide_image_url' => CategoryPageController::photo($c['slug'], true),
         ])->values()]);
     }
 
@@ -73,6 +87,8 @@ class CatalogController extends Controller
         return response()->json([
             'category'    => ['name' => $d['active']['name'], 'slug' => $d['active']['slug']],
             'subcategory' => $d['activeSub'],
+            // Its subcategories, for the app's pills on the category page.
+            'subcategories' => array_values($d['active']['subs'] ?? $d['active']['subcategories'] ?? []),
             'data'        => $d['products']->map(fn ($p) => ApiJson::productCard($p))->values(),
             'category_page' => $d['active']['slug'],
         ]);
@@ -91,7 +107,8 @@ class CatalogController extends Controller
         $d = $this->pageData($this->web(StoreController::class, 'show', ['sellerId' => $sellerId]));
 
         return response()->json(ApiJson::page($d['products'], fn ($p) => ApiJson::productCard($p)) + [
-            'store'      => ApiJson::store($d['seller']) + ['followers' => $d['followers'], 'following' => $d['following']],
+            'store'      => ApiJson::store($d['seller']) + ['followers' => $d['followers'], 'following' => $d['following'],
+                'product_count' => (int) ($d['productCount'] ?? 0)],   // the website's "N products"
             'store_categories' => $d['storeCategories']->map(fn ($c) => [
                 'id' => $c->id, 'name' => $c->name, 'count' => $c->products_count,
                 'children' => $c->children->map(fn ($s) => ['id' => $s->id, 'name' => $s->name, 'count' => $s->products_count])->values(),

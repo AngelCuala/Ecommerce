@@ -255,7 +255,8 @@
                         </div>
                         @endif
                     </div>
-                    <input type="hidden" name="role" id="roleInput" value="">
+                    {{-- Filled in on a failed submit too, so the wizard reopens the same account type (not step 1). --}}
+                    <input type="hidden" name="role" id="roleInput" value="{{ in_array(old('role', request('role')), ['buyer', 'seller', 'courier', 'logistics'], true) ? old('role', request('role')) : '' }}">
                     <p class="field-error" data-error-for="roleInput"></p>
                 </section>
 
@@ -887,7 +888,9 @@ function setupFilePreview(inputId, previewId, labelId) {
 @endif
 <script src="{{ asset('js/register-address-fallback.js') }}"></script>
 <script src="{{ asset('js/register-validation.js') }}"></script>
-<script src="{{ asset('js/register-wizard.js') }}"></script>
+{{-- The server's errors by field, so the wizard shows each under its field and opens that step. --}}
+<script>window.RegisterServerErrors = @json($errors->getMessages());</script>
+<script src="{{ asset('js/register-wizard.js') }}?v=2"></script>
 <script>
 // Attach PSGC cascade for the registration form address
 document.addEventListener('DOMContentLoaded', function() {

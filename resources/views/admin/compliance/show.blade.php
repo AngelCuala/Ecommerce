@@ -94,6 +94,7 @@
                                 @if ($img($book))<img src="{{ $img($book) }}" class="cp-thumb" alt="">@else<span class="cp-thumb cp-thumb-empty">?</span>@endif
                                 <div class="min-w-0 flex-1">
                                     <p class="truncate text-sm font-semibold" style="color:#222;">{{ $book->title }}</p>
+                                    @include('admin.partials.product-media', ['product' => $book])
                                     <p class="mt-1 flex flex-wrap items-center gap-1.5 text-xs">
                                         <span class="cp-chip" style="background:#FEF2F2;color:#B91C1C;">{{ $book->category->name ?? '—' }}</span>
                                         <svg class="h-3.5 w-3.5" fill="none" stroke="#a39890" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14m-6-6 6 6-6 6"/></svg>
@@ -142,7 +143,10 @@
                                     <td>
                                         <div class="flex min-w-0 items-center gap-3">
                                             @if ($img($book))<img src="{{ $img($book) }}" class="cp-thumb" alt="">@else<span class="cp-thumb cp-thumb-empty">?</span>@endif
-                                            <span class="cp-name font-medium" style="color:#222;" title="{{ $book->title }}">{{ $book->title }}</span>
+                                            <div class="min-w-0">
+                                                <span class="cp-name font-medium" style="color:#222;" title="{{ $book->title }}">{{ $book->title }}</span>
+                                                @include('admin.partials.product-media', ['product' => $book])
+                                            </div>
                                         </div>
                                     </td>
                                     <td>

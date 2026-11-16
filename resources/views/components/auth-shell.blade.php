@@ -22,6 +22,7 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
+    @include('partials.theme')
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>{{ $title }}</title>
@@ -57,8 +58,9 @@
 
         /* Log In / Sign Up: plain text tabs with an underline on the current page */
         .auth-tabs { display:flex; justify-content:center; gap:2rem; border-bottom:1px solid #F0E4DC; }
-        .auth-tab { position:relative; display:block; cursor:default; user-select:none; padding:.6rem .25rem; font-size:.9rem; font-weight:600; color:#a39890; }
-        .auth-tab.is-active { color:#222; }
+        .auth-tab { position:relative; display:block; cursor:pointer; user-select:none; padding:.6rem .25rem; font-size:.9rem; font-weight:600; color:#a39890; transition:color .15s; }
+        .auth-tab:hover { color:#fa4e1c; }
+        .auth-tab.is-active { color:#222; cursor:default; }
         .auth-tab.is-active::after { content:""; position:absolute; left:0; right:0; bottom:-1px; height:2px; border-radius:2px; background:#fa4e1c; }
 
         .auth-progress { position:fixed; top:0; left:0; height:3px; width:0; z-index:60;
@@ -68,6 +70,7 @@
     <link rel="stylesheet" href="{{ asset('css/password-field.css') }}">
 </head>
 <body class="auth-bg min-h-screen">
+<div style="position:fixed;bottom:16px;right:16px;z-index:30;color:#57534E;border-radius:9999px;background:#fff;border:1px solid #F0E4DC;box-shadow:0 8px 20px -10px rgba(0,0,0,.35);">@include('partials.theme-toggle')<style>.auth-bg .theme-menu{top:auto;bottom:calc(100% + 6px);}</style></div>
 
 @if ($progress)
     <div class="auth-progress" id="authProgress"></div>
@@ -82,7 +85,7 @@
     {{-- Top bar --}}
     <header class="mx-auto flex w-full max-w-6xl items-center justify-between px-4 py-5 sm:px-6">
         <a href="{{ $shopLink ? route('home') : '#' }}" class="flex items-center gap-2.5">
-            <span class="inline-flex h-9 w-9 items-center justify-center overflow-hidden rounded-xl bg-white shadow-sm">
+            <span class="inline-flex h-9 w-9 items-center justify-center overflow-hidden rounded-xl bg-white shadow-sm" data-keep-colors>
                 <img src="{{ asset('images/logo-mark.png') }}" alt="" class="h-full w-full object-contain" style="padding:5px;">
             </span>
             <span class="font-display text-xl font-extrabold tracking-tight" style="color:#222;">ALVY</span>
@@ -103,7 +106,7 @@
             <div class="auth-card">
                 <div class="px-6 pt-8 sm:px-10 sm:pt-10 {{ $width === 'wide' ? '' : 'pb-2' }}">
                     <div class="text-center">
-                        <a href="{{ $shopLink ? route('home') : '#' }}" class="auth-logo">
+                        <a href="{{ $shopLink ? route('home') : '#' }}" class="auth-logo" data-keep-colors>
                             <img src="{{ asset('images/logo-mark.png') }}" alt="ALVY" class="h-full w-full object-contain" style="padding:8px;">
                         </a>
                         @if ($heading)
@@ -115,11 +118,11 @@
                     </div>
 
                     @if ($tab)
-                        {{-- Labels only; each page links to the other in its own footer. --}}
-                        <div class="auth-tabs mx-auto mt-6 max-w-xs" aria-hidden="true">
-                            <span class="auth-tab {{ $tab === 'login' ? 'is-active' : '' }}">Log In</span>
-                            <span class="auth-tab {{ $tab === 'signup' ? 'is-active' : '' }}">Sign Up</span>
-                        </div>
+                        {{-- Log In → the login page; Sign Up → the same sign-up page as "Create account". --}}
+                        <nav class="auth-tabs mx-auto mt-6 max-w-xs" aria-label="Log in or sign up">
+                            <a href="{{ route('login') }}" class="auth-tab {{ $tab === 'login' ? 'is-active' : '' }}" @if ($tab === 'login') aria-current="page" @endif data-auth-tab="login">Log In</a>
+                            <a href="{{ route('register') }}" class="auth-tab {{ $tab === 'signup' ? 'is-active' : '' }}" @if ($tab === 'signup') aria-current="page" @endif data-auth-tab="signup">Sign Up</a>
+                        </nav>
                     @endif
                 </div>
 
@@ -152,5 +155,6 @@
 {{ $scripts ?? '' }}
 <script src="{{ asset('js/prevent-back.js') }}"></script>
 <script src="{{ asset('js/logout-confirm.js') }}?v={{ filemtime(public_path('js/logout-confirm.js')) }}"></script>
+<script src="{{ asset('js/upload-progress.js') }}?v={{ filemtime(public_path('js/upload-progress.js')) }}" defer></script>
 </body>
 </html>

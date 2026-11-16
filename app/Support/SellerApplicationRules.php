@@ -209,7 +209,7 @@ class SellerApplicationRules
     public static function applicationData(Request $request, array $data): array
     {
         $store = fn (string $field, string $dir) => $request->hasFile($field)
-            ? $request->file($field)->store($dir, 'public')
+            ? $request->file($field)->store($dir, \App\Support\ProtectedFile::DISK)
             : null;
 
         return [

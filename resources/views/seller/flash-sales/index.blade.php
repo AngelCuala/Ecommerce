@@ -1,4 +1,6 @@
 <x-seller-layout title="Flash Sales" active="flash">
+
+@include('partials.page-tabs', ['tabs' => [['Vouchers', 'seller.vouchers.index', 'seller.vouchers.*'], ['Flash sales', 'seller.flash-sales.index', 'seller.flash-sales.*'], ['Bundles & Promos', 'seller.promotions.index', 'seller.promotions.*']]])
 @include('partials.panel.plain')
 
 <div class="mx-auto max-w-5xl space-y-5">

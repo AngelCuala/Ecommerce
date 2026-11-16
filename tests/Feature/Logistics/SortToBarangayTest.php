@@ -38,25 +38,26 @@ class SortToBarangayTest extends TestCase
             ->assertSee('Sort to barangay')
             ->assertSee('action="' . route('sc.parcels.sort', $parcel) . '"', false)
             ->assertSee('<option value="' . $this->central->id . '" selected>Central (from the address)</option>', false)
-            ->assertSee('Send to another sorting center instead')   // transfer is still possible, tucked away
+            ->assertSee('Or send it to another sorting center on a linehaul trip')   // still possible, tucked away
             ->assertDontSee('Sort or transfer')
             ->assertDontSee('Start sorting');
     }
 
-    public function test_sorting_makes_it_ready_and_offers_the_delivery_to_an_online_rider(): void
+    public function test_sorting_makes_it_ready_for_the_barangay_rider(): void
     {
         $this->online($this->rider1);
         $parcel = $this->atHub();
 
+        // Sorting doesn't offer the job to anyone: it waits in Rider Dispatch for Auto-assign (the barangay's rider).
         $this->actingAs($this->logistics1)->from(route('sc.tracking.show', $parcel))
             ->post(route('sc.parcels.sort', $parcel), ['area_id' => $this->central->id])
             ->assertRedirect(route('sc.tracking.show', $parcel))
-            ->assertSessionHas('success', "{$parcel->tracking_number} sorted to Central. Delivery offered to Pedro Jose Garcia.");
+            ->assertSessionHas('success', "{$parcel->tracking_number} sorted to Central. The delivery is waiting in Rider Dispatch.");
 
         $parcel->refresh();
         $this->assertSame(['sorted', $this->central->id], [$parcel->status, $parcel->area_id]);
-        $offer = RiderJobOffer::where('parcel_id', $parcel->id)->sole();
-        $this->assertSame([RiderJobOffer::DELIVERY, $this->rider1->id, 'pending'], [$offer->kind, $offer->rider_id, $offer->status]);
+        $this->assertSame(0, RiderJobOffer::count());
+        $this->assertSame(RiderJobOffer::DELIVERY, app(\App\Services\RiderDispatch::class)->jobKind($parcel));
 
         $this->get(route('sc.tracking.show', $parcel))->assertSee('data-sorted-to', false)->assertSee('Sorted to <strong>Central</strong>', false);
     }
@@ -66,7 +67,7 @@ class SortToBarangayTest extends TestCase
         $parcel = $this->atHub();
 
         $this->actingAs($this->logistics1)->post(route('sc.parcels.sort', $parcel), ['area_id' => $this->central->id])
-            ->assertSessionHas('success', "{$parcel->tracking_number} sorted to Central. No rider is online right now, so the delivery is waiting in Rider Dispatch.");
+            ->assertSessionHas('success', "{$parcel->tracking_number} sorted to Central. The delivery is waiting in Rider Dispatch.");
         $this->assertSame('sorted', $parcel->fresh()->status);
         $this->assertSame(0, RiderJobOffer::count());
     }
@@ -76,7 +77,7 @@ class SortToBarangayTest extends TestCase
         $parcel = $this->parcel('picked_up', ['received_at' => now()], null, $this->logistics2);
 
         $this->actingAs($this->logistics2)->get(route('sc.tracking.show', $parcel))->assertOk()
-            ->assertSee('Sort or transfer')->assertSee('Create transfer')
+            ->assertSee('Send to another sorting center')->assertSee('Sort for this center')
             ->assertSee('(serves this address)')
             ->assertDontSee('data-sort-form', false);
 

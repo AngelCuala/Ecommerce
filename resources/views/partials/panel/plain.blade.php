@@ -1,7 +1,7 @@
 {{-- Plain panel styles shared by seller pages: neutral borders, one orange accent. --}}
 @once
 <style>
-    .pl-card { background: #fff; border: 1px solid #ECE7E3; border-radius: .75rem; }
+    .pl-card { background: #fff; border: 1px solid #ECE7E3; border-radius: .75rem; min-width: 0; }   /* min-width: a wide table scrolls inside instead of stretching the grid */
     .pl-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: .5rem; padding: .9rem 1.25rem; border-bottom: 1px solid #F2EEEA; }
     .pl-head h2 { font-size: .9375rem; font-weight: 600; color: #222; }
     .pl-body { padding: 1rem 1.25rem; }

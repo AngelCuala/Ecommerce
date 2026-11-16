@@ -14,6 +14,8 @@
 @endphp
 
 @section('content')
+
+@include('partials.page-tabs', ['tabs' => [['Delivery assignment', 'sc.delivery-assignment', 'sc.delivery-assignment'], ['Rider dispatch', 'sc.dispatch', 'sc.dispatch*'], ['Delivery monitoring', 'sc.delivery-monitoring', 'sc.delivery-monitoring']]])
 <style>
     .da-stats { display: grid; gap: 12px; grid-template-columns: repeat(4, minmax(0, 1fr)); margin-bottom: 18px; }
     @media (max-width: 900px) { .da-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
@@ -149,21 +151,39 @@
                     </td>
                     <td><span class="da-area">{{ $parcel->area->name ?? '—' }}</span></td>
                     <td><div class="da-addr">{{ $parcel->dropoff_address }}</div></td>
-                    <td style="white-space:nowrap;">{{ $parcel->weight_kg ? rtrim(rtrim(number_format((float) $parcel->weight_kg, 2), '0'), '.') . ' kg' : '—' }}</td>
-                    @if ($areaRiders->isEmpty())
+                    <td style="white-space:nowrap;">{{ $parcel->weight_kg ? rtrim(rtrim(number_format((float) $parcel->weight_kg, 2), '0'), '.') . ' kg' : '—' }}
+                        @if ($parcel->isBulky())<div><span class="badge badge-yellow" data-bulky title="Only a car or van rider can take it">Bulky · car/van</span></div>@endif</td>
+                    @if ($areaRiders->isEmpty() && $riders->isEmpty())
                         <td colspan="2">
                             <span class="badge badge-yellow">No rider for this barangay</span>
                             <div class="text-muted text-sm" style="margin-top:4px;">
                                 <a href="{{ route('sc.riders') }}" style="color:var(--accent-blue);font-weight:600;">Add a rider</a> for {{ $parcel->area->name ?? 'this barangay' }}.
                             </div>
                         </td>
+                    @elseif ($areaRiders->isEmpty())
+                        {{-- No rider covers this barangay: any of the company's riders, nearest first (the first is picked). --}}
+                        @php $nearest = \App\Services\NearestRiders::ranked($parcel, $riders); @endphp
+                        <td>
+                            <span class="badge badge-yellow" style="margin-bottom:4px;">No rider for this barangay · nearest first</span>
+                            <form method="POST" action="{{ route('sc.parcels.assign', $parcel) }}" id="assign-{{ $parcel->id }}" data-nearest-riders>
+                                @csrf
+                                <select name="rider_id" class="form-select rider-select" required style="min-width:230px;">
+                                    @foreach ($nearest->filter(fn ($x) => ! $parcel->isBulky() || $x['rider']->canCarryBulky())->values() as $i => $x)
+                                        <option value="{{ $x['rider']->id }}" @selected($i === 0)>
+                                            {{ $x['rider']->full_name }} · {{ $x['rider']->area->name ?? 'no barangay' }}{{ $x['km'] !== null ? ' · ' . $x['km'] . ' km' : '' }}{{ $x['rider']->is_online ? ' · online' : ' · offline' }}{{ in_array($x['rider']->id, $busyIds, true) ? ' · on delivery' : '' }}{{ $i === 0 ? ' (nearest)' : '' }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                            </form>
+                        </td>
+                        <td style="text-align:right;"><button class="btn btn-blue btn-sm" form="assign-{{ $parcel->id }}">Assign</button></td>
                     @else
                         <td>
                             <form method="POST" action="{{ route('sc.parcels.assign', $parcel) }}" id="assign-{{ $parcel->id }}">
                                 @csrf
                                 <select name="rider_id" class="form-select rider-select" required style="min-width:190px;">
                                     @foreach ($areaRiders->sortBy(fn ($r) => in_array($r->id, $busyIds, true)) as $r)
-                                        <option value="{{ $r->id }}">{{ $r->full_name }}{{ in_array($r->id, $busyIds, true) ? ' (on delivery)' : ' (free)' }}</option>
+                                        <option value="{{ $r->id }}" @disabled($parcel->isBulky() && ! $r->canCarryBulky())>{{ $r->full_name }} · {{ $r->vehicle_type ?: 'Motorcycle' }}{{ $parcel->isBulky() && ! $r->canCarryBulky() ? ' — bulky parcel needs a car or van' : '' }}{{ in_array($r->id, $busyIds, true) ? ' (on delivery)' : ' (free)' }}</option>
                                     @endforeach
                                 </select>
                             </form>

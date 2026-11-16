@@ -1,10 +1,15 @@
 @props(['title' => 'Courier — ALVY', 'active' => ''])
+@php
+    // Riders (motorcycle, tricycle, or a 4-wheeler for hub-to-hub trips) see "Rider"; only direct couriers see "Courier".
+    $portalLabel = auth()->check() && \App\Models\Rider::where('user_id', auth()->id())->exists() ? 'Rider' : 'Courier';
+@endphp
 <!doctype html>
 <html lang="en">
 <head>
     <meta charset="utf-8">
+    @include('partials.theme')
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{{ $title }} — Courier</title>
+    <title>{{ $title }} — {{ $portalLabel }}</title>
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -33,12 +38,22 @@
     ];
     // Riders of a logistics company also get the hub jobs (pickups and deliveries) from the app.
     if (auth()->check() && \App\Models\Rider::where('user_id', auth()->id())->where('application_status', 'approved')->exists()) {
+        // A hub rider's own pages; the direct-courier pages (Delivery History, Earnings) only if they also did direct deliveries.
+        $direct = \App\Models\Delivery::whereHas('courier', fn ($q) => $q->where('user_id', auth()->id()))->exists();
         $links = array_slice($links, 0, 1, true) + [
             'rider'          => ['route' => 'courier.rider',          'label' => 'Hub Jobs',       'icon' => 'parcel'],
             'rider-history'  => ['route' => 'courier.rider.history',  'label' => 'Job History',    'icon' => 'history'],
-            'rider-earnings' => ['route' => 'courier.rider.earnings', 'label' => 'Rider Pay',      'icon' => 'earnings'],
-            'rider-cod'      => ['route' => 'courier.rider.cod',      'label' => 'COD Remittance', 'icon' => 'truck'],
-        ] + array_slice($links, 1, null, true);
+            'rider-earnings' => ['route' => 'courier.rider.earnings', 'label' => 'Pay & COD',      'icon' => 'earnings', 'also' => ['rider-cod', 'rider-wallet']],
+        ] + array_diff_key(array_slice($links, 1, null, true), $direct ? [] : ['history' => 1, 'profit' => 1]);
+    }
+    // A 4-wheel rider (car, van, truck): the same rider pages, for hub-to-hub trips instead of buyer deliveries.
+    $truck = auth()->check() ? \App\Http\Controllers\Courier\TruckDutyController::truckCourier() : null;
+    if ($truck) {
+        $links = [
+            'trips'         => ['route' => 'courier.trips',         'label' => 'Hub Jobs',    'icon' => 'parcel'],
+            'trips-history' => ['route' => 'courier.trips.history', 'label' => 'Job History', 'icon' => 'history'],
+            'trips-pay'     => ['route' => 'courier.trips.pay',     'label' => 'Rider Pay',   'icon' => 'earnings'],
+        ] + array_intersect_key($links, ['notifications' => 1, 'account' => 1]);
     }
 @endphp
 
@@ -53,11 +68,11 @@
             <span class="cx-brand-name">ALVY</span>
         </a>
         <div class="cx-divider"></div>
-        <p class="cx-eyebrow">Courier</p>
+        <p class="cx-eyebrow">{{ $portalLabel }}</p>
 
         <nav class="cx-nav">
             @foreach ($links as $key => $link)
-                <a href="{{ route($link['route']) }}" class="cx-nav-link {{ $active === $key ? 'active' : '' }}">
+                <a href="{{ route($link['route']) }}" class="cx-nav-link {{ $active === $key || in_array($active, $link['also'] ?? [], true) ? 'active' : '' }}">
                     @include('courier.partials.icon', ['name' => $link['icon'], 'size' => 17])
                     <span>{{ $link['label'] }}</span>
                     @if ($key === 'notifications' && $courierUnread > 0)
@@ -69,7 +84,10 @@
 
         <div class="cx-foot">
             <div class="cx-user">
-                <span class="cx-avatar">{{ strtoupper(substr($u->name ?? 'C', 0, 1)) }}</span>
+                <span class="cx-avatar" style="overflow:hidden;">
+                    <img data-photo-preview src="{{ $u?->profile_photo_url }}" alt="" style="width:100%;height:100%;object-fit:cover;{{ $u?->profile_photo_url ? '' : 'display:none;' }}">
+                    @unless ($u?->profile_photo_url)<span data-photo-initial>{{ strtoupper(substr($u->name ?? 'C', 0, 1)) }}</span>@endunless
+                </span>
                 <div class="min-w-0">
                     <div class="cx-user-name">{{ $u->name ?? 'Courier' }}</div>
                     <div class="cx-user-mail">{{ $u->email ?? '' }}</div>
@@ -90,7 +108,7 @@
         </div>
         <nav class="cx-nav">
             @foreach ($links as $key => $link)
-                <a href="{{ route($link['route']) }}" class="cx-nav-link {{ $active === $key ? 'active' : '' }}">
+                <a href="{{ route($link['route']) }}" class="cx-nav-link {{ $active === $key || in_array($active, $link['also'] ?? [], true) ? 'active' : '' }}">
                     @include('courier.partials.icon', ['name' => $link['icon'], 'size' => 17])
                     <span>{{ $link['label'] }}</span>
                     @if ($key === 'notifications' && $courierUnread > 0)
@@ -108,10 +126,19 @@
                 @include('courier.partials.icon', ['name' => 'menu', 'size' => 22, 'sw' => 2])
             </button>
             <div>
-                <p class="cx-eyebrow-top">ALVY Courier</p>
+                <p class="cx-eyebrow-top">ALVY {{ $portalLabel }}</p>
                 <p class="cx-title">{{ $title }}</p>
             </div>
-            <div class="cx-topbar-right">{{ $topbar ?? '' }}</div>
+            <div class="cx-topbar-right" style="display:flex;align-items:center;gap:8px;">
+                @if ($truck)
+                    {{-- Online / Offline on every page (like a rider); while Online, an open page keeps them Online (ping every minute). --}}
+                    <a href="{{ route('courier.trips') }}" class="cx-duty-pill {{ $truck->on_duty ? 'is-on' : '' }}" data-duty-pill
+                       data-on="{{ $truck->on_duty ? 1 : 0 }}" data-ping="{{ route('courier.trips.ping') }}">
+                        <i></i><span data-duty-label>{{ $truck->isSuspended() ? 'Suspended' : ($truck->on_duty ? 'Online' : 'Offline') }}</span>
+                    </a>
+                @endif
+                @include('partials.theme-toggle'){{ $topbar ?? '' }}
+            </div>
         </header>
 
         <main class="cx-content">
@@ -152,6 +179,45 @@ document.querySelectorAll('.cx-table').forEach(function (table) {
 });
 </script>
 <script src="{{ asset('js/Courier.js') }}"></script>
+@if ($truck)
+<style>
+    .cx-duty-pill { display: inline-flex; align-items: center; gap: 7px; padding: 6px 12px; border-radius: 999px; border: 1px solid #e2e8f0; background: #f1f5f9;
+                    font-size: 12.5px; font-weight: 700; color: #64748b; text-decoration: none; white-space: nowrap; }
+    .cx-duty-pill i { width: 8px; height: 8px; border-radius: 999px; background: #94a3b8; }
+    .cx-duty-pill.is-on { border-color: #a7f3d0; background: #ecfdf5; color: #047857; }
+    .cx-duty-pill.is-on i { background: #10b981; box-shadow: 0 0 0 3px rgba(16,185,129,.2); animation: cx-duty-blink 1.6s ease-in-out infinite; }
+    @keyframes cx-duty-blink { 50% { opacity: .45; } }
+</style>
+<script>
+// While On Duty, tell ALVY every minute that this courier is still here (with the location when the browser allows it),
+// so the company keeps seeing them On Duty and can assign trips. With every page closed they go Offline after 5 minutes.
+(function () {
+    var pill = document.querySelector('[data-duty-pill]');
+    if (!pill || pill.dataset.on !== '1') return;
+    var token = document.querySelector('meta[name="csrf-token"]').content, timer;
+    function send(pos) {
+        var body = new FormData();
+        if (pos) { body.append('lat', pos.coords.latitude); body.append('lng', pos.coords.longitude); }
+        fetch(pill.dataset.ping, { method: 'POST', headers: { 'X-CSRF-TOKEN': token, 'Accept': 'application/json' }, body: body, credentials: 'same-origin' })
+            .then(function (r) { return r.ok ? r.json() : null; })
+            .then(function (d) {
+                if (!d) return;
+                pill.querySelector('[data-duty-label]').textContent = d.on_duty ? 'Online' : 'Offline';
+                pill.classList.toggle('is-on', !!d.on_duty);
+                if (!d.on_duty) { pill.dataset.on = '0'; clearInterval(timer); }
+            }).catch(function () {});
+    }
+    function ping() {
+        if (document.hidden) return;   // the tab in front does it
+        if (navigator.geolocation) navigator.geolocation.getCurrentPosition(send, function () { send(null); }, { maximumAge: 60000, timeout: 8000 });
+        else send(null);
+    }
+    timer = setInterval(ping, 60000);
+    document.addEventListener('visibilitychange', function () { if (!document.hidden) ping(); });
+    ping();
+})();
+</script>
+@endif
 
 {{-- Floating chat popup (same widget the other portals use) --}}
 @include('partials.chat-widget')
@@ -159,5 +225,6 @@ document.querySelectorAll('.cx-table').forEach(function (table) {
 @stack('scripts')
 <script src="{{ asset('js/prevent-back.js') }}"></script>
 <script src="{{ asset('js/logout-confirm.js') }}?v={{ filemtime(public_path('js/logout-confirm.js')) }}"></script>
+<script src="{{ asset('js/upload-progress.js') }}?v={{ filemtime(public_path('js/upload-progress.js')) }}" defer></script>
 </body>
 </html>

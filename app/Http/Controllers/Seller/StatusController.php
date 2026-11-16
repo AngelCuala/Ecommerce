@@ -51,7 +51,7 @@ class StatusController extends Controller
             'bir_2303'        => ['bir_2303_path',        'seller-bir'],
         ] as $field => [$column, $dir]) {
             if ($request->hasFile($field)) {
-                $paths[$column] = $request->file($field)->store($dir, 'public');
+                $paths[$column] = $request->file($field)->store($dir, \App\Support\ProtectedFile::DISK);
             }
         }
 

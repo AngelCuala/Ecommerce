@@ -3,7 +3,7 @@
     <div id="password-code" style="margin-bottom:20px;padding:18px 20px;border:1px solid #FED7AA;background:#FFF7ED;border-radius:10px;color:#7C2D12;">
         <p style="margin:0 0 4px;font-weight:700;font-size:15px;">Confirm your new password</p>
         <p style="margin:0 0 12px;font-size:13px;line-height:1.5;">
-            @php($pcTo = \App\Http\Controllers\PasswordChangeController::sentTo(auth()->user()))
+            @php($pcTo = \App\Http\Controllers\Shared\PasswordChangeController::sentTo(auth()->user()))
             We sent a 6-digit code {{ $pcTo['via'] === 'sms' ? 'by text' : '' }} to <strong>{{ $pcTo['to'] }}</strong>. Your new password is used only after you enter it; until then your current password keeps working.
         </p>
         <form method="POST" action="{{ route('password.change.verify') }}" style="display:flex;flex-wrap:wrap;gap:8px;align-items:flex-start;">

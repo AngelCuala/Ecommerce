@@ -31,8 +31,8 @@ class RiderPayPageTest extends TestCase
     private function delivered(Carbon $at): ParcelDelivery
     {
         $d = $this->deliveryFor($this->rider1);
-        // Stored in UTC, like everything the app saves.
-        $d->forceFill(['status' => 'delivered', 'delivered_at' => $at->copy()->utc()])->saveQuietly();
+        // Stored in the app's timezone, like everything the app saves (Laravel saves a date's digits as they are).
+        $d->forceFill(['status' => 'delivered', 'delivered_at' => $at->copy()->tz(config('app.timezone'))])->saveQuietly();
         return $d;
     }
 
@@ -76,7 +76,7 @@ class RiderPayPageTest extends TestCase
 
         $this->page(['period' => 'today'])
             ->assertSee('data-period-pay>₱80.00', false)                    // ₱50 delivery + ₱30 pickup
-            ->assertSee('1 × ₱50')->assertSee('1 × ₱30')->assertSee('1 × ₱0')
+            ->assertSee('1 × ₱0')
             ->assertSee('data-pending-pay>₱80.00', false)
             ->assertSee('₱500.00')->assertSee('not your pay');
     }

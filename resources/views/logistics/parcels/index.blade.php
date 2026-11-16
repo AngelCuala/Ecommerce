@@ -30,23 +30,10 @@
                 <td style="display:flex;gap:6px;flex-wrap:wrap;">
                     <a href="{{ route('admin.logistics.parcels.show', $parcel) }}" class="btn btn--sm">View</a>
                     @if($parcel->status === 'pickup_approved')
-                        <form method="POST" action="{{ route('admin.logistics.parcels.mark-picked-up', $parcel) }}" style="display:flex;gap:6px;" onsubmit="return confirm('Override: record this parcel as received at the hub?')">@csrf
-                            <input name="reason" required minlength="10" maxlength="300" placeholder="Override reason (required)" style="width:190px;">
-                            <button class="btn btn--primary btn--sm">Mark Picked Up</button>
-                        </form>
+                        <span class="text-xs" style="color:#6b90aa;" data-status-locked>Follows the seller → logistics → rider process</span>
                     @endif
                     @if($parcel->status === 'picked_up')
-                        <form method="POST" action="{{ route('admin.logistics.parcels.sort', $parcel) }}" style="display:flex;gap:6px;">
-                            @csrf
-                            <input name="reason" required minlength="10" maxlength="300" placeholder="Override reason (required)" style="width:190px;">
-                            <select name="area_id" required style="width:auto;">
-                                <option value="">— Area —</option>
-                                @foreach($areas as $area)
-                                    <option value="{{ $area->id }}">{{ $area->name }}</option>
-                                @endforeach
-                            </select>
-                            <button class="btn btn--primary btn--sm">Sort</button>
-                        </form>
+                        <span class="text-xs" style="color:#6b90aa;" data-status-locked>Follows the seller → logistics → rider process</span>
                     @endif
                 </td>
             </tr>

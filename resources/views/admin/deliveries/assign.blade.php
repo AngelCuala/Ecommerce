@@ -71,22 +71,10 @@
                 <td class="text-secondary" style="max-width:160px;">{{ $parcel->dropoff_address }}</td>
                 <td class="text-secondary">{{ $parcel->weight_kg ? $parcel->weight_kg.' kg' : '—' }}</td>
                 <td>
-                    <select name="rider_id" id="rider-{{ $parcel->id }}" style="width:150px;background:var(--bg-input);">
-                        <option value="">Select rider…</option>
-                        @foreach($riders as $r)
-                            <option value="{{ $r->id }}">{{ $r->full_name }}</option>
-                        @endforeach
-                    </select>
+                    <span class="text-secondary">—</span>
                 </td>
                 <td>
-                    <form method="POST" action="{{ route('admin.logistics.deliveries.assign',$parcel) }}" id="assign-{{ $parcel->id }}">
-                        @csrf
-                        <input type="hidden" name="rider_id" id="hidden-rider-{{ $parcel->id }}">
-                        <button type="button" class="btn btn--ghost btn--sm"
-                            onclick="document.getElementById('hidden-rider-{{ $parcel->id }}').value = document.getElementById('rider-{{ $parcel->id }}').value; document.getElementById('assign-{{ $parcel->id }}').submit();">
-                            Assign
-                        </button>
-                    </form>
+                    <span class="text-xs" style="color:#6b90aa;" data-status-locked>Follows the seller → logistics → rider process</span>
                 </td>
                 <td><span class="badge badge--pending">Unassigned</span></td>
             </tr>

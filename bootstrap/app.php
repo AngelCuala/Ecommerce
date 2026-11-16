@@ -71,4 +71,44 @@ return Application::configure(basePath: dirname(__DIR__))
                 ->withInput($request->except(['_token', 'password', 'password_confirmation', 'current_password']))
                 ->with('error', 'Your session expired, so that was not saved. Please try again.');
         });
+
+        // A button's address opened as a link (e.g. GET /cart/12 from a crawler or an old tab): the product page,
+        // or the home page, instead of the bare "405 Method Not Allowed. Something is broken".
+        $exceptions->render(function (\Symfony\Component\HttpKernel\Exception\MethodNotAllowedHttpException $e, \Illuminate\Http\Request $request) {
+            if ($request->is('api/*') || $request->expectsJson() || ! $request->isMethod('GET')) {
+                return null;
+            }
+            if (preg_match('#^(cart|wishlist)/(\d+)$#', $request->path(), $m)) {
+                return redirect()->route('products.show', $m[2]);
+            }
+
+            return redirect('/');
+        });
+
+        // The app's login ended because it is older than a week (config sanctum.expiration): say so, like the
+        // website does, instead of a bare "Unauthenticated.".
+        // Add to cart / Buy now / wishlist heart while signed out: remember it, log in, then it is done (App\Support\PendingShopAction).
+        $exceptions->render(function (\Illuminate\Auth\AuthenticationException $e, \Illuminate\Http\Request $request) {
+            if ($request->is('api/*') || ! in_array($request->route()?->getName(), \App\Support\PendingShopAction::ROUTES, true) || ! $request->hasSession()) {
+                return null;
+            }
+            $title = \App\Support\PendingShopAction::remember($request);
+            $what = $request->route()->getName() === 'wishlist.toggle' ? 'your wishlist' : 'your cart';
+
+            return redirect(\App\Support\Portal::loginUrl())->with('success', 'Log in or sign up to add "' . $title . '" to ' . $what . '. We\'ll add it right after.');
+        });
+
+        $exceptions->render(function (\Illuminate\Auth\AuthenticationException $e, \Illuminate\Http\Request $request) {
+            $minutes = (int) config('sanctum.expiration');
+            if (! $request->is('api/*') || ! $minutes || ! ($bearer = $request->bearerToken())) {
+                return null;
+            }
+            $token = \Laravel\Sanctum\PersonalAccessToken::findToken($bearer);
+            if (! $token || $token->created_at->gt(now()->subMinutes($minutes))) {
+                return null;   // unknown or revoked token: the usual answer
+            }
+
+            return response()->json(['message' => 'For your security you were signed out after '
+                . \App\Http\Middleware\EnforceLoginTimeLimit::duration($minutes) . '. Please log in again.'], 401);
+        });
     })->create();

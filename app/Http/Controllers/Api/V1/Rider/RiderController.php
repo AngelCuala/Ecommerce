@@ -34,6 +34,8 @@ class RiderController extends Controller
             'pickups'    => $d['pickups']->map(fn ($p) => RiderJson::pickupRow($p))->values(),
             'deliveries' => $d['deliveries']->map(fn ($x) => RiderJson::deliveryRow($x))->values(),
             'returns'    => $d['returns']->map(fn ($p) => RiderJson::returnRow($p))->values(),
+            // Buyers' returns (Return Items): collect from the buyer, or bring back to the seller.
+            'return_jobs' => collect($d['returnJobs'] ?? [])->map(fn ($r) => self::returnJob($r))->values(),
             // Hub-to-hub parcels this rider carries (riders the hub allowed to transport), and the last finished deliveries.
             'transfers'  => collect($d['transfers'] ?? [])->map(fn ($t) => [
                 'id' => $t->id, 'reference' => $t->reference, 'tracking' => $t->parcel?->tracking_number, 'waybill' => $t->parcel?->waybill_number,
@@ -42,8 +44,8 @@ class RiderController extends Controller
                 'status' => $t->status, 'expected_by' => $t->expected_by?->toIso8601String(),
             ])->values(),
             'recent'     => collect($d['recent'] ?? [])->map(fn ($x) => RiderJson::deliveryRow($x))->values(),
-            'decline_reasons' => WebRider::DECLINE_REASONS,
-            'pay'        => ['pickup' => RiderDispatch::PAY_PICKUP, 'delivery' => RiderDispatch::PAY_DELIVERY],
+            'decline_reasons' => [],   // barangay jobs cannot be declined (the hub reassigns them)
+            'pay'        => RiderDispatch::payRates(),
         ]);
     }
 
@@ -70,6 +72,39 @@ class RiderController extends Controller
     public function accept(int $offer): JsonResponse  { return $this->withJobs($this->web(WebRider::class, 'accept', ['offer' => $offer])); }
     public function decline(int $offer): JsonResponse { return $this->withJobs($this->web(WebRider::class, 'decline', ['offer' => $offer])); }
     public function returned(int $parcel): JsonResponse { return $this->withJobs($this->web(WebRider::class, 'returnedToSeller', ['parcel' => $parcel])); }
+
+    // ── Return Items (buyer → hub → seller) ──────────────────────
+
+    public static function returnJob(\App\Models\ReturnShipment $r): array
+    {
+        $r->loadMissing('order', 'parcel.seller.sellerApplication', 'returnRequest');
+        $app = $r->parcel?->seller?->sellerApplication;
+        return [
+            'id' => $r->id, 'status' => $r->status, 'status_label' => $r->statusLabel(),
+            'kind' => in_array($r->status, ['to_seller', 'returned'], true) ? 'to_seller' : 'pickup',
+            'order_number' => $r->order?->number(), 'waybill' => $r->code(), 'reason' => $r->returnRequest?->reason,
+            'accepted' => (bool) $r->acknowledged_at,
+            'buyer' => ['name' => $r->order?->full_name, 'phone' => $r->order?->phone, 'address' => $r->buyerAddress()],
+            'seller' => ['name' => $app->shop_name ?? $r->parcel?->seller?->name, 'phone' => $app->phone ?? $r->parcel?->seller?->contact_no, 'address' => $r->sellerAddress()],
+            'items' => $r->order ? $r->order->items()->with('product')->get()->map(fn ($i) => ($i->product->title ?? 'Item') . ' ×' . $i->quantity)->values() : [],
+            'bulky' => (bool) $r->parcel?->isBulky(),
+            'proof_url' => $r->pickup_proof_path ? \App\Support\ProtectedFile::url($r->pickup_proof_path) : null,
+        ];
+    }
+
+    public function returnJobShow(int $return): JsonResponse
+    {
+        $d = $this->pageData($this->web(WebRider::class, 'returnPickup', ['return' => $return]));
+        return response()->json(['return_job' => self::returnJob($d['rs'])]);
+    }
+
+    public function returnJobAccept(int $return): JsonResponse { return $this->withJobs($this->web(WebRider::class, 'acceptReturnPickup', ['return' => $return])); }
+
+    /** Multipart: proof_photo, tracking_number (scanned from the waybill). */
+    public function returnJobConfirm(int $return): JsonResponse { return $this->withJobs($this->web(WebRider::class, 'confirmReturnPickup', ['return' => $return])); }
+
+    /** Multipart: proof_photo (optional). */
+    public function returnJobHanded(int $return): JsonResponse { return $this->withJobs($this->web(WebRider::class, 'returnHandedToSeller', ['return' => $return])); }
 
     private function withJobs(mixed $response): JsonResponse
     {
@@ -176,7 +211,7 @@ class RiderController extends Controller
             'today_jobs' => $d['today']->count(),
             'today_pay'  => (float) $d['todayPay'],
             'week_pay'   => round((float) $d['weekPay'], 2),
-            'pay'        => ['pickup' => RiderDispatch::PAY_PICKUP, 'delivery' => RiderDispatch::PAY_DELIVERY],
+            'pay'        => RiderDispatch::payRates(),
         ]);
     }
 
@@ -188,12 +223,54 @@ class RiderController extends Controller
             'company'  => $d['rider']->companyName(),
             'balance'  => round((float) $d['balance'], 2),
             'pending'  => round((float) $d['pending'], 2),
+            // The next remittance, worked out: COD on hand − unpaid pay kept = cash to hand over.
+            'next'     => $d['next'],
             'orders'   => $d['orders']->map(fn (ParcelDelivery $x) => ['delivered_at' => $x->delivered_at?->toIso8601String(),
                 'tracking' => $x->parcel?->tracking_number, 'order_number' => $x->parcel?->order?->number(), 'cod' => (float) $x->cod_collected])->values(),
             'remittances' => $d['remittances']->map(fn (RiderRemittance $r) => ['id' => $r->id, 'created_at' => $r->created_at?->toIso8601String(),
-                'amount' => (float) $r->amount, 'status' => $r->status, 'shortfall' => $r->shortfall()])->values(),
+                'amount' => (float) $r->amount, 'pay_kept' => (float) $r->pay_kept, 'status' => $r->status, 'shortfall' => $r->shortfall()])->values(),
             'request_token' => $d['token'],
         ]);
+    }
+
+    /** E-wallet: the pay the hub sent in, pay earned but not sent yet, history and the GCash cash-out. */
+    public function wallet(): JsonResponse
+    {
+        $d = $this->pageData($this->web(WebRider::class, 'wallet'));
+        $e = fn (\App\Models\RiderWalletEntry $x) => ['id' => $x->id, 'type' => $x->type, 'type_label' => $x->typeLabel(), 'note' => $x->note,
+            'status' => $x->status, 'status_label' => $x->statusLabel(), 'amount' => (float) $x->amount, 'reference' => $x->reference,
+            'reject_reason' => $x->reject_reason, 'gcash_number' => $x->gcash_number, 'from' => $x->sortingCenter ? \App\Support\SortingCenters::displayName($x->sortingCenter) : null,
+            'tracking' => $x->parcel?->tracking_number, 'source' => $x->source_type, 'source_id' => $x->source_id, 'destination' => $x->destination(),
+            'at' => ($x->earned_at ?? $x->created_at)?->toIso8601String()];
+
+        return response()->json([
+            'company'  => $d['rider']->companyName(),
+            'balance'  => (float) $d['balance'],
+            // PAYMENTS_SPEC: available (can withdraw), held (remittance short), expected (COD not remitted), cash to remit (not pay).
+            'available' => (float) $d['balances']['available'], 'held' => (float) $d['balances']['held'],
+            'expected' => (float) $d['balances']['expected'], 'cash_to_remit' => (float) $d['balances']['cash_to_remit'],
+            'expected_jobs' => $d['expected']->map(fn ($j) => ['at' => $j['at']?->toIso8601String(), 'tracking' => $j['tracking'], 'pay' => $j['pay'], 'cod' => $j['cod']])->values(),
+            'accounts' => $d['accounts']->map(fn ($a) => ['id' => $a->id, 'method' => $a->method, 'bank_name' => $a->bank_name, 'account_name' => $a->account_name,
+                'account_number' => $a->account_number, 'label' => $a->label()])->values(),
+            'methods' => \App\Models\PayoutAccount::METHODS,
+            'to_send'  => (float) $d['toSend'],
+            'unsent'   => $d['unsent']->map(fn ($r) => RiderJson::walletRow($r))->values(),
+            'entries'  => collect($d['entries']->items())->map($e)->values(),
+            'pending_cashout' => $d['pendingCashout'] ? $e($d['pendingCashout']) : null,
+            'last_gcash' => $d['lastGcash'] ? ['number' => $d['lastGcash']->gcash_number, 'name' => $d['lastGcash']->gcash_name] : null,
+            'cashout_min' => \App\Services\RiderWallet::CASHOUT_MIN,
+            'pay' => RiderDispatch::payRates(),
+        ]);
+    }
+
+    /** amount, and payout_account_id or a new account (method gcash/maya/bank, bank_name, account_number, account_name); gcash_number + gcash_name still work. */
+    public function cashout(): JsonResponse
+    {
+        $json = $this->actionJson($this->web(WebRider::class, 'cashout'));
+        if ($json->getStatusCode() === 200) {
+            $json->setData($json->getData(true) + $this->wallet()->getData(true));
+        }
+        return $json;
     }
 
     /** amount, request_token (one remittance per token, like the website). */
@@ -217,7 +294,7 @@ class RiderController extends Controller
         return response()->json(['receipt' => [
             'id' => $r->id, 'reference' => 'REM-' . str_pad((string) $r->id, 6, '0', STR_PAD_LEFT),
             'rider' => $d['rider']->full_name, 'company' => $d['rider']->companyName(),
-            'amount' => (float) $r->amount, 'expected' => (float) $r->expected_amount, 'shortfall' => $r->shortfall(),
+            'amount' => (float) $r->amount, 'pay_kept' => (float) $r->pay_kept, 'expected' => (float) $r->expected_amount, 'shortfall' => $r->shortfall(),
             'status' => $r->status, 'sent_at' => $r->created_at?->toIso8601String(),
             'confirmed_at' => $r->confirmed_at?->toIso8601String(), 'confirmed_by' => $r->confirmer?->name,
             'carried_over' => (float) $d['carriedOver'],

@@ -3,6 +3,7 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
+    @include('partials.theme')
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{ $title }} — ALVY Seller</title>
     <meta name="csrf-token" content="{{ csrf_token() }}">
@@ -98,19 +99,15 @@ $navSections = [
             'Store' => [
                 'dashboard' => ['route' => 'seller.dashboard',    'label' => 'Dashboard',        'icon' => 'grid'],
                 'orders'    => ['route' => 'seller.orders.index', 'label' => 'Order Management', 'icon' => 'orders'],
-                'products'  => ['route' => 'seller.books.index',  'label' => 'Inventory',        'icon' => 'box'],
-                'store-categories' => ['route' => 'seller.store-categories.index', 'label' => 'Store Categories', 'icon' => 'file'],
+                'products'  => ['route' => 'seller.books.index',  'label' => 'Products',         'icon' => 'box', 'also' => ['store-categories']],
                 'reviews'   => ['route' => 'seller.reviews.index', 'label' => 'Reviews',         'icon' => 'chat'],
             ],
             'Marketing' => [
-                'vouchers'  => ['route' => 'seller.vouchers.index', 'label' => 'Vouchers',       'icon' => 'ticket'],
-                'flash'     => ['route' => 'seller.flash-sales.index', 'label' => 'Flash sales', 'icon' => 'ticket'],
-                'promotions'=> ['route' => 'seller.promotions.index', 'label' => 'Bundles & Promos', 'icon' => 'bag'],
+                'vouchers'  => ['route' => 'seller.vouchers.index', 'label' => 'Vouchers & Promos', 'icon' => 'ticket', 'also' => ['flash', 'promotions']],
             ],
             'Finance' => [
-                'reports'   => ['route' => 'seller.reports',      'label' => 'Sales Reports',    'icon' => 'chart'],
+                'reports'   => ['route' => 'seller.reports',      'label' => 'Reports',          'icon' => 'chart', 'also' => ['commissions']],
                 'earnings'  => ['route' => 'seller.earnings',     'label' => 'Earnings & Payouts', 'icon' => 'activity'],
-                'commissions' => ['route' => 'seller.commissions', 'label' => 'Commission',      'icon' => 'file'],
             ],
             'General' => [
                 'notifications' => ['route' => 'seller.notifications', 'label' => 'Notifications', 'icon' => 'bell'],
@@ -145,6 +142,8 @@ $navSections = [
 
         @include('partials.panel.sidebar-nav', ['sections' => $navSections, 'active' => $active])
 
+        <div class="mt-auto shrink-0 border-t px-4 py-3" style="border-color:#EFEFEF;">@include('partials.theme-toggle', ['variant' => 'row'])</div>
+
     </aside>
 
     {{-- ══════════════════════════
@@ -172,6 +171,7 @@ $navSections = [
                 </button>
             </div>
             @include('partials.panel.sidebar-nav', ['sections' => $navSections, 'active' => $active])
+            <div class="mt-auto shrink-0 border-t px-4 py-3" style="border-color:#EFEFEF;">@include('partials.theme-toggle', ['variant' => 'row'])</div>
         </aside>
     </div>
 
@@ -200,8 +200,17 @@ $navSections = [
 </div>
 
 {{-- Toast notifications (single pop-up, auto-dismiss) --}}
-@if (session('success') || session('error'))
+@if (session('success') || session('error') || session('warning'))
     <div id="toast-stack" class="fixed right-4 top-6 z-[100] flex w-full max-w-sm flex-col gap-2 px-2 sm:px-0">
+        @if (session('warning'))
+            {{-- Done in part (e.g. a bulk delete that skipped products with unfinished orders). --}}
+            <div class="toast flex items-start gap-3 rounded-xl border p-4 shadow-lg"
+                 style="background:#fff;border-color:rgba(217,119,6,.35);">
+                <svg class="mt-0.5 h-5 w-5 shrink-0" fill="none" stroke="#D97706" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v4m0 4h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>
+                <p class="flex-1 text-sm font-semibold" style="color:#92400E;">{{ session('warning') }}</p>
+                <button type="button" data-toast-close class="shrink-0 text-lg leading-none btn-hover-danger" style="color:#9CA3AF;" aria-label="Dismiss">&times;</button>
+            </div>
+        @endif
         @if (session('success'))
             <div class="toast flex items-start gap-3 rounded-xl border p-4 shadow-lg"
                  style="background:#fff;border-color:rgba(250,78,28,.30);">
@@ -226,5 +235,7 @@ $navSections = [
 <script src="{{ asset('js/Seller.js') }}"></script>
 <script src="{{ asset('js/prevent-back.js') }}"></script>
 <script src="{{ asset('js/logout-confirm.js') }}?v={{ filemtime(public_path('js/logout-confirm.js')) }}"></script>
+<script src="{{ asset('js/upload-progress.js') }}?v={{ filemtime(public_path('js/upload-progress.js')) }}" defer></script>
+<script src="{{ asset('js/responsive.js') }}?v={{ filemtime(public_path('js/responsive.js')) }}" defer></script>
 </body>
 </html>

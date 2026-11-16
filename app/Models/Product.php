@@ -57,6 +57,7 @@ class Product extends Model
         'low_stock_threshold' => 'integer',
         'pages'            => 'integer',
         'specs'            => 'array',
+        'colors'           => 'array',   // from the picture (products:tag-colors); null = not checked yet
         'weight_kg'        => 'float',
         'length_cm'        => 'float',
         'width_cm'         => 'float',
@@ -120,6 +121,22 @@ class Product extends Model
     public function getSlugAttribute(): string
     {
         return Str::slug($this->title) . '-' . $this->id;
+    }
+
+    /** Where a picture's small WebP copy for product cards is kept (products/a.jpg → thumbs/products/a.webp). */
+    public static function thumbPath(string $image): string
+    {
+        return 'thumbs/' . preg_replace('/\.[^.\/]+$/', '', $image) . '.webp';
+    }
+
+    /** The product card picture: the small WebP copy (products:thumbs) when it exists, else the original. */
+    public function getThumbUrlAttribute(): ?string
+    {
+        if (! $this->image) {
+            return null;
+        }
+        $thumb = self::thumbPath($this->image);
+        return asset('storage/' . (is_file(storage_path('app/public/' . $thumb)) ? $thumb : $this->image));
     }
 
     /** Primary display image — fallback single image */

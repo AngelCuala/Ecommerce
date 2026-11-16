@@ -1,4 +1,6 @@
 <x-seller-layout title="Bundles & Promos" active="promotions">
+
+@include('partials.page-tabs', ['tabs' => [['Vouchers', 'seller.vouchers.index', 'seller.vouchers.*'], ['Flash sales', 'seller.flash-sales.index', 'seller.flash-sales.*'], ['Bundles & Promos', 'seller.promotions.index', 'seller.promotions.*']]])
 @php $type = old('type', 'bundle'); $names = $products->pluck('title', 'id'); @endphp
 <div class="mx-auto max-w-4xl">
     <div class="mb-5">

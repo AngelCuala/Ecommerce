@@ -42,7 +42,7 @@ return [
             'driver' => 'session',
             'provider' => 'users',
             // "Remember me" never outlasts the login time limit (minutes).
-            'remember' => (int) env('SESSION_MAX_LOGIN_MINUTES', 480) ?: 576000,
+            'remember' => (int) env('SESSION_MAX_LOGIN_MINUTES', 10080) ?: 576000,
         ],
     ],
 

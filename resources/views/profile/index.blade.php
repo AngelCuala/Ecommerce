@@ -164,10 +164,10 @@
                     <div class="group relative shrink-0 cursor-pointer" onclick="document.getElementById('avatar-input').click()">
                         <div class="flex h-20 w-20 items-center justify-center overflow-hidden rounded-2xl" style="background:#002b4d;">
                             @if ($u->profile_photo_path)
-                                <img id="avatar-preview" src="{{ asset('storage/'.$u->profile_photo_path) }}" class="h-20 w-20 object-cover" alt="Profile photo">
+                                <img id="avatar-preview" data-photo-preview src="{{ asset('storage/'.$u->profile_photo_path) }}" class="h-20 w-20 object-cover" alt="Profile photo">
                             @else
-                                <span id="avatar-initial" class="select-none text-2xl font-extrabold text-white" style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;">{{ strtoupper(substr($u->name, 0, 1)) }}</span>
-                                <img id="avatar-preview" src="" class="hidden h-20 w-20 object-cover" alt="Profile photo">
+                                <span id="avatar-initial" data-photo-initial class="select-none text-2xl font-extrabold text-white" style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;">{{ strtoupper(substr($u->name, 0, 1)) }}</span>
+                                <img id="avatar-preview" data-photo-preview src="" class="hidden h-20 w-20 object-cover" alt="Profile photo">
                             @endif
                         </div>
                         <div class="absolute inset-0 flex items-center justify-center rounded-2xl opacity-0 transition group-hover:opacity-100" style="background:rgba(0,0,0,.45);">
@@ -176,9 +176,9 @@
                     </div>
                     <div class="flex-1">
                         <p class="text-sm font-bold" style="color:#222;">Profile photo</p>
-                        <input id="avatar-input" type="file" name="avatar" accept="image/jpeg,image/png" class="hidden" onchange="previewProfileAvatar(this)">
+                        <input id="avatar-input" type="file" accept="image/jpeg,image/png,image/webp" class="hidden" data-photo-upload data-photo-url="{{ route('account.photo') }}">
                         <label for="avatar-input" class="pf-btn-ghost mt-2 px-4 py-1.5 text-xs">Choose Photo</label>
-                        <p id="avatar-filename" class="mt-1.5 text-[11px] pf-muted">JPG, PNG or WebP · max 2 MB</p>
+                        <p id="avatar-filename" class="mt-1.5 text-[11px] pf-muted" data-photo-status>JPG, PNG or WebP · max 5 MB · saved as soon as you choose it</p>
                     </div>
                 </div>
 

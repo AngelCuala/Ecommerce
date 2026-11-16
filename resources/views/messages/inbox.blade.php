@@ -15,6 +15,8 @@
     .mx-bubble { max-width: min(75%, 34rem); padding: .5rem .8rem; border-radius: .9rem; font-size: .875rem; line-height: 1.45; white-space: pre-wrap; word-wrap: break-word; }
     .mx-bubble.mine { background: #fa4e1c; color: #fff; border-bottom-right-radius: .3rem; }
     .mx-bubble.theirs { background: #F5F2EF; color: #222; border-bottom-left-radius: .3rem; }
+    .mx-protect { padding: .5rem 1rem; font-size: .75rem; line-height: 1.4; background: #F0F7FF; color: #1E3A5F; border-bottom: 1px solid #DCE8F5; }
+    .mx-safety { max-width: min(85%, 34rem); margin-top: .3rem; padding: .4rem .65rem; border-radius: .6rem; font-size: .75rem; line-height: 1.4; background: #FFF7ED; color: #9A3412; border: 1px solid #FED7AA; }
     .mx-time { margin-top: .2rem; font-size: .68rem; color: #b3a79f; }
     .mx-composer { border-top: 1px solid #F2EEEA; padding: .7rem .9rem; }
     .mx-input { flex: 1; resize: none; max-height: 8rem; border: 1px solid #E7E5E4; border-radius: .5rem; padding: .55rem .75rem; font-size: .875rem; line-height: 1.4; color: #222; outline: none; }

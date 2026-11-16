@@ -1,4 +1,6 @@
 <x-admin-layout title="User Management" active="users">
+
+@include('admin.partials.people-tabs')
 @include('partials.panel.plain')
 <style>
     .role-tab { position: relative; padding: .6rem .25rem; margin-right: 1.25rem; font-size: .875rem; font-weight: 600; white-space: nowrap; color: #8a7f78; transition: color .15s; }

@@ -1,5 +1,10 @@
 <x-layout title="Order Confirmed — ALVY">
-@php $grand = $orders->sum('total_price'); @endphp
+@php
+    $grand = $orders->sum('total_price');
+    $first = $orders->first();
+    $gcash = $first->isGcashReceipt();
+    $cod   = strtoupper((string) $first->payment_method) === 'COD';
+@endphp
 <div class="mx-auto max-w-2xl px-4 py-14 sm:px-6 lg:px-8">
 
     <div class="text-center">
@@ -13,7 +18,14 @@
             @if ($orders->count() > 1)
                 Your items come from {{ $orders->count() }} stores, so we made {{ $orders->count() }} orders. Each one ships on its own.<br>
             @endif
-            Please prepare <strong style="color:#fa4e1c;">₱{{ number_format($grand, 2) }}</strong> in total (cash on delivery).
+            @if ($gcash)
+                You paid <strong style="color:#fa4e1c;">₱{{ number_format($first->payment_expected ?? $grand, 2) }}</strong> in total with GCash.
+                ALVY checks your receipt first, then {{ $orders->count() > 1 ? 'the sellers prepare' : 'the seller prepares' }} your order. You'll be notified once it's confirmed.
+            @elseif ($cod)
+                Please prepare <strong style="color:#fa4e1c;">₱{{ number_format($grand, 2) }}</strong> in total (cash on delivery).
+            @else
+                Total: <strong style="color:#fa4e1c;">₱{{ number_format($grand, 2) }}</strong> ({{ $first->paymentMethodLabel() }}).
+            @endif
         </p>
     </div>
 
@@ -40,7 +52,13 @@
                     @if ($order->voucherDiscount() + (float) $order->shipping_discount > 0)
                         <div class="flex justify-between" style="color:#059669;"><dt>Vouchers</dt><dd>−₱{{ number_format($order->voucherDiscount() + (float) $order->shipping_discount, 2) }}</dd></div>
                     @endif
-                    <div class="flex justify-between font-semibold" style="color:#222;"><dt>Order total (COD)</dt><dd>₱{{ number_format($order->total_price, 2) }}</dd></div>
+                    <div class="flex justify-between font-semibold" style="color:#222;"><dt>Order total ({{ $order->isGcashReceipt() ? 'GCash' : ($cod ? 'COD' : $order->paymentMethodLabel()) }})</dt><dd>₱{{ number_format($order->total_price, 2) }}</dd></div>
+                    @if ($order->isGcashReceipt())
+                        <div class="flex justify-between text-xs" style="color:#1E3A8A;" data-confirm-gcash>
+                            <dt>GCash{{ $order->payment_reference ? ' · Ref No. ' . $order->payment_reference : '' }}</dt>
+                            <dd>{{ $order->payment_status === 'Paid' ? 'Payment confirmed' : 'ALVY is checking your receipt' }}</dd>
+                        </div>
+                    @endif
                 </dl>
             </div>
         @endforeach

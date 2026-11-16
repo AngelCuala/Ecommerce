@@ -4,6 +4,7 @@
     number; the server finds the parcel and the pop-up opens its page.
     @include('partials.waybill-scanner', ['lookup' => route('sc.parcels.scan')])
     Optional: 'label' (button text), 'style' (button look: 'solid' default, or 'ghost').
+    Fill mode: 'fill' => '#field' puts the scanned code in that field instead (keep the include outside the page's form).
 --}}
 @php
     $id = 'wbs-' . substr(md5($lookup), 0, 8);
@@ -25,7 +26,7 @@
     .wbs-trigger.is-ghost { background: #fff; color: #d93d0e; border: 1px solid #FAD7C8; box-shadow: none; }
     .wbs-trigger.is-ghost:hover { background: #FFF1EB; }
 
-    .wbs { width: min(560px, calc(100vw - 20px)); max-height: calc(100dvh - 20px); padding: 0; border: 0; border-radius: 18px; background: #fff; color: #1f2937; box-shadow: 0 30px 70px -20px rgba(0,0,0,.5); overflow: auto; font: 14px/1.45 Inter, system-ui, sans-serif; }
+    .wbs { position: fixed; inset: 0; margin: auto; height: fit-content; width: min(560px, calc(100vw - 20px)); max-height: calc(100dvh - 20px); padding: 0; border: 0; border-radius: 18px; background: #fff; color: #1f2937; box-shadow: 0 30px 70px -20px rgba(0,0,0,.5); overflow: auto; font: 14px/1.45 Inter, system-ui, sans-serif; }
     .wbs[open] { animation: wbs-in .18s ease-out; }
     .wbs.is-closing { animation: wbs-out .14s ease-in forwards; }
     .wbs::backdrop { background: rgba(10,15,25,.55); backdrop-filter: blur(2px); }
@@ -84,7 +85,7 @@
 @endonce
 
 @if ($renderDialog)
-<dialog class="wbs" id="{{ $id }}" data-waybill-scanner data-lookup="{{ $lookup }}" aria-labelledby="{{ $id }}-title">
+<dialog class="wbs" id="{{ $id }}" data-waybill-scanner data-lookup="{{ $lookup }}" @isset($fill) data-fill="{{ $fill }}" @endisset aria-labelledby="{{ $id }}-title">
     <div class="wbs-head">
         <div>
             <h2 id="{{ $id }}-title">QR Scanner</h2>
@@ -94,7 +95,8 @@
     </div>
 
     <div class="wbs-body">
-        <div class="wbs-view" data-wbs-view>
+        {{-- The camera area keeps its real colors in dark mode (picture, frame shade and laser together). --}}
+        <div class="wbs-view" data-wbs-view data-keep-colors>
             <video playsinline muted autoplay></video>
             <div class="wbs-frame" aria-hidden="true"><i></i><i></i><i></i><i></i><span class="wbs-laser"></span></div>
             {{-- Before the camera starts, while searching, after a find --}}

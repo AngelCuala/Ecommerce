@@ -9,9 +9,9 @@ use Symfony\Component\HttpFoundation\Response;
 
 /**
  * Login time limits, checked on every request of a signed-in account:
- *  - idle:     signed out after config('session.lifetime') minutes without any request (A22: 30);
+ *  - idle:     signed out after config('session.lifetime') minutes without any request (a week);
  *  - absolute: signed out config('session.max_login_minutes') after signing in, however active
- *              (default 8 hours). "Remember me" can't stretch it: its cookie lasts no longer.
+ *              (a week). "Remember me" can't stretch it: its cookie lasts no longer.
  * The account is properly logged out (session cleared, remember token rotated) and sent to its
  * login page with the reason.
  */
@@ -70,6 +70,9 @@ class EnforceLoginTimeLimit
 
     public static function duration(int $minutes): string
     {
+        if ($minutes % 1440 === 0 && $minutes >= 1440) {
+            return $minutes === 10080 ? 'a week' : ($minutes / 1440) . ' days';
+        }
         return $minutes % 60 === 0 && $minutes >= 60
             ? ($minutes / 60) . ' ' . ($minutes === 60 ? 'hour' : 'hours')
             : $minutes . ' minutes';

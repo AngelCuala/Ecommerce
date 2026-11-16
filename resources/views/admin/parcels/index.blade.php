@@ -92,10 +92,7 @@
                 <td><span class="badge {{ $badgeClass }}">{{ $badgeLabel }}</span></td>
                 <td>
                     @if($parcel->status === 'pickup_approved')
-                        <form method="POST" action="{{ route('admin.logistics.parcels.mark-picked-up',$parcel) }}" style="display:flex;gap:6px;" onsubmit="return confirm('Override: record this parcel as received at the hub?')">@csrf
-                            <input name="reason" required minlength="10" maxlength="300" placeholder="Override reason (required)" style="width:190px;">
-                            <button class="btn btn--blue btn--sm">Advance →</button>
-                        </form>
+                        <span class="text-xs" style="color:#6b90aa;" data-status-locked>Follows the seller → logistics → rider process</span>
                     @elseif($parcel->status === 'picked_up')
                         <a href="{{ route('admin.logistics.parcels.sorting') }}" class="btn btn--amber btn--sm">Sort →</a>
                     @elseif($parcel->status === 'sorted')

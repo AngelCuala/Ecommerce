@@ -19,13 +19,16 @@ class ReviewController extends Controller
         $base = Review::whereHas('product', fn ($q) => $q->withTrashed()->where('seller_id', auth()->id()));
         $counts = (clone $base)->selectRaw('rating, COUNT(*) as n')->groupBy('rating')->pluck('n', 'rating');
 
+        $average = (float) (clone $base)->avg('rating');
+        $needsReply = (clone $base)->whereNull('seller_reply')->count();
+
         $reviews = (clone $base)->with(['product', 'user'])
             ->when($request->filled('stars'), fn ($q) => $q->where('rating', (int) $request->stars))
             ->when($request->replied === 'yes', fn ($q) => $q->whereNotNull('seller_reply'))
             ->when($request->replied === 'no', fn ($q) => $q->whereNull('seller_reply'))
             ->latest()->paginate(20)->withQueryString();
 
-        return view('seller.reviews.index', compact('reviews', 'counts'));
+        return view('seller.reviews.index', compact('reviews', 'counts', 'average', 'needsReply'));
     }
 
     /** First (and only) reply. */

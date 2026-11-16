@@ -21,13 +21,7 @@
                 <td>{{ $parcel->dropoff_address }}</td>
                 <td class="text-muted">{{ $parcel->created_at->format('M d, Y') }}</td>
                 <td style="display:flex;gap:6px;">
-                    <form method="POST" action="{{ route('admin.logistics.pickup-requests.approve', $parcel) }}">@csrf
-                        <button class="btn btn--primary btn--sm">Approve</button>
-                    </form>
-                    <form method="POST" action="{{ route('admin.logistics.pickup-requests.reject', $parcel) }}">@csrf
-                        <input type="hidden" name="reason" value="Rejected by admin">
-                        <button class="btn btn--danger btn--sm" onclick="return confirm('Reject this pickup request?')">Reject</button>
-                    </form>
+                    <span class="text-xs" style="color:#6b90aa;" data-status-locked>Follows the seller → logistics → rider process</span>
                 </td>
             </tr>
             @endforeach

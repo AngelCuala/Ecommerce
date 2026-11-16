@@ -2,7 +2,7 @@
 
 namespace App\Console\Commands;
 
-use App\Http\Controllers\PsgcController;
+use App\Http\Controllers\Shared\PsgcController;
 use App\Services\ParcelService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;

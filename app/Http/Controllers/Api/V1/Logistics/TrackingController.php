@@ -6,7 +6,7 @@ use App\Http\Controllers\Api\V1\Concerns\CallsWeb;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\SortingCenter\CommissionController as WebCommission;
 use App\Http\Controllers\SortingCenter\ShipmentController as WebShipment;
-use App\Http\Controllers\SortingCenterController as WebSc;
+use App\Http\Controllers\SortingCenter\SortingCenterController as WebSc;
 use App\Models\Parcel;
 use App\Models\ParcelTransfer;
 use App\Models\Rider;
@@ -34,7 +34,7 @@ class TrackingController extends Controller
         $action = function (Parcel $p) use ($me) {
             $t = $p->activeTransfer;
             return match (true) {
-                in_array($p->status, ['pickup_approved', 'in_transit_to_hub'], true)
+                $p->status === 'in_transit_to_hub'
                     || ($p->status === 'in_transfer' && $t?->isInTransit() && (int) $t->to_sorting_center_id === $me) => 'receive',
                 $p->status === 'picked_up' && ! $p->transfer_status                                     => 'start_sorting',
                 $t?->isPending() && (int) $t->from_sorting_center_id === $me                            => 'dispatch',
@@ -46,15 +46,80 @@ class TrackingController extends Controller
 
         return response()->json(ApiJson::page($d['parcels'], fn (Parcel $p) => LogisticsJson::parcel($p) + [
             'row_action' => $action($p),
+            // The website's board: tapping the status opens this page (pickup_requests, sorting, deliveries, …).
+            'page'       => self::pageKey($p),
             'next'       => $d['next'][$p->id]['label'] ?? null,
             'transfer'   => $p->activeTransfer ? self::transfer($p->activeTransfer) : null,
             'rider'      => $p->parcelDelivery?->rider?->full_name ?? $p->pickup?->rider?->full_name,
             'last_event' => ($e = $p->events->first()) ? ['label' => $e->label(), 'at' => $e->occurred_at?->toIso8601String()] : null,
         ]) + [
             'tab'  => $d['tab'],
-            'tabs' => collect(WebShipment::TABS)->map(fn ($label, $key) => ['key' => $key, 'label' => $label, 'count' => (int) ($d['counts'][$key] ?? 0)])->values(),
+            'tabs' => collect(WebShipment::TABS)->except('all')->map(fn ($label, $key) => ['key' => $key, 'label' => $label, 'count' => (int) ($d['counts'][$key] ?? 0)])->values(),
             'statuses' => Parcel::STATUS_LABELS,
         ]);
+    }
+
+    /** Which app screen the parcel's status opens (the website's ParcelJobPage, as a key). */
+    public static function pageKey(Parcel $p): string
+    {
+        [$name] = \App\Support\ParcelJobPage::for($p);
+        return match ($name) {
+            'Pickup Requests'   => 'pickup_requests',
+            'Parcel Sorting'    => 'sorting',
+            'Deliveries'        => in_array($p->status, ['assigned', 'in_transit'], true) ? 'monitoring' : 'assignment',
+            'Failed Deliveries' => 'failed',
+            'Return Items'      => 'returns',
+            'Return to Seller'  => 'rts',
+            'Linehaul Trips'    => 'trips',
+            default             => 'details',
+        };
+    }
+
+    /**
+     * The web parcel page's step card: done / now / todo steps and what to do next.
+     *   next.kind  sort_area (choose the barangay), open_dispatch, sort_center (choose the sorting center),
+     *              put_on_trip, open_trip (trip_id), or null.
+     */
+    private static function nextSteps(Parcel $p, ?array $next, ?\App\Models\LinehaulTrip $trip): array
+    {
+        $type = $next['type'] ?? 'review';
+        $local = $type === 'local';
+        $sortedForCenter = $p->status === 'sorted' && $p->next_center_id;
+        $toCenter = $sortedForCenter ? \App\Models\User::find($p->next_center_id) : ($next['center'] ?? null);
+        $toName = $toCenter ? SortingCenters::displayName($toCenter) : 'the other sorting center';
+        $open = $p->deliveries->first(fn ($d) => in_array($d->status, \App\Models\ParcelDelivery::OPEN, true));
+        $step = fn ($label, $at, $state) => ['label' => $label, 'at' => $at, 'state' => $state];
+        $received = $step('Received at hub', $p->received_at?->toIso8601String(), 'done');
+        $early = in_array($p->status, ['picked_up', 'sorting'], true);
+
+        if ($local) {
+            $sorted = $p->status === 'sorted';
+            $steps = [$received,
+                $step('Sort to barangay', $sorted ? $p->area?->name : null, $sorted ? 'done' : 'now'),
+                $step('Give to a rider', $open?->rider?->full_name, $open ? 'done' : ($sorted ? 'now' : 'todo')),
+                $step('Delivered to buyer', null, $open ? 'now' : 'todo')];
+            $intro = "The buyer lives in {$p->destination_municipality}, which this center serves: a rider of the buyer's barangay delivers it.";
+            $nextStep = $early ? ['kind' => 'sort_area', 'hint' => "Choose the buyer's barangay."]
+                : ($sorted ? ['kind' => 'open_dispatch', 'hint' => 'Sorted to ' . ($p->area?->name ?? 'a barangay') . ". Give it to that barangay's rider in Rider Dispatch."] : null);
+        } else {
+            $steps = [$received,
+                $step('Sort for ' . ($toCenter ? $toName : 'a sorting center'), null, ($sortedForCenter || $trip) ? 'done' : 'now'),
+                $step('Put on a linehaul trip', $trip?->code, $trip ? 'done' : ($sortedForCenter ? 'now' : 'todo')),
+                $step('Received by ' . $toName, $trip?->label(), $trip ? 'now' : 'todo')];
+            $where = $p->destination_municipality ?: 'this address';
+            $intro = $type === 'transfer' || $sortedForCenter
+                ? "This center doesn't deliver to $where. A linehaul trip takes it to $toName (serves this address), which delivers it."
+                : "No sorting center is set up for $where yet. Choose the one that should deliver it.";
+            $nextStep = match (true) {
+                (bool) $trip => ['kind' => 'open_trip', 'trip_id' => $trip->id,
+                    'hint' => "On trip {$trip->code}: " . \Illuminate\Support\Str::lcfirst($trip->stageLabel()) . ". $toName receives it when the truck arrives."],
+                ! $sortedForCenter && $early => ['kind' => 'sort_center', 'hint' => 'Sort it for the sorting center that delivers it.'],
+                default => ['kind' => 'put_on_trip', 'hint' => "Put it on a linehaul trip to $toName. Parcels sorted for the same center travel together."],
+            };
+        }
+
+        return ['title' => $local ? 'Sort to barangay' : 'Send to another sorting center', 'intro' => $intro, 'steps' => $steps,
+            'next' => $nextStep, 'can_send_elsewhere' => $local && $early];
     }
 
     public function show(int $parcel): JsonResponse
@@ -68,6 +133,7 @@ class TrackingController extends Controller
         $local = ($next['type'] ?? null) === 'local';
 
         return response()->json(['parcel' => LogisticsJson::parcel($p) + [
+            'next_steps'      => $atHere ? self::nextSteps($p, $next, $d['trip'] ?? null) : null,
             'next'            => $next ? ['type' => $next['type'], 'label' => $next['label'], 'center_id' => $next['center']?->id] : null,
             'next_label'      => $next['label'] ?? ($t ? 'Transfer to ' . SortingCenters::nameOf($t->toSortingCenter) : null),
             'held_by'         => $p->currentSortingCenter ? SortingCenters::nameOf($p->currentSortingCenter) : null,
@@ -122,12 +188,6 @@ class TrackingController extends Controller
     public function startSorting(int $parcel): JsonResponse
     {
         return $this->then($parcel, $this->web(WebShipment::class, 'startSorting', ['parcel' => Parcel::findOrFail($parcel)]));
-    }
-
-    /** type (damaged_on_arrival, missing, other), details. */
-    public function exception(int $parcel): JsonResponse
-    {
-        return $this->then($parcel, $this->web(WebShipment::class, 'reportException', ['parcel' => Parcel::findOrFail($parcel)]));
     }
 
     /** Allow / stop one of this center's riders carrying hub transfers. */

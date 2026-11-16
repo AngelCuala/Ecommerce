@@ -65,7 +65,7 @@ return [
     |
     */
 
-    'timezone' => 'UTC',
+    'timezone' => env('APP_TIMEZONE', 'Asia/Manila'),   // stored and shown in Philippine time
 
     /*
     | Where ALVY's people are. Stored times stay in UTC (above); pages that work in days and weeks

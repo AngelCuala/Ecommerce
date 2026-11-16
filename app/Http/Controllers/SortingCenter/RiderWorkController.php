@@ -15,8 +15,8 @@ use App\Services\RiderWallet;
 use Illuminate\Http\Request;
 
 /**
- * The logistics company's side of rider work: dispatch (auto-assign with 60-second offers,
- * manual assignment, the Unassigned queue), rider records and documents, COD remittances.
+ * The logistics company's side of rider work: dispatch (Auto-assign to each barangay's rider for pickups and
+ * deliveries, manual assignment and reassignment), rider records and documents, COD remittances.
  */
 class RiderWorkController extends Controller
 {
@@ -32,33 +32,27 @@ class RiderWorkController extends Controller
     {
         $this->dispatch->expireStale();
 
-        $parcels = Parcel::where('current_sorting_center_id', $this->scId())
-            ->whereIn('status', ['pickup_approved', 'sorted'])->with(['seller', 'order', 'area'])->oldest()->get()
-            ->filter(fn ($p) => $this->dispatch->jobKind($p) !== null)
-            ->map(function ($p) {
+        $eligibleNow = $this->dispatch->eligibleRiders($this->scId());
+        $parcels = $this->dispatch->waiting($this->scId())
+            ->map(function ($p) use ($eligibleNow) {
                 $p->job_kind    = $this->dispatch->jobKind($p);
                 $p->job_offer   = $this->dispatch->pendingOffer($p)?->load('rider');
                 $p->unassigned  = $this->dispatch->isUnassigned($p);
+                // Who Auto-assign would give it to: the Online rider covering the job's barangay (null: assign manually).
+                $p->barangay_rider = $this->dispatch->barangayRider($p, $p->job_kind, $eligibleNow);
                 return $p;
             })->values();
 
-        $riders = Rider::where('sorting_center_id', $this->scId())->where('application_status', 'approved')->orderBy('full_name')->get()
+        // 4-wheel riders do hub-to-hub trips (Linehaul Trips), so they are not offered pickups or deliveries here.
+        $riders = Rider::where('sorting_center_id', $this->scId())->where('application_status', 'approved')->with('area')->orderBy('full_name')->get()
+            ->reject(fn (Rider $r) => $r->isTruck())->values()
             ->each(function ($r) {
                 $r->active_jobs = $r->activeJobsCount();
                 $r->online_now  = $r->isOnlineNow();
             });
         $eligible = $this->dispatch->eligibleRiders($this->scId());
         // Every rider of this hub for the "Choose rider" lists: available ones to pick, the rest shown with why not.
-        $riderChoices = $riders->map(fn (Rider $r) => (object) [
-            'rider'     => $r,
-            'available' => $eligible->contains('id', $r->id),
-            'why'       => match (true) {
-                $r->isSuspended()                           => 'suspended',
-                ! $r->online_now                            => 'offline',
-                $r->active_jobs >= RiderDispatch::MAX_ACTIVE => 'full',
-                default                                     => 'unavailable',
-            },
-        ])->sortBy(fn ($c) => [$c->available ? 0 : 1, $c->rider->full_name])->values();
+        $riderChoices = $this->dispatch->riderChoices($this->scId());
         $withRiders = ParcelPickup::where('sorting_center_id', $this->scId())->whereIn('status', ParcelPickup::OPEN)->with('parcel', 'rider')->latest()->get();
         // L3: jobs given to a rider who hasn't started them yet — these can still be reassigned.
         $mine = fn ($q) => $q->where('current_sorting_center_id', $this->scId());
@@ -69,6 +63,10 @@ class RiderWorkController extends Controller
             ->sortBy('since')->values();
 
         return view('sc.dispatch', [
+            'waitingPickups'    => $parcels->where('job_kind', 'pickup')->count(),
+            'waitingDeliveries' => $parcels->where('job_kind', 'delivery')->count(),
+            'readyPickups'      => $parcels->where('job_kind', 'pickup')->filter(fn ($p) => $p->barangay_rider)->count(),
+            'readyDeliveries'   => $parcels->where('job_kind', 'delivery')->filter(fn ($p) => $p->barangay_rider)->count(),
             'jobs'       => $parcels->reject->unassigned->values(),
             'unassigned' => $parcels->filter->unassigned->values(),
             'riders'     => $riders,
@@ -79,22 +77,44 @@ class RiderWorkController extends Controller
         ]);
     }
 
+    /** One parcel: its job goes straight to the rider of its barangay. */
     public function autoAssign(Parcel $parcel)
     {
         $this->guard($parcel);
-        if (! $this->dispatch->jobKind($parcel)) {
+        $kind = $this->dispatch->jobKind($parcel);
+        if (! $kind) {
             return back()->with('error', "{$parcel->tracking_number} is not waiting for a rider.");
         }
-        if ($this->dispatch->isUnassigned($parcel)) {
-            return back()->with('error', "{$parcel->tracking_number} is in the Unassigned queue: 3 riders declined or let it expire. Assign a rider manually.");
+        try {
+            $rider = $this->dispatch->autoAssign($parcel, auth()->user());
+        } catch (\RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
         }
-        $offer = $this->dispatch->offer($parcel);
+        if (! $rider) {
+            return back()->with('error', "No Online rider covers the {$kind} barangay of {$parcel->tracking_number}. Assign a rider manually.");
+        }
+        \App\Models\ActivityLog::note($parcel->tracking_number . ' ' . $kind . ' auto-assigned to ' . $rider->full_name, $parcel);
 
-        return back()->with($offer ? 'success' : 'error', $offer
-            ? "{$parcel->tracking_number} offered to {$offer->rider->full_name} for " . RiderDispatch::OFFER_SECONDS . ' seconds.'
-            : ($this->dispatch->isUnassigned($parcel->fresh())
-                ? "{$parcel->tracking_number} moved to the Unassigned queue."
-                : 'No rider can take this job right now (none Online with room for another job).'));
+        return back()->with('success', "{$parcel->tracking_number} assigned to {$rider->full_name} (barangay rider).");
+    }
+
+    /** Every waiting pickup, or every waiting delivery: each to the rider of its barangay. */
+    public function autoAssignAll(string $kind)
+    {
+        $result = $this->dispatch->autoAssignAll(auth()->user(), $kind);
+        $what = $kind === 'pickup' ? 'pickup' : 'delivery';
+        if ($result['assigned'] === 0 && $result['no_rider'] === 0) {
+            return back()->with('error', 'No ' . $what . ' is waiting for a rider.');
+        }
+        $byRider = collect($result['riders'])->map(fn ($n, $name) => "{$name} ({$n})")->implode(', ');
+        if ($result['assigned'] > 0) {
+            \App\Models\ActivityLog::note('Auto-assigned ' . $result['assigned'] . ' ' . \Illuminate\Support\Str::plural($what, $result['assigned']) . ': ' . $byRider);
+        }
+        $message = $result['assigned'] . ' ' . \Illuminate\Support\Str::plural($what, $result['assigned']) . ' assigned'
+            . ($byRider ? ': ' . $byRider : '') . '.'
+            . ($result['no_rider'] ? ' ' . $result['no_rider'] . ' left: no Online rider covers ' . ($result['no_rider'] === 1 ? 'its barangay' : 'their barangays') . '. Assign ' . ($result['no_rider'] === 1 ? 'it' : 'them') . ' manually.' : '');
+
+        return back()->with($result['assigned'] > 0 ? 'success' : 'error', $message);
     }
 
     public function manualAssign(Request $request, Parcel $parcel)
@@ -123,9 +143,15 @@ class RiderWorkController extends Controller
     public function showRider(Rider $rider)
     {
         $this->guardRider($rider);
-        $rider->load('area', 'user');
+        $rider->load('area', 'areas', 'user');
+        $sc = \App\Models\User::find($this->scId());
+        $barangays = $sc?->assigned_municipality_code
+            ? collect(app(\App\Services\PsgcDirectory::class)->barangaysByMunicipality($sc->assigned_municipality_code) ?? [])
+                ->reject(fn ($b) => $rider->areas->contains(fn ($a) => $a->barangay_code && $a->barangay_code === ($b['code'] ?? null)
+                    || strcasecmp($a->name, $b['name'] ?? '') === 0))->values()
+            : collect();
 
-        return view('sc.rider-show', ['rider' => $rider, 'wallet' => $this->wallet]);
+        return view('sc.rider-show', ['rider' => $rider, 'wallet' => $this->wallet, 'barangays' => $barangays]);
     }
 
     public function riderDocument(Rider $rider, string $document)
@@ -151,9 +177,10 @@ class RiderWorkController extends Controller
         $request->validate(['date' => 'nullable|date'], ['date.date' => 'Choose a valid date.']);
         $date = $request->filled('date') ? \Carbon\Carbon::parse($request->date) : today();
 
-        $remittances = RiderRemittance::where('sorting_center_id', $this->scId())->with('rider')->latest()->paginate(20);
+        $remittances = RiderRemittance::where('sorting_center_id', $this->scId())->with('rider', 'confirmer')->latest()->paginate(20);
         $approved = Rider::where('sorting_center_id', $this->scId())->where('application_status', 'approved')->orderBy('full_name')->get();
-        $riders = $approved->map(fn ($r) => ['rider' => $r, 'collected' => $this->wallet->codCollected($r), 'balance' => $this->wallet->codBalance($r), 'pending' => $this->wallet->pendingRemittance($r)]);
+        $riders = $approved->map(fn ($r) => ['rider' => $r, 'collected' => $this->wallet->codCollected($r), 'balance' => $this->wallet->codBalance($r),
+            'pending' => $this->wallet->pendingRemittance($r), 'next' => $this->wallet->toRemit($r)]);
 
         // L8: the day's reconciliation — COD each rider collected on the date vs what they remitted that day.
         $day = [$date->copy()->startOfDay(), $date->copy()->endOfDay()];
@@ -161,32 +188,105 @@ class RiderWorkController extends Controller
             $orders = \App\Models\ParcelDelivery::where('rider_id', $r->id)->where('status', 'delivered')->where('cod_collected', '>', 0)
                 ->whereBetween('delivered_at', $day)->with('parcel.order')->orderBy('delivered_at')->get();
             $collected = round((float) $orders->sum('cod_collected'), 2);
-            $remitted  = round((float) RiderRemittance::where('rider_id', $r->id)->whereBetween('created_at', $day)->sum('amount'), 2);
+            $sent = RiderRemittance::where('rider_id', $r->id)->whereBetween('created_at', $day);
+            $remitted  = round((float) (clone $sent)->sum('amount') + (float) $sent->sum('pay_kept'), 2);   // cash + pay the rider kept from it
             return ['rider' => $r, 'orders' => $orders, 'collected' => $collected, 'remitted' => $remitted, 'difference' => round($remitted - $collected, 2)];
         })->filter(fn ($row) => $row['collected'] > 0 || $row['remitted'] > 0)->values();
 
-        return view('sc.remittances', compact('remittances', 'riders', 'daily', 'date'));
+        $pendingCount = RiderRemittance::where('sorting_center_id', $this->scId())->where('status', 'pending')->count();
+        $tab = in_array($request->tab, ['remittances', 'riders', 'daily'], true) ? $request->tab : ($request->filled('date') ? 'daily' : 'remittances');
+        $remittances->appends(['tab' => 'remittances']);
+
+        return view('sc.remittances', compact('remittances', 'riders', 'daily', 'date', 'pendingCount', 'tab'));
     }
 
     /** Only the logistics company confirms a remittance; any shortfall stays on the rider's balance. */
-    public function confirmRemittance(RiderRemittance $remittance)
+    /** Rider Pay: each rider's pay waiting to be sent to their e-wallet (₱30 a pickup, ₱50 a delivery), and what was sent. */
+    public function riderPay()
+    {
+        $riders = Rider::where('sorting_center_id', $this->scId())->where('application_status', 'approved')->orderBy('full_name')->get()
+            ->reject(fn (Rider $r) => $r->isTruck())
+            ->map(fn (Rider $r) => ['rider' => $r, 'jobs' => $this->wallet->unsentJobs($r)] + ($b = $this->wallet->balances($r))
+                + ['balance' => $b['available']])
+            ->sortByDesc('to_send')->values();
+        $sent = \App\Models\RiderWalletEntry::where('sorting_center_id', $this->scId())->where('type', 'pay')
+            ->with('rider', 'sender')->latest('id')->paginate(20);
+        $cashouts = \App\Models\RiderWalletEntry::where('sorting_center_id', $this->scId())->where('type', 'cashout')->where('status', 'pending')
+            ->with('rider')->oldest('id')->get();
+        $cashoutsDone = \App\Models\RiderWalletEntry::where('sorting_center_id', $this->scId())->where('type', 'cashout')->whereIn('status', ['paid', 'rejected'])
+            ->with('rider', 'processor')->latest('processed_at')->limit(20)->get();
+
+        return view('sc.rider-pay', compact('riders', 'sent', 'cashouts', 'cashoutsDone'));
+    }
+
+    /** A rider's GCash cash-out: the hub sent it (with the GCash reference) … */
+    public function cashoutPaid(Request $request, \App\Models\RiderWalletEntry $entry)
+    {
+        $data = $request->validate(['reference' => 'required|string|min:6|max:60'],
+            ['reference.required' => 'Enter the GCash reference number of the transfer.', 'reference.min' => 'Enter the GCash reference number of the transfer.']);
+        try {
+            $e = $this->wallet->markCashoutPaid($entry, auth()->user(), trim($data['reference']));
+        } catch (\RuntimeException $ex) {
+            return back()->with('error', $ex->getMessage());
+        }
+
+        return back()->with('success', '₱' . number_format(abs((float) $e->amount), 2) . " cash-out marked as sent to {$e->rider->full_name}'s GCash.");
+    }
+
+    /** … or can't send it: the money goes back into the rider's wallet. */
+    public function cashoutReject(Request $request, \App\Models\RiderWalletEntry $entry)
+    {
+        $data = $request->validate(['reason' => 'required|string|min:5|max:300'], ['reason.required' => 'Tell the rider why (5 to 300 characters).']);
+        try {
+            $e = $this->wallet->rejectCashout($entry, auth()->user(), trim($data['reason']));
+        } catch (\RuntimeException $ex) {
+            return back()->with('error', $ex->getMessage());
+        }
+
+        return back()->with('success', "Cash-out rejected. ₱" . number_format(abs((float) $e->amount), 2) . " is back in {$e->rider->full_name}'s wallet.");
+    }
+
+    public function sendPay(Rider $rider)
+    {
+        abort_unless((int) $rider->sorting_center_id === $this->scId(), 403);
+        try {
+            $entry = $this->wallet->sendPay($rider, auth()->user(), auth()->user());
+        } catch (\RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return back()->with('success', '₱' . number_format((float) $entry->amount, 2) . " sent to {$rider->full_name}'s wallet.");
+    }
+
+    /**
+     * The hub counts the cash and confirms what it counted (counted; empty: the amount sent). Matches: the rider's pay for
+     * those COD deliveries goes into their wallet. Short: the gap is charged to the rider and that pay is on hold.
+     */
+    public function confirmRemittance(Request $request, RiderRemittance $remittance)
     {
         abort_unless((int) $remittance->sorting_center_id === $this->scId(), 403);
-        if ($remittance->status !== 'pending') {
-            return back()->with('error', 'This remittance is already confirmed.');
+        $request->validate(['counted' => 'nullable|numeric|min:0|max:10000000'], ['counted.numeric' => 'Enter the cash you counted.']);
+        try {
+            $r = $this->wallet->confirmRemittance($remittance, auth()->user(), $request->filled('counted') ? (float) $request->counted : null);
+        } catch (\RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
         }
-        $remittance->update(['status' => 'confirmed', 'confirmed_by' => $this->scId(), 'confirmed_at' => now()]);
-        \App\Models\ActivityLog::change('Pending ₱' . number_format($remittance->amount, 2), 'Confirmed ₱' . number_format($remittance->amount, 2),
-            $remittance->shortfall() > 0 ? 'Short by ₱' . number_format($remittance->shortfall(), 2) : null);
-        $rider = $remittance->rider;
-        UserNotification::create(['user_id' => $rider->user_id, 'title' => 'COD remittance confirmed',
-            'body' => 'Your remittance of ₱' . number_format($remittance->amount, 2) . ' was confirmed.'
-                . ($remittance->shortfall() > 0 ? ' ₱' . number_format($remittance->shortfall(), 2) . ' is still outstanding.' : ''), 'type' => 'info',
-            'link' => route('courier.rider.cod')]);
-        \App\Models\ActivityLog::note('Confirmed ₱' . number_format($remittance->amount, 2) . ' COD from ' . $rider->full_name
-            . ($remittance->shortfall() > 0 ? ' (short ₱' . number_format($remittance->shortfall(), 2) . ')' : ''), $remittance);
 
-        return back()->with('success', 'Remittance confirmed.' . ($remittance->shortfall() > 0 ? ' Shortfall of ₱' . number_format($remittance->shortfall(), 2) . ' flagged.' : ''));
+        return back()->with('success', 'Remittance confirmed: ₱' . number_format((float) $r->amount, 2) . ' counted.'
+            . ($r->shortfall() > 0 ? ' Short by ₱' . number_format($r->shortfall(), 2) . ': the rider pays it, or take it from their earnings.' : ''));
+    }
+
+    /** Take a remittance's open shortage from the rider's earnings (their held pay is released). */
+    public function deductShortage(RiderRemittance $remittance)
+    {
+        abort_unless((int) $remittance->sorting_center_id === $this->scId(), 403);
+        try {
+            $short = $this->wallet->deductShortage($remittance, auth()->user());
+        } catch (\RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return back()->with('success', '₱' . number_format($short, 2) . ' taken from ' . $remittance->rider->full_name . "'s earnings. Their held pay is available.");
     }
 
     private function guard(Parcel $parcel): void

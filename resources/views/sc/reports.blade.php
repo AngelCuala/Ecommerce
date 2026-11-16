@@ -19,6 +19,8 @@
 @endsection
 
 @section('content')
+
+@include('partials.page-tabs', ['tabs' => [['Reports', 'sc.reports', 'sc.reports'], ['Activity log', 'sc.activity', 'sc.activity']]])
 <div class="page-header"><h1>Reports</h1></div>
 <div class="page-body">
 

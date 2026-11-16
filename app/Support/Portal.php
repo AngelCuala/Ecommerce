@@ -18,7 +18,7 @@ use Illuminate\Support\Facades\Route;
  *   admin    /admin/..., /logistics/...           cookie: <session.cookie>_admin
  *
  * Two accounts of the same portal (e.g. two buyers) still share that portal's login.
- * Turned off with SESSION_PER_PORTAL=false (one login for the whole site, as before).
+ * Off unless SESSION_PER_PORTAL=true: the owner chose one login for the whole site (one account per browser).
  */
 final class Portal
 {
@@ -112,9 +112,7 @@ final class Portal
     {
         $portal = self::enabled() ? ($portal ?? self::current()) : self::SHOP;
         return match ($portal) {
-            'sc'    => route('sc.login'),
-            'admin' => route('admin.login'),
-            'seller', 'courier' => route($portal . '.login'),
+            'sc', 'admin', 'seller', 'courier' => route($portal . '.login'),
             default => route('login'),
         };
     }
@@ -123,7 +121,7 @@ final class Portal
     public static function loginAction(): string
     {
         $portal = self::enabled() ? self::current() : self::SHOP;
-        return in_array($portal, ['seller', 'courier', 'admin'], true) ? route($portal . '.login.attempt') : route('login.attempt');
+        return in_array($portal, ['seller', 'courier', 'admin', 'sc'], true) ? route($portal . '.login.attempt') : route('login.attempt');
     }
 
     public static function handoffUrl(string $portal, string $token): string

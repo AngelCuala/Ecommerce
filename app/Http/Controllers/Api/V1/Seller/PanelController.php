@@ -22,6 +22,11 @@ class PanelController extends Controller
 {
     use CallsWeb;
 
+    public function acknowledgeViolation(int $violation): JsonResponse
+    {
+        return $this->actionJson($this->web(DashboardController::class, 'acknowledgeViolation', ['violation' => $violation]));
+    }
+
     public function dashboard(): JsonResponse
     {
         $d = $this->pageData($this->web(DashboardController::class, 'index'));
@@ -55,6 +60,12 @@ class PanelController extends Controller
             'low_stock_count'      => (int) $d['productCounts']['low_stock'],
             'sold_out_count'       => (int) $d['productCounts']['out_of_stock'],
             'unread_notifications' => auth()->user()->notifications()->whereNull('read_at')->count(),
+            // Warnings from ALVY (Admin → Reports & Complaints), shown until the seller taps "I understand".
+            'trusted'          => \App\Support\TrustedSeller::progress(auth()->user()),   // badge: trusted, checks, strikes
+            'violations'       => \App\Models\SellerViolation::where('seller_id', auth()->id())->where('acknowledged', false)->with('product:id,title')->latest()->get()
+                ->map(fn ($v) => ['id' => $v->id, 'action' => \App\Models\SellerViolation::actionLabels()[$v->action] ?? 'Warning',
+                    'type' => \App\Models\SellerViolation::typeLabels()[$v->type] ?? $v->type, 'product' => $v->product?->title,
+                    'note' => $v->note, 'at' => $v->created_at?->toIso8601String()])->values(),
             'recent_orders'    => $d['recentOrders']->map(fn ($i) => [
                 'order_id' => $i->order_id, 'number' => $i->order?->number(), 'buyer' => $i->order?->user?->name,
                 'product' => $i->product?->title, 'quantity' => (int) $i->quantity, 'earning' => (float) $i->seller_earning,
@@ -143,7 +154,14 @@ class PanelController extends Controller
             'balances' => $d['balances'],
             'minimum_payout' => \App\Models\SellerPayout::MINIMUM,
             'payouts'  => $d['payouts']->map(fn ($p) => ['id' => $p->id, 'amount' => (float) $p->amount, 'status' => $p->status,
+                'status_label' => $p->statusLabel(), 'destination' => $p->destination(), 'reference' => $p->reference, 'reject_reason' => $p->reject_reason,
                 'created_at' => $p->created_at?->toIso8601String(), 'paid_at' => $p->paid_at?->toIso8601String()])->values(),
+            'ledger'   => collect($d['ledger']->items())->map(fn ($l) => ['id' => $l->id, 'type' => $l->type, 'order_id' => $l->order_id,
+                'order_number' => $l->order?->number(), 'amount' => (float) $l->amount, 'status' => $l->status, 'status_label' => $l->statusLabel(),
+                'release_at' => $l->release_at?->toIso8601String(), 'earned_at' => $l->earned_at?->toIso8601String()])->values(),
+            'accounts' => $d['accounts']->map(fn ($a) => ['id' => $a->id, 'method' => $a->method, 'bank_name' => $a->bank_name,
+                'account_name' => $a->account_name, 'account_number' => $a->account_number, 'label' => $a->label()])->values(),
+            'methods'  => \App\Models\PayoutAccount::METHODS,
             'request_token' => $d['token'],
         ]);
     }

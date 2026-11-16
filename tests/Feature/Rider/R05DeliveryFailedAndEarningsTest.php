@@ -24,13 +24,15 @@ class R05DeliveryFailedAndEarningsTest extends TestCase
     {
         parent::setUp();
         $this->seedRiderTestData();
+        // Rider 1 joined before the e-wallet: their pay is still kept out of the COD (RiderWallet::unpaidPay).
+        $this->rider1->forceFill(['wallet_since' => now()->addYear()])->save();
     }
 
     private function deliver(ParcelDelivery $d, array $over = [], $rider = null)
     {
         return $this->actingAs(($rider ?? $this->rider1)->user)->from(route('courier.rider.deliveries.show', $d->id))
-            ->post(route('courier.rider.deliveries.deliver', $d->id), array_merge([
-                'pod_photo' => UploadedFile::fake()->image('pod_photo.jpg')->size(1100), 'cod_collected' => '500.00',
+            ->post(route('courier.rider.deliveries.deliver', $d->id), array_merge(['tracking_number' => $d->parcel->tracking_number, 
+                'pod_photo' => UploadedFile::fake()->image('pod_photo.jpg')->size(1100), 'cod_collected' => '490.00',
             ], $over));
     }
 
@@ -67,10 +69,10 @@ class R05DeliveryFailedAndEarningsTest extends TestCase
         $this->assertSame(Order::DELIVERED, $order->fresh()->status);
         $this->assertSame('Paid', $order->fresh()->payment_status);
 
-        $this->actingAs($this->buyer1)->get(route('profile.orders.show', $order->id))->assertSee('data-proof-of-delivery', false)->assertSee($d->pod_path);
-        $this->assertEquals(500, $this->wallet()->codBalance($this->rider1));
+        $this->actingAs($this->buyer1)->get(route('profile.orders.show', $order->id))->assertSee('data-proof-of-delivery', false)->assertSee(route('shipments.pod', $order), false);   // the photo goes through a signed-in route, not its file path
+        $this->assertEquals(490, $this->wallet()->codBalance($this->rider1));
         $this->assertEquals(50, $this->wallet()->pay($this->rider1, now()->startOfDay(), now()->endOfDay()));
-        $this->assertTrue(UserNotification::where('user_id', $this->seller1->id)->where('title', 'Parcel delivered')->exists());
+        $this->assertTrue(UserNotification::where('user_id', $this->seller1->id)->where('title', 'Delivered')->exists());   // the seller is told by the tracking event
         $this->actingAs($this->logistics1)->get(route('sc.delivery-monitoring'))->assertOk()->assertSee($d->parcel->tracking_number);
     }
 
@@ -108,12 +110,12 @@ class R05DeliveryFailedAndEarningsTest extends TestCase
     public function test_rid_dlv_005_cod_amount_must_match(): void
     {
         $d = $this->deliveryFor($this->rider1, 'out_for_delivery');
-        foreach (['499.99', '500.01'] as $amount) {
-            $this->deliver($d, ['cod_collected' => $amount])->assertSessionHasErrors(['cod_collected' => 'The COD amount doesn\'t match. Collect exactly ₱500.00.']);
+        foreach (['489.99', '490.01'] as $amount) {
+            $this->deliver($d, ['cod_collected' => $amount])->assertSessionHasErrors(['cod_collected' => 'The COD amount doesn\'t match. Collect exactly ₱490.00.']);
         }
         $this->assertSame('out_for_delivery', $d->fresh()->status);
-        $this->deliver($d, ['cod_collected' => '500.00'])->assertSessionHas('success');
-        $this->assertEquals(500, $d->fresh()->cod_collected);
+        $this->deliver($d, ['cod_collected' => '490.00'])->assertSessionHas('success');
+        $this->assertEquals(490, $d->fresh()->cod_collected);
     }
 
     /** RID-DLV-006 */
@@ -145,13 +147,13 @@ class R05DeliveryFailedAndEarningsTest extends TestCase
     public function test_rid_fail_001_mark_failed_with_a_reason(): void
     {
         $d = $this->deliveryFor($this->rider1, 'out_for_delivery');
-        $this->markFailed($d, 'Buyer not home')->assertSessionHas('success', 'Failed delivery recorded (attempt 1 of 3). Logistics will reschedule it.');
+        $this->markFailed($d, 'Buyer not home')->assertSessionHas('success', 'Failed delivery recorded (attempt 1 of 3). It was rescheduled for another attempt; bring the parcel back to the hub.');
 
         $d->refresh();
         $this->assertSame(['failed', 'Buyer not home', 1], [$d->status, $d->failure_reason, $d->attempt]);
-        $this->assertSame('failed', $d->parcel->status);
-        $this->assertTrue(UserNotification::where('user_id', $this->buyer1->id)->where('title', 'Delivery attempt failed')->where('body', 'like', '%attempt 1 of 3%')->exists());
-        $this->assertTrue(UserNotification::where('user_id', $this->logistics1->id)->where('title', 'Failed delivery')->exists());
+        $this->assertSame('sorted', $d->parcel->status);   // buyer not home: rescheduled at once
+        $this->assertTrue(UserNotification::where('user_id', $this->buyer1->id)->where('title', 'Delivery rescheduled')->where('body', 'like', '%attempt 1 of 3%')->exists());
+        $this->assertTrue(UserNotification::where('user_id', $this->logistics1->id)->where('title', 'Delivery rescheduled')->exists());
         $this->assertEquals(0, $d->cod_collected);
         $this->assertEquals(0, $this->wallet()->pay($this->rider1, now()->startOfDay(), now()->endOfDay()));
         $this->actingAs($this->logistics1)->get(route('sc.delivery-monitoring'))->assertSee($d->parcel->tracking_number);
@@ -167,15 +169,15 @@ class R05DeliveryFailedAndEarningsTest extends TestCase
     }
 
     /** RID-FAIL-003 (A13) */
-    public function test_rid_fail_003_refused_goes_straight_to_return_to_sender(): void
+    public function test_rid_fail_003_refused_cancels_the_order_at_once(): void
     {
         $d = $this->deliveryFor($this->rider1, 'out_for_delivery');
-        $this->markFailed($d, 'Refused')->assertSessionHas('success', fn ($m) => str_contains($m, 'Return to Sender'));
+        $this->markFailed($d, 'Refused')->assertSessionHas('success', fn ($m) => str_contains($m, 'the order was cancelled'));
         $parcel = $d->parcel->fresh();
-        $this->assertSame('return_to_sender', $parcel->status);
-        $this->assertSame('Return to Sender', $parcel->statusLabel());
+        $this->assertSame('cancelled', $parcel->status);
+        $this->assertSame(\App\Models\Order::CANCELLED, $parcel->order->fresh()->status);
         $this->actingAs($this->logistics1)->post(route('sc.deliveries.reschedule', $d->id))->assertSessionHas('error');
-        $this->assertSame('return_to_sender', $parcel->fresh()->status);
+        $this->assertSame('cancelled', $parcel->fresh()->status);
     }
 
     /** RID-FAIL-004 (A13) */
@@ -183,9 +185,7 @@ class R05DeliveryFailedAndEarningsTest extends TestCase
     {
         $this->online($this->rider1);
         $first = $this->deliveryFor($this->rider1, 'out_for_delivery');
-        $this->markFailed($first, 'Buyer not home');
-
-        $this->actingAs($this->logistics1)->post(route('sc.deliveries.reschedule', $first->id))->assertSessionHas('success');
+        $this->markFailed($first, 'Buyer not home');   // rescheduled automatically
         $parcel = $first->parcel->fresh();
         $this->assertSame('sorted', $parcel->status);
         $this->actingAs($this->logistics1)->post(route('sc.dispatch.assign', $parcel), ['rider_id' => $this->rider1->id])->assertSessionHas('success');
@@ -199,24 +199,21 @@ class R05DeliveryFailedAndEarningsTest extends TestCase
     }
 
     /** RID-FAIL-005 (A13) */
-    public function test_rid_fail_005_return_to_sender_after_the_third_attempt(): void
+    public function test_rid_fail_005_the_third_failed_attempt_cancels_the_order(): void
     {
         $this->online($this->rider1);
         $parcel = $this->parcel('sorted');
         for ($attempt = 1; $attempt <= 3; $attempt++) {
             $d = $this->deliveryFor($this->rider1, 'out_for_delivery', $parcel->fresh());
             $this->assertSame($attempt, $d->attempt);
-            $this->markFailed($d, $attempt < 3 ? 'Buyer not home' : 'Wrong address');
-            if ($attempt < 3) {
-                $this->actingAs($this->logistics1)->post(route('sc.deliveries.reschedule', $d->id))->assertSessionHas('success');
-            }
+            $this->markFailed($d, 'Buyer not home');   // rescheduled automatically until the 3rd try
         }
 
-        $this->assertSame('return_to_sender', $parcel->fresh()->status);
+        $this->assertSame('cancelled', $parcel->fresh()->status);
         $this->actingAs($this->logistics1)->post(route('sc.deliveries.reschedule', $d->id))->assertSessionHas('error');
         $this->assertNull(app(\App\Services\RiderDispatch::class)->jobKind($parcel->fresh()));   // no 4th attempt
-        $this->assertTrue(UserNotification::where('user_id', $this->buyer1->id)->where('title', 'Returning to seller')->exists());
-        $this->assertTrue(UserNotification::where('user_id', $this->seller1->id)->where('title', 'Parcel returning to you')->exists());
+        $this->assertTrue(UserNotification::where('user_id', $this->buyer1->id)->where('title', 'Order cancelled')->exists());
+        $this->assertTrue(UserNotification::where('user_id', $this->seller1->id)->where('title', 'like', '%cancelled')->exists());
     }
 
     // ── R7 History, Earnings & COD Remittance ───────────────────
@@ -289,9 +286,10 @@ class R05DeliveryFailedAndEarningsTest extends TestCase
         $remit = RiderRemittance::sole();
         $this->assertSame('pending', $remit->status);
         $this->assertEquals(1800, $this->wallet()->codBalance($this->rider1));
-        $this->assertEquals(1800, $this->wallet()->pendingRemittance($this->rider1));
+        $this->assertEquals([1700, 100], [(float) $remit->amount, (float) $remit->pay_kept]);   // the rider kept their ₱100 pay
+        $this->assertEquals(1700, $this->wallet()->pendingRemittance($this->rider1));
 
-        $this->actingAs($this->logistics1)->post(route('sc.remittances.confirm', $remit))->assertSessionHas('success', 'Remittance confirmed.');
+        $this->actingAs($this->logistics1)->post(route('sc.remittances.confirm', $remit))->assertSessionHas('success', fn ($m) => str_starts_with($m, 'Remittance confirmed'));
         $this->assertEquals(0, $this->wallet()->codBalance($this->rider1));
         $this->actingAs($this->rider1->user)->get(route('courier.rider.cod'))->assertSee('Confirmed');
 
@@ -304,19 +302,20 @@ class R05DeliveryFailedAndEarningsTest extends TestCase
         $this->assertSame(2, RiderRemittance::count());
     }
 
-    /** RID-EARN-005 (A24) */
-    public function test_rid_earn_005_short_remittance(): void
+    /** RID-EARN-005: pay above the COD on hand is kept from the next COD. */
+    public function test_rid_earn_005_pay_above_the_cod_carries_over(): void
     {
-        $this->deliveredCod(500);
-        $this->deliveredCod(1300);
-        $this->actingAs($this->rider1->user)->post(route('courier.rider.cod.remit'), ['amount' => '1750.00', 'request_token' => (string) Str::uuid()])->assertSessionHas('success');
-        $remit = RiderRemittance::sole();
-        $this->assertEquals(50, $remit->shortfall());
+        $this->deliveredCod(30);   // ₱30 COD, ₱50 pay
+        $this->actingAs($this->rider1->user)->get(route('courier.rider.cod'))->assertOk()
+            ->assertSee('data-remit-breakdown', false)->assertSee('₱20.00 more of your pay is kept from your next COD.');
+        $this->actingAs($this->rider1->user)->post(route('courier.rider.cod.remit'), ['request_token' => (string) Str::uuid()])->assertSessionHas('success');
+        $first = RiderRemittance::sole();
+        $this->assertEquals([0, 30], [(float) $first->amount, (float) $first->pay_kept]);
+        $this->actingAs($this->logistics1)->post(route('sc.remittances.confirm', $first))->assertSessionHas('success');
 
-        $this->actingAs($this->logistics1)->get(route('sc.remittances'))->assertOk()->assertSee('data-shortfall', false)->assertSee('Short ₱50.00');
-        $this->actingAs($this->logistics1)->post(route('sc.remittances.confirm', $remit))->assertSessionHas('success', fn ($m) => str_contains($m, 'Shortfall of ₱50.00'));
-        $this->assertEquals(50, $this->wallet()->codBalance($this->rider1));
-        $this->actingAs($this->rider1->user)->get(route('courier.rider.cod'))->assertSee('₱50.00');
+        $this->deliveredCod(500);   // another ₱50 earned: ₱70 still unpaid
+        $this->assertEquals(['cod' => 500, 'pay' => 70, 'remit' => 430, 'owed' => 0], $this->wallet()->toRemit($this->rider1));
+        $this->actingAs($this->logistics1)->get(route('sc.remittances'))->assertOk()->assertSee('data-next-remit', false)->assertSee('₱430.00');
     }
 
     /** RID-EARN-006 (A22, A24) */

@@ -47,6 +47,7 @@
 
             <div class="min-w-0 flex-1 pt-3">
                 <h1 class="font-display break-words text-2xl font-extrabold" style="color:#1c1917;">{{ $seller->storeName() }}
+                    @include('partials.trusted-badge', ['seller' => $seller])
                     @if ($app?->is_on_vacation)<span class="ml-2 rounded-full px-2.5 py-0.5 align-middle text-xs font-semibold" style="background:#FFFBEB;color:#B45309;">On vacation</span>@endif
                 </h1>
                 <div class="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm" style="color:#78716C;">

@@ -8,18 +8,13 @@
     $maskedEmail = \App\Services\LoginOtp::maskEmail($user->email);
 @endphp
 
-<div class="mx-auto max-w-xl">
-    <div class="mb-5">
-        <a href="{{ route('seller.account') }}" class="text-sm hover:underline pl-muted">&larr; Account</a>
-        <h1 class="mt-1 font-display text-2xl font-bold" style="color:#222;">Change password</h1>
-        <p class="mt-0.5 text-sm pl-muted">
-            {{ $pwPending ? 'Step 2 of 2: enter the code we emailed you.' : 'Step 1 of 2: choose a new password. We\'ll email you a code to confirm it.' }}
-        </p>
-    </div>
+<x-account-shell title="Accounts & Security" portal="Seller Centre" :nav="\App\Support\AccountNav::seller('security')"
+    :badges="[['text' => 'Seller'], ['text' => 'Since ' . $user->created_at->format('M Y'), 'tone' => 'gray']]"
+    :subtitle="$pwPending ? 'Change password · Step 2 of 2: enter the code we emailed you.' : 'Change password · Step 1 of 2: choose a new password. We\'ll email you a code to confirm it.'">
 
     @if ($pwPending)
         {{-- Step 2: the code from the email --}}
-        <div class="pl-card pl-body space-y-4">
+        <div class="acs-card acs-pad space-y-4">
             <div class="flex items-start gap-3 rounded-lg p-4" style="background:#FFF7F3;border:1px solid #FBD5C5;">
                 <svg class="mt-0.5 h-5 w-5 shrink-0" style="color:#fa4e1c;" fill="none" stroke="currentColor" stroke-width="1.9" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path stroke-linecap="round" stroke-linejoin="round" d="m3 7 9 6 9-6"/></svg>
                 <div class="text-sm" style="color:#57534E;">
@@ -57,7 +52,7 @@
         </div>
     @else
         {{-- Step 1: current and new password --}}
-        <form action="{{ route('seller.account.password') }}" method="POST" class="pl-card pl-body space-y-4" id="pw-form">
+        <form action="{{ route('seller.account.password') }}" method="POST" class="acs-card acs-pad space-y-4" id="pw-form">
             @csrf @method('PUT')
 
             <div>
@@ -106,7 +101,7 @@
             </div>
         </form>
     @endif
-</div>
+</x-account-shell>
 
 <script>
 (function () {

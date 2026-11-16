@@ -20,6 +20,13 @@
     <php>
         <ini name="memory_limit" value="512M"/>
         <env name="APP_ENV" value="testing"/>
+        <!-- The live site's cached config/routes (php artisan optimize) must never be used by tests. -->
+        <env name="APP_CONFIG_CACHE" value="bootstrap/cache/testing-config.php"/>
+        <env name="APP_ROUTES_CACHE" value="bootstrap/cache/testing-routes.php"/>
+        <env name="APP_EVENTS_CACHE" value="bootstrap/cache/testing-events.php"/>
+        <!-- Test runs don't write into the live site's storage/logs (they hid real errors among thousands of test lines). -->
+        <env name="LOG_CHANNEL" value="null"/>
+        <env name="LOG_STACK" value="null"/>
         <env name="APP_MAINTENANCE_DRIVER" value="file"/>
         <env name="BCRYPT_ROUNDS" value="4"/>
         <env name="BROADCAST_CONNECTION" value="null"/>
@@ -28,12 +35,18 @@
         <env name="DB_DATABASE" value=":memory:"/>
         <env name="DB_URL" value=""/>
         <env name="MAIL_MAILER" value="array"/>
+        <!-- The project's commission rates, whatever a local .env sets (10% on items, nothing on shipping). -->
+        <env name="MARKETPLACE_COMMISSION" value="10"/>
+        <env name="SORTING_CENTER_COMMISSION" value="0"/>
+        <env name="RIDER_SHARE_SINCE" value="2099-01-01 00:00:00"/>
         <!-- Never call the real ID-check API from tests; tests that need a verdict fake the checker. -->
         <env name="ID_CHECK_ENABLED" value="false"/>
         <!-- Older test fixtures use addresses all over the country; ServiceAreaTest turns the Laguna rule on itself. -->
         <env name="SERVICE_AREA_PROVINCES" value=""/>
         <!-- The older tests use one login for the whole site; PortalSessionTest turns per-portal logins on. -->
         <env name="SESSION_PER_PORTAL" value="false"/>
+        <!-- Returns are off on the site for now; the return tests keep them on, and ReturnsTurnedOffTest turns them off. -->
+        <env name="RETURNS_ENABLED" value="true"/>
         <env name="QUEUE_CONNECTION" value="sync"/>
         <env name="SESSION_DRIVER" value="array"/>
         <env name="PULSE_ENABLED" value="false"/>

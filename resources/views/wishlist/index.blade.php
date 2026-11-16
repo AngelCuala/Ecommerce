@@ -28,7 +28,8 @@
                                 <div class="flex flex-1 flex-col p-3">
                                     <p class="line-clamp-2 text-sm" style="color:#78716C;">{{ $p->title ?? 'Removed item' }}</p>
                                     <p class="mt-1 text-xs" style="color:#B91C1C;">No longer sold</p>
-                                    <form action="{{ route('wishlist.toggle', $item->product_id) }}" method="POST" class="mt-auto pt-2">@csrf
+                                    <form action="{{ route('wishlist.toggle', $item->product_id) }}" method="POST" class="mt-auto pt-2"
+                                          data-confirm-remove="Remove from wishlist?|This item will be taken out of your wishlist.">@csrf
                                         <input type="hidden" name="state" value="off">
                                         <button class="text-xs font-semibold hover:underline" style="color:#DC2626;">Remove</button>
                                     </form>

@@ -160,30 +160,14 @@
                     @if ($dispute)
                         <p class="mt-1 text-xs">Reason: {{ $dispute->reason }} · Seller: {{ $dispute->seller_note }}@if ($dispute->dispute_note) · Buyer: {{ $dispute->dispute_note }}@endif</p>
                     @endif
-                    <form method="POST" action="{{ route('admin.orders.dispute', $order->id) }}" class="mt-2 space-y-2">
-                        @csrf
-                        <input name="note" maxlength="500" class="input text-sm" placeholder="Decision note (optional)">
-                        <div class="flex gap-2">
-                            <button name="decision" value="refund" class="btn-gold flex-1 !py-1.5 text-xs" style="background:#fa4e1c;border-color:#fa4e1c;color:#fff;">Refund buyer</button>
-                            <button name="decision" value="close" class="flex-1 rounded-md border px-2 py-1.5 text-xs font-semibold">Close (no refund)</button>
-                        </div>
-                    </form>
+                    @if ($dispute)
+                        <a href="{{ route('admin.disputes.show', $dispute) }}" class="btn-gold mt-2 inline-block !py-1.5 text-xs" style="background:#fa4e1c;border-color:#fa4e1c;color:#fff;" data-open-dispute>Open the case and decide</a>
+                    @endif
                 </div>
             @endif
 
             {{-- Update status form --}}
-            <form action="{{ route('admin.orders.update', $order->id) }}" method="POST" class="mt-5 space-y-3">
-                @csrf @method('PATCH')
-                <label class="text-xs font-semibold block" style="color:#6b90aa;">Update Status</label>
-                <select name="status" class="input text-sm">
-                    @foreach (['Pending','Processing','Shipped','Delivered','Cancelled'] as $s)
-                        <option value="{{ $s }}" {{ $order->status === $s ? 'selected' : '' }}>{{ $s }}</option>
-                    @endforeach
-                </select>
-                <input name="reason" class="input text-sm" placeholder="Reason for the override (10–300 characters)" minlength="10" maxlength="300" required>
-                @error('reason')<p class="text-xs" style="color:#DC2626;">{{ $message }}</p>@enderror
-                <button type="submit" class="btn-gold w-full !py-2 text-sm" style="background:#fa4e1c;border-color:#fa4e1c;color:#FFFFFF;">Save Status</button>
-            </form>
+            <p class="mt-5 rounded-lg px-3 py-2 text-xs" style="background:#F5F9FF;color:#1E3A8A;" data-status-locked>The status follows the process: the seller accepts and packs, the logistics company picks up and sorts, and the rider delivers. Admins can't change it by hand.</p>
         </div>
 
         {{-- Buyer card --}}

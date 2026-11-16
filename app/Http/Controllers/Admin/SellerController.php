@@ -85,7 +85,7 @@ class SellerController extends Controller
         $productCounts = collect($states)->map(fn ($apply) => $apply(clone $all)->count());
 
         $products = $states[$productState](clone $all)
-            ->with('category')
+            ->with(['category', 'images'])
             ->withSum(['orderItems as sold' => fn ($q) => $q->whereHas('order', fn ($o) => $o->whereNotIn('status', \App\Models\Order::NOT_SALES))], 'quantity')
             ->when($request->filled('product_search'), fn ($q) => $q->where(fn ($q) => $q
                 ->where('title', 'like', '%' . $request->product_search . '%')

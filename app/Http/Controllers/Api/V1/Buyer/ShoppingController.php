@@ -3,13 +3,13 @@
 namespace App\Http\Controllers\Api\V1\Buyer;
 
 use App\Http\Controllers\Api\V1\Concerns\CallsWeb;
-use App\Http\Controllers\CartController;
-use App\Http\Controllers\CheckoutController;
+use App\Http\Controllers\Buyer\CartController;
+use App\Http\Controllers\Buyer\CheckoutController;
 use App\Http\Controllers\Controller;
-use App\Http\Controllers\OrderController;
-use App\Http\Controllers\PaymentController;
-use App\Http\Controllers\ProfileController;
-use App\Http\Controllers\ReviewController;
+use App\Http\Controllers\Buyer\OrderController;
+use App\Http\Controllers\Buyer\PaymentController;
+use App\Http\Controllers\Buyer\ProfileController;
+use App\Http\Controllers\Buyer\ReviewController;
 use App\Models\OrderItem;
 use App\Models\Review;
 use App\Support\ApiJson;
@@ -72,8 +72,9 @@ class ShoppingController extends Controller
             'address_id' => $d['address']?->id,
             'payment_methods' => collect($d['paymentMethods'])->map(fn ($m, $key) => ['key' => $key] + (is_array($m) ? $m : ['label' => $m]))->values(),
             'checkout_token'  => $d['token'],
-            // Pay by GCash and upload the receipt (payment_method=gcash_receipt, payment_proof, payment_reference).
-            'gcash_account'   => $d['gcashAccount'] ?? null,
+            // GCash to ALVY (as on the website): the QR to scan and the exact amount (its centavos mark this checkout).
+            // null when no QR is set. The order is placed with payment_proof (image) + payment_reference (13 digits).
+            'gcash_account'   => $d['gcash'] ? $d['gcash'] + ['amount' => (float) $d['gcashTotal'], 'orders_total' => (float) $d['gcashOrders']] : null,
             'prices'    => $d['prices'],
             'platform_voucher' => $q['platform_voucher']?->code,
             'shipping_voucher' => $q['shipping_voucher']?->code,
@@ -150,7 +151,7 @@ class ShoppingController extends Controller
 
         return response()->json(ApiJson::page($d['orders'], fn ($o) => ApiJson::orderSummary($o)) + [
             'tab'    => $d['tab'],
-            'tabs'   => collect(\App\Models\Order::TABS)->map(fn ($t, $key) => ['key' => $key, 'label' => $t['label'], 'count' => $d['counts'][$key] ?? 0])->values(),
+            'tabs'   => collect(\App\Models\Order::TABS)->reject(fn ($t, $key) => $key === 'return_refund' && ! \App\Models\Order::returnsEnabled() && ! ($d['counts'][$key] ?? 0))->map(fn ($t, $key) => ['key' => $key, 'label' => $t['label'], 'count' => $d['counts'][$key] ?? 0])->values(),
         ]);
     }
 
@@ -159,6 +160,12 @@ class ShoppingController extends Controller
         $d = $this->pageData($this->web(ProfileController::class, 'orderShow', ['id' => $id]));
 
         return response()->json(['order' => ApiJson::orderDetail($d['order'])]);
+    }
+
+    /** A rejected GCash payment: upload the right receipt (payment_proof) and its Ref No. (payment_reference). */
+    public function gcashResubmit(int $id): JsonResponse
+    {
+        return $this->actionJson($this->web(\App\Http\Controllers\Buyer\GcashResubmitController::class, 'store', ['id' => $id]));
     }
 
     public function cancel(int $id): JsonResponse

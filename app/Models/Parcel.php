@@ -15,7 +15,7 @@ class Parcel extends Model
         'destination_municipality', 'destination_province',
         'receiver_name', 'receiver_phone',
         'weight_kg', 'size', 'notes', 'pickup_scheduled_at',
-        'area_id', 'status', 'transfer_status',
+        'area_id', 'next_center_id', 'status', 'transfer_status',
         'current_sorting_center_id', 'current_hub_id',
         'verified_by', 'verified_at', 'received_at', 'sorted_at', 'failure_reason',
         'rts_rider_id', 'rts_assigned_at', 'returned_at', 'returned_received_at', 'exception_photo_path',
@@ -37,7 +37,7 @@ class Parcel extends Model
 
     /** Human labels for each pipeline status (sorting-center wording). */
     public const STATUS_LABELS = [
-        'pending_pickup'  => 'Ready for Pickup',
+        'pending_pickup'  => 'Pickup Requested',
         'pickup_approved' => 'Pickup Confirmed',
         'in_transit_to_hub' => 'Picked Up by Rider',
         'pickup_rejected' => 'Pickup Rejected',
@@ -88,8 +88,10 @@ class Parcel extends Model
         'missing_in_transit' => ['picked_up', 'lost'],
         'in_transfer'       => ['picked_up', 'lost', 'damaged'],
         'assigned'          => ['in_transit', 'sorted', 'failed', 'return_to_sender', 'lost', 'damaged'],
-        'in_transit'        => ['delivered', 'failed', 'return_to_sender', 'lost', 'damaged'],
-        'failed'            => ['sorted', 'assigned', 'return_to_sender', 'lost', 'damaged'],
+        'in_transit'        => ['delivered', 'failed', 'return_to_sender', 'cancelled', 'lost', 'damaged'],
+        // 'cancelled': could not be delivered (3rd failed attempt or refused): the order is cancelled and
+        // the parcel stays at the hub for the seller to collect (Return to Sender is no longer used).
+        'failed'            => ['sorted', 'assigned', 'return_to_sender', 'cancelled', 'lost', 'damaged'],
         'return_to_sender'  => ['returned', 'lost', 'damaged'],
         'delivered'         => [],
         'returned'          => [],
@@ -113,11 +115,43 @@ class Parcel extends Model
 
     public function rtsRider(): BelongsTo { return $this->belongsTo(Rider::class, 'rts_rider_id'); }
     public function currentHub(): BelongsTo { return $this->belongsTo(LogisticsHub::class, 'current_hub_id'); }
+    /** The linehaul trips it was put on (one row per trip). */
+    public function linehaulItems(): \Illuminate\Database\Eloquent\Relations\HasMany { return $this->hasMany(LinehaulTripParcel::class); }
 
     /** Set while a linehaul trip moves the parcel: the trip writes the timeline line itself. */
     public bool $linehaulStep = false;
 
     /** Shipment steps on the buyer's order timeline (rider assignment is written by the dispatcher). */
+    /** Over this weight (kg) a parcel is bulky: only a car or van rider picks it up / delivers it. */
+    public const BULKY_KG = 20;
+
+    /** A product this long on any side (cm), e.g. a table, makes the parcel bulky too. */
+    public const BULKY_SIDE_CM = 100;
+
+    private ?bool $bulkyCache = null;
+
+    /** Too heavy or too big for a motorcycle, tricycle or bicycle: a car or van rider takes it. */
+    public function isBulky(): bool
+    {
+        if ($this->bulkyCache !== null) {
+            return $this->bulkyCache;
+        }
+        if ((float) $this->weight_kg > self::BULKY_KG || in_array(strtolower((string) $this->size), ['large', 'bulky'], true)) {
+            return $this->bulkyCache = true;
+        }
+        $items = $this->order_id ? ($this->order?->items()->with('product')->get() ?? collect()) : collect();
+
+        return $this->bulkyCache = $items
+            ->filter(fn ($i) => $i->product && (int) $i->product->seller_id === (int) $this->seller_id)
+            ->contains(fn ($i) => max((float) $i->product->length_cm, (float) $i->product->width_cm, (float) $i->product->height_cm) >= self::BULKY_SIDE_CM);
+    }
+
+    /** Why it is bulky, for staff: "25 kg" / "big item". */
+    public function bulkyReason(): string
+    {
+        return (float) $this->weight_kg > self::BULKY_KG ? rtrim(rtrim(number_format((float) $this->weight_kg, 2), '0'), '.') . ' kg' : 'big item';
+    }
+
     protected static function booted(): void
     {
         // Every parcel gets its own waybill number when it is created.
@@ -129,6 +163,10 @@ class Parcel extends Model
         static::updating(function (Parcel $parcel) {
             if ($parcel->isDirty('status') && ! static::canMove($parcel->getOriginal('status'), $parcel->status)) {
                 throw new \App\Exceptions\InvalidShipmentTransition($parcel, (string) $parcel->getOriginal('status'), (string) $parcel->status);
+            }
+            // At a new hub (or back in sorting) the hub-to-hub sort no longer applies.
+            if ($parcel->next_center_id && ($parcel->isDirty('current_sorting_center_id') || in_array($parcel->status, ['picked_up', 'sorting'], true) && $parcel->isDirty('status'))) {
+                $parcel->next_center_id = null;
             }
         });
 
@@ -156,8 +194,31 @@ class Parcel extends Model
     }
 
     public function order(): BelongsTo       { return $this->belongsTo(Order::class); }
+
+    /**
+     * Google Maps directions to the buyer: to the map pin they dropped on their address, or a search for
+     * the written address when there is no pin. Opens the Maps app on a phone.
+     */
+    public function mapsUrl(): string
+    {
+        $addr = $this->order?->deliveryAddress;
+        if ($addr && $addr->latitude && $addr->longitude) {
+            return 'https://www.google.com/maps/dir/?api=1&destination=' . round($addr->latitude, 7) . ',' . round($addr->longitude, 7);
+        }
+
+        return 'https://www.google.com/maps/search/?api=1&query=' . rawurlencode((string) $this->dropoff_address);
+    }
+
+    /** The buyer pinned their house on the map (so the directions are exact). */
+    public function hasMapPin(): bool
+    {
+        $addr = $this->order?->deliveryAddress;
+        return (bool) ($addr && $addr->latitude && $addr->longitude);
+    }
     public function seller(): BelongsTo      { return $this->belongsTo(User::class, 'seller_id'); }
     public function area(): BelongsTo        { return $this->belongsTo(DeliveryArea::class, 'area_id'); }
+    /** The sorting center this parcel was sorted for (hub-to-hub), when it is outside this hub's jurisdiction. */
+    public function nextCenter(): BelongsTo  { return $this->belongsTo(User::class, 'next_center_id'); }
     public function verifiedBy(): BelongsTo  { return $this->belongsTo(User::class, 'verified_by'); }
     public function currentSortingCenter(): BelongsTo { return $this->belongsTo(User::class, 'current_sorting_center_id'); }
 
@@ -236,6 +297,10 @@ class Parcel extends Model
 
     public function statusLabel(): string
     {
+        // Delivered, and the buyer confirmed it (or the order completed): the end of the line.
+        if ($this->status === 'delivered' && $this->order_id && $this->order?->status === Order::COMPLETED) {
+            return 'Received by Buyer';
+        }
         return self::STATUS_LABELS[$this->status] ?? ucwords(str_replace('_', ' ', $this->status));
     }
 

@@ -57,11 +57,11 @@
                             @if ($path)
                                 @php $ext = strtolower(pathinfo($path, PATHINFO_EXTENSION)); @endphp
                                 @if (in_array($ext, ['jpg','jpeg','png']))
-                                    <a href="{{ asset('storage/'.$path) }}" target="_blank">
-                                        <img src="{{ asset('storage/'.$path) }}" class="max-h-40 w-full rounded-lg border object-contain transition hover:opacity-90" style="border-color:#cfdce8;">
+                                    <a href="{{ \App\Support\ProtectedFile::url($path) }}" target="_blank">
+                                        <img src="{{ \App\Support\ProtectedFile::url($path) }}" class="max-h-40 w-full rounded-lg border object-contain transition hover:opacity-90" style="border-color:#cfdce8;">
                                     </a>
                                 @else
-                                    <a href="{{ asset('storage/'.$path) }}" target="_blank"
+                                    <a href="{{ \App\Support\ProtectedFile::url($path) }}" target="_blank"
                                        class="inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium" style="border-color:#cfdce8;color:#fa4e1c;">
                                         View document
                                     </a>

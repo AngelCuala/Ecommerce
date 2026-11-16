@@ -32,22 +32,22 @@ return [
     |
     */
 
-    'lifetime' => (int) env('SESSION_LIFETIME', 30),   // A22: 30 minutes of inactivity
+    'lifetime' => (int) env('SESSION_LIFETIME', 10080),   // signed out after a week without using the site
 
     /*
      * Longest a login lasts, however active the account is (minutes). After it the account is
      * signed out and must log in again; "Remember me" lasts no longer than this. 0 = no limit.
      * Enforced by App\Http\Middleware\EnforceLoginTimeLimit.
      */
-    'max_login_minutes' => (int) env('SESSION_MAX_LOGIN_MINUTES', 480),
+    'max_login_minutes' => (int) env('SESSION_MAX_LOGIN_MINUTES', 10080),
 
     /*
      * One login per portal: the shop, Seller Centre (/seller), sorting centers (/sc), couriers
      * (/courier) and admin (/admin, /logistics) each keep their own session cookie, so different
      * accounts can be signed in to different portals in tabs of the same browser.
-     * See App\Support\Portal. false = one login for the whole site.
+     * See App\Support\Portal. Off (one login for the whole site): the owner chose one account per browser.
      */
-    'per_portal' => (bool) env('SESSION_PER_PORTAL', true),
+    'per_portal' => (bool) env('SESSION_PER_PORTAL', false),
 
     'expire_on_close' => env('SESSION_EXPIRE_ON_CLOSE', false),
 

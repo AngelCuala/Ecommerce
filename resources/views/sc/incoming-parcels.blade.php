@@ -132,6 +132,8 @@
                     </td>
                     <td class="nw">
                         @if($parcel->status === 'pickup_approved')
+                            <span class="text-muted text-sm">Waiting for pickup</span>
+                        @elseif($parcel->status === 'in_transit_to_hub')
                             <a href="{{ route('sc.tracking.show', $parcel) }}" class="btn btn-blue btn-sm">Check &amp; receive</a>
                         @elseif($parcel->status === 'picked_up')
                             <a href="{{ route('sc.parcel-sorting') }}" class="btn btn-blue btn-sm">Sort</a>

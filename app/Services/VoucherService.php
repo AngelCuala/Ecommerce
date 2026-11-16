@@ -133,9 +133,13 @@ class VoucherService
             'reason'    => $this->unusableReason($v, $base, $used),
         ];
 
+        // Vouchers this buyer has used up (or that have no uses left) aren't offered at all.
+        $usable = fn (Voucher $v) => ($used[$v->id] ?? 0) < $v->per_user_limit
+            && ($v->usage_limit === null || $v->used_count < $v->usage_limit);
+
         $sellerVouchers = Voucher::running()->where('is_claimable', true)->where('scope', Voucher::SCOPE_SELLER)
             ->whereIn('seller_id', $groups->keys()->filter())
-            ->orderBy('min_spend')->get()->groupBy('seller_id');
+            ->orderBy('min_spend')->get()->filter($usable)->groupBy('seller_id');
 
         $sellerOptions = [];
         foreach ($groups as $sellerId => $group) {
@@ -146,8 +150,8 @@ class VoucherService
             ];
         }
 
-        $platformVouchers = Voucher::running()->where('is_claimable', true)->where('scope', Voucher::SCOPE_PLATFORM)->orderBy('min_spend')->get();
-        $shippingVouchers = Voucher::running()->where('is_claimable', true)->where('scope', Voucher::SCOPE_SHIPPING)->orderBy('min_spend')->get();
+        $platformVouchers = Voucher::running()->where('is_claimable', true)->where('scope', Voucher::SCOPE_PLATFORM)->orderBy('min_spend')->get()->filter($usable)->values();
+        $shippingVouchers = Voucher::running()->where('is_claimable', true)->where('scope', Voucher::SCOPE_SHIPPING)->orderBy('min_spend')->get()->filter($usable)->values();
 
         $best = $this->best($groups, $subtotal, $sellerVouchers, $platformVouchers, $used);
         $afterVouchers = round($subtotal - $best['discount'], 2);

@@ -103,6 +103,12 @@ class User extends Authenticatable
         return $this->name ?? '';
     }
 
+    /** Public URL of the profile photo, or null (pages then show the first letter of the name). */
+    public function getProfilePhotoUrlAttribute(): ?string
+    {
+        return $this->profile_photo_path ? asset('storage/' . $this->profile_photo_path) : null;
+    }
+
     // ── Relationships ─────────────────────────────────────────
     public function orders(): HasMany
     {
@@ -201,6 +207,12 @@ class User extends Authenticatable
     public function deliveryAreas(): HasMany
     {
         return $this->hasMany(\App\Models\DeliveryArea::class, 'sorting_center_id');
+    }
+
+    /** Sorting center (logistics company) applications of this account. */
+    public function sortingCenterApplications(): HasMany
+    {
+        return $this->hasMany(\App\Models\SortingCenterApplication::class);
     }
 
     /** Riders managed by this sorting center. */

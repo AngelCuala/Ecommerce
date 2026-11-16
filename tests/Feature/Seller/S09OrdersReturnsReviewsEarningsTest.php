@@ -126,7 +126,7 @@ class S09OrdersReturnsReviewsEarningsTest extends TestCase
     public function test_sel_ord_002_accept_pack_ready_for_pickup_and_print_waybill(): void
     {
         $order = $this->placeOrder($this->buyer1, [$this->cart($this->buyer1, $this->p02)])->first();
-        $this->assertEquals(500, $order->total_price);   // ₱450 + ₱50 shipping (0.8 kg within NCR)
+        $this->assertEquals(490, $order->total_price);   // ₱450 + ₱40 shipping (0.8 kg, same city)
         $this->assertSame('new', $order->sellerStep());
 
         $this->seller('post', 'seller.orders.accept', $order)->assertSessionHas('success');
@@ -139,19 +139,20 @@ class S09OrdersReturnsReviewsEarningsTest extends TestCase
         $company = $this->company();
         $this->actingAs($this->seller1)->get(route('seller.orders.show', $order->id))->assertSee('choose the logistics company')->assertSee('Bilis Hatid Express Inc.');
         $this->actingAs($this->seller1)->post(route('seller.orders.handover', $order->id), ['sorting_center_id' => $company->id, 'pickup_scheduled_at' => now()->addHour()->format('Y-m-d H:i')])
-            ->assertSessionHas('success', fn ($m) => str_contains($m, 'offered to Pedro Jose Garcia'));
+            ->assertSessionHas('success', fn ($m) => str_contains($m, 'Pickup requested') && str_contains($m, 'Bilis Hatid Express Inc.'));
         $this->assertSame('ready', $order->fresh()->sellerStep());
 
-        // The logistics company sees it in its pickup queue, and its rider got the job offer.
+        // The logistics company gets a pickup request; once it confirms it, the job waits in its Rider Dispatch.
         $parcel = \App\Models\Parcel::where('order_id', $order->id)->sole();
-        $this->assertSame(['pickup_approved', $company->id], [$parcel->status, (int) $parcel->current_sorting_center_id]);
-        $this->assertSame(1, \App\Models\RiderJobOffer::where('parcel_id', $parcel->id)->count());
+        $this->assertSame(['pending_pickup', $company->id], [$parcel->status, (int) $parcel->current_sorting_center_id]);
+        $this->actingAs($company)->post(route('sc.pickup-requests.approve', $parcel))->assertSessionHas('success');
+        $this->assertSame('pickup_approved', $parcel->fresh()->status);
         $this->actingAs($company)->get(route('sc.dispatch'))->assertSee($parcel->tracking_number);
         $this->assertFalse(Delivery::where('order_id', $order->id)->exists());
 
         $this->actingAs($this->seller1)->get(route('seller.orders.waybill', $order->id))->assertOk()
             ->assertSee($parcel->tracking_number)->assertSee($order->full_name)->assertSee('45 Kalayaan Ave.')
-            ->assertSee('12 Tandang Sora Ave., Commonwealth')->assertSee('0.8 kg')->assertSee('₱500.00');
+            ->assertSee('12 Tandang Sora Ave., Commonwealth')->assertSee('0.8 kg')->assertSee('₱490.00');
         // Buyer 1's timeline shows each step.
         $this->actingAs($this->buyer1)->get(route('profile.orders.show', $order->id))->assertOk()->assertSee('Ready for pickup');
     }
@@ -239,8 +240,8 @@ class S09OrdersReturnsReviewsEarningsTest extends TestCase
         $this->actingAs($this->seller1)->get(route('seller.orders.show', $order->id))->assertOk()
             ->assertSee('Natural / M')->assertSee('₱249.00 × 1', false)->assertSee('Rattan Fruit Basket')->assertSee('₱450.00')
             ->assertSee('Store voucher MCH50')->assertSee('−₱50.00', false)
-            ->assertSee('Shipping fee (buyer pays)')->assertSee('₱65.00')
-            ->assertSee('Please wrap as a gift')->assertSee('COD')->assertSee('45 Kalayaan Ave.')
+            ->assertSee('Shipping fee (buyer pays)')->assertSee('₱50.00')   // 2 kg, same city
+            ->assertSee('Please wrap as a gift')->assertSee('Cash on delivery')->assertSee('45 Kalayaan Ave.')
             ->assertDontSee('USB-C Fast Charger 20W');   // Seller 2's item is not in this order
     }
 
@@ -550,15 +551,16 @@ class S09OrdersReturnsReviewsEarningsTest extends TestCase
         $request = fn ($amount) => $this->actingAs($this->seller1)->from(route('seller.earnings'))
             ->post(route('seller.earnings.payout'), ['amount' => $amount, 'request_token' => (string) Str::uuid()]);
 
-        $request('99.99')->assertSessionHasErrors(['amount' => 'The minimum payout is ₱100.00.']);
-        $request('616.56')->assertSessionHasErrors(['amount' => 'You can request up to your available balance of ₱616.55.']);
+        $request('99.99')->assertSessionHasNoErrors();   // no minimum (PAYMENTS_SPEC: any amount)
+        \App\Models\SellerPayout::where('seller_id', $this->seller1->id)->delete();
+        $request('616.56')->assertSessionHasErrors(['amount' => 'Not enough available balance: you have ₱616.55.']);
         $request('0')->assertSessionHasErrors('amount');
         $request('abc')->assertSessionHasErrors('amount');
         $this->assertSame(0, SellerPayout::count());
 
         $request('100.00')->assertSessionHasNoErrors()->assertSessionHas('success');
         $this->assertEquals(516.55, $this->balances()['available']);
-        $this->actingAs($this->seller1)->get(route('seller.earnings'))->assertSee('₱516.55')->assertSee('Pending payout');
+        $this->actingAs($this->seller1)->get(route('seller.earnings'))->assertSee('₱516.55')->assertSee('Processing');
         SellerPayout::query()->delete();   // cancel before the next attempt
 
         $request('616.55')->assertSessionHasNoErrors();
@@ -574,7 +576,7 @@ class S09OrdersReturnsReviewsEarningsTest extends TestCase
             ->post(route('seller.earnings.payout'), ['amount' => '100.00', 'request_token' => (string) Str::uuid()]);
 
         $request()->assertSessionHasNoErrors();
-        $request()->assertSessionHasErrors(['amount' => 'You already have a payout request waiting. You can request another once it is paid.']);
+        $request()->assertSessionHasErrors(['amount' => 'You already have a withdrawal processing. You can withdraw again once ALVY sends it.']);
         $this->assertSame(1, SellerPayout::count());
     }
 
@@ -585,7 +587,7 @@ class S09OrdersReturnsReviewsEarningsTest extends TestCase
         $form = ['amount' => '200.00', 'request_token' => (string) Str::uuid()];
 
         $this->actingAs($this->seller1)->post(route('seller.earnings.payout'), $form)->assertSessionHas('success');
-        $this->actingAs($this->seller1)->post(route('seller.earnings.payout'), $form)->assertSessionHas('success', 'Your payout request was already sent.');
+        $this->actingAs($this->seller1)->post(route('seller.earnings.payout'), $form)->assertSessionHas('success', 'Your withdrawal was already sent.');
         $this->assertSame(1, SellerPayout::count());
         $this->assertEquals(200, SellerPayout::sole()->amount);
         $this->assertEquals(416.55, $this->balances()['available']);   // lowered once

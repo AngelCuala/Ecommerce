@@ -32,15 +32,20 @@
         {{-- Cover + avatar --}}
         <div class="h-20" style="background:linear-gradient(120deg,#fa4e1c 0%,#ff8a5b 45%,#002b4d 130%);"></div>
         <div class="-mt-10 flex items-end gap-3 px-5">
-            <div class="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-2xl font-display text-2xl font-extrabold"
-                 style="color:#fff;background:#002b4d;border:4px solid #fff;box-shadow:0 8px 20px -10px rgba(0,0,0,.4);">
-                @if ($sbUser->profile_photo_path)
-                    <img src="{{ asset('storage/'.$sbUser->profile_photo_path) }}" class="h-full w-full object-cover" alt="Avatar">
-                @else
-                    {{ strtoupper(substr($sbUser->name, 0, 1)) }}
-                @endif
-            </div>
+            {{-- Tap the photo to change it; it is saved right away (js/photo-upload.js). --}}
+            <label class="group relative flex h-20 w-20 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-2xl font-display text-2xl font-extrabold"
+                   style="color:#fff;background:#002b4d;border:4px solid #fff;box-shadow:0 8px 20px -10px rgba(0,0,0,.4);" title="Change profile photo">
+                <img data-photo-preview src="{{ $sbUser->profile_photo_path ? asset('storage/'.$sbUser->profile_photo_path) : '' }}"
+                     class="{{ $sbUser->profile_photo_path ? '' : 'hidden' }} h-full w-full object-cover" alt="Avatar">
+                @unless ($sbUser->profile_photo_path)<span data-photo-initial>{{ strtoupper(substr($sbUser->name, 0, 1)) }}</span>@endunless
+                <span class="absolute inset-0 flex items-center justify-center opacity-0 transition group-hover:opacity-100" style="background:rgba(0,0,0,.45);">
+                    <svg class="h-5 w-5 text-white" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><circle cx="12" cy="13" r="3"/></svg>
+                </span>
+                <input type="file" accept="image/jpeg,image/png,image/webp" class="hidden" data-photo-upload data-photo-url="{{ route('account.photo') }}">
+            </label>
         </div>
+        <p class="px-5 pt-1 text-[11px] pf-muted" data-photo-status></p>
+        <script src="{{ asset('js/photo-upload.js') }}" defer></script>
         <div class="px-5 pb-4 pt-3">
             <p class="truncate font-display text-lg font-extrabold" style="color:#222;">{{ $sbUser->name }}</p>
             <p class="truncate text-xs pf-muted">{{ $sbUser->email }}</p>

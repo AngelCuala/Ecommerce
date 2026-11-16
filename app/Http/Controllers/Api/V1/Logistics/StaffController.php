@@ -4,7 +4,7 @@ namespace App\Http\Controllers\Api\V1\Logistics;
 
 use App\Http\Controllers\Api\V1\Concerns\CallsWeb;
 use App\Http\Controllers\Controller;
-use App\Http\Controllers\SortingCenterController as WebSc;
+use App\Http\Controllers\SortingCenter\SortingCenterController as WebSc;
 use App\Models\Courier;
 use App\Models\LogisticsHub;
 use App\Models\Rider;
@@ -131,7 +131,7 @@ class StaffController extends Controller
 
         $paths = [];
         foreach (['license_file' => 'id_license_path', 'or_cr_file' => 'or_cr_path', 'nbi_file' => 'nbi_path'] as $field => $column) {
-            $paths[$column] = $request->file($field)->store('courier-documents', 'public');
+            $paths[$column] = $request->file($field)->store('courier-documents', \App\Support\ProtectedFile::DISK);
         }
 
         $courier = DB::transaction(function () use ($sc, $data, $paths) {
@@ -200,7 +200,7 @@ class StaffController extends Controller
         return response()->json(['hubs' => $this->myHubs()]);
     }
 
-    /** Where the hub is: couriers depart and arrive within 500 m of it. */
+    /** Where the hub is: couriers mark Arrived within 500 m of it (Depart has no location check). */
     private const LOCATION_RULES = ['latitude' => 'nullable|numeric|between:-90,90|required_with:longitude', 'longitude' => 'nullable|numeric|between:-180,180|required_with:latitude'];
 
     /** code (HUB-QC: unique), name, address, latitude, longitude. */

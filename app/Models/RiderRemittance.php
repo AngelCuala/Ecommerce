@@ -8,13 +8,16 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 /** COD cash a rider hands to their logistics company; only the company can confirm it. */
 class RiderRemittance extends Model
 {
-    protected $fillable = ['rider_id', 'sorting_center_id', 'amount', 'expected_amount', 'status', 'request_token', 'confirmed_by', 'confirmed_at'];
+    protected $fillable = ['rider_id', 'sorting_center_id', 'amount', 'pay_kept', 'expected_amount', 'counted_amount', 'deducted', 'status', 'request_token',
+        'confirmed_by', 'confirmed_at', 'settled_by', 'settled_at'];
 
-    protected $casts = ['amount' => 'decimal:2', 'expected_amount' => 'decimal:2', 'confirmed_at' => 'datetime'];
+    protected $casts = ['amount' => 'decimal:2', 'pay_kept' => 'decimal:2', 'expected_amount' => 'decimal:2', 'counted_amount' => 'decimal:2',
+        'deducted' => 'decimal:2', 'confirmed_at' => 'datetime', 'settled_at' => 'datetime'];
 
     public function rider(): BelongsTo { return $this->belongsTo(Rider::class); }
     public function sortingCenter(): BelongsTo { return $this->belongsTo(User::class, 'sorting_center_id'); }
     public function confirmer(): BelongsTo { return $this->belongsTo(User::class, 'confirmed_by'); }
+    public function settler(): BelongsTo { return $this->belongsTo(User::class, 'settled_by'); }
 
     /** Receipt number, e.g. RR-261026-000001: the remittance's date (Philippine time) and its unique ID. */
     public function receiptNumber(): string
@@ -36,9 +39,9 @@ class RiderRemittance extends Model
             ->with('parcel.order')->orderBy('delivered_at')->get();
     }
 
-    /** Less cash than the COD balance at the time. */
+    /** Less than the COD balance at the time, counting the pay the rider kept out of it and any shortage taken from their earnings. */
     public function shortfall(): float
     {
-        return round(max(0, (float) $this->expected_amount - (float) $this->amount), 2);
+        return round(max(0, (float) $this->expected_amount - (float) $this->amount - (float) $this->pay_kept - (float) $this->deducted), 2);
     }
 }

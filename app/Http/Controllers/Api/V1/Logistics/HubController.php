@@ -5,7 +5,7 @@ namespace App\Http\Controllers\Api\V1\Logistics;
 use App\Http\Controllers\Api\V1\Concerns\CallsWeb;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\SortingCenter\LogisticsController as WebLogistics;
-use App\Http\Controllers\SortingCenterController as WebSc;
+use App\Http\Controllers\SortingCenter\SortingCenterController as WebSc;
 use App\Models\DeliveryArea;
 use App\Models\Parcel;
 use App\Models\ParcelDelivery;
@@ -43,10 +43,16 @@ class HubController extends Controller
             'stats' => $d['stats'],
             'shipment_counts' => collect(LogisticsJson::BUCKET_LABELS)->map(fn ($label, $key) => ['key' => $key, 'label' => $label,
                 'count' => (int) ($d['shipmentCounts'][$key] ?? 0)])->values(),
-            'recent' => $d['recentParcels']->map(fn ($x) => LogisticsJson::delivery($x))->values(),
+            'recent' => $d['recentParcels']->map(fn ($x) => LogisticsJson::delivery($x) + ['page' => $x->parcel ? TrackingController::pageKey($x->parcel) : null])->values(),
             'area_rates' => $d['areaRates']->map(fn ($a) => ['id' => $a->id, 'name' => $a->name, 'total' => (int) $a->total,
                 'delivered' => (int) $a->delivered, 'rate' => $a->total > 0 ? (int) round($a->delivered / $a->total * 100) : 0])->values(),
         ]);
+    }
+
+    /** The numbers beside the web sidebar's items: work waiting on Pickup Requests, Parcel Sorting, Deliveries and COD Remittances. */
+    public function badges(): JsonResponse
+    {
+        return response()->json(\App\Support\SortingCenterBadges::for((int) auth()->id()));
     }
 
     /** status (bucket), q (tracking, order no. or receiver), from, to, page. */
@@ -178,8 +184,13 @@ class HubController extends Controller
         return response()->json([
             'areas' => $d['areas']->map(fn ($a) => ['id' => $a->id, 'name' => $a->name, 'sorted' => (int) $a->sorted_count])->values(),
             'pending' => $d['pending']->map(fn ($p) => LogisticsJson::parcel($p) + [
-                'suggested_area_id' => $d['suggested'][$p->id] ?? null, 'covered' => (bool) ($d['covered'][$p->id] ?? false)])->values(),
+                'suggested_area_id' => $d['suggested'][$p->id] ?? null, 'covered' => (bool) ($d['covered'][$p->id] ?? false),
+                'suggested_center_id' => $d['nextHub'][$p->id] ?? null])->values(),
             'sorted_today' => (int) $d['sortedToday'],
+            // Out of this hub's area: sort to the sorting center serving the address (POST sorting/{id}/transfer, center_id).
+            'centers' => $d['hubs']->map(fn ($h) => ['id' => $h->id, 'name' => \App\Support\SortingCenters::displayName($h), 'municipality' => $h->assigned_municipality])->values(),
+            'for_transfer' => $d['forTransfer']->map(fn ($g) => ['center' => \App\Support\SortingCenters::nameOf($g->first()->nextCenter),
+                'parcels' => $g->map(fn ($p) => LogisticsJson::parcel($p))->values()])->values(),
         ]);
     }
 
@@ -196,9 +207,19 @@ class HubController extends Controller
     {
         $d = $this->pageData($this->web(WebSc::class, 'deliveryAssignment'));
 
-        return response()->json(ApiJson::page($d['parcels'], fn ($p) => LogisticsJson::parcel($p)) + [
-            'riders' => $d['riders']->map(fn ($r) => LogisticsJson::rider($r))->values(),
-            'areas'  => $d['areas']->map(fn ($a) => ['id' => $a->id, 'name' => $a->name])->values(),
+        // Like the website: sorted parcels waiting in each barangay, and each rider's open deliveries.
+        $waiting = collect($d['waiting'] ?? []);
+        $openJobs = collect($d['openJobs'] ?? []);
+
+        // A parcel whose barangay has no rider: the company's riders, nearest first (any of them may take it).
+        $nearest = fn ($p) => $d['riders']->contains(fn ($r) => $r->coversArea((int) $p->area_id)) ? null : \App\Services\NearestRiders::ranked($p, $d['riders'])
+            ->map(fn ($x) => ['rider_id' => $x['rider']->id, 'name' => $x['rider']->full_name, 'area' => $x['rider']->area?->name, 'km' => $x['km'], 'online' => (bool) $x['rider']->is_online])->values()->all();
+
+        return response()->json(ApiJson::page($d['parcels'], fn ($p) => LogisticsJson::parcel($p) + ['nearest_riders' => $nearest($p)]) + [
+            // "active_jobs": the app's rider picker already shows it ("N active job(s)").
+            'riders' => $d['riders']->map(fn ($r) => LogisticsJson::rider($r) + ['active_jobs' => (int) ($openJobs[$r->id] ?? 0)])->values(),
+            'areas'  => $d['areas']->map(fn ($a) => ['id' => $a->id, 'name' => $a->name, 'waiting' => (int) ($waiting[$a->id] ?? 0)])->values(),
+            'waiting_total' => (int) $waiting->sum(),
         ]);
     }
 

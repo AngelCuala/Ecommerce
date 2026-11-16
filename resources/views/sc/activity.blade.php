@@ -3,6 +3,8 @@
 @section('icon', 'list')
 
 @section('content')
+
+@include('partials.page-tabs', ['tabs' => [['Reports', 'sc.reports', 'sc.reports'], ['Activity log', 'sc.activity', 'sc.activity']]])
 <div class="page-header"><h1>Activity Log</h1></div>
 <div class="page-body">
     <p class="text-muted" style="margin:-4px 0 16px;font-size:13px;">

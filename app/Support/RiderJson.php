@@ -29,7 +29,7 @@ class RiderJson
             'suspended'      => $rider->isSuspended(),
             'online'         => $rider->isOnlineNow(),
             'active_jobs'    => $rider->activeJobsCount(),
-            'max_active'     => RiderDispatch::MAX_ACTIVE,
+            'max_active'     => null,   // no job limit: riders take every job of their barangay
             'vehicle_type'   => $rider->vehicle_type,
             'plate_number'   => $rider->plate_number,
             'license_number' => $rider->license_number,
@@ -39,6 +39,7 @@ class RiderJson
                 : ($rider->license_expiry->lte(now()->addDays(30)) ? 'soon' : null)),
             'rider_since'    => $rider->approved_at?->toIso8601String(),
             'area'           => $rider->area?->name,
+            'barangays'      => $rider->areas()->pluck('name')->values(),
             'needs_reverification' => (bool) $rider->needs_reverification,
             'has_license_file' => (bool) $rider->license_path,
             'has_or_cr_file'   => (bool) $rider->or_cr_path,
@@ -66,7 +67,7 @@ class RiderJson
                 ? $rider->companyName() . ' hub'
                 : trim(($p?->area->name ?? '') . ' ' . $p?->destination_municipality),
             'cod'          => $cod ? (float) $order->total_price : null,
-            'pay'          => $o->kind === RiderJobOffer::PICKUP ? RiderDispatch::PAY_PICKUP : RiderDispatch::PAY_DELIVERY,
+            'pay'          => $o->kind === RiderJobOffer::PICKUP ? RiderDispatch::pickupPay($p) : RiderDispatch::deliveryPay($p),
             'seconds_left' => $o->secondsLeft(),
             'expires_at'   => $o->expires_at?->toIso8601String(),
         ];
@@ -95,7 +96,10 @@ class RiderJson
             'bring_to'       => $rider->companyName() . ' hub',
             'picked_up_at'   => $pu->picked_up_at?->toIso8601String(),
             'can_confirm'    => $pu->status === 'assigned',
-            'pay'            => RiderDispatch::PAY_PICKUP,
+            'acknowledged'   => (bool) $pu->acknowledged_at,
+            'waybill'        => $p?->waybill_number,
+            'has_proof'      => (bool) $pu->proof_path,
+            'pay'            => RiderDispatch::pickupPay($p, $pu->picked_up_at),
         ]);
     }
 
@@ -105,6 +109,7 @@ class RiderJson
         return [
             'id' => $d->id, 'tracking' => $p?->tracking_number, 'waybill' => $p?->waybill_number, 'status' => $d->status, 'status_label' => $d->statusLabel(),
             'receiver' => $p?->receiver_name, 'address' => $p?->dropoff_address,
+            'maps_url' => $p?->mapsUrl(), 'has_pin' => (bool) $p?->hasMapPin(),
             'attempt' => (int) $d->attempt, 'max_attempts' => ParcelDelivery::MAX_ATTEMPTS,
             'acknowledged' => (bool) $d->acknowledged_at, 'updated_at' => $d->updated_at?->toIso8601String(),
         ];
@@ -133,7 +138,7 @@ class RiderJson
                 'fail'    => in_array($d->status, ParcelDelivery::OPEN, true),
             ],
             'failure_reasons' => ParcelDelivery::FAILURE_REASONS,
-            'pay'             => RiderDispatch::PAY_DELIVERY,
+            'pay'             => RiderDispatch::deliveryPay($d->parcel, $d->delivered_at),
         ];
     }
 

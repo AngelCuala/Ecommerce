@@ -52,10 +52,9 @@ class ReportController extends Controller
             ];
         })->sortByDesc('revenue')->values();
 
-        // Daily trend within the range
-        $byDate = $items->sortBy(fn ($i) => $i->order->created_at)->groupBy(fn ($i) => $i->order->created_at->format('M d'))
-            ->map(fn ($g) => $g->sum('seller_earning'))
-            ->take(31);
+        // Net earnings over the range: every day (₱0 days too, so the chart shows the real gaps), or every
+        // month when the range is longer than 62 days. Empty when nothing sold ("No sales in this period").
+        [$byDate, $byDateUnit] = $this->trend($items, $from, $to);
 
         $commissionRate = config('marketplace.commission_rate', 10);
 
@@ -75,7 +74,38 @@ class ReportController extends Controller
         return view('seller.reports.index', compact(
             'from', 'to',
             'totalRevenue', 'totalSellerFunded', 'totalCommission', 'totalEarnings', 'totalOrders',
-            'byProduct', 'byDate', 'commissionRate'
+            'byProduct', 'byDate', 'byDateUnit', 'commissionRate'
         ));
+    }
+
+    /**
+     * [label => net earnings] for each day from $from to $to (or each month when the range is over 62 days),
+     * in order, with ₱0 for days without sales; and the unit ('day' or 'month').
+     *
+     * @return array{0: \Illuminate\Support\Collection, 1: string}
+     */
+    private function trend(\Illuminate\Support\Collection $items, string $from, string $to): array
+    {
+        $start = \Carbon\Carbon::parse($from)->startOfDay();
+        $end   = \Carbon\Carbon::parse($to)->startOfDay();
+        $monthly = $start->diffInDays($end) + 1 > 62;
+        $unit  = $monthly ? 'month' : 'day';
+        if ($items->isEmpty()) {
+            return [collect(), $unit];
+        }
+
+        $label = fn (\Carbon\CarbonInterface $d) => $monthly ? $d->format('M Y') : $d->format('M d');
+        $series = [];
+        for ($d = $monthly ? $start->copy()->startOfMonth() : $start->copy(); $d->lte($end); $monthly ? $d->addMonthNoOverflow() : $d->addDay()) {
+            $series[$label($d)] = 0.0;
+        }
+        foreach ($items as $item) {
+            $key = $label($item->order->created_at);
+            if (array_key_exists($key, $series)) {
+                $series[$key] = round($series[$key] + (float) $item->seller_earning, 2);
+            }
+        }
+
+        return [collect($series), $unit];
     }
 }

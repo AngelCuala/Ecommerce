@@ -65,6 +65,7 @@ class LogisticsJson
             'vehicle_type'      => $r->vehicle_type,
             'plate_number'      => $r->plate_number,
             'area'              => $r->relationLoaded('area') ? $r->area?->name : null,
+            'barangays'         => $r->relationLoaded('areas') ? $r->areas->pluck('name')->values() : null,
             'area_id'           => $r->area_id,
             'application_status' => $r->application_status,
             'status_label'      => $r->statusLabel(),

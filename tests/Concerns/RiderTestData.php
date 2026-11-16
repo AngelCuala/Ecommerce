@@ -35,7 +35,7 @@ trait RiderTestData
 
         $this->rider1 = $this->riderAccount($this->logistics1, 'pedrojose.garcia@example.com', 'Pedro Jose Garcia', 'Rider@2026', 'Motorcycle', '123ABC',
             ['license_number' => 'N01-23-456789', 'license_expiry' => '2030-03-22', 'license_path' => 'rider-documents/pedro-license.jpg', 'or_cr_path' => 'rider-documents/pedro-orcr.pdf']);
-        $this->rider2 = $this->riderAccount($this->logistics1, 'markanthony.bautista@example.com', 'Mark Anthony Bautista', 'Hatid#Mark26', 'Van', 'NBC1234');
+        $this->rider2 = $this->riderAccount($this->logistics1, 'markanthony.bautista@example.com', 'Mark Anthony Bautista', 'Hatid#Mark26', 'Tricycle', 'NBC1234');
         $this->rider3 = $this->riderAccount($this->logistics1, 'rider.test01@example.com', 'Ramon Cruz', 'Rider@2026', 'Motorcycle', '456DEF', ['is_active' => false]);
         $this->agilaRider = $this->riderAccount($this->logistics2, 'rider.agila@example.com', 'Agila Rider', 'Rider@2026', 'Motorcycle', '999ZZZ');
 
@@ -69,7 +69,7 @@ trait RiderTestData
         }
     }
 
-    /** Seller 1's COD order for P-02 to ADDR-1 (₱450 + ₱50 shipping = ₱500.00), as a parcel at Logistics 1. */
+    /** Seller 1's COD order for P-02 to ADDR-1 (₱450 + ₱40 same-city shipping = ₱490.00), as a parcel at Logistics 1. */
     protected function parcel(string $status = 'pickup_approved', array $extra = [], ?Order $order = null, ?User $company = null): Parcel
     {
         $order ??= $this->placeOrder($this->buyer1, [$this->cart($this->buyer1, $this->p02)])->first();
@@ -99,10 +99,12 @@ trait RiderTestData
         return $d->fresh();
     }
 
-    protected function pickupFor(Rider $rider, ?Parcel $parcel = null): ParcelPickup
+    /** A pickup job given to the rider. $accepted: the rider already pressed Accept (needed before confirming the pickup). */
+    protected function pickupFor(Rider $rider, ?Parcel $parcel = null, bool $accepted = true): ParcelPickup
     {
         $parcel ??= $this->parcel();
-        return ParcelPickup::create(['parcel_id' => $parcel->id, 'rider_id' => $rider->id, 'sorting_center_id' => $parcel->current_sorting_center_id, 'status' => 'assigned']);
+        return ParcelPickup::create(['parcel_id' => $parcel->id, 'rider_id' => $rider->id, 'sorting_center_id' => $parcel->current_sorting_center_id, 'status' => 'assigned',
+            'acknowledged_at' => $accepted ? now() : null]);
     }
 
     protected function dispatcher(): RiderDispatch

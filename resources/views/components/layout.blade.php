@@ -3,6 +3,7 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
+    @include('partials.theme')
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{ $title }}</title>
     <meta name="csrf-token" content="{{ csrf_token() }}">
@@ -237,6 +238,7 @@
     <script src="{{ asset('js/toast.js') }}"></script>
 @endif
 
+@include('partials.confirm-remove')
 <script src="{{ asset('js/Buyer.js') }}"></script>
 
 <main class="flex-1">{{ $slot }}</main>
@@ -246,5 +248,6 @@
 @include('partials.chat-widget')
 <script src="{{ asset('js/prevent-back.js') }}"></script>
 <script src="{{ asset('js/logout-confirm.js') }}?v={{ filemtime(public_path('js/logout-confirm.js')) }}"></script>
+<script src="{{ asset('js/upload-progress.js') }}?v={{ filemtime(public_path('js/upload-progress.js')) }}" defer></script>
 </body>
 </html>
