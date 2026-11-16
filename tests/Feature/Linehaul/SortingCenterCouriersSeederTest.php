@@ -23,9 +23,9 @@ class SortingCenterCouriersSeederTest extends TestCase
         $this->seed(SortingCenterCouriersSeeder::class);   // running it again changes nothing
 
         $companies = User::where('role', 'sorting_center')->get();
-        $this->assertCount(6, $companies);
-        $this->assertSame(6, Courier::count());
-        $this->assertSame(['City of Calamba', 'City of Santa Rosa', 'City of Biñan', 'Los Baños', 'Luisiana', 'Santa Cruz'],
+        $this->assertCount(8, $companies);
+        $this->assertSame(8, Courier::count());
+        $this->assertSame(['City of Calamba', 'City of Santa Rosa', 'City of Biñan', 'Los Baños', 'Luisiana', 'Santa Cruz', 'Pagsanjan', 'Cavinti'],
             $companies->pluck('assigned_municipality')->all());
         foreach ($companies as $n => $sc) {
             $courier = Courier::where('sorting_center_id', $sc->id)->with('user', 'homeHub')->sole();

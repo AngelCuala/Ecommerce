@@ -348,6 +348,12 @@ class Order extends Model
             && now()->lte($this->returnDeadline());
     }
 
+    /** The buyer can ask for a return now: within the return window, and no request is already waiting for the seller. */
+    public function canRequestReturn(): bool
+    {
+        return $this->returnWindowOpen() && ! $this->returnRequests->where('status', 'requested')->count();
+    }
+
     /** Reviews: only for completed orders, within Review::REVIEW_DAYS of completion. */
     public function reviewWindowOpen(): bool
     {

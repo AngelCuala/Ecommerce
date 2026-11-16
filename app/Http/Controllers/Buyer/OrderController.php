@@ -114,6 +114,12 @@ class OrderController extends Controller
             $order->update(['status' => Order::IN_DISPUTE]);
         });
         \App\Models\ActivityLog::note('Order ' . $order->number() . ' return escalated to a dispute', $order);
+        // Every admin hears about it, with a link to the case (Admin → Return Disputes).
+        foreach (\App\Models\User::where('role', 'admin')->pluck('id') as $adminId) {
+            \App\Models\UserNotification::create(['user_id' => $adminId, 'type' => 'warning', 'title' => 'Return dispute to decide',
+                'body' => $order->number() . ': the buyer disputes the seller\'s rejection (' . $return->reason . ').' . (! empty($data['dispute_note']) ? ' "' . \Illuminate\Support\Str::limit($data['dispute_note'], 120) . '"' : ''),
+                'link' => route('admin.disputes.show', $return->id, false)]);
+        }
 
         return back()->with('success', 'Your request was escalated. ALVY will review it and decide; the order is now In Dispute.');
     }

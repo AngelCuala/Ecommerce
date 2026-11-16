@@ -66,9 +66,9 @@ class RiderWalletTest extends TestCase
         $this->wallet250();
 
         // Checks first: too little, more than the wallet, a bad GCash number.
-        $this->cashout(['amount' => 50])->assertSessionHasErrors('amount');
+        $this->cashout(['amount' => 0])->assertSessionHasErrors('amount');   // no minimum, but more than ₱0
         $this->cashout(['amount' => 300])->assertSessionHas('error', fn ($m) => str_contains($m, '₱250.00'));
-        $this->cashout(['gcash_number' => '12345'])->assertSessionHasErrors('gcash_number');
+        $this->cashout(['gcash_number' => '12345'])->assertSessionHasErrors('account_number');
 
         $this->cashout()->assertSessionHas('success', fn ($m) => str_contains($m, '₱200.00'));
         $this->assertSame(50.0, $wallet->walletBalance($this->rider1));   // taken out at once
@@ -86,7 +86,7 @@ class RiderWalletTest extends TestCase
         $this->assertSame(50.0, $wallet->walletBalance($this->rider1));
         $this->actingAs($this->logistics1)->from(route('sc.rider-pay'))->post(route('sc.rider-pay.cashout.reject', $c), ['reason' => 'Changed my mind'])
             ->assertSessionHas('error');   // already paid
-        $this->actingAs($this->rider1->user)->get(route('courier.rider.wallet'))->assertOk()->assertSee('Sent to GCash')->assertSee('1234567890');
+        $this->actingAs($this->rider1->user)->get(route('courier.rider.wallet'))->assertOk()->assertSee('Completed')->assertSee('1234567890');
     }
 
     public function test_a_rejected_cash_out_goes_back_into_the_wallet(): void

@@ -113,7 +113,7 @@ class LinehaulTripsTest extends TestCase
         $this->as($c)->postJson("/api/v1/linehaul/trips/{$trip->id}/scan", ['tracking' => $parcels[0]->tracking_number])->assertJsonValidationErrors(['tracking' => 'already loaded']);
         $this->as($c)->postJson("/api/v1/linehaul/trips/{$trip->id}/scan", ['tracking' => 'TRK-0000000'])->assertJsonValidationErrors(['tracking' => 'not found']);
         $other = $this->parcel('picked_up', ['current_hub_id' => $this->hubQc->id]);
-        $this->as($c)->postJson("/api/v1/linehaul/trips/{$trip->id}/scan", ['tracking' => $other->tracking_number])->assertJsonValidationErrors(['tracking' => 'not in this trip']);
+        $this->as($c)->postJson("/api/v1/linehaul/trips/{$trip->id}/scan", ['tracking' => $other->tracking_number])->assertJsonValidationErrors(['tracking' => "isn't on any trip yet"]);
 
         $this->as($c)->postJson("/api/v1/linehaul/trips/{$trip->id}/depart", $this->at(self::AT_QC))
             ->assertJsonValidationErrors(['trip' => $parcels[4]->tracking_number]);

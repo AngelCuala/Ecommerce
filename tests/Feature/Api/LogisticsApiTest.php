@@ -189,7 +189,7 @@ class LogisticsApiTest extends TestCase
             'expected_amount' => 500, 'status' => 'pending', 'request_token' => (string) \Illuminate\Support\Str::uuid()]);
         $this->assertSame('pending', $this->api('GET', '/remittances')->assertOk()->json('data.0.status'));
         $this->api('POST', "/remittances/{$remit->id}/confirm")->assertOk()
-            ->assertJsonPath('message', 'Remittance confirmed. Shortfall of ₱50.00 flagged.')->assertJsonPath('data.0.status', 'confirmed');
+            ->assertJsonPath('message', fn ($m) => str_contains($m, 'Short by ₱50.00'))->assertJsonPath('data.0.status', 'confirmed');
 
         // A courier who applied to this company.
         $u = User::create(['name' => 'Mario Santos', 'email' => 'mario@example.com', 'password' => bcrypt('x'), 'role' => 'courier_pending', 'approval_status' => 'pending']);

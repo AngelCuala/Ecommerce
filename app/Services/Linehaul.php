@@ -46,9 +46,14 @@ class Linehaul
         }
     }
 
+    /**
+     * Truck couriers are paid by their company (salary), not per trip or per parcel: the shipping fee is split
+     * 30/30/40 between the pickup rider, the delivery rider and the hubs (RiderDispatch, SortingCenterCommission).
+     * PAY is kept for trips paid before.
+     */
     public static function payFor(Courier $courier): float
     {
-        return self::PAY[$courier->vehicle_type] ?? 0.0;
+        return now()->lt(RiderDispatch::shareSince()) ? (self::PAY[$courier->vehicle_type] ?? 0.0) : 0.0;
     }
 
     /**
@@ -213,6 +218,32 @@ class Linehaul
             ->orderBy('first_name')->get();
     }
 
+    /**
+     * Every truck of the company for the trip page's "Assign" list, like the riders' list: on duty first, then offline
+     * (they can still be given the trip by hand; they see it when they go On Duty), then the ones that can't take it
+     * now, with why. Each: {courier, available, on_duty, why}. Auto-assign still uses only assignable() (on duty).
+     */
+    public function assignChoices(User $sc, LinehaulTrip $trip): Collection
+    {
+        $weight = $trip->weightKg();
+
+        return Courier::where('sorting_center_id', $sc->id)->whereNotNull('home_hub_id')->whereIn('status', ['approved', 'suspended'])
+            ->orderBy('first_name')->get()
+            ->reject(fn (Courier $c) => (int) $trip->courier_id === $c->id)
+            ->map(function (Courier $c) use ($trip, $weight) {
+                $busy = $c->activeTrip();
+                $why = match (true) {
+                    $c->status !== 'approved'                              => 'suspended',
+                    $busy && $busy->id !== $trip->id                       => 'on ' . $busy->code,
+                    $c->load_capacity_kg && $weight > $c->load_capacity_kg => "carries up to {$c->load_capacity_kg} kg",
+                    default                                                => null,
+                };
+
+                return (object) ['courier' => $c, 'available' => $why === null, 'on_duty' => $c->isOnDutyNow(), 'why' => $why];
+            })
+            ->sortBy(fn ($x) => [$x->available ? 0 : 1, $x->on_duty ? 0 : 1, $x->courier->first_name])->values();
+    }
+
     /** Assign (or reassign) the trip to a courier. In Transit only after a Vehicle breakdown report. */
     public function assign(User $sc, LinehaulTrip $trip, int $courierId, ?string $reason = null): LinehaulTrip
     {
@@ -238,7 +269,7 @@ class Linehaul
             }
             $problem = match (true) {
                 $courier->status !== 'approved'                  => "{$courier->fullName()} is not active (" . $courier->status . ').',
-                ! $courier->isOnDutyNow()                        => "{$courier->fullName()} is Off Duty (or the app is offline) and cannot be assigned.",
+                // An offline (Off Duty) truck may be given the trip by hand: they see it when they go On Duty.
                 (bool) $courier->activeTrip()                    => "{$courier->fullName()} already has a trip ({$courier->activeTrip()->code}).",
                 $courier->load_capacity_kg && $trip->weightKg() > $courier->load_capacity_kg
                                                                  => "{$trip->code} weighs {$trip->weightKg()} kg, more than {$courier->fullName()}'s {$courier->load_capacity_kg} kg.",
@@ -267,7 +298,9 @@ class Linehaul
                 $trip->log('reassigned_away', $reason, ['courier_id' => $previous->id, 'old_value' => $previous->fullName(), 'new_value' => $courier->fullName()]);
                 $this->notify($previous->user_id, "{$trip->code} was reassigned", "{$trip->code} ({$trip->route()}) was given to another courier" . ($reason ? ": $reason" : '.') . ' It no longer pays you.');
             }
-            $this->notify($courier->user_id, "New trip {$trip->code}", "{$trip->route()}, {$trip->onBoard()->count()} parcel(s), pays ₱" . number_format(self::payFor($courier), 2)
+            $pay = self::payFor($courier);   // ₱0 since the 30/30/40 split: the company pays its trucks
+            $this->notify($courier->user_id, "New trip {$trip->code}", "{$trip->route()}, {$trip->onBoard()->count()} parcel(s)"
+                . ($pay > 0 ? ', pays ₱' . number_format($pay, 2) : '')
                 . ($inTransit ? '. Scan every parcel again before continuing.' : '. Open it to accept or decline.'));
 
             return $trip;
@@ -461,6 +494,22 @@ class Linehaul
         return $trip;
     }
 
+    /**
+     * Why a scanned parcel can't go on this truck, in words the courier can act on: it is on another trip (named, with
+     * where that one goes), or on no trip yet. Loading it here would take it to the wrong hub.
+     */
+    private function notOnTrip(LinehaulTrip $trip, Parcel $parcel): string
+    {
+        $here = "{$parcel->tracking_number} is not on {$trip->code} (to " . ($trip->destination?->code ?? 'its hub') . ')';
+        $other = LinehaulTrip::whereNotIn('status', ['cancelled', ...LinehaulTrip::DONE])->whereKeyNot($trip->id)
+            ->whereHas('items', fn ($q) => $q->where('parcel_id', $parcel->id)->whereIn('status', ['pending', 'loaded']))
+            ->with('destination')->latest('id')->first();
+
+        return $other
+            ? "$here. It belongs to {$other->code}, going to " . ($other->destination?->code ?? 'another hub') . '. Leave it for that trip.'
+            : "$here. It isn't on any trip yet: ask the hub to add it to a trip first.";
+    }
+
     /** Scan (or type) a waybill while loading — or again after a reassignment in transit. */
     public function scan(Courier $c, int $id, string $tracking): array
     {
@@ -471,7 +520,7 @@ class Linehaul
         }
         $parcel = $this->findParcel($tracking);
         $tracking = $parcel->tracking_number;   // messages name the tracking number, whichever code was scanned
-        $item = $trip->onBoard()->where('parcel_id', $parcel->id)->first() ?? $this->fail('tracking', "$tracking is not in this trip.");
+        $item = $trip->onBoard()->where('parcel_id', $parcel->id)->first() ?? $this->fail('tracking', $this->notOnTrip($trip, $parcel));
         if ($item->status === 'loaded') {
             $this->fail('tracking', "$tracking is already loaded.");
         }
@@ -666,7 +715,7 @@ class Linehaul
             $trip->log($discrepancy ? 'completed_discrepancy' : 'completed', null, ['new_value' => number_format($pay, 2)]);
             if ($courier) {
                 $courier->increment('total_earnings', $pay);
-                $this->notify($courier->user_id, "{$trip->code} completed", '₱' . number_format($pay, 2) . " earned for {$trip->route()}."
+                $this->notify($courier->user_id, "{$trip->code} completed", "{$trip->route()} was received."
                     . ($discrepancy ? ' There was a discrepancy: open the trip and add your note.' : ''));
             }
             if ($discrepancy) {

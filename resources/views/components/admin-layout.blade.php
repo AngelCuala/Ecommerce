@@ -131,9 +131,13 @@ $navSections = [
                                           'badge' => \App\Models\Order::where('status', \App\Models\Order::AWAITING_PAYMENT)->where('payment_method', \App\Models\Order::GCASH_RECEIPT)
                                               ->where('payment_status', 'For verification')->distinct()->count('checkout_group')
                                               + \App\Models\Order::where('payment_method', \App\Models\Order::GCASH_RECEIPT)->where('payment_status', 'Refund pending')->count()],
+                'seller-payouts'      => ['route' => 'admin.seller-payouts.index',      'label' => 'Seller Payouts',               'icon' => 'wallet',
+                                          'badge' => \App\Models\SellerPayout::where('status', 'pending')->count()],
                 'product-approvals'   => ['route' => 'admin.product-approvals.index',   'label' => 'Approvals',                    'icon' => 'box',
                                           'also' => ['seller-applications', 'sc-applications'],
                                           'badge' => \App\Models\Product::awaitingApproval()->where('is_archived', false)->count()],
+                'disputes'            => ['route' => 'admin.disputes.index',            'label' => 'Return Disputes',              'icon' => 'flag',
+                                          'badge' => \App\Services\ReturnDecisions::openDisputes()->count()],
                 'compliance'          => ['route' => 'admin.compliance.index',          'label' => 'Reports & Complaints',         'icon' => 'flag'],
             ],
             'System' => [

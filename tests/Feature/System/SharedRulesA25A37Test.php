@@ -128,7 +128,7 @@ class SharedRulesA25A37Test extends TestCase
         $this->moveTo($this->placeOrder($this->buyer1, [$this->cart($this->buyer1, $this->p03)])->first(), Order::COMPLETED);
         $ask = fn ($amount) => $this->actingAs($this->seller1)->post(route('seller.earnings.payout'), ['amount' => $amount, 'request_token' => (string) Str::uuid()]);
         $ask('100.00')->assertSessionHasNoErrors();
-        $ask('100.00')->assertSessionHasErrors(['amount' => 'You already have a payout request waiting. You can request another once it is paid.']);
+        $ask('100.00')->assertSessionHasErrors(['amount' => 'You already have a withdrawal processing. You can withdraw again once ALVY sends it.']);
         $this->assertSame(1, SellerPayout::count());
     }
 

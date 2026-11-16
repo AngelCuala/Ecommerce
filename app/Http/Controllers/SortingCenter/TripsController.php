@@ -157,9 +157,8 @@ class TripsController extends Controller
         $sender   = (int) $trip->sorting_center_id === $me;
         $receiver = $trip->receiverId() === $me;
         $open = $sender && in_array($trip->status, LinehaulTrip::BEFORE_DEPARTURE, true);
-        $couriers = $open ? $this->linehaul->assignable($this->me(), $trip) : collect();
-        $offDuty = $open ? \App\Models\Courier::where('sorting_center_id', $me)->whereNotNull('home_hub_id')->where('status', 'approved')
-            ->whereNotIn('id', $couriers->pluck('id'))->orderBy('first_name')->get() : collect();
+        // Every truck of the company: on duty, offline (still assignable by hand) and busy ones (with why).
+        $courierChoices = $open ? $this->linehaul->assignChoices($this->me(), $trip) : collect();
         // Parcels that can still go on the trip; the ones whose nearest hub is this destination come first.
         $addable = $open ? $this->linehaul->eligibleParcels($this->me(), $trip->origin)->load('order')
             ->each(fn (Parcel $p) => $p->best_hub = $this->linehaul->bestHubFor($p, $this->me())?->load('company'))
@@ -169,7 +168,7 @@ class TripsController extends Controller
         $destinations = $open ? LogisticsHub::with('company')->where('sorting_center_id', '!=', $me)->get()
             ->sortBy(fn ($h) => SortingCenters::nameOf($h->company) . ' ' . $h->code)->values() : collect();
 
-        return view('sc.trip-show', compact('trip', 'items', 'events', 'messages', 'last', 'sender', 'receiver', 'couriers', 'offDuty', 'addable', 'destinations'));
+        return view('sc.trip-show', compact('trip', 'items', 'events', 'messages', 'last', 'sender', 'receiver', 'courierChoices', 'addable', 'destinations'));
     }
 
     /** The sending company assigns (or reassigns) its On Duty courier. */

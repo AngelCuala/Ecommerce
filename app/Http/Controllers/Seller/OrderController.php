@@ -236,34 +236,14 @@ class OrderController extends Controller
         ]);
         \App\Models\ActivityLog::change('Return requested', $approved ? 'Return approved' : 'Return rejected', $data['seller_note'] ?? null);
 
-        if ($approved && $return->isPartial()) {
-            // A8: only these items are refunded; the rest of the order goes on as delivered.
-            \Illuminate\Support\Facades\DB::transaction(function () use ($order, $return) {
-                foreach (OrderItem::where('order_id', $order->id)->whereIn('id', $return->item_ids)->get() as $item) {
-                    $item->forceFill(['refunded_at' => now(), 'refund_amount' => \App\Models\ReturnRequest::itemRefund($item)])->save();
-                }
-                $order->forceFill(['status' => Order::DELIVERED])->saveQuietly();
-                $order->events()->create(['status' => Order::DELIVERED, 'note' => 'Partial refund of ₱' . number_format($return->refund_amount, 2) . ' approved', 'created_at' => now()]);
-                if ($order->isPaidOnline()) {
-                    app(\App\Services\PaymentService::class)->refund($order, 'Partial return approved', (float) $return->refund_amount);
-                } else {
-                    $order->forceFill(['refunded_amount' => (float) $order->refunded_amount + (float) $return->refund_amount])->saveQuietly();
-                }
-                \App\Models\UserNotification::create(['user_id' => $order->user_id, 'title' => 'Partial refund approved', 'type' => 'success',
-                    'body' => 'The seller approved your return for order ' . $order->number() . '. ₱' . number_format($return->refund_amount, 2)
-                        . ($order->isPaidOnline() ? ' goes back to your payment method.' : ' goes to your refund account.'),
-                    'link' => route('profile.orders.show', $order->id, false)]);
-            });
-
-            return back()->with('success', 'Partial return approved. The buyer will be refunded ₱' . number_format($return->refund_amount, 2) . '.');
+        if ($approved) {
+            return back()->with('success', app(\App\Services\ReturnDecisions::class)->approve($return, 'The seller'));
         }
 
-        // Approved: refunded. Rejected: back to Delivered, so the buyer can still confirm it.
-        // A COD order's refund goes to the buyer's refund account (A31): record it like the gateway does for online orders.
-        $order->update(['status' => $approved ? Order::REFUNDED : Order::DELIVERED]
-            + ($approved && ! $order->isPaidOnline() ? ['refunded_amount' => (float) $return->refund_amount] : []));
+        // Rejected: back to Delivered, so the buyer can still confirm it (or escalate it to ALVY).
+        $order->update(['status' => Order::DELIVERED]);
 
-        return back()->with('success', $approved ? 'Return approved. The buyer will be refunded.' : 'Return rejected. The buyer was told why.');
+        return back()->with('success', 'Return rejected. The buyer was told why.');
     }
 
     /** Schedule courier pickup & create/update delivery record */

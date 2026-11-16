@@ -59,6 +59,12 @@
                                     <button class="pf-btn !py-1.5 px-4 text-sm" onclick="return confirm('Confirm you received this order? It will be marked completed.')">Order Received</button>
                                 </form>
                             @endif
+                            @if ($order->canRequestReturn())
+                                <button type="button" class="pf-btn-ghost !py-1.5 px-4 text-sm" style="border:1px solid #FBD5C5;color:#fa4e1c;" data-open-return="{{ $order->id }}"
+                                        onclick="document.getElementById('return-dialog-{{ $order->id }}').showModal()">Return/Refund</button>
+                            @elseif ($order->returnRequests->isNotEmpty())
+                                <a href="{{ route('profile.orders.show', $order->id) }}#return" class="pf-btn-ghost text-sm" style="color:#fa4e1c;">Return status</a>
+                            @endif
                             @if ($order->status === \App\Models\Order::COMPLETED && $order->reviewWindowOpen() && $order->items->contains(fn ($i) => ! $i->review))
                                 <a href="{{ route('profile.orders.show', $order->id) }}#rate" class="pf-btn !py-1.5 px-4 text-sm">Rate</a>
                             @endif
@@ -66,6 +72,9 @@
                         </div>
                     </div>
                 </article>
+                @if ($order->canRequestReturn())
+                    @include('profile._return-modal', ['order' => $order])
+                @endif
             @empty
                 <div class="pf-card p-10 text-center">
                     <p class="font-semibold" style="color:#222;">No orders here yet</p>

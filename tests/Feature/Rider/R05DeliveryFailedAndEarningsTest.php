@@ -289,7 +289,7 @@ class R05DeliveryFailedAndEarningsTest extends TestCase
         $this->assertEquals([1700, 100], [(float) $remit->amount, (float) $remit->pay_kept]);   // the rider kept their ₱100 pay
         $this->assertEquals(1700, $this->wallet()->pendingRemittance($this->rider1));
 
-        $this->actingAs($this->logistics1)->post(route('sc.remittances.confirm', $remit))->assertSessionHas('success', 'Remittance confirmed.');
+        $this->actingAs($this->logistics1)->post(route('sc.remittances.confirm', $remit))->assertSessionHas('success', fn ($m) => str_starts_with($m, 'Remittance confirmed'));
         $this->assertEquals(0, $this->wallet()->codBalance($this->rider1));
         $this->actingAs($this->rider1->user)->get(route('courier.rider.cod'))->assertSee('Confirmed');
 

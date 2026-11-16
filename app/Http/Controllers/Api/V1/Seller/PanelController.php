@@ -154,7 +154,14 @@ class PanelController extends Controller
             'balances' => $d['balances'],
             'minimum_payout' => \App\Models\SellerPayout::MINIMUM,
             'payouts'  => $d['payouts']->map(fn ($p) => ['id' => $p->id, 'amount' => (float) $p->amount, 'status' => $p->status,
+                'status_label' => $p->statusLabel(), 'destination' => $p->destination(), 'reference' => $p->reference, 'reject_reason' => $p->reject_reason,
                 'created_at' => $p->created_at?->toIso8601String(), 'paid_at' => $p->paid_at?->toIso8601String()])->values(),
+            'ledger'   => collect($d['ledger']->items())->map(fn ($l) => ['id' => $l->id, 'type' => $l->type, 'order_id' => $l->order_id,
+                'order_number' => $l->order?->number(), 'amount' => (float) $l->amount, 'status' => $l->status, 'status_label' => $l->statusLabel(),
+                'release_at' => $l->release_at?->toIso8601String(), 'earned_at' => $l->earned_at?->toIso8601String()])->values(),
+            'accounts' => $d['accounts']->map(fn ($a) => ['id' => $a->id, 'method' => $a->method, 'bank_name' => $a->bank_name,
+                'account_name' => $a->account_name, 'account_number' => $a->account_number, 'label' => $a->label()])->values(),
+            'methods'  => \App\Models\PayoutAccount::METHODS,
             'request_token' => $d['token'],
         ]);
     }

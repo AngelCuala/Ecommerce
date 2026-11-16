@@ -4,96 +4,83 @@ namespace App\Http\Controllers\Seller;
 
 use App\Http\Controllers\Controller;
 use App\Models\Order;
-use App\Models\OrderItem;
+use App\Models\PayoutAccount;
 use App\Models\Product;
 use App\Models\SellerPayout;
+use App\Models\SellerWalletEntry;
+use App\Services\SellerWallet;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 /**
- * Earnings: Pending until the order is Completed, then Available (assumption A15).
- * Cancelled and refunded orders never count. Available money can be requested as a payout
- * (minimum SellerPayout::MINIMUM).
+ * Earnings & Payouts: the seller wallet ledger (PAYMENTS_SPEC §5, §7, App\Services\SellerWallet). Each delivered order
+ * is a line: On hold during the return window (with its expected release date), Available once completed, Reversed
+ * when refunded. The seller withdraws any amount of the available balance (no minimum, no fee) to a saved GCash,
+ * Maya or bank account; ALVY sends it.
  */
 class EarningsController extends Controller
 {
+    public function __construct(private SellerWallet $wallet) {}
+
     public function index()
     {
-        $balances = $this->balances(auth()->id());
+        $sellerId = auth()->id();
+        $balances = $this->balances($sellerId);   // also brings the ledger up to date
 
-        $productIds = Product::withTrashed()->where('seller_id', auth()->id())->pluck('id');
+        $productIds = Product::withTrashed()->where('seller_id', $sellerId)->pluck('id');
         $orders = Order::whereHas('items', fn ($q) => $q->whereIn('product_id', $productIds))
             ->whereNotIn('status', Order::NOT_SALES)
             ->with(['items' => fn ($q) => $q->whereIn('product_id', $productIds)->whereNull('refunded_at')])
             ->latest()->paginate(20);
 
-        $payouts = SellerPayout::where('seller_id', auth()->id())->latest()->take(20)->get();
-        $token   = (string) Str::uuid();
+        $ledger = SellerWalletEntry::where('seller_id', $sellerId)->with('order')->latest('earned_at')->latest('id')->paginate(20, ['*'], 'ledger');
+        $payouts = SellerPayout::where('seller_id', $sellerId)->latest()->take(20)->get();
+        $accounts = PayoutAccount::where('user_id', $sellerId)->latest('updated_at')->get();
+        $token = (string) Str::uuid();
 
-        return view('seller.earnings.index', compact('balances', 'orders', 'payouts', 'token'));
+        return view('seller.earnings.index', compact('balances', 'orders', 'ledger', 'payouts', 'accounts', 'token'));
     }
 
+    /** amount, request_token, and payout_account_id or a new account (method, bank_name, account_number, account_name). */
     public function requestPayout(Request $request)
     {
         $data = $request->validate([
             'amount'        => ['required', 'numeric', 'decimal:0,2', 'min:' . SellerPayout::MINIMUM],
             'request_token' => 'required|uuid',
         ], [
-            'amount.min'     => 'The minimum payout is ₱' . number_format(SellerPayout::MINIMUM, 2) . '.',
+            'amount.min'     => 'Enter an amount above ₱0.',
             'amount.decimal' => 'Enter an amount with up to 2 decimal places.',
         ]);
+        $sellerId = auth()->id();
 
         // The same form sent twice (double click): only the first creates a request.
         if (SellerPayout::where('request_token', $data['request_token'])->exists()) {
-            return redirect()->route('seller.earnings')->with('success', 'Your payout request was already sent.');
+            return redirect()->route('seller.earnings')->with('success', 'Your withdrawal was already sent.');
+        }
+        $account = null;   // an older app sends only the amount: ALVY asks the seller where to send it
+        if ($request->filled('payout_account_id')) {
+            $account = PayoutAccount::where('user_id', $sellerId)->findOrFail((int) $request->payout_account_id);
+        } elseif ($request->hasAny(['method', 'account_number'])) {
+            $acc = $request->validate(PayoutAccount::rules(), ['account_name.required' => 'Enter the name on the account.',
+                'bank_name.required_if' => 'Enter the bank name.', 'method.required' => 'Choose where to send it: GCash, Maya or a bank.']);
+            $account = PayoutAccount::updateOrCreate(['user_id' => $sellerId, 'method' => $acc['method'], 'account_number' => $acc['account_number']],
+                ['account_name' => trim($acc['account_name']), 'bank_name' => $acc['method'] === 'bank' ? trim((string) $acc['bank_name']) : null]);
         }
 
-        $sellerId = auth()->id();
+        try {
+            $payout = $this->wallet->requestPayout($sellerId, (float) $data['amount'], $account, $data['request_token']);
+        } catch (\RuntimeException $e) {
+            return back()->withInput()->withErrors(['amount' => $e->getMessage()]);
+        }
+        $account?->touch();
 
-        return Cache::lock('seller-payout:' . $sellerId, 10)->block(8, function () use ($data, $sellerId) {
-            if (SellerPayout::where('request_token', $data['request_token'])->exists()) {
-                return redirect()->route('seller.earnings')->with('success', 'Your payout request was already sent.');
-            }
-            if (SellerPayout::where('seller_id', $sellerId)->where('status', 'pending')->exists()) {
-                return back()->withInput()->withErrors(['amount' => 'You already have a payout request waiting. You can request another once it is paid.']);
-            }
-            $available = $this->balances($sellerId)['available'];
-            if (round((float) $data['amount'], 2) > round($available, 2)) {
-                return back()->withInput()->withErrors(['amount' => 'You can request up to your available balance of ₱' . number_format($available, 2) . '.']);
-            }
-
-            $payout = DB::transaction(fn () => SellerPayout::create([
-                'seller_id'     => $sellerId,
-                'amount'        => round((float) $data['amount'], 2),
-                'status'        => 'pending',
-                'request_token' => $data['request_token'],
-            ]));
-            \App\Models\ActivityLog::note('Payout request ₱' . number_format($payout->amount, 2), $payout);
-
-            return redirect()->route('seller.earnings')->with('success', 'Payout of ₱' . number_format($payout->amount, 2) . ' requested. It shows as a pending payout until ALVY sends it.');
-        });
+        return redirect()->route('seller.earnings')->with('success', 'Withdrawal of ₱' . number_format((float) $payout->amount, 2)
+            . ' is processing. ALVY sends it to your ' . ($payout->destination() ?? 'account') . '.');
     }
 
-    /** ['pending' => not-yet-completed earnings, 'completed' => all completed earnings, 'paid_out' => requested payouts, 'available' => completed - payouts]. */
+    /** See SellerWallet::balances(). */
     public function balances(int $sellerId): array
     {
-        $productIds = Product::withTrashed()->where('seller_id', $sellerId)->pluck('id');
-        $sum = fn (callable $scope) => (float) OrderItem::whereIn('product_id', $productIds)->whereNull('refunded_at')
-            ->whereHas('order', $scope)->sum('seller_earning');
-
-        $completed = $sum(fn ($q) => $q->where('status', Order::COMPLETED));
-        $pending   = $sum(fn ($q) => $q->whereNotIn('status', array_merge(Order::NOT_SALES, [Order::COMPLETED])));
-        $requested = (float) SellerPayout::where('seller_id', $sellerId)->whereIn('status', ['pending', 'paid'])->sum('amount');
-        $pendingPayout = (float) SellerPayout::where('seller_id', $sellerId)->where('status', 'pending')->sum('amount');
-
-        return [
-            'pending'        => round($pending, 2),
-            'completed'      => round($completed, 2),
-            'requested'      => round($requested, 2),
-            'pending_payout' => round($pendingPayout, 2),
-            'available'      => round(max(0, $completed - $requested), 2),
-        ];
+        return $this->wallet->balances($sellerId);
     }
 }

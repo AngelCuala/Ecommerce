@@ -45,7 +45,7 @@ class RiderController extends Controller
             ])->values(),
             'recent'     => collect($d['recent'] ?? [])->map(fn ($x) => RiderJson::deliveryRow($x))->values(),
             'decline_reasons' => [],   // barangay jobs cannot be declined (the hub reassigns them)
-            'pay'        => ['pickup' => RiderDispatch::PAY_PICKUP, 'delivery' => RiderDispatch::PAY_DELIVERY],
+            'pay'        => RiderDispatch::payRates(),
         ]);
     }
 
@@ -211,7 +211,7 @@ class RiderController extends Controller
             'today_jobs' => $d['today']->count(),
             'today_pay'  => (float) $d['todayPay'],
             'week_pay'   => round((float) $d['weekPay'], 2),
-            'pay'        => ['pickup' => RiderDispatch::PAY_PICKUP, 'delivery' => RiderDispatch::PAY_DELIVERY],
+            'pay'        => RiderDispatch::payRates(),
         ]);
     }
 
@@ -240,22 +240,30 @@ class RiderController extends Controller
         $e = fn (\App\Models\RiderWalletEntry $x) => ['id' => $x->id, 'type' => $x->type, 'type_label' => $x->typeLabel(), 'note' => $x->note,
             'status' => $x->status, 'status_label' => $x->statusLabel(), 'amount' => (float) $x->amount, 'reference' => $x->reference,
             'reject_reason' => $x->reject_reason, 'gcash_number' => $x->gcash_number, 'from' => $x->sortingCenter ? \App\Support\SortingCenters::displayName($x->sortingCenter) : null,
-            'at' => $x->created_at?->toIso8601String()];
+            'tracking' => $x->parcel?->tracking_number, 'source' => $x->source_type, 'source_id' => $x->source_id, 'destination' => $x->destination(),
+            'at' => ($x->earned_at ?? $x->created_at)?->toIso8601String()];
 
         return response()->json([
             'company'  => $d['rider']->companyName(),
             'balance'  => (float) $d['balance'],
+            // PAYMENTS_SPEC: available (can withdraw), held (remittance short), expected (COD not remitted), cash to remit (not pay).
+            'available' => (float) $d['balances']['available'], 'held' => (float) $d['balances']['held'],
+            'expected' => (float) $d['balances']['expected'], 'cash_to_remit' => (float) $d['balances']['cash_to_remit'],
+            'expected_jobs' => $d['expected']->map(fn ($j) => ['at' => $j['at']?->toIso8601String(), 'tracking' => $j['tracking'], 'pay' => $j['pay'], 'cod' => $j['cod']])->values(),
+            'accounts' => $d['accounts']->map(fn ($a) => ['id' => $a->id, 'method' => $a->method, 'bank_name' => $a->bank_name, 'account_name' => $a->account_name,
+                'account_number' => $a->account_number, 'label' => $a->label()])->values(),
+            'methods' => \App\Models\PayoutAccount::METHODS,
             'to_send'  => (float) $d['toSend'],
             'unsent'   => $d['unsent']->map(fn ($r) => RiderJson::walletRow($r))->values(),
             'entries'  => collect($d['entries']->items())->map($e)->values(),
             'pending_cashout' => $d['pendingCashout'] ? $e($d['pendingCashout']) : null,
             'last_gcash' => $d['lastGcash'] ? ['number' => $d['lastGcash']->gcash_number, 'name' => $d['lastGcash']->gcash_name] : null,
             'cashout_min' => \App\Services\RiderWallet::CASHOUT_MIN,
-            'pay' => ['pickup' => RiderDispatch::PAY_PICKUP, 'delivery' => RiderDispatch::PAY_DELIVERY],
+            'pay' => RiderDispatch::payRates(),
         ]);
     }
 
-    /** amount, gcash_number (09XXXXXXXXX), gcash_name. */
+    /** amount, and payout_account_id or a new account (method gcash/maya/bank, bank_name, account_number, account_name); gcash_number + gcash_name still work. */
     public function cashout(): JsonResponse
     {
         $json = $this->actionJson($this->web(WebRider::class, 'cashout'));

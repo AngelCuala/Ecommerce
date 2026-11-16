@@ -309,7 +309,7 @@ class RiderController extends Controller
             $svc->notifyBuyer($parcel, 'Order picked up', "{$svc->orderRef($parcel)} was picked up from the seller and is on its way to our hub.");
             \App\Models\ActivityLog::note('Picked up ' . $parcel->tracking_number, $parcel);
 
-            return redirect()->route('courier.rider')->with('success', "{$parcel->tracking_number} picked up. You earned ₱" . number_format(RiderDispatch::PAY_PICKUP, 2) . '. Bring it to the hub.');
+            return redirect()->route('courier.rider')->with('success', "{$parcel->tracking_number} picked up. You earned ₱" . number_format(RiderDispatch::pickupPay($parcel), 2) . '. Bring it to the hub.');
         });
     }
 
@@ -397,7 +397,7 @@ class RiderController extends Controller
             \App\Models\ActivityLog::note('Delivered ' . $parcel->tracking_number, $parcel);
         });
 
-        return redirect()->route('courier.rider')->with('success', 'Delivered. You earned ₱' . number_format(RiderDispatch::PAY_DELIVERY, 2)
+        return redirect()->route('courier.rider')->with('success', 'Delivered. You earned ₱' . number_format(RiderDispatch::deliveryPay($delivery->parcel), 2)
             . ($cod ? ' and collected ₱' . number_format($delivery->cod_amount, 2) . ' COD to remit.' : '.'));
     }
 
@@ -568,38 +568,53 @@ class RiderController extends Controller
             return redirect()->route('courier.trips.pay');
         }
 
+        $b = $this->wallet->balances($rider);   // also adds any missing ledger lines
+
         return view('courier.rider.wallet', [
-            'rider'   => $rider,
-            'balance' => $this->wallet->walletBalance($rider),
-            'toSend'  => $this->wallet->toSend($rider),
-            'unsent'  => $this->wallet->unsentJobs($rider),
-            'entries' => $rider->walletEntries()->with('sortingCenter')->latest('id')->paginate(20),
+            'rider'    => $rider,
+            'balance'  => $b['available'],
+            'balances' => $b,
+            'expected' => $this->wallet->expectedJobs($rider),
+            'toSend'   => $b['to_send'],
+            'unsent'   => $this->wallet->unsentJobs($rider),
+            'entries'  => $rider->walletEntries()->with('sortingCenter', 'parcel')->orderByRaw('COALESCE(earned_at, created_at) DESC')->latest('id')->paginate(20),
             'pendingCashout' => $this->wallet->pendingCashout($rider),
             'lastGcash' => $rider->walletEntries()->where('type', 'cashout')->latest('id')->first(['gcash_number', 'gcash_name']),
+            'accounts' => \App\Models\PayoutAccount::where('user_id', $rider->user_id)->latest('updated_at')->get(),
         ]);
     }
 
-    /** Cash out from the wallet to the rider's GCash; their logistics company sends it. */
+    /**
+     * Withdraw any amount up to the available balance (no minimum, no fee) to a saved GCash, Maya or bank account, or a
+     * new one (saved for next time). The rider's logistics company sends it from its bank. The older form fields
+     * (gcash_number, gcash_name) still work: a GCash account.
+     */
     public function cashout(Request $request)
     {
         $rider = $this->rider();
-        $data = $request->validate([
-            'amount'       => 'required|numeric|min:' . RiderWallet::CASHOUT_MIN . '|max:1000000',
-            'gcash_number' => ['required', 'regex:/^09\d{9}$/'],
-            'gcash_name'   => 'required|string|min:2|max:120',
-        ], [
-            'amount.min'         => 'The smallest cash-out is ₱' . number_format(RiderWallet::CASHOUT_MIN, 2) . '.',
-            'gcash_number.regex' => 'Enter your 11-digit GCash number, e.g. 09171234567.',
-            'gcash_name.required' => 'Enter the name on your GCash account.',
-        ]);
+        if ($request->filled('gcash_number') && ! $request->filled('account_number') && ! $request->filled('payout_account_id')) {
+            $request->merge(['method' => 'gcash', 'account_number' => $request->gcash_number, 'account_name' => $request->gcash_name]);
+        }
+        $request->validate(['amount' => 'required|numeric|min:' . RiderWallet::CASHOUT_MIN . '|max:1000000'],
+            ['amount.min' => 'Enter an amount above ₱0.']);
+        if ($request->filled('payout_account_id')) {
+            $account = \App\Models\PayoutAccount::where('user_id', $rider->user_id)->findOrFail((int) $request->payout_account_id);
+        } else {
+            $data = $request->validate(\App\Models\PayoutAccount::rules(), ['account_name.required' => 'Enter the name on the account.',
+                'bank_name.required_if' => 'Enter the bank name.']);
+            $account = \App\Models\PayoutAccount::updateOrCreate(
+                ['user_id' => $rider->user_id, 'method' => $data['method'], 'account_number' => $data['account_number']],
+                ['account_name' => trim($data['account_name']), 'bank_name' => $data['method'] === 'bank' ? trim((string) $data['bank_name']) : null]);
+        }
         try {
-            $entry = $this->wallet->requestCashout($rider, (float) $data['amount'], $data['gcash_number'], trim($data['gcash_name']));
+            $entry = $this->wallet->requestCashout($rider, (float) $request->amount, $account->account_number, $account->account_name, $account->method, $account->bank_name);
         } catch (\RuntimeException $e) {
             return back()->withInput()->with('error', $e->getMessage());
         }
+        $account->touch();
 
-        return back()->with('success', 'Cash-out of ₱' . number_format(abs((float) $entry->amount), 2) . ' requested. '
-            . $rider->companyName() . ' will send it to your GCash ' . $entry->gcash_number . '.');
+        return back()->with('success', 'Withdrawal of ₱' . number_format(abs((float) $entry->amount), 2) . ' is processing. '
+            . $rider->companyName() . ' will send it to your ' . $entry->destination() . '.');
     }
 
     public function earnings(Request $request)
@@ -647,8 +662,7 @@ class RiderController extends Controller
         }
 
         // What jobs already given to the rider will pay once done.
-        $pending = ParcelPickup::where('rider_id', $rider->id)->where('status', 'assigned')->count() * RiderDispatch::PAY_PICKUP
-            + ParcelDelivery::where('rider_id', $rider->id)->whereIn('status', ParcelDelivery::OPEN)->count() * RiderDispatch::PAY_DELIVERY;
+        $pending = RiderDispatch::pendingPay($rider);
 
         return view('courier.rider.earnings', [
             'rider' => $rider, 'tz' => $tz, 'period' => $period, 'from' => $from, 'to' => $to,

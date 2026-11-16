@@ -551,15 +551,16 @@ class S09OrdersReturnsReviewsEarningsTest extends TestCase
         $request = fn ($amount) => $this->actingAs($this->seller1)->from(route('seller.earnings'))
             ->post(route('seller.earnings.payout'), ['amount' => $amount, 'request_token' => (string) Str::uuid()]);
 
-        $request('99.99')->assertSessionHasErrors(['amount' => 'The minimum payout is ₱100.00.']);
-        $request('616.56')->assertSessionHasErrors(['amount' => 'You can request up to your available balance of ₱616.55.']);
+        $request('99.99')->assertSessionHasNoErrors();   // no minimum (PAYMENTS_SPEC: any amount)
+        \App\Models\SellerPayout::where('seller_id', $this->seller1->id)->delete();
+        $request('616.56')->assertSessionHasErrors(['amount' => 'Not enough available balance: you have ₱616.55.']);
         $request('0')->assertSessionHasErrors('amount');
         $request('abc')->assertSessionHasErrors('amount');
         $this->assertSame(0, SellerPayout::count());
 
         $request('100.00')->assertSessionHasNoErrors()->assertSessionHas('success');
         $this->assertEquals(516.55, $this->balances()['available']);
-        $this->actingAs($this->seller1)->get(route('seller.earnings'))->assertSee('₱516.55')->assertSee('Pending payout');
+        $this->actingAs($this->seller1)->get(route('seller.earnings'))->assertSee('₱516.55')->assertSee('Processing');
         SellerPayout::query()->delete();   // cancel before the next attempt
 
         $request('616.55')->assertSessionHasNoErrors();
@@ -575,7 +576,7 @@ class S09OrdersReturnsReviewsEarningsTest extends TestCase
             ->post(route('seller.earnings.payout'), ['amount' => '100.00', 'request_token' => (string) Str::uuid()]);
 
         $request()->assertSessionHasNoErrors();
-        $request()->assertSessionHasErrors(['amount' => 'You already have a payout request waiting. You can request another once it is paid.']);
+        $request()->assertSessionHasErrors(['amount' => 'You already have a withdrawal processing. You can withdraw again once ALVY sends it.']);
         $this->assertSame(1, SellerPayout::count());
     }
 
@@ -586,7 +587,7 @@ class S09OrdersReturnsReviewsEarningsTest extends TestCase
         $form = ['amount' => '200.00', 'request_token' => (string) Str::uuid()];
 
         $this->actingAs($this->seller1)->post(route('seller.earnings.payout'), $form)->assertSessionHas('success');
-        $this->actingAs($this->seller1)->post(route('seller.earnings.payout'), $form)->assertSessionHas('success', 'Your payout request was already sent.');
+        $this->actingAs($this->seller1)->post(route('seller.earnings.payout'), $form)->assertSessionHas('success', 'Your withdrawal was already sent.');
         $this->assertSame(1, SellerPayout::count());
         $this->assertEquals(200, SellerPayout::sole()->amount);
         $this->assertEquals(416.55, $this->balances()['available']);   // lowered once

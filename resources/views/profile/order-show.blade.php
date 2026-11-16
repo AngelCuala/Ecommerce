@@ -114,6 +114,11 @@
     <div class="mt-5 grid gap-5 lg:grid-cols-[1fr_320px]">
         <div class="space-y-5">
 
+            {{-- The return: where it stands and what happened (first, so it's seen) --}}
+            @if ($return)
+                @include('profile._return-progress', ['order' => $order, 'return' => $return])
+            @endif
+
             {{-- Rider delivery: on the way, then the proof of delivery --}}
             @if ($riderDelivery && $riderDelivery->status === 'out_for_delivery')
                 @php $rider = $riderDelivery->rider; $cod = (float) $riderDelivery->cod_amount; @endphp
@@ -267,74 +272,24 @@
             <section class="pf-card p-5">
                 <h2 class="mb-3 text-sm font-bold" style="color:#222;">Order timeline</h2>
                 <ol class="relative ml-2 space-y-4 border-l pl-5" style="border-color:#F0E4DC;">
-                    @foreach ($order->events as $event)
-                        <li class="relative">
+                    @php
+                        // The order's own events plus what happened with the return, in time order.
+                        $timeline = $order->events->reject(fn ($e) => $return && in_array($e->status, [\App\Models\Order::RETURN_REQUESTED, \App\Models\Order::REFUNDED, \App\Models\Order::IN_DISPUTE], true))->map(fn ($e) => ['at' => $e->created_at, 'title' => $eventLabel($e->status), 'note' => $e->note, 'return' => false])
+                            ->concat($return ? \App\Support\ReturnProgress::for($return)->history()->map(fn ($e) => ['at' => $e['at'], 'title' => $e['title'], 'note' => $e['note'], 'return' => true]) : [])
+                            ->filter(fn ($e) => $e['at'])->sortBy(fn ($e) => $e['at']->getTimestamp())->values();
+                    @endphp
+                    @foreach ($timeline as $event)
+                        <li class="relative" @if ($event['return']) data-timeline-return @endif>
                             <span class="absolute -left-[27px] top-1 h-3 w-3 rounded-full" style="background:{{ $loop->last ? '#fa4e1c' : '#D6CFC9' }};"></span>
-                            <p class="text-sm font-semibold" style="color:#222;">{{ $eventLabel($event->status) }}</p>
-                            <p class="text-xs pf-muted">{{ $event->created_at->format('M j, Y · g:i A') }}@if ($event->note) — {{ $event->note }}@endif</p>
+                            <p class="text-sm font-semibold" style="color:#222;">@if ($event['return'])<span class="mr-1 rounded px-1.5 py-0.5 text-[10px] font-bold uppercase" style="background:#FFF1EA;color:#C2410C;">Return</span>@endif{{ $event['title'] }}</p>
+                            <p class="text-xs pf-muted">{{ $event['at']->format('M j, Y · g:i A') }}@if ($event['note']) — {{ $event['note'] }}@endif</p>
                         </li>
                     @endforeach
                 </ol>
             </section>
 
-            {{-- Return / refund --}}
-            @if ($return)
-                <section class="pf-card p-5">
-                    <h2 class="text-sm font-bold" style="color:#222;">Return / refund</h2>
-                    <p class="mt-1 text-sm" style="color:#57534E;"><strong>{{ $return->statusLabel() }}</strong> · {{ $return->reason }}</p>
-                    @if ($rs = $return->shipment)
-                        <p class="mt-1 text-sm" style="color:#1E40AF;" data-return-shipment="{{ $rs->status }}">Return pickup: <strong>{{ $rs->statusLabel() }}</strong>@if ($rs->status === 'pickup_assigned' && $rs->pickupRider) · rider {{ $rs->pickupRider->full_name }}@endif</p>
-                    @endif
-                    @if ($return->seller_note)<p class="mt-1 text-sm"><strong>Seller:</strong> {{ $return->seller_note }}</p>@endif
-                    @if ($return->status === 'rejected' && $order->status === \App\Models\Order::DELIVERED)
-                        <form method="POST" action="{{ route('orders.escalate', $order->id) }}" class="mt-3 space-y-2 rounded-lg border p-3" style="border-color:#FECACA;">
-                            @csrf
-                            <p class="text-xs" style="color:#57534E;">Don't agree with the seller? Ask ALVY to review it.</p>
-                            <input name="dispute_note" maxlength="500" class="w-full rounded-md border px-3 py-1.5 text-sm" style="border-color:#E7E5E4;" placeholder="Why you disagree (optional)">
-                            <button class="rounded-md px-4 py-1.5 text-sm font-semibold text-white" style="background:#B91C1C;">Escalate</button>
-                        </form>
-                    @endif
-                    <div class="mt-2 flex flex-wrap gap-2">@foreach ($return->photos() as $ph)<img src="{{ \App\Support\ProtectedFile::url($ph) }}" class="h-20 rounded-md object-cover" alt="Evidence">@endforeach</div>
-                </section>
-            @endif
-
-            @if ($order->returnWindowOpen() && ! $order->returnRequests->where('status', 'requested')->count())
-                <section class="pf-card p-5">
-                    <details>
-                        <summary class="cursor-pointer text-sm font-bold" style="color:#222;">Return / refund
-                            <span class="font-normal pf-muted">— until {{ $order->returnDeadline()->format('M j, Y g:i A') }}</span></summary>
-                        <form action="{{ route('orders.return', $order->id) }}" method="POST" enctype="multipart/form-data" class="mt-3 space-y-3 text-sm">
-                            @csrf
-                            <div>
-                                <label class="pf-label">Reason</label>
-                                <select name="reason" class="pf-input" required>
-                                    <option value="">Choose a reason</option>
-                                    @foreach (\App\Models\ReturnRequest::REASONS as $reason)<option @selected(old('reason') === $reason)>{{ $reason }}</option>@endforeach
-                                </select>
-                            </div>
-                            <div>
-                                <span class="pf-label">Items to return</span>
-                                @foreach ($order->items as $ri)
-                                    <label class="flex items-center gap-2 text-sm"><input type="checkbox" name="items[]" value="{{ $ri->id }}" checked>
-                                        {{ $ri->product->title ?? 'Item' }}@if ($ri->variation_name) ({{ $ri->variation_name }})@endif × {{ $ri->quantity }}</label>
-                                @endforeach
-                                <p class="text-xs pf-muted">Untick items you are keeping. Each item's refund is its price minus its share of the vouchers.</p>
-                            </div>
-                            <div>
-                                <label class="pf-label">Describe the problem <span class="pf-muted">— 10 to 500 characters</span></label>
-                                <textarea name="details" rows="2" minlength="10" maxlength="500" required class="pf-input">{{ old('details') }}</textarea>
-                                @error('details')<p class="text-xs" style="color:#B91C1C;">{{ $message }}</p>@enderror
-                            </div>
-                            <div>
-                                <label class="pf-label">Photo evidence (1 to 5 photos, JPG or PNG, up to 5 MB each)</label>
-                                <input type="file" name="evidence_photos[]" multiple accept="image/jpeg,image/png" required class="text-sm">
-                                @error('evidence')<p class="text-xs" style="color:#B91C1C;">{{ $message }}</p>@enderror
-                                @error('evidence_photos')<p class="text-xs" style="color:#B91C1C;">{{ $message }}</p>@enderror
-                            </div>
-                            <button class="pf-btn px-5">Submit request</button>
-                        </form>
-                    </details>
-                </section>
+            @if ($order->canRequestReturn())
+                @include('profile._return-modal', ['order' => $order])
             @endif
         </div>
 
@@ -415,6 +370,11 @@
                     <button class="pf-btn w-full" onclick="return confirm('Confirm you received this order? It will be marked completed.')">Order Received</button>
                     <p class="mt-1 text-center text-xs pf-muted">Completes by itself on {{ $order->returnDeadline()?->format('M j, Y') }}.</p>
                 </form>
+            @endif
+            @if ($order->canRequestReturn())
+                <button type="button" class="pf-btn-ghost w-full rounded-lg border py-2 text-sm font-semibold" style="border-color:#FBD5C5;color:#fa4e1c;" data-open-return="{{ $order->id }}"
+                        onclick="document.getElementById('return-dialog-{{ $order->id }}').showModal()">Return/Refund</button>
+                <p class="-mt-3 text-center text-xs pf-muted">Something wrong? Request a return until {{ $order->returnDeadline()?->format('M j, Y') }}.</p>
             @endif
 
             @if ($order->isCancellableByBuyer())

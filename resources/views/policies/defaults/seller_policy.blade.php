@@ -154,9 +154,9 @@
     <table>
         <tr><th style="width:34%;">Commission</th><td>ALVY keeps <strong>{{ $rate }}%</strong> of the amount the buyer pays for each item (after your own discounts and vouchers). The rate in force when an order is placed is recorded with that order, so later rate changes don't affect it. Any change to the rate is announced before it applies.</td></tr>
         <tr><th>Your earnings</th><td>The item amount minus the commission. Shipping fees go to logistics and are not part of your earnings.</td></tr>
-        <tr><th>Pending</th><td>Earnings stay <em>pending</em> until the order is Completed (the buyer confirms receipt, or the return window ends).</td></tr>
+        <tr><th>On hold</th><td>A delivered order's earning stays <em>on hold</em> during the return window, with its expected release date, and becomes <em>available</em> when the order is Completed (the buyer confirms the item is OK, or the return window ends). A refunded order is reversed.</td></tr>
         <tr><th>Not earned</th><td>Cancelled, refunded and unpaid orders earn nothing, and no commission is charged on them.</td></tr>
-        <tr><th>Payouts</th><td>Request a payout of your available balance from <em>Earnings &amp; Payouts</em> (minimum ₱{{ $payoutMin }}). You can see every order's rate, commission and status on the <em>Commission</em> page.</td></tr>
+        <tr><th>Payouts</th><td>Withdraw any amount of your available balance from <em>Earnings &amp; Payouts</em> to your GCash, Maya or bank account, with no fee. ALVY sends it from its bank; a failed transfer goes back to your available balance. You can see every order's rate, commission and status on the <em>Commission</em> page.</td></tr>
     </table>
     <p>You are responsible for your own taxes and for issuing receipts or invoices as required by the BIR.</p>
 

@@ -261,22 +261,41 @@
                     <p class="text-muted" style="margin:0 0 8px;font-size:13px;">No rider assigned yet.</p>
                 @endif
                 @if ($sender && in_array($trip->status, \App\Models\LinehaulTrip::BEFORE_DEPARTURE, true))
-                    <form method="POST" action="{{ route('sc.trips.assign', $trip) }}" style="display:flex;gap:6px;margin-top:10px;">
+                    @php
+                        $pickable = $courierChoices->where('available', true);
+                        $onDutyChoices = $pickable->where('on_duty', true);
+                        $offlineChoices = $pickable->where('on_duty', false);
+                        $busyChoices = $courierChoices->where('available', false);
+                    @endphp
+                    <form method="POST" action="{{ route('sc.trips.assign', $trip) }}" style="display:flex;gap:6px;margin-top:10px;" data-assign-truck>
                         @csrf
-                        <select name="courier_id" class="form-select" style="flex:1;" required aria-label="Courier">
-                            <option value="">{{ $couriers->isEmpty() ? 'No truck courier online' : ($trip->courier ? 'Reassign to…' : 'Choose an online truck courier…') }}</option>
-                            @foreach ($couriers as $c)<option value="{{ $c->id }}">{{ $c->fullName() }} · {{ $c->vehicle_type }}</option>@endforeach
+                        <select name="courier_id" class="form-select" style="flex:1;min-width:0;" required aria-label="Truck courier">
+                            <option value="">{{ $pickable->isEmpty() ? 'No truck courier free' : ($trip->courier ? 'Reassign to…' : 'Choose a truck courier…') }}</option>
+                            @if ($onDutyChoices->isNotEmpty())
+                                <optgroup label="On duty">
+                                    @foreach ($onDutyChoices as $x)<option value="{{ $x->courier->id }}" data-on-duty>{{ $x->courier->fullName() }} · {{ $x->courier->vehicle_type }}</option>@endforeach
+                                </optgroup>
+                            @endif
+                            @if ($offlineChoices->isNotEmpty())
+                                <optgroup label="Offline (sees it when they go On Duty)">
+                                    @foreach ($offlineChoices as $x)<option value="{{ $x->courier->id }}" data-offline>{{ $x->courier->fullName() }} · {{ $x->courier->vehicle_type }} · offline</option>@endforeach
+                                </optgroup>
+                            @endif
+                            @if ($busyChoices->isNotEmpty())
+                                <optgroup label="Not available">
+                                    @foreach ($busyChoices as $x)<option value="{{ $x->courier->id }}" disabled>{{ $x->courier->fullName() }} · {{ $x->why }}</option>@endforeach
+                                </optgroup>
+                            @endif
                         </select>
-                        <button class="btn btn-blue btn-sm" @disabled($couriers->isEmpty() || $onBoard->isEmpty())>{{ $trip->courier ? 'Reassign' : 'Assign' }}</button>
+                        <button class="btn btn-blue btn-sm" @disabled($pickable->isEmpty() || $onBoard->isEmpty())>{{ $trip->courier ? 'Reassign' : 'Assign' }}</button>
                     </form>
                     @if ($onBoard->isEmpty())<p class="text-muted" style="font-size:12px;margin-top:6px;" data-truck-after-parcels>Assign the parcels first; then the truck.</p>@endif
-                    @if ($offDuty->isNotEmpty())
-                        <p class="text-muted" style="font-size:12px;margin-top:6px;">
-                            Not available now: {{ $offDuty->map(fn ($c) => $c->fullName() . ' (' . $c->vehicle_type . ', ' . ($c->activeTrip() ? 'on ' . $c->activeTrip()->code : 'Off Duty') . ')')->implode(', ') }}.
-                            A courier goes On Duty in the ALVY app (pre-trip checklist).
-                        </p>
-                    @elseif ($couriers->isEmpty())
-                        <p class="text-muted" style="font-size:12px;margin-top:6px;">No courier yet. Riders with a van, truck or car are your Linehaul couriers.</p>
+                    @if ($courierChoices->isEmpty())
+                        <p class="text-muted" style="font-size:12px;margin-top:6px;">No truck courier yet. Add a rider with a truck on the Riders page; trucks do the hub-to-hub trips.</p>
+                    @elseif ($pickable->isEmpty())
+                        <p class="text-muted" style="font-size:12px;margin-top:6px;" data-no-free-truck>Every truck is busy: {{ $busyChoices->map(fn ($x) => $x->courier->fullName() . ' (' . $x->why . ')')->implode(', ') }}. Assign one when its trip is done.</p>
+                    @elseif ($onDutyChoices->isEmpty())
+                        <p class="text-muted" style="font-size:12px;margin-top:6px;">No truck is on duty right now. You can still assign an offline one: they get a notification and see the trip when they go On Duty.</p>
                     @endif
                 @endif
                 @if ($trip->courier_note)<div class="ts-kv"><span>Courier note</span><span>{{ $trip->courier_note }}</span></div>@endif

@@ -160,14 +160,9 @@
                     @if ($dispute)
                         <p class="mt-1 text-xs">Reason: {{ $dispute->reason }} · Seller: {{ $dispute->seller_note }}@if ($dispute->dispute_note) · Buyer: {{ $dispute->dispute_note }}@endif</p>
                     @endif
-                    <form method="POST" action="{{ route('admin.orders.dispute', $order->id) }}" class="mt-2 space-y-2">
-                        @csrf
-                        <input name="note" maxlength="500" class="input text-sm" placeholder="Decision note (optional)">
-                        <div class="flex gap-2">
-                            <button name="decision" value="refund" class="btn-gold flex-1 !py-1.5 text-xs" style="background:#fa4e1c;border-color:#fa4e1c;color:#fff;">Refund buyer</button>
-                            <button name="decision" value="close" class="flex-1 rounded-md border px-2 py-1.5 text-xs font-semibold">Close (no refund)</button>
-                        </div>
-                    </form>
+                    @if ($dispute)
+                        <a href="{{ route('admin.disputes.show', $dispute) }}" class="btn-gold mt-2 inline-block !py-1.5 text-xs" style="background:#fa4e1c;border-color:#fa4e1c;color:#fff;" data-open-dispute>Open the case and decide</a>
+                    @endif
                 </div>
             @endif
 

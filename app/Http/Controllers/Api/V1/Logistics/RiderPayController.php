@@ -21,13 +21,16 @@ class RiderPayController extends Controller
         $d = $this->pageData($this->web(WebRiderWork::class, 'riderPay'));
         $cashout = fn (RiderWalletEntry $c) => ['id' => $c->id, 'rider' => $c->rider?->full_name, 'rider_phone' => $c->rider?->phone,
             'amount' => abs((float) $c->amount), 'gcash_number' => $c->gcash_number, 'gcash_name' => $c->gcash_name, 'status' => $c->status,
+            'method' => $c->payout_method ?? 'gcash', 'bank_name' => $c->bank_name, 'destination' => $c->destination(),
             'status_label' => $c->statusLabel(), 'reference' => $c->reference, 'reject_reason' => $c->reject_reason,
             'requested_at' => $c->created_at?->toIso8601String(), 'processed_at' => $c->processed_at?->toIso8601String()];
 
         return response()->json([
-            'pay' => ['pickup' => RiderDispatch::PAY_PICKUP, 'delivery' => RiderDispatch::PAY_DELIVERY],
+            'pay' => RiderDispatch::payRates(),
             'riders' => $d['riders']->map(fn ($row) => ['id' => $row['rider']->id, 'name' => $row['rider']->full_name, 'vehicle' => $row['rider']->vehicle_type,
                 'phone' => $row['rider']->phone, 'to_send' => (float) $row['to_send'], 'balance' => (float) $row['balance'],
+                'available' => (float) $row['available'], 'held' => (float) $row['held'], 'expected' => (float) $row['expected'],
+                'cash_to_remit' => (float) $row['cash_to_remit'],
                 'jobs' => $row['jobs']->map(fn ($j) => RiderJson::walletRow($j))->values()])->values(),
             'total_to_send' => round((float) $d['riders']->sum('to_send'), 2),
             'cashouts' => $d['cashouts']->map($cashout)->values(),

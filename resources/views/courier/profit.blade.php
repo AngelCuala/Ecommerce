@@ -29,7 +29,7 @@
 
 <div class="cx-page-head">
     <h1 class="font-display">My Earnings</h1>
-    <p>₱{{ number_format(\App\Services\RiderDispatch::PAY_PICKUP, 0) }} per completed pickup · ₱{{ number_format(\App\Services\RiderDispatch::PAY_DELIVERY, 0) }} per successful delivery · ₱0 for a failed attempt. COD cash you collect isn't part of your pay.</p>
+    <p>Your pay: {{ \App\Services\RiderDispatch::payRule() }}. ₱0 for a failed attempt. COD cash you collect isn't part of your pay.</p>
 </div>
 
 {{-- Total and this month / week / today --}}

@@ -14,8 +14,10 @@
     <div>
         <h1>Commission &amp; Earnings</h1>
         <p class="text-sub" style="margin-top:4px;max-width:720px;">
-            Your share of the shipping fee on every parcel you handle. When two hubs handle a parcel, they split the fee evenly.
-            @if ($rate > 0) ALVY keeps a {{ $pct }} commission and your @else ALVY takes no part of the shipping fee; only your @endif riders' pay is deducted. What's left is your net earnings.
+            The shipping fee is split 30/30/40: 30% to the pickup rider, 30% to the delivery rider and 40% to the hubs,
+            split evenly between every hub the parcel passed (4 hubs: a quarter each).
+            @if ($rate > 0) ALVY keeps a {{ $pct }} commission of your share. @else ALVY takes no part of the shipping fee. @endif Your riders' pay comes from the riders' 30% parts, not from your share.
+            Parcels from before {{ \App\Services\RiderDispatch::shareSince()->format('M j, Y') }} keep the old rule (the whole fee, minus ₱30 a pickup and ₱50 a delivery).
         </p>
     </div>
     <a href="{{ route('sc.commissions', $base + array_filter(['status' => $status]) + ['export' => 'csv']) }}" class="btn btn-ghost btn-sm">Export CSV</a>
@@ -61,7 +63,7 @@
         @foreach ([
             ['Shipping fees earned', $summary['fees'], $summary['parcels'] . ' ' . \Illuminate\Support\Str::plural('parcel', $summary['parcels']) . ', your share', 'fees'],
             ...($rate > 0 ? [['ALVY commission (' . $pct . ')', -$summary['commission'], 'Kept by ALVY', 'commission']] : []),
-            ['Rider pay', -$summary['rider_pay'], '₱' . number_format(\App\Services\RiderDispatch::PAY_PICKUP, 0) . ' per pickup, ₱' . number_format(\App\Services\RiderDispatch::PAY_DELIVERY, 0) . ' per delivery', 'rider_pay'],
+            ["Your riders' pay", $summary['rider_pay'], "30% a pickup, 30% a delivery (not from your share)", 'rider_pay'],
             ['Net earnings', $summary['net'], $peso($summary['earned_net']) . ' earned · ' . $peso($summary['pending_net']) . ' pending', 'net'],
         ] as [$label, $value, $note, $key])
             <div class="stat-card" @if ($key === 'net') style="border:1.5px solid {{ $value < 0 ? '#FCA5A5' : '#86EFAC' }};" @endif>
@@ -89,11 +91,11 @@
                             <div class="font-bold">{{ $p->tracking_number }}</div>
                             <div class="text-muted text-sm">{{ $p->order?->number() }} · {{ $p->created_at?->format('M j, Y') }}</div>
                         </td>
-                        <td>{{ $l['role'] }}@if ($l['hubs'] > 1)<div class="text-muted text-sm">Split with {{ $l['hubs'] - 1 }} other {{ \Illuminate\Support\Str::plural('hub', $l['hubs'] - 1) }}</div>@endif</td>
+                        <td>{{ $l['role'] }}@if ($l['hubs'] > 1)<div class="text-muted text-sm">{{ $l['hubs'] }} hubs split the hubs' share</div>@endif</td>
                         <td style="text-align:right;">{{ $peso($l['fee']) }}</td>
                         <td style="text-align:right;{{ $void ? 'text-decoration:line-through;color:var(--text-muted);' : '' }}">{{ $peso($l['share']) }}</td>
                         @if ($rate > 0)<td style="text-align:right;">{{ $l['commission'] > 0 ? $peso(-$l['commission']) : '₱0.00' }}</td>@endif
-                        <td style="text-align:right;">{{ $l['rider_pay'] > 0 ? $peso(-$l['rider_pay']) : '₱0.00' }}</td>
+                        <td style="text-align:right;">{{ $peso($l['rider_pay']) }}</td>
                         <td style="text-align:right;" class="font-bold {{ $l['net'] < 0 ? 'text-red' : '' }}">{{ $peso($l['net']) }}</td>
                         <td><span class="badge {{ $badge[$l['status']] }}">{{ \App\Services\SortingCenterCommission::STATUSES[$l['status']] }}</span></td>
                     </tr>
