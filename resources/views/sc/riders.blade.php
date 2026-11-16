@@ -10,7 +10,7 @@
 
 @include('partials.page-tabs', ['tabs' => [['Riders', 'sc.riders', 'sc.riders'], ['Courier applications', 'sc.courier-applications.index', 'sc.courier-applications.*']]])
 <div class="page-header"><h1>Rider Management</h1>
-    <p class="text-muted" style="margin:4px 0 0;font-size:13px;">The vehicle decides the work: <strong>riders</strong> (motorcycle, tricycle, bicycle, car, van) pick up from sellers and deliver to buyers; only cars and vans take <strong>bulky</strong> parcels (over {{ \App\Models\Parcel::BULKY_KG }} kg, or big items like a table). <strong>Couriers</strong> drive trucks and carry parcels in bulk from hub to hub (Linehaul Trips); they are marked <span class="badge badge-blue" style="font-size:10px;">Courier · truck</span>.</p>
+    <p class="text-muted" style="margin:4px 0 0;font-size:13px;">The vehicle decides the work: <strong>riders</strong> (motorcycle, tricycle, bicycle, car, van) pick up from sellers and deliver to buyers; only cars and vans take <strong>bulky</strong> parcels (over {{ \App\Models\Parcel::BULKY_KG }} kg, or big items like a table). <strong>Linehaul drivers</strong> drive trucks and carry parcels in bulk from hub to hub (Linehaul Trips); they are marked <span class="badge badge-blue" style="font-size:10px;">Linehaul driver</span>.</p>
 </div>
 <div class="page-body">
 
@@ -65,7 +65,7 @@
                         <optgroup label="Rider · 4 wheels, also bulky parcels">
                             @foreach(['Car', 'Van'] as $v)<option @selected(old('vehicle_type') === $v)>{{ $v }}</option>@endforeach
                         </optgroup>
-                        <optgroup label="Courier · truck, hub to hub">
+                        <optgroup label="Linehaul driver · truck, hub to hub">
                             @foreach(['Truck'] as $v)<option @selected(old('vehicle_type') === $v)>{{ $v }}</option>@endforeach
                         </optgroup>
                     </select>
@@ -167,7 +167,7 @@
                     <td><span class="id-link">RDR-{{ str_pad($rider->id,3,'0',STR_PAD_LEFT) }}</span></td>
                     <td>
                         <a href="{{ route('sc.riders.show', $rider) }}" style="font-weight:600;color:var(--accent-blue);">{{ $rider->full_name }}</a>
-                        @if($rider->isTruck())<span class="badge badge-blue" style="font-size:10px;margin-left:4px;white-space:nowrap;">Courier · truck</span>@elseif($rider->canCarryBulky())<span class="badge badge-yellow" style="font-size:10px;margin-left:4px;white-space:nowrap;">4 wheels · bulky OK</span>@endif
+                        @if($rider->isTruck())<span class="badge badge-blue" style="font-size:10px;margin-left:4px;white-space:nowrap;">Linehaul driver</span>@elseif($rider->canCarryBulky())<span class="badge badge-yellow" style="font-size:10px;margin-left:4px;white-space:nowrap;">4 wheels · bulky OK</span>@endif
                         <div class="text-muted text-sm">{{ $rider->user->email ?? '' }}{{ $rider->phone ? ' · ' . $rider->phone : '' }}</div>
                     </td>
                     <td>{{ $rider->vehicle_type ?? '—' }}{{ $rider->plate_number ? ' · ' . $rider->plate_number : '' }}

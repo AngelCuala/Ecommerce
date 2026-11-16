@@ -35,14 +35,14 @@ class LinehaulTrip extends Model
     protected $fillable = [
         'code', 'sorting_center_id', 'origin_hub_id', 'destination_hub_id', 'courier_id', 'status',
         'destination_sorting_center_id', 'handover_status', 'handover_responded_at', 'handover_responded_by', 'handover_note',
-        'scheduled_departure_at', 'assigned_at', 'accepted_at', 'loading_at', 'departed_at', 'arrived_at', 'completed_at',
+        'scheduled_departure_at', 'assigned_at', 'accepted_at', 'loading_at', 'sealed_at', 'departed_at', 'arrived_at', 'completed_at',
         'seal_number', 'received_seal', 'seal_discrepancy', 'seal_note', 'eta_at', 'delayed', 'delay_reason',
         'needs_rescan', 'courier_note', 'needs_courier_note', 'pay', 'paid_courier_id',
     ];
 
     protected $casts = [
         'scheduled_departure_at' => 'datetime', 'assigned_at' => 'datetime', 'accepted_at' => 'datetime',
-        'loading_at' => 'datetime', 'departed_at' => 'datetime', 'arrived_at' => 'datetime', 'completed_at' => 'datetime',
+        'loading_at' => 'datetime', 'sealed_at' => 'datetime', 'departed_at' => 'datetime', 'arrived_at' => 'datetime', 'completed_at' => 'datetime',
         'eta_at' => 'datetime', 'seal_discrepancy' => 'boolean', 'delayed' => 'boolean', 'needs_rescan' => 'boolean',
         'needs_courier_note' => 'boolean', 'pay' => 'decimal:2', 'handover_responded_at' => 'datetime',
     ];
@@ -56,6 +56,7 @@ class LinehaulTrip extends Model
     public function events(): HasMany        { return $this->hasMany(LinehaulTripEvent::class)->orderBy('id'); }
     public function locations(): HasMany     { return $this->hasMany(LinehaulTripLocation::class)->orderBy('recorded_at'); }
     public function messages(): HasMany      { return $this->hasMany(LinehaulTripMessage::class)->orderBy('id'); }
+    public function handovers(): HasMany     { return $this->hasMany(LinehaulHandover::class)->orderBy('id'); }
     /** The sorting center that receives the trip (the origin company itself for its own hubs). */
     public function destinationCompany(): BelongsTo { return $this->belongsTo(User::class, 'destination_sorting_center_id'); }
 
@@ -124,6 +125,34 @@ class LinehaulTrip extends Model
     }
 
     public function route(): string { return ($this->origin?->code ?? '?') . ' → ' . ($this->destination?->code ?? '?'); }
+
+    /**
+     * What the truck carries, for the driver and the hubs (no buyer or seller details):
+     *   expected  parcels on the trip;  loaded  scanned onto the truck;  unloaded  received (or found damaged) at the destination;
+     *   missing / damaged;  weight_kg against the truck's capacity_kg (volume isn't recorded for parcels yet).
+     */
+    public function counts(): array
+    {
+        $items = $this->onBoard()->with('parcel:id,weight_kg')->get(['id', 'parcel_id', 'status', 'loaded_at']);
+        $expected = $items->count();
+        $loaded = $items->filter(fn ($i) => $i->loaded_at || in_array($i->status, ['loaded', 'received', 'damaged'], true))->count();
+        $unloaded = $items->whereIn('status', ['received', 'damaged'])->count();
+        $weight = round((float) $items->sum(fn ($i) => (float) $i->parcel?->weight_kg), 2);
+        $capacity = (float) ($this->courier?->load_capacity_kg ?? 0);
+
+        return [
+            'expected' => $expected, 'loaded' => $loaded, 'unloaded' => $unloaded,
+            'missing' => $items->where('status', 'missing')->count(), 'damaged' => $items->where('status', 'damaged')->count(),
+            'weight_kg' => $weight, 'capacity_kg' => $capacity ?: null,
+            'load_pct' => $capacity > 0 ? (int) round($weight / $capacity * 100) : null,
+            'over_capacity' => $capacity > 0 && $weight > $capacity,
+            'volume_m3' => null,
+            // Not every expected parcel went on (while loading) / came off (after arrival).
+            'load_mismatch' => $loaded !== $expected,
+            'unload_mismatch' => in_array($this->status, ['arrived', ...self::DONE], true) && $unloaded !== $expected,
+            'sealed' => (bool) $this->sealed_at,
+        ];
+    }
 
     public function weightKg(): float
     {

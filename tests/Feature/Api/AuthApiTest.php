@@ -182,7 +182,7 @@ class AuthApiTest extends TestCase
     {
         $otpToken = $this->postJson('/api/v1/auth/register', $this->person([
             'role' => 'courier', 'email' => 'rosa.rider@example.com', 'contact_no' => '09175550002',
-            'vehicle_type' => 'motorcycle', 'plate_number' => 'XYZ 789', 'logistics_id' => $this->logistics1->id,
+            'vehicle_type' => 'tricycle', 'plate_number' => 'XYZ 789', 'logistics_id' => $this->logistics1->id,
             'or_cr_image' => UploadedFile::fake()->create('license.jpg', 100, 'image/jpeg'),
             'vehicle_reg_image' => UploadedFile::fake()->create('orcr.pdf', 100, 'application/pdf'),
         ]))->assertStatus(202)->json('otp_token');

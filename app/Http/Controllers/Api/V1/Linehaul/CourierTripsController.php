@@ -130,6 +130,14 @@ class CourierTripsController extends Controller
         return $this->tripJson($t, "{$t->code} departed: In Transit to {$t->destination->code}.");
     }
 
+    /** The Handover QR text (draw it as a QR code), the 6-digit fallback code, when they change (changes_at), and the load counts. */
+    public function handover(int $id): JsonResponse
+    {
+        $t = $this->linehaul->courierTrip($this->me(), $id)->load('courier', 'origin', 'destination');
+
+        return response()->json(app(\App\Services\TripHandover::class)->forDriver($t));
+    }
+
     /** reason, eta (date-time), photo (Vehicle breakdown). */
     public function delay(Request $r, int $id): JsonResponse
     {

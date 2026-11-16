@@ -147,6 +147,7 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         Route::post('/trips/{id}/delay',       [Linehaul\CourierTripsController::class, 'delay'])->whereNumber('id')->name('trips.delay');   // POST: multipart photo
         Route::post('/trips/{id}/arrived',     [Linehaul\CourierTripsController::class, 'arrived'])->whereNumber('id')->name('trips.arrived');
         Route::post('/trips/{id}/note',        [Linehaul\CourierTripsController::class, 'note'])->whereNumber('id')->name('trips.note');
+        Route::get('/trips/{id}/handover',     [Linehaul\CourierTripsController::class, 'handover'])->whereNumber('id')->name('trips.handover');   // Handover QR + 6-digit code + counts
         Route::get('/history',                 [Linehaul\CourierTripsController::class, 'history'])->name('history');
         Route::get('/earnings',                [Linehaul\CourierTripsController::class, 'earnings'])->name('earnings');
         Route::get('/profile',                 [Linehaul\CourierTripsController::class, 'profile'])->name('profile');
@@ -303,6 +304,11 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         Route::post('/trips/{trip}/close',               [Logistics\TripsController::class, 'close'])->whereNumber('trip')->name('trips.close');
         Route::post('/trips/{trip}/parcels/{parcel}/remove',  [Logistics\TripsController::class, 'removeParcel'])->whereNumber('trip')->name('trips.parcels.remove');
         Route::post('/trips/{trip}/parcels/{parcel}/damaged', [Logistics\TripsController::class, 'damaged'])->whereNumber('trip')->name('trips.parcels.damaged');   // POST: multipart photo
+        // Scan driver QR (hub staff): verify the driver's Handover QR / 6-digit code, scan parcels on or off, confirm.
+        Route::post('/handover',                         [Logistics\TripsController::class, 'handoverVerify'])->name('handover.verify');
+        Route::get('/handover/{handover}',               [Logistics\TripsController::class, 'handoverShow'])->whereNumber('handover')->name('handover.show');
+        Route::post('/handover/{handover}/scan',         [Logistics\TripsController::class, 'handoverScan'])->whereNumber('handover')->name('handover.scan');
+        Route::post('/handover/{handover}/confirm',      [Logistics\TripsController::class, 'handoverConfirm'])->whereNumber('handover')->name('handover.confirm');
         Route::get('/linehaul-couriers',                 [Logistics\TripsController::class, 'couriers'])->name('linehaul.couriers');
         Route::post('/couriers/{courier}/suspend',       [Logistics\TripsController::class, 'suspend'])->name('couriers.suspend');
         Route::post('/couriers/{courier}/reactivate',    [Logistics\TripsController::class, 'reactivate'])->name('couriers.reactivate');

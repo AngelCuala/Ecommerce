@@ -177,6 +177,14 @@ class TruckDutyController extends Controller
             ':code arrived. The receiving hub scans the parcels in.');
     }
 
+    /** The Handover QR (SVG), its 6-digit code, when it changes, and the load counts: polled by the trip page. */
+    public function handover(int $trip): JsonResponse
+    {
+        $t = $this->linehaul->courierTrip($this->me(), $trip)->load('courier', 'origin', 'destination');
+
+        return response()->json(app(\App\Services\TripHandover::class)->forDriver($t));
+    }
+
     /** The courier's note about a missing or damaged parcel, when the receiving hub asks for one. */
     public function note(Request $request, int $trip): RedirectResponse
     {

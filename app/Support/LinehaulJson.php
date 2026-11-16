@@ -37,6 +37,7 @@ class LinehaulJson
             'stage' => $t->stage(), 'stage_label' => $t->stageLabel(),
             'origin' => self::hub($t->origin), 'destination' => self::hub($t->destination), 'route' => $t->route(),
             'parcels' => $items->count(), 'loaded' => $items->where('status', 'loaded')->count(), 'received' => $items->where('status', 'received')->count(),
+            'counts' => $t->counts(), 'sealed_at' => $t->sealed_at?->toIso8601String(), 'handover_stage' => \App\Services\TripHandover::stageOf($t),
             'weight_kg' => round((float) $items->sum(fn ($i) => (float) $i->parcel?->weight_kg), 2),
             'courier' => $t->courier ? ['id' => $t->courier->id, 'name' => $t->courier->fullName(), 'vehicle_type' => $t->courier->vehicle_type, 'plate_number' => $t->courier->plate_number] : null,
             'pay' => $t->courier && ! in_array($t->status, LinehaulTrip::DONE, true) ? Linehaul::payFor($t->courier) : (float) $t->pay,

@@ -126,10 +126,10 @@
                             assign the parcels below. <b>Auto-assign</b> puts in every parcel going to {{ $trip->destination->code }}, or tick them yourself.
                         @elseif ($stage === 1)
                             assign a truck (right side). The courier then scans each parcel onto the truck.
-                        @elseif ($stage === 2)
-                            {{ $trip->courier?->fullName() ?? 'The courier' }} is loading: {{ $onBoard->where('status', 'loaded')->count() }} of {{ $onBoard->count() }} parcel(s) scanned onto the truck.
+                        @elseif ($trip->sealed_at)
+                            sealed {{ $trip->sealed_at->format('g:i A') }} ({{ $onBoard->where('status', 'loaded')->count() }} parcel(s)). {{ $trip->courier?->fullName() ?? 'The driver' }} departs for {{ $trip->destination->code }}.
                         @else
-                            all parcels are on the truck. {{ $trip->courier?->fullName() ?? 'The courier' }} departs for {{ $trip->destination->code }}.
+                            {{ $onBoard->where('status', 'loaded')->count() }} of {{ $onBoard->count() }} parcel(s) on the truck. At {{ $trip->origin->code }}, <a href="{{ route('sc.handover', ['hub' => $trip->origin_hub_id]) }}">scan {{ $trip->courier?->fullName() ?? 'the driver' }}'s Handover QR</a>, scan the parcels on and confirm the handover to seal the truck.
                         @endif
                     </div>
                 @endif
@@ -141,7 +141,15 @@
             </div>
 
             {{-- Receiving (the receiving sorting center, after arrival) --}}
-            @if ($receiver && $trip->status === 'arrived')
+            @if ($receiver && $trip->status === 'arrived' && ! $trip->handovers()->where('stage', 'receive')->exists())
+                <div class="card" data-trip-receive-qr>
+                    <div class="card-header"><h2>Receive the parcels</h2><span class="card-meta">Arrived {{ $trip->arrived_at?->format('M j, g:i A') }}</span></div>
+                    <div style="padding:14px 18px;font-size:13.5px;">
+                        <p style="margin:0 0 10px;">First scan the driver's <b>Handover QR</b> (or type the 6-digit code on their phone) to check the driver and truck. Then scan the parcels off the truck.</p>
+                        <a href="{{ route('sc.handover', ['hub' => $trip->destination_hub_id]) }}" class="btn btn-orange">Scan driver QR</a>
+                    </div>
+                </div>
+            @elseif ($receiver && $trip->status === 'arrived')
                 <div class="card" data-trip-receive>
                     <div class="card-header"><h2>Receive the parcels</h2><span class="card-meta">Arrived {{ $trip->arrived_at?->format('M j, g:i A') }}</span></div>
                         <form method="POST" action="{{ route('sc.trips.receive', $trip) }}" class="ts-recv"

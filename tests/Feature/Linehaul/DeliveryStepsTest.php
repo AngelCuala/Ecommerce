@@ -162,7 +162,7 @@ class DeliveryStepsTest extends TestCase
         $trip = LinehaulTrip::sole();
         app(Linehaul::class)->autoAddParcels($this->logistics1, $trip);
         $trip->items()->update(['status' => 'loaded', 'loaded_at' => now()]);
-        $trip->forceFill(['courier_id' => $this->courier1->id, 'status' => 'loading', 'loading_at' => now(), 'handover_status' => 'accepted'])->save();
+        $trip->forceFill(['courier_id' => $this->courier1->id, 'status' => 'loading', 'loading_at' => now(), 'handover_status' => 'accepted', 'sealed_at' => now()])->save();
 
         // Far from the hub (about 50 km), and with no location at all: Depart is just the signal.
         app(Linehaul::class)->depart($this->courier1, $trip->id, 14.2, 121.4);

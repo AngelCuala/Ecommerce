@@ -16,7 +16,7 @@
     $expiryState = ! $expiry ? null : ($expiry->isPast() ? 'expired' : ($expiry->lte(now()->addDays(30)) ? 'soon' : null));
     $isTruck = (bool) ($rider?->isTruck() || (! $rider && $truck));
     $badges = array_values(array_filter([
-        ['text' => $rider ? ($isTruck ? 'Courier · truck' : 'Rider') : 'Courier'],
+        ['text' => $isTruck ? 'Linehaul driver' : ($rider ? 'Rider' : 'Courier')],
         ['text' => $st[0], 'tone' => $st[1]],
         $stats ? ['text' => $stats['online'] ? 'Online' : 'Offline', 'tone' => $stats['online'] ? 'green' : 'gray'] : null,
     ]));
@@ -35,7 +35,7 @@
     .ac-nowrap { white-space: nowrap; font-variant-numeric: tabular-nums; }
 </style>
 
-<x-account-shell title="My Account" subtitle="Manage your profile, vehicle and sign-in." portal="ALVY {{ $rider ? 'Rider' : 'Courier' }}"
+<x-account-shell title="My Account" subtitle="Manage your profile, vehicle and sign-in." portal="ALVY {{ $isTruck ? 'Linehaul' : ($rider ? 'Rider' : 'Courier') }}"
                  :nav="\App\Support\AccountNav::rider('account', $isTruck)" :badges="$badges" :name="$displayName" :email="$maskedEmail" :sign-out="true">
 
     @if ($errors->any() && ! $riderFormOpen)
@@ -85,7 +85,7 @@
                 <span class="acs-icon" style="background:#EEF3F7;color:#002b4d;"><svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7h11v9H3zM14 10h4l3 3v3h-7"/><circle cx="7" cy="17.5" r="1.8"/><circle cx="17" cy="17.5" r="1.8"/></svg></span>
                 <div><h2>Vehicle &amp; license</h2><p>Changing the plate number or OR/CR sends them to {{ $rider->companyName() }} for re-verification.</p></div>
             </div>
-            @if ($isTruck)<span class="acs-badge acs-badge-blue">Courier · truck, hub to hub</span>@endif
+            @if ($isTruck)<span class="acs-badge acs-badge-blue">Linehaul driver · hub to hub</span>@endif
         </div>
 
         @if ($rider->needs_reverification)

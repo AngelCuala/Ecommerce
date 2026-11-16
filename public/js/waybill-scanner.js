@@ -337,6 +337,15 @@
                 return res.json().catch(function () { return {}; }).then(function (data) { return { status: res.status, data: data }; });
             }).then(function (r) {
                 clearTimeout(limit);
+                // Many in a row (a hub loading a truck): the pop-up stays open; the page hears about each one.
+                if (r.data && r.data.ok && r.data.stay) {
+                    busy = false;
+                    cover(live ? null : 'idle');
+                    say(r.data.message || 'Scanned.', 'ok');
+                    dialog.dispatchEvent(new CustomEvent('waybill:scanned', { bubbles: true, detail: r.data }));
+                    if (!live) { input.value = ''; input.focus(); }
+                    return;
+                }
                 if (r.data && r.data.ok && r.data.url) {
                     cover('ok');
                     say(r.data.message || 'Parcel found. Opening its details…', 'ok');

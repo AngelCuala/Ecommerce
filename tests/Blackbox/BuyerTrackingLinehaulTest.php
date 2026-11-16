@@ -46,8 +46,10 @@ class BuyerTrackingLinehaulTest extends TestCase
         $this->withToken($c1)->postJson("/api/v1/linehaul/trips/{$trip->id}/accept")->assertOk();
         $this->withToken($c1)->postJson("/api/v1/linehaul/trips/{$trip->id}/loading")->assertOk();
         $this->withToken($c1)->postJson("/api/v1/linehaul/trips/{$trip->id}/scan", ['tracking' => $parcel->tracking_number])->assertOk();
+        $this->sealTrip($trip);
         $this->withToken($c1)->postJson("/api/v1/linehaul/trips/{$trip->id}/depart", ['lat' => self::AT_QC[0], 'lng' => self::AT_QC[1]])->assertOk();
         $this->withToken($c1)->postJson("/api/v1/linehaul/trips/{$trip->id}/arrived", ['lat' => self::AT_PSG[0], 'lng' => self::AT_PSG[1]])->assertOk();
+        $this->arrivalHandover($trip);
         // 4. HUB-PSG's sorting center scans it in.
         $psg = $this->pasig->createToken('t')->plainTextToken;
         $this->withToken($psg)->postJson('/api/v1/logistics/trips/receive', ['hub_id' => $this->hubPsg->id, 'tracking' => $parcel->tracking_number])->assertOk();
