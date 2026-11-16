@@ -263,15 +263,35 @@
 <h2 class="cx-section-title">Returned packages</h2>
 <div style="margin-bottom:28px;" data-section="returns">
     @foreach ($returnJobs as $rj)
+        {{-- A return job: what to do next is the button (Accept → Collect now → Deliver to seller), View opens the details. --}}
         <div class="card cx-item" data-return-job="{{ $rj->id }}">
             <div class="cx-item-row">
                 @if ($rj->status === 'pickup_assigned')
-                    <div><p class="cx-item-title">Collect return · {{ $rj->order?->number() }}</p><p class="cx-item-meta">Buyer {{ $rj->order?->full_name }} — {{ $rj->buyerAddress() }}</p>
-                        <p class="cx-item-meta">{{ $rj->acknowledged_at ? 'Accepted · photo + waybill scan at the buyer' : 'New: accept it first' }}</p></div>
-                    <a href="{{ route('courier.rider.return-pickups.show', $rj->id) }}" class="cx-pill cx-pill-amber">Open</a>
+                    <div style="min-width:0;flex:1 1 320px;">
+                        <p class="cx-item-title">Collect return · {{ $rj->order?->number() }}
+                            <span class="cx-pill {{ $rj->acknowledged_at ? 'cx-pill-blue' : 'cx-pill-amber' }}" style="margin-left:6px;vertical-align:middle;">{{ $rj->acknowledged_at ? 'Accepted' : 'New' }}</span></p>
+                        <p class="cx-item-meta">Buyer {{ $rj->order?->full_name }} — {{ $rj->buyerAddress() }}</p>
+                        <p class="cx-item-meta">{{ $rj->acknowledged_at ? 'At the buyer: take a photo of the item and scan its waybill.' : 'Accept the job, then go to the buyer to collect the item.' }}</p>
+                    </div>
+                    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;" data-return-actions>
+                        <a href="{{ route('courier.rider.return-pickups.show', $rj->id) }}" class="cx-btn cx-btn-outline cx-btn-sm" data-return-view>View</a>
+                        @if (! $rj->acknowledged_at)
+                            <form method="POST" action="{{ route('courier.rider.return-pickups.accept', $rj->id) }}">@csrf
+                                <button class="cx-btn cx-btn-orange cx-btn-sm" data-return-accept>Accept</button>
+                            </form>
+                        @else
+                            <a href="{{ route('courier.rider.return-pickups.show', $rj->id) }}" class="cx-btn cx-btn-orange cx-btn-sm" data-return-collect>Collect now</a>
+                        @endif
+                    </div>
                 @else
-                    <div><p class="cx-item-title">Return to seller · {{ $rj->order?->number() }}</p><p class="cx-item-meta">{{ $rj->parcel?->seller?->storeName() ?? $rj->parcel?->seller?->name }} — {{ $rj->sellerAddress() }}</p></div>
-                    <a href="{{ route('courier.rider.return-pickups.show', $rj->id) }}" class="cx-pill cx-pill-blue">Open</a>
+                    <div style="min-width:0;flex:1 1 320px;">
+                        <p class="cx-item-title">Return to seller · {{ $rj->order?->number() }}
+                            <span class="cx-pill cx-pill-blue" style="margin-left:6px;vertical-align:middle;">To seller</span></p>
+                        <p class="cx-item-meta">{{ $rj->parcel?->seller?->storeName() ?? $rj->parcel?->seller?->name }} — {{ $rj->sellerAddress() }}</p>
+                    </div>
+                    <div style="display:flex;gap:8px;align-items:center;" data-return-actions>
+                        <a href="{{ route('courier.rider.return-pickups.show', $rj->id) }}" class="cx-btn cx-btn-orange cx-btn-sm" data-return-deliver>Deliver to seller</a>
+                    </div>
                 @endif
             </div>
         </div>

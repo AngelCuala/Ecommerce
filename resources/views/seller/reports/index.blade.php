@@ -61,15 +61,12 @@
 
 <div class="mx-auto max-w-6xl">
 
-    <div class="mb-5 flex flex-wrap items-start justify-between gap-3">
+    <div class="xp-head mb-5">
         <div>
             <h1 class="font-display text-2xl font-bold" style="color:#222;">Sales Reports</h1>
             <p class="mt-0.5 text-sm" style="color:#8a7f78;">{{ $rangeLabel }} · {{ $rangeDays }} {{ \Illuminate\Support\Str::plural('day', $rangeDays) }}</p>
         </div>
-        <a href="{{ route('seller.reports', ['from' => $from, 'to' => $to, 'export' => 'pdf']) }}" class="rp-export" data-export-pdf>
-            <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path stroke-linecap="round" stroke-linejoin="round" d="M14 2v6h6M12 18v-6M9 15l3 3 3-3"/></svg>
-            Export PDF
-        </a>
+        @include('partials.export-pdf', ['href' => route('seller.reports', ['from' => $from, 'to' => $to, 'export' => 'pdf'])])
     </div>
 
     @if ($errors->any())<div class="mb-4 rounded-lg px-4 py-2.5 text-sm" style="background:#FEF2F2;color:#B91C1C;">{{ $errors->first() }}</div>@endif

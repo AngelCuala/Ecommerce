@@ -39,8 +39,10 @@ class ReturnProgressTest extends TestCase
         $this->actingAs($this->buyer1)->get(route('profile.orders.show', $order->id))->assertOk()
             ->assertSee('data-return-step="seller" data-state="failed"', false)
             ->assertSee('data-return-step="alvy" data-state="done"', false)
-            ->assertSee('data-return-step="refund" data-state="done"', false)
-            ->assertSeeInOrder(['Return requested', 'Seller rejected the return', 'You asked ALVY to review it', 'ALVY decided: refund', 'Refunded ₱'])
+            ->assertSee('data-return-step="details" data-state="current"', false)   // where to send the money
+            ->assertSee('data-return-step="refund" data-state="todo"', false)       // sent once the item is back
+            ->assertSee('data-refund-details-form', false)
+            ->assertSeeInOrder(['Return requested', 'Seller rejected the return', 'You asked ALVY to review it', 'ALVY decided: refund'])
             ->assertSee('That is the item you ordered.')->assertSee('The photo shows a different model.');
     }
 }

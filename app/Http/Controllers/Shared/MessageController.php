@@ -136,6 +136,9 @@ class MessageController extends Controller
         $otherId   = (int)$a === $userId ? (int)$b : (int)$a;
         $otherUser = User::findOrFail($otherId);
         $this->authorizeDirectMessage($otherUser);
+        if (Message::readOnlyFor(auth()->user(), $otherUser)) {
+            return back()->with('error', Message::NO_ADMIN);
+        }
 
         $request->validate([
             'body'       => 'required_without:attachment|nullable|string|max:1000',
@@ -174,6 +177,9 @@ class MessageController extends Controller
 
         $otherUser = User::findOrFail($request->receiver_id);
         $this->authorizeDirectMessage($otherUser);
+        if (Message::readOnlyFor(auth()->user(), $otherUser)) {
+            return back()->with('error', Message::NO_ADMIN);
+        }
 
         $threadKey = Message::threadKey(auth()->id(), $otherUser->id);
 
@@ -232,7 +238,8 @@ class MessageController extends Controller
                 'type'      => 'direct',
                 'key'       => 'direct:' . $key,
                 'label'     => $otherUser?->name ?? 'Unknown',
-                'position'  => $this->roleLabel($otherUser?->role),
+                'position'  => Message::readOnlyFor($me, $otherUser) ? 'Announcements · read only' : $this->roleLabel($otherUser?->role),
+                'read_only' => Message::readOnlyFor($me, $otherUser),
                 'last_body' => $last->body,
                 'last_at'   => $last->created_at->diffForHumans(),
                 'ts'        => $last->created_at->timestamp,
@@ -241,8 +248,7 @@ class MessageController extends Controller
         }
 
         // Admins and sellers see every account they can message, even with no
-        // conversation yet. Admin -> everyone; others -> their allowed recipients.
-        // Buyers too, so ALVY (the admin) is always there to message.
+        // conversation yet. Admin -> everyone; others -> their allowed recipients (never the admin).
         if ($me->isAdmin() || $me->isSeller() || $me->isCourier() || $me->isSortingCenter() || $me->isBuyer()) {
             if ($me->isAdmin()) {
                 $contactIds = User::where('id', '!=', $userId)
@@ -326,10 +332,14 @@ class MessageController extends Controller
             $title = $otherUser->name;
             $me = auth()->user();
             $protected = ($me->isSeller() && $otherUser->isBuyer()) || ($me->isBuyer() && $otherUser->isSeller());
+            $readOnly = Message::readOnlyFor($me, $otherUser);
         }
 
         return response()->json([
             'title'    => $title,
+            // ALVY Admin's announcements: read only (the reply box is hidden, sending is refused).
+            'read_only' => $readOnly ?? false,
+            'read_only_note' => ($readOnly ?? false) ? Message::READ_ONLY : null,
             'protection' => $protected ? Message::PROTECTION : null,
             'messages' => $messages->map(fn ($m) => [
                 'body'  => $m->body,
@@ -360,6 +370,9 @@ class MessageController extends Controller
                 ->where('sender_id', '!=', $userId)->latest()->first();
             $receiverId = $lastFromOther?->sender_id
                 ?? ((int) $order->user_id === (int) $userId ? optional($order->items()->with('product')->first())->product->seller_id : $order->user_id);
+            if (Message::readOnlyFor(auth()->user(), User::find($receiverId))) {
+                return response()->json(['ok' => false, 'message' => Message::NO_ADMIN], 422);
+            }
 
             $message = Message::create([
                 'order_id'    => $order->id,
@@ -374,6 +387,9 @@ class MessageController extends Controller
             $otherId   = (int) $a === $userId ? (int) $b : (int) $a;
             $otherUser = User::findOrFail($otherId);
             $this->authorizeDirectMessage($otherUser);
+            if (Message::readOnlyFor(auth()->user(), $otherUser)) {
+                return response()->json(['ok' => false, 'message' => Message::NO_ADMIN], 422);
+            }
 
             $message = Message::create([
                 'order_id'    => null,
@@ -418,7 +434,8 @@ class MessageController extends Controller
         // Admin can message anyone
         if ($me->isAdmin()) return;
 
-        // Anyone can receive a message from Admin
+        // A conversation with ALVY Admin can be read (its announcements); writing to it is refused separately
+        // (Message::readOnlyFor), so nobody but an admin can message an admin.
         if ($other->isAdmin()) return;
 
         // Seller ↔ Buyer
@@ -427,9 +444,6 @@ class MessageController extends Controller
 
         // Seller ↔ Seller (optional — allow for now)
         if ($me->isSeller() && $other->isSeller()) return;
-
-        // Sorting center ↔ Admin (already covered above, but be explicit)
-        if ($me->isSortingCenter() && $other->isAdmin()) return;
 
         // Courier ↔ (buyer/seller of an order they're assigned to deliver)
         if ($me->isCourier() && in_array($other->id, $this->courierContactIds($me), true)) return;
@@ -444,8 +458,8 @@ class MessageController extends Controller
      */
     private function courierContactIds(User $courierUser): array
     {
-        // The admin is always reachable, even for a rider with no courier record.
-        $ids = User::where('role', 'admin')->pluck('id')->all();
+        // Not the admin: nobody can message an admin.
+        $ids = [];
         $courier = $courierUser->courier;
         if (! $courier) return $ids;
 
@@ -474,12 +488,6 @@ class MessageController extends Controller
                 $participants[$item->product->seller->id] = $item->product->seller->name . ' (Seller)';
             }
         }
-        // Admin
-        $admin = User::where('role', 'admin')->first();
-        if ($admin && !isset($participants[$admin->id])) {
-            $participants[$admin->id] = $admin->name . ' (Admin)';
-        }
-
         unset($participants[auth()->id()]);
         return $participants;
     }
@@ -504,10 +512,7 @@ class MessageController extends Controller
                     $targets[$u->id] = $label;
                 });
         } elseif ($me->isSeller()) {
-            // Seller can message admin and their buyers
-            $admin = User::where('role', 'admin')->first();
-            if ($admin) $targets[$admin->id] = $admin->name . ' (Admin)';
-
+            // Seller can message their buyers (nobody can message the admin)
             // Buyers who ordered from this seller
             $buyerIds = \App\Models\OrderItem::whereHas('product', fn ($q) => $q->where('seller_id', $me->id))
                 ->with('order.user')
@@ -519,11 +524,7 @@ class MessageController extends Controller
                 $targets[$buyer->id] = $buyer->name . ' (Buyer)';
             }
         } elseif ($me->isBuyer()) {
-            // Buyer can message ALVY (the admin) and the sellers of their orders
-            // (A foreach, not ->each(fn …): an arrow function only gets a copy of $targets.)
-            foreach (User::where('role', 'admin')->get() as $u) {
-                $targets[$u->id] = $u->name . ' (Admin)';
-            }
+            // Buyer can message the sellers of their orders (nobody can message the admin)
             $sellerIds = \App\Models\OrderItem::whereHas('order', fn ($q) => $q->where('user_id', $me->id))
                 ->with('product.seller')
                 ->get()
@@ -534,13 +535,9 @@ class MessageController extends Controller
                 $targets[$seller->id] = $seller->name . ' (Seller)';
             }
         } elseif ($me->isSortingCenter()) {
-            // Sorting center can message admins
-            // (A foreach, not ->each(fn …): an arrow function only gets a copy of $targets.)
-            foreach (User::where('role', 'admin')->get() as $u) {
-                $targets[$u->id] = $u->name . ' (Admin)';
-            }
+            // Sorting center: no one to start a chat with here (nobody can message the admin).
         } elseif ($me->isCourier()) {
-            // Courier can message admin + buyers/sellers of their assigned orders
+            // Courier can message the buyers/sellers of their assigned orders
             $ids = $this->courierContactIds($me);
             User::whereIn('id', $ids)->where('id', '!=', $me->id)
                 ->orderBy('role')->orderBy('name')

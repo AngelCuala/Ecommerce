@@ -19,7 +19,7 @@ class AutoApproveReturns extends Command
         foreach ($due as $return) {
             $return->update(['status' => 'approved', 'seller_note' => 'Approved automatically: the seller did not answer within ' . ReturnRequest::RESPOND_DAYS . ' days.', 'resolved_at' => now()]);
             if ($return->order && $return->order->status === Order::RETURN_REQUESTED) {
-                $return->order->update(['status' => Order::REFUNDED]);
+                app(\App\Services\ReturnDecisions::class)->approve($return, 'ALVY');   // the refund waits for the item, like any approval
             }
         }
         $this->info($due->count() . ' return request(s) approved.');

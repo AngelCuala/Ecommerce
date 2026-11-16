@@ -56,12 +56,14 @@ class IssuesController extends Controller
             'seller_rider' => $r->sellerRider?->full_name, 'seller_rider_id' => $r->seller_rider_id,
             'bulky' => (bool) $r->parcel?->isBulky(), 'cancel_reason' => $r->cancel_reason,
             'proof_url' => $r->pickup_proof_path ? \App\Support\ProtectedFile::url($r->pickup_proof_path) : null,
+            'hub_step' => $r->stepAtHub(), 'next_stop' => $r->next_stop, 'next_hub' => $r->nextHub?->code, 'hub_condition' => $r->hub_condition, 'trip' => $r->trip?->code,
             'updated_at' => $r->updated_at?->toIso8601String(), 'returned_at' => $r->returned_at?->toIso8601String(),
-            'action' => match ($r->status) {
-                'requested', 'pickup_assigned' => 'assign_pickup',
-                'picked_up'                    => 'receive',
-                'at_hub', 'to_seller'          => 'assign_seller',
-                default                        => null,
+            // The next thing to do: assign_pickup, then at the hub sort → check → scan → send (to another town's hub) or assign_seller.
+            'action' => match (true) {
+                in_array($r->status, ['requested', 'pickup_assigned'], true) => 'assign_pickup',
+                in_array($r->status, ['picked_up', 'at_hub'], true)          => $r->stepAtHub() === 'send' ? ($r->next_stop === 'hub' ? 'send' : 'assign_seller') : $r->stepAtHub(),
+                $r->status === 'to_seller'                                    => 'assign_seller',
+                default                                                       => null,
             },
         ];
     }
@@ -94,6 +96,31 @@ class IssuesController extends Controller
     public function returnToSeller(int $return): JsonResponse
     {
         return $this->actionJson($this->web(WebReturns::class, 'assignSeller', ['return' => ReturnShipment::findOrFail($return)]));
+    }
+
+    /** Step 1 at the hub: sort (the next stop is worked out). */
+    public function returnSort(int $return): JsonResponse
+    {
+        return $this->actionJson($this->web(WebReturns::class, 'sort', ['return' => ReturnShipment::findOrFail($return)]));
+    }
+
+    /** Step 2: condition (good, damaged, opened, wrong_item), note, photo (required unless good). */
+    public function returnCheck(int $return): JsonResponse
+    {
+        return $this->actionJson($this->web(WebReturns::class, 'check', ['return' => ReturnShipment::findOrFail($return)]));
+    }
+
+    /** Step 3: tracking_number (the waybill scanned for the record). */
+    public function returnScan(int $return): JsonResponse
+    {
+        request()->merge(['tracking_number' => request('tracking_number', request('tracking'))]);
+        return $this->actionJson($this->web(WebReturns::class, 'scan', ['return' => ReturnShipment::findOrFail($return)]));
+    }
+
+    /** Step 4 to another town: onto a hub-to-hub trip to the next hub. */
+    public function returnSend(int $return): JsonResponse
+    {
+        return $this->actionJson($this->web(WebReturns::class, 'send', ['return' => ReturnShipment::findOrFail($return)]));
     }
 
     // ── Hub-to-hub sorting ─────────────────────────────────────

@@ -22,6 +22,12 @@
         tbody tr:nth-child(even) td { background: #fafafa; }
         tfoot td { font-weight: bold; border-top: 2px solid #94a3b8; border-bottom: none; background: #fff; }
         .empty { padding: 26px; text-align: center; color: #6b7c8a; border: 1px dashed #cbd5e1; }
+        .sum { margin-bottom: 14px; }
+        .sum td { border: 1px solid #e5e7eb; padding: 8px 10px; width: 25%; background: #fff; }
+        .sum .v { font-size: 14px; font-weight: bold; color: #002b4d; }
+        .sum .l { font-size: 9px; color: #6b7c8a; text-transform: uppercase; }
+        .notes { margin-top: 14px; font-size: 9px; color: #6b7c8a; }
+        .notes li { margin-bottom: 3px; }
         .foot { position: fixed; bottom: -30px; left: 0; right: 0; font-size: 8.5px; color: #94a3b8; }
     </style>
 </head>
@@ -39,6 +45,13 @@
             </td>
         </tr>
     </table>
+
+    {{-- Optional: totals at the top (label => value) and notes under the table. --}}
+    @if (! empty($summary))
+        <table class="sum"><tr>
+            @foreach ($summary as $label => $value)<td><div class="v">{{ $value }}</div><div class="l">{{ $label }}</div></td>@endforeach
+        </tr></table>
+    @endif
 
     @if (empty($rows))
         <div class="empty">No data in this date range.</div>
@@ -58,6 +71,10 @@
                 </tfoot>
             @endif
         </table>
+    @endif
+
+    @if (! empty($notes))
+        <ul class="notes">@foreach ($notes as $n)<li>{{ $n }}</li>@endforeach</ul>
     @endif
 
     <div class="foot">{{ $title }} · {{ $center }} · {{ $range }}</div>

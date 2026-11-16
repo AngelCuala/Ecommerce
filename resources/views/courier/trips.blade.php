@@ -215,6 +215,14 @@
                         <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3zM17 17h4v4h-4"/></svg>
                         Handover QR
                     </button>
+                @elseif (in_array($trip->status, ['accepted', 'loading'], true) && ! $trip->sealed_at)
+                    {{-- No QR yet: say why, so the driver isn't left looking for it. --}}
+                    <span style="display:inline-flex;flex-direction:column;gap:4px;" data-handover-waiting>
+                        <button type="button" class="cx-btn cx-btn-outline tr-ho-btn" disabled style="opacity:.6;cursor:not-allowed;">Handover QR</button>
+                        <span class="tr-hint">{{ $trip->handover_status === 'pending'
+                            ? 'Shows once ' . (\App\Support\SortingCenters::nameOf($trip->destinationCompany) ?? 'the receiving sorting center') . ' accepts this trip.'
+                            : ($trip->handover_status === 'rejected' ? 'The receiving sorting center rejected this trip.' : 'Not available right now.') }}</span>
+                    </span>
                 @endif
             </div>
 
@@ -236,7 +244,7 @@
                     @foreach ($parcels as $item)
                         <tr data-trip-parcel="{{ $item->parcel?->tracking_number }}">
                             <td style="font-family:monospace;font-weight:700;">{{ $item->parcel?->waybill_number ?? $item->parcel?->tracking_number }}@if($item->parcel?->waybill_number)<div style="font-weight:500;font-size:11.5px;color:#8a7f78;">{{ $item->parcel->tracking_number }}</div>@endif</td>
-                            <td>{{ $item->parcel?->destination_municipality }}</td>
+                            <td>{{ $item->return_shipment_id ? (\App\Models\SellerApplication::where('user_id', $item->parcel?->seller_id)->value('municipality') ?? 'Seller') . ' (return to seller)' : $item->parcel?->destination_municipality }}</td>
                             <td>{{ $item->parcel?->weight_kg ? number_format((float) $item->parcel->weight_kg, 2) . ' kg' : '—' }}</td>
                             <td>@if (in_array($item->status, ['loaded', 'received'], true))<span class="cx-pill cx-pill-green">{{ ucfirst($item->status) }}</span>@else<span class="cx-pill cx-pill-gray">Not yet</span>@endif</td>
                         </tr>

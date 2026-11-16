@@ -50,17 +50,15 @@
         <div class="acs-card-head">
             <div>
                 <span class="acs-icon" style="background:#EEF3F7;color:#002b4d;"><svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg></span>
-                <div><h2>Sorting center details</h2><p>The assigned municipality is set by the ALVY administrator. Contact them if it needs to change.</p></div>
+                <div><h2>Sorting center details</h2><p>Your company as ALVY has it. Ask the ALVY admin to change the municipality.</p></div>
             </div>
-            <span class="acs-badge acs-badge-green">Active</span>
         </div>
         <dl class="acs-tiles">
             @foreach ([
-                'Center name' => $sc->name,
+                'Center name' => \App\Support\SortingCenters::nameOf($sc) ?? $sc->name,
                 'Assigned municipality' => $sc->assigned_municipality ?? 'Not assigned',
                 'Province' => $sc->assigned_province ?? '—',
                 'Member since' => $sc->created_at->format('M j, Y'),
-                'Last login' => $sc->last_login_at?->format('M j, Y g:i A') ?? '—',
             ] as $k => $v)
                 <div class="acs-tile"><dt>{{ $k }}</dt><dd>{{ $v }}</dd></div>
             @endforeach

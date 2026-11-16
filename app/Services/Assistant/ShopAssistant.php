@@ -185,17 +185,20 @@ class ShopAssistant
 
     private function sendSupport(User $user, array $p): array
     {
-        $admin = User::where('role', 'admin')->orderBy('id')->first();
-        if (! $admin) {
+        // Nobody can message the admin, so a support request reaches every admin as a notification (not a chat).
+        $admins = User::where('role', 'admin')->pluck('id');
+        if ($admins->isEmpty()) {
             return ['ok' => false, 'message' => 'ALVY support is not available right now. Please message the seller from your order page.'];
         }
         $order = $p['order_id'] ? Order::where('user_id', $user->id)->find($p['order_id']) : null;
-        $body = '[Support request via ALVY Assistant] Topic: ' . $p['topic'] . ($order ? ' · Order ' . $order->number() : '') . "\n" . $p['message'];
-        Message::create(['thread_key' => Message::threadKey($user->id, $admin->id), 'sender_id' => $user->id, 'receiver_id' => $admin->id, 'body' => $body]);
-        \App\Models\UserNotification::create(['user_id' => $admin->id, 'title' => 'New support request', 'type' => 'info',
-            'body' => $user->name . ': ' . Str::limit($p['message'], 120), 'link' => route('admin.messages.direct', Message::threadKey($user->id, $admin->id))]);
+        $body = $user->name . ' (' . $user->email . ') · ' . $p['topic'] . ($order ? ' · Order ' . $order->number() : '') . ': ' . Str::limit($p['message'], 400);
+        foreach ($admins as $adminId) {
+            \App\Models\UserNotification::create(['user_id' => $adminId, 'title' => 'New support request', 'type' => 'info', 'body' => $body,
+                'link' => $order ? route('admin.orders.show', $order->id) : route('admin.users.show', $user->id)]);
+        }
+        \App\Models\ActivityLog::note('Support request from ' . $user->name . ': ' . $p['topic'], $order);
 
-        return ['ok' => true, 'message' => 'Sent to ALVY support. Their reply will appear in your Chat (bottom right).'];
+        return ['ok' => true, 'message' => 'Sent to ALVY support. ALVY will look into it and get back to you.'];
     }
 
     /** A history that belongs to someone else (signed in / out since) is discarded. */
@@ -435,7 +438,7 @@ PROMPT;
             return "For your account:\n• Change password, email or phone: /profile/security\n• Edit your name and photo: /profile/personal-info\n• Forgot your password: /forgot-password\n\nI'll never ask for your password or codes in chat.";
         }
         if ($has(['support', 'human', 'agent', 'complain', 'reklamo'])) {
-            return 'You can reach ALVY support through the Chat button (bottom right) by messaging the ALVY admin, or message the seller from your order page.';
+            return 'I can send your concern to ALVY support: tell me what happened (and the order, if any). You can also message the seller from your order page.';
         }
 
         // A budget like "under ₱1,000" / "below 500" / "hanggang 300".

@@ -148,6 +148,12 @@ Route::middleware(['auth', 'is_sc', 'prevent.back'])->prefix('sc')->name('sc.')-
     Route::post('/returns/{return}/assign',   [\App\Http\Controllers\SortingCenter\ReturnsController::class, 'assignPickup'])->whereNumber('return')->name('returns.assign');
     Route::post('/returns/{return}/receive',  [\App\Http\Controllers\SortingCenter\ReturnsController::class, 'receive'])->whereNumber('return')->name('returns.receive');
     Route::post('/returns/{return}/to-seller', [\App\Http\Controllers\SortingCenter\ReturnsController::class, 'assignSeller'])->whereNumber('return')->name('returns.to-seller');
+    // At the hub: 1 sort → 2 check → 3 scan for the record → 4 send (rider to the seller, or a hub-to-hub trip).
+    Route::get('/returns/{return}',           [\App\Http\Controllers\SortingCenter\ReturnsController::class, 'show'])->whereNumber('return')->name('returns.show');
+    Route::post('/returns/{return}/sort',     [\App\Http\Controllers\SortingCenter\ReturnsController::class, 'sort'])->whereNumber('return')->name('returns.sort');
+    Route::post('/returns/{return}/check',    [\App\Http\Controllers\SortingCenter\ReturnsController::class, 'check'])->whereNumber('return')->name('returns.check');
+    Route::post('/returns/{return}/scan',     [\App\Http\Controllers\SortingCenter\ReturnsController::class, 'scan'])->whereNumber('return')->name('returns.scan');
+    Route::post('/returns/{return}/send',     [\App\Http\Controllers\SortingCenter\ReturnsController::class, 'send'])->whereNumber('return')->name('returns.send');
     Route::get('/failed-deliveries',          [\App\Http\Controllers\SortingCenter\IssuesController::class, 'failed'])->name('failed-deliveries');
     Route::get('/rts',                        [\App\Http\Controllers\SortingCenter\LogisticsController::class, 'rtsQueue'])->name('rts');
     Route::post('/rts/{parcel}/assign',     [\App\Http\Controllers\SortingCenter\LogisticsController::class, 'assignRts'])->name('rts.assign');
@@ -375,6 +381,7 @@ Route::middleware(['auth', 'buyer_only', 'prevent.back'])->group(function () {
     Route::get('/profile/orders/{id}',            [ProfileController::class, 'orderShow'])->whereNumber('id')->name('profile.orders.show');
     Route::post('/orders/{id}/return',            [\App\Http\Controllers\Buyer\OrderController::class, 'requestReturn'])->name('orders.return');
     Route::post('/orders/{id}/escalate',          [\App\Http\Controllers\Buyer\OrderController::class, 'escalateReturn'])->name('orders.escalate');
+    Route::post('/orders/{id}/refund-details',    [\App\Http\Controllers\Buyer\OrderController::class, 'saveRefundDetails'])->whereNumber('id')->middleware('throttle:10,1')->name('orders.refund-details');
     Route::post('/reviews/item/{item}',           [\App\Http\Controllers\Buyer\ReviewController::class, 'store'])->name('reviews.store');
     Route::patch('/reviews/{review}',             [\App\Http\Controllers\Buyer\ReviewController::class, 'update'])->name('reviews.update');
 
@@ -593,6 +600,9 @@ Route::middleware(['auth', 'role:admin', 'prevent.back'])
     // Statuses follow seller → logistics → rider: these admin routes only answer "not allowed" (AdminCannotChangeShipmentStatus).
     Route::patch('/orders/{id}',         [AdminOrderController::class, 'update'])->name('orders.update')->middleware(\App\Http\Middleware\AdminCannotChangeShipmentStatus::class);
     // Return Disputes: a seller rejected a return and the buyer escalated it; the admin decides (refund or close).
+    Route::get('/refunds',                       [\App\Http\Controllers\Admin\RefundController::class, 'index'])->name('refunds.index');
+    Route::post('/refunds/{refund}/sent',        [\App\Http\Controllers\Admin\RefundController::class, 'sent'])->name('refunds.sent');
+    Route::post('/refunds/{refund}/send-back',   [\App\Http\Controllers\Admin\RefundController::class, 'sendBack'])->name('refunds.send-back');
     Route::get('/disputes',                      [\App\Http\Controllers\Admin\ReturnDisputeController::class, 'index'])->name('disputes.index');
     Route::get('/disputes/{return}',             [\App\Http\Controllers\Admin\ReturnDisputeController::class, 'show'])->name('disputes.show');
     Route::post('/disputes/{return}/decide',     [\App\Http\Controllers\Admin\ReturnDisputeController::class, 'decide'])->name('disputes.decide');

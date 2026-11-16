@@ -91,8 +91,9 @@
         var t = allThreads.find(function (x) { return x.key === key; }) || {};
 
         shell.classList.add('has-thread');
-        form.classList.remove('hidden'); form.classList.add('flex');
-        hintEl.classList.remove('hidden');
+        // ALVY Admin's announcements have no reply box (known from the list, so it never flashes).
+        form.classList.toggle('hidden', !!t.read_only); form.classList.toggle('flex', !t.read_only);
+        hintEl.classList.toggle('hidden', !!t.read_only);
         avatarEl.classList.remove('hidden');
         avatarEl.textContent = current.type === 'order' ? '#' : initial(t.label);
         titleEl.textContent = t.label || 'Conversation';
@@ -114,8 +115,21 @@
                     b.textContent = data.protection;
                     msgsEl.parentNode.insertBefore(b, msgsEl);
                 }
+                // ALVY Admin's announcements: read only, no reply box.
+                var ro = document.querySelector('[data-chat-readonly]');
+                if (ro) ro.remove();
+                if (data.read_only) {
+                    form.classList.add('hidden'); form.classList.remove('flex');
+                    hintEl.classList.add('hidden');
+                    var n = document.createElement('p');
+                    n.setAttribute('data-chat-readonly', '');
+                    n.className = 'border-t px-4 py-3 text-center text-xs';
+                    n.style.cssText = 'border-color:#F2EEEA;color:#8a7f78;';
+                    n.textContent = data.read_only_note;
+                    form.parentNode.insertBefore(n, form);
+                }
                 if (t.unread) { t.unread = 0; renderThreads(filtered()); }
-                if (!silent) input.focus();
+                if (!silent && !data.read_only) input.focus();
             });
     }
 

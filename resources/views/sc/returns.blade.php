@@ -11,9 +11,9 @@
 <div class="page-header">
     <div>
         <h1>Return Items</h1>
-        <p class="text-muted" style="font-size:12.5px;margin-top:2px;">A buyer asked to return an order this hub delivered. Like a seller pickup:
-            assign a rider → the rider takes a photo and scans the waybill at the buyer → check and receive it here → a rider brings it back to the seller.
-            The seller is told at every step; the refund is decided on the return request.</p>
+        <p class="text-muted" style="font-size:12.5px;margin-top:2px;max-width:900px;">A buyer is returning an order. A rider collects it (photo + waybill scan at the buyer).
+            At the hub, like any parcel: <b>1 Sort</b> (where it goes next) → <b>2 Check</b> (its condition) → <b>3 Scan</b> the waybill for the record →
+            <b>4 Send</b>: a rider to the seller, or a hub-to-hub trip when the seller is in another town (that hub does the same steps).</p>
     </div>
 </div>
 <div class="page-body">
@@ -30,7 +30,7 @@
             @forelse ($items as $rs)
                 <tr data-return="{{ $rs->id }}">
                     <td>
-                        <span class="id-link">{{ $rs->order?->number() }}</span>
+                        <a href="{{ route('sc.returns.show', $rs) }}" class="id-link">{{ $rs->order?->number() }}</a>
                         <div class="text-muted text-sm">Waybill {{ $rs->code() }}</div>
                         @if ($rs->parcel?->isBulky())<span class="badge badge-yellow" data-bulky>Bulky · car or van rider</span>@endif
                     </td>
@@ -55,10 +55,16 @@
                                 </select>
                                 <button class="btn btn-green btn-sm">{{ $rs->pickup_rider_id ? 'Change' : 'Assign' }}</button>
                             </form>
-                        @elseif ($rs->status === 'picked_up')
-                            <form method="POST" action="{{ route('sc.returns.receive', $rs) }}" onsubmit="return confirm('Confirm the returned item is here and checked?')">@csrf
-                                <button class="btn btn-blue btn-sm">Check &amp; receive</button></form>
-                        @elseif (in_array($rs->status, ['at_hub', 'to_seller'], true))
+                        @elseif ($rs->status === 'at_hub' && $rs->trip)
+                            <a href="{{ route('sc.trips.show', $rs->trip) }}" class="text-sm">On {{ $rs->trip->code }} to {{ $rs->nextHub?->code }} · waiting to leave</a>
+                        @elseif (in_array($rs->status, ['picked_up', 'at_hub'], true))
+                            @php $stepNames = ['sort' => '1 · Sort', 'check' => '2 · Check', 'scan' => '3 · Scan', 'send' => '4 · Send']; @endphp
+                            <a href="{{ route('sc.returns.show', $rs) }}" class="btn btn-sm" style="background:#fa4e1c;border-color:#fa4e1c;color:#fff;" data-keep-colors data-process-return>
+                                {{ $rs->status === 'picked_up' ? 'It arrived · process it' : 'Process · ' . $stepNames[$rs->stepAtHub()] }}</a>
+                            @if ($rs->next_stop)<div class="text-muted text-sm" style="margin-top:4px;">Next: {{ $rs->next_stop === 'hub' ? ($rs->nextHub?->code ?? 'next hub') : 'the seller' }}</div>@endif
+                        @elseif ($rs->status === 'in_transit')
+                            <a href="{{ $rs->trip ? route('sc.trips.show', $rs->trip) : '#' }}" class="text-sm">On {{ $rs->trip?->code ?? 'a trip' }} to {{ $rs->nextHub?->code }}</a>
+                        @elseif ($rs->status === 'to_seller')
                             <form method="POST" action="{{ route('sc.returns.to-seller', $rs) }}" style="display:flex;gap:4px;">@csrf
                                 <select name="rider_id" class="form-select" style="flex:1;padding:5px 8px;font-size:12px;" required aria-label="Rider to the seller">
                                     @include('sc.partials.rider-options', ['placeholder' => $rs->seller_rider_id ? 'Change rider…' : 'Rider to the seller…', 'except' => $rs->seller_rider_id, 'bulky' => (bool) $rs->parcel?->isBulky()])
@@ -66,7 +72,7 @@
                                 <button class="btn btn-green btn-sm">{{ $rs->seller_rider_id ? 'Change' : 'Assign' }}</button>
                             </form>
                         @else
-                            <span class="text-muted text-sm">{{ $rs->status === 'cancelled' ? ($rs->cancel_reason ?: 'Cancelled') : 'Returned ' . $rs->returned_at?->copy()->tz($tz)->format('M j, g:i A') }}</span>
+                            <span class="text-muted text-sm">{{ $rs->status === 'cancelled' ? ($rs->cancel_reason ?: 'Cancelled') : ($rs->status === 'missing' ? 'Missing in transit' : 'Returned ' . $rs->returned_at?->copy()->tz($tz)->format('M j, g:i A')) }}</span>
                         @endif
                     </td>
                 </tr>

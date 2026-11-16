@@ -160,8 +160,8 @@
             </section>
         </div>
 
-        {{-- ═══ Right ═══ --}}
-        <div class="space-y-5">
+        {{-- ═══ Right ═══ (stays in view beside the longer left side while scrolling, when it fits on the screen) --}}
+        <div class="space-y-5 lg:self-start" data-order-side>
 
             {{-- GCash paid to ALVY and checked by an admin before the order reached the seller: nothing to collect. --}}
             @if ($order->isGcashReceipt())
@@ -240,8 +240,8 @@
                 <section class="pl-card">
                     <div class="pl-head"><h2>Sorting center pickup</h2></div>
                     <dl class="pl-dl pl-body !py-3">
-                        <div><dt>Tracking no.</dt><dd class="font-medium">{{ $parcel->tracking_number }}</dd></div>
-                        <div><dt>Sorting center</dt><dd>{{ $parcel->currentSortingCenter->name ?? 'Awaiting assignment' }}</dd></div>
+                        <div><dt class="whitespace-nowrap">Tracking no.</dt><dd class="font-medium">{{ $parcel->tracking_number }}</dd></div>
+                        <div><dt class="whitespace-nowrap">Sorting center</dt><dd>{{ $parcel->currentSortingCenter ? \App\Support\SortingCenters::nameOf($parcel->currentSortingCenter) : 'Awaiting assignment' }}</dd></div>
                         <div><dt>Status</dt><dd>{{ $parcel->statusLabel() }}</dd></div>
                         @if ($parcel->pickupStop && in_array($parcel->status, ['pending_pickup', 'pickup_approved', 'in_transit_to_hub'], true))
                             @php $stopCount = $parcel->pickupStop->parcels()->whereIn('status', ['pending_pickup', 'pickup_approved', 'in_transit_to_hub'])->count(); @endphp
@@ -249,7 +249,7 @@
                         @endif
                         @php $pickupJob = $parcel->pickups()->with('rider')->whereNotIn('status', ['cancelled'])->latest('id')->first(); @endphp
                         @if (in_array($parcel->status, ['pending_pickup', 'pickup_approved', 'in_transit_to_hub'], true) || $pickupJob)
-                            <div><dt>Pickup rider</dt><dd class="font-medium">{{ $pickupJob?->rider?->full_name ?? 'Waiting for the logistics company to assign a rider' }}@if ($pickupJob?->rider?->phone) · {{ $pickupJob->rider->phone }}@endif</dd></div>
+                            <div><dt class="whitespace-nowrap">Pickup rider</dt><dd class="font-medium">{{ $pickupJob?->rider?->full_name ?? 'Waiting for the logistics company to assign a rider' }}@if ($pickupJob?->rider?->phone)<span class="block text-xs font-normal pl-muted">{{ $pickupJob->rider->phone }}</span>@endif</dd></div>
                         @endif
                     </dl>
                     @if ($parcel->failure_reason && in_array($parcel->status, ['pickup_rejected', 'failed', 'returned']))
@@ -351,4 +351,20 @@
         </div>
     </div>
 </div>
+<script>
+// The right column follows the page only when all of it fits on the screen (a taller one scrolls normally).
+(function () {
+    var side = document.querySelector('[data-order-side]');
+    if (!side) return;
+    function fit() {
+        var wide = window.matchMedia('(min-width: 1024px)').matches;
+        var fits = side.offsetHeight + 48 < window.innerHeight;
+        side.style.position = wide && fits ? 'sticky' : '';
+        side.style.top = wide && fits ? '24px' : '';
+    }
+    fit();
+    window.addEventListener('resize', fit);
+    new ResizeObserver(fit).observe(side);
+})();
+</script>
 </x-seller-layout>

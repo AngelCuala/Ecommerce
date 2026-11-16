@@ -152,7 +152,7 @@ class SystemLogicTest extends TestCase
         $this->assertStringNotContainsString('refund', $note->body);
     }
 
-    public function test_full_cod_return_records_the_refund(): void
+    public function test_full_cod_return_waits_for_the_buyers_refund_details(): void
     {
         $order = $this->moveTo($this->placeOrder($this->buyer1, [$this->cart($this->buyer1, $this->p02)])->first(), Order::DELIVERED);
         $order->update(['payment_status' => 'Paid']);
@@ -162,6 +162,8 @@ class SystemLogicTest extends TestCase
 
         $this->actingAs($this->seller1)->post(route('seller.orders.return', $order->id), ['decision' => 'approve'])->assertSessionHas('success');
         $this->assertSame(Order::REFUNDED, $order->fresh()->status);
-        $this->assertEquals(490, (float) $order->fresh()->refunded_amount);
+        $this->assertSame(['awaiting_details', 490.0], [$order->refundRecord()->status, (float) $order->refundRecord()->amount]);
+        $this->assertEquals(0, (float) $order->fresh()->refunded_amount);   // nothing sent yet
+        $this->assertSame('Return approved · refund pending', $order->fresh()->buyerStatusLabel());
     }
 }

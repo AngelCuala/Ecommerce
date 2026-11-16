@@ -86,8 +86,13 @@ class LogisticsBoardAndReturnsTest extends TestCase
         $this->actingAs($this->logistics1)->post(route('sc.returns.assign', $rs), ['rider_id' => $this->rider1->id])->assertSessionHas('success');
 
         // The rider accepts, then at the buyer: photo + waybill scan (a wrong code is refused).
-        $this->actingAs($this->rider1->user)->get(route('courier.rider'))->assertSee('Collect return');
-        $this->actingAs($this->rider1->user)->post(route('courier.rider.return-pickups.accept', $rs->id))->assertSessionHas('success');
+        // On Hub Jobs the card has View and Accept; once accepted, Collect now.
+        $this->actingAs($this->rider1->user)->get(route('courier.rider'))->assertSee('Collect return')
+            ->assertSee('data-return-view', false)->assertSee('data-return-accept', false)->assertDontSee('data-return-collect', false)
+            ->assertSee('action="' . route('courier.rider.return-pickups.accept', $rs->id) . '"', false);
+        $this->actingAs($this->rider1->user)->from(route('courier.rider'))->post(route('courier.rider.return-pickups.accept', $rs->id))
+            ->assertRedirect(route('courier.rider'))->assertSessionHas('success');
+        $this->actingAs($this->rider1->user)->get(route('courier.rider'))->assertSee('data-return-collect', false)->assertDontSee('data-return-accept', false);
         $this->actingAs($this->rider1->user)->post(route('courier.rider.return-pickups.confirm', $rs->id), ['tracking_number' => 'WRONG123', 'proof_photo' => UploadedFile::fake()->image('item.jpg')])
             ->assertSessionHasErrors('tracking_number');
         $this->actingAs($this->rider1->user)->post(route('courier.rider.return-pickups.confirm', $rs->id), ['tracking_number' => $parcel->waybill_number, 'proof_photo' => UploadedFile::fake()->image('item.jpg')])
@@ -96,8 +101,17 @@ class LogisticsBoardAndReturnsTest extends TestCase
         $this->assertNotNull($rs->fresh()->pickup_proof_path);
 
         // The hub receives it, then a rider brings it to the seller.
-        $this->actingAs($this->logistics1)->post(route('sc.returns.to-seller', $rs), ['rider_id' => $this->rider2->id])->assertSessionHas('error');   // not received yet
+        $this->actingAs($this->logistics1)->post(route('sc.returns.to-seller', $rs), ['rider_id' => $this->rider2->id])->assertSessionHas('error');   // not processed yet
         $this->actingAs($this->logistics1)->post(route('sc.returns.receive', $rs))->assertSessionHas('success');
+        // At the hub, in order: sort → check → scan for the record (out of order is refused), then the rider to the seller.
+        $this->actingAs($this->logistics1)->post(route('sc.returns.scan', $rs), ['tracking_number' => $parcel->waybill_number])->assertSessionHas('error', fn ($m) => str_contains($m, 'Sort it'));
+        $this->actingAs($this->logistics1)->post(route('sc.returns.sort', $rs))->assertSessionHas('success', fn ($m) => str_contains($m, 'to the seller from this hub'));
+        $this->actingAs($this->logistics1)->post(route('sc.returns.check', $rs), ['condition' => 'damaged'])->assertSessionHas('error', fn ($m) => str_contains($m, 'photo'));
+        $this->actingAs($this->logistics1)->post(route('sc.returns.check', $rs), ['condition' => 'good', 'note' => 'Sealed, label intact.'])->assertSessionHas('success');
+        $this->actingAs($this->logistics1)->post(route('sc.returns.scan', $rs), ['tracking_number' => 'WRONG123'])->assertSessionHas('error');
+        $this->actingAs($this->logistics1)->post(route('sc.returns.scan', $rs), ['tracking_number' => $parcel->waybill_number])->assertSessionHas('success');
+        $this->actingAs($this->logistics1)->get(route('sc.returns.show', $rs))->assertOk()->assertSee('data-step-to-seller', false)
+            ->assertSee('data-scan="sorted"', false)->assertSee('data-scan="checked"', false)->assertSee('data-scan="scanned"', false);
         $this->actingAs($this->logistics1)->post(route('sc.returns.to-seller', $rs), ['rider_id' => $this->rider2->id])->assertSessionHas('success');
         $this->actingAs($this->rider2->user)->post(route('courier.rider.return-pickups.handed', $rs->id))->assertSessionHas('success');
 
@@ -105,10 +119,10 @@ class LogisticsBoardAndReturnsTest extends TestCase
         $this->assertTrue(UserNotification::where('user_id', $this->seller1->id)->where('title', 'Returned item delivered')->exists());
         $this->actingAs($this->seller1)->get(route('seller.orders.show', $order->id))->assertSee('Returned to the seller');
 
-        // The seller hears when the buyer is refunded (here: approved automatically, not by the seller).
+        // The seller hears when the return is approved (here: approved automatically, not by the seller).
         $this->app['auth']->forgetGuards();
         $rs->returnRequest->update(['status' => 'approved']);
-        $this->assertTrue(UserNotification::where('user_id', $this->seller1->id)->where('title', 'Return refunded')->exists());
+        $this->assertTrue(UserNotification::where('user_id', $this->seller1->id)->where('title', 'Return approved')->exists());
     }
 
     public function test_a_return_rejected_before_pickup_cancels_the_trip(): void

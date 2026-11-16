@@ -188,6 +188,13 @@ class SortingCenterController extends Controller
     public function areas()
     {
         $sc = $this->sc();
+        // Back goes to the page that opened Coverage Areas (My Account, the dashboard, Parcel Sorting…), kept while
+        // barangays are added or removed here; My Account when it was opened directly.
+        $prev = url()->previous();
+        if ($prev && str_starts_with($prev, url('/')) && ! str_starts_with($prev, route('sc.areas'))) {
+            session(['sc_areas_back' => $prev]);
+        }
+        $back = session('sc_areas_back', route('sc.account'));
 
         $areas = DeliveryArea::where('sorting_center_id', $sc->id)
             ->withCount('riders')
@@ -202,7 +209,7 @@ class SortingCenterController extends Controller
             ! in_array($b['code'], $coveredCodes, true) && ! in_array(strtolower($b['name']), $legacyNames, true)));
         $barangayTotal = count($allBarangays);
 
-        return view('sc.areas', compact('sc', 'areas', 'barangays', 'barangayTotal'));
+        return view('sc.areas', compact('sc', 'areas', 'barangays', 'barangayTotal', 'back'));
     }
 
     public function storeArea(Request $request)
@@ -1165,8 +1172,10 @@ class SortingCenterController extends Controller
     // ── Chat ──────────────────────────────────────────────────
     public function chat(Request $request)
     {
+        // Nobody can message the admin: ALVY Admin shows only when it has sent this center an announcement (read only).
+        $fromAdmin = Message::where('receiver_id', auth()->id())->whereHas('sender', fn ($q) => $q->where('role', 'admin'))->pluck('sender_id');
         $contacts = User::where('id', '!=', auth()->id())
-            ->whereIn('role', ['courier', 'courier_pending', 'seller', 'admin'])
+            ->where(fn ($q) => $q->whereIn('role', ['courier', 'courier_pending', 'seller'])->orWhereIn('id', $fromAdmin))
             ->orderBy('name')->get();
 
         $activeContact = null;
@@ -1192,6 +1201,9 @@ class SortingCenterController extends Controller
     public function sendMessage(Request $request)
     {
         $request->validate(['receiver_id' => 'required|exists:users,id', 'body' => 'required|string|max:2000']);
+        if (Message::readOnlyFor(auth()->user(), User::find($request->receiver_id))) {
+            return back()->with('error', Message::NO_ADMIN);
+        }
         Message::create([
             'thread_key'  => Message::threadKey(auth()->id(), (int) $request->receiver_id),
             'sender_id'   => auth()->id(),

@@ -90,6 +90,7 @@ class DemoAccountsAndProductsSeeder extends Seeder
 
     public function run(): void
     {
+        DemoDocuments::ensure();   // the sample ID and permit the demo accounts point to
         if (app()->environment('production')) {
             throw new \RuntimeException('DemoAccountsAndProductsSeeder is not for production: its passwords are public.');
         }
@@ -138,7 +139,7 @@ class DemoAccountsAndProductsSeeder extends Seeder
                 'region' => $prov['region'], 'region_code' => $prov['region_code'], 'province' => $prov['name'], 'province_code' => $prov['code'],
                 'municipality' => $townName, 'municipality_code' => $town['code'], 'barangay' => $brgy['name'], 'barangay_code' => $brgy['code'],
                 'street' => 'National Highway', 'house_number' => (string) (100 + $n), 'zip_code' => '4000', 'address' => $address,
-                'government_id_path' => 'ids/sample-id.jpg', 'business_permit_path' => 'permits/sample-permit.pdf',
+                'government_id_path' => DemoDocuments::ID, 'business_permit_path' => DemoDocuments::PERMIT,
             ]);
 
             $firstArea = null;
@@ -196,7 +197,7 @@ class DemoAccountsAndProductsSeeder extends Seeder
                 'street' => $street, 'zip_code' => '4000',
                 'address' => "{$street}, {$brgy['name']}, {$townName}, Laguna, 4000",
                 'description' => "{$shop} — ships fast from {$townName}, Laguna.",
-                'government_id_path' => 'ids/sample-id.jpg', 'status' => 'approved',
+                'government_id_path' => DemoDocuments::ID, 'status' => 'approved',
             ]);
             $address = $this->address($seller, 'Shop', $owner, $phone, $street, $brgy, $townName, $town, $prov);
 

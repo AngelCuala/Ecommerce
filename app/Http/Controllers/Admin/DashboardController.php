@@ -56,9 +56,15 @@ class DashboardController extends Controller
         $salesQuery     = fn () => \App\Models\Order::whereNotIn('status', \App\Models\Order::NOT_SALES);
         $totalOrders    = $salesQuery()->count();
         $ordersMonth    = $salesQuery()->where('created_at', '>=', now()->startOfMonth())->count();
-        $grossSales     = (float) $salesQuery()->sum('total_price');
-        $salesMonth     = (float) $salesQuery()->where('created_at', '>=', now()->startOfMonth())->sum('total_price');
-        $commissionEarned = (float) \App\Models\OrderItem::whereHas('order', fn ($q) => $q->whereNotIn('status', \App\Models\Order::NOT_SALES))
+        // ALVY's money from sales: what buyers paid, less the refunds actually sent back (a refund lowers it when
+        // it is sent, not when the return is approved). The commission stays, refunded or not.
+        $paidIn         = fn () => \App\Models\Order::whereNotIn('status', \App\Models\Order::NOT_PAID_IN);
+        $netOf          = fn ($q) => (float) $q->sum('total_price') - (float) $q->sum('refunded_amount');
+        $grossSales     = $netOf($paidIn());
+        $salesMonth     = $netOf($paidIn()->where('created_at', '>=', now()->startOfMonth()));
+        $refundsSent    = (float) $paidIn()->sum('refunded_amount');
+        $refundsToSend  = (float) \App\Models\Refund::where('status', '!=', 'sent')->sum('amount');
+        $commissionEarned = (float) \App\Models\OrderItem::whereHas('order', fn ($q) => $q->whereNotIn('status', \App\Models\Order::NOT_PAID_IN))
             ->sum('commission_amount');
         $ordersByStatus = \App\Models\Order::selectRaw('status, COUNT(*) c')->groupBy('status')->pluck('c', 'status');
 
@@ -67,9 +73,9 @@ class DashboardController extends Controller
             $month = now()->subMonths($back);
             return (object) [
                 'label' => $month->format('M'),
-                'value' => (float) \App\Models\Order::whereNotIn('status', \App\Models\Order::NOT_SALES)
+                'value' => (float) \App\Models\Order::whereNotIn('status', \App\Models\Order::NOT_PAID_IN)
                     ->whereMonth('created_at', $month->month)->whereYear('created_at', $month->year)
-                    ->sum('total_price'),
+                    ->selectRaw('COALESCE(SUM(total_price), 0) - COALESCE(SUM(refunded_amount), 0) as net')->value('net'),
             ];
         });
 
@@ -108,7 +114,7 @@ class DashboardController extends Controller
             'newToday', 'newWeek', 'newMonth',
             'pendingRequests', 'pendingSellerApps', 'pendingBuyerVerif', 'pendingList',
             'growth', 'recentActivity', 'notifications', 'systemStatus',
-            'totalOrders', 'ordersMonth', 'grossSales', 'salesMonth', 'commissionEarned',
+            'totalOrders', 'ordersMonth', 'grossSales', 'salesMonth', 'commissionEarned', 'refundsSent', 'refundsToSend',
             'ordersByStatus', 'salesChart', 'recentOrders'
         ));
     }

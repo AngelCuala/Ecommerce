@@ -62,6 +62,9 @@
                     @endforeach
                 </div>
 
+                @if (\App\Models\Message::readOnlyFor(auth()->user(), $activeContact))
+                <div class="chat-input-bar" data-read-only style="justify-content:center;font-size:12.5px;color:var(--text-muted);text-align:center;">{{ \App\Models\Message::READ_ONLY }}</div>
+                @else
                 <form class="chat-input-bar" method="POST" action="{{ route('sc.chat.send') }}" id="chat-form">
                     @csrf
                     <input type="hidden" name="receiver_id" value="{{ $activeContact->id }}">
@@ -69,6 +72,7 @@
                            placeholder="Type a message..." required autocomplete="off">
                     <button type="submit" class="btn btn-blue">Send</button>
                 </form>
+                @endif
             @else
                 <div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-muted);font-size:13px;">
                     Select a conversation to start messaging.

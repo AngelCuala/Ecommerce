@@ -74,10 +74,12 @@ class ReturnDisputesTest extends TestCase
         $order->refresh();
         $this->assertSame(['approved', 'refund', $this->admin->id], [$return->status, $return->admin_decision, $return->admin_decided_by]);
         $this->assertSame(Order::REFUNDED, $order->status);
-        $this->assertEquals((float) $return->refund_amount, (float) $order->refunded_amount);   // COD: recorded as refunded to the buyer
+        // COD: the money is a refund waiting for the buyer's details; nothing is recorded as refunded until it is sent.
+        $this->assertSame(['awaiting_details', (float) $return->refund_amount], [$return->refund->status, (float) $return->refund->amount]);
+        $this->assertEquals(0, (float) $order->refunded_amount);
         $this->assertTrue(UserNotification::where('user_id', $this->buyer1->id)->where('title', 'ALVY decided your dispute: refund approved')
             ->where('body', 'like', '%The photo shows the basket crushed on arrival.%')->exists());
-        $this->assertTrue(UserNotification::where('user_id', $this->seller1->id)->where('title', 'Return refunded')->exists());
+        $this->assertTrue(UserNotification::where('user_id', $this->seller1->id)->where('title', 'Return approved')->exists());
         // The rejection had cancelled the pickup; with the refund the item is collected after all.
         $this->assertSame('requested', ReturnShipment::where('return_request_id', $return->id)->sole()->status);
 

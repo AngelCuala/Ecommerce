@@ -18,8 +18,92 @@
             <h2 class="text-base font-bold" style="color:#222;">{{ $rp->headline() }}</h2>
             <p class="text-sm pf-muted">{{ $return->reason }} · ₱{{ number_format((float) $return->refund_amount, 2) }}{{ $return->isPartial() ? ' (some items)' : '' }} · requested {{ $return->created_at->format('M j, Y') }}</p>
         </div>
-        <span class="rounded-full px-3 py-1 text-xs font-semibold" style="background:{{ $tone[0] }};color:{{ $tone[1] }};">{{ $return->status === 'approved' ? 'Approved · refunded' : $return->statusLabel() }}</span>
+        <span class="rounded-full px-3 py-1 text-xs font-semibold" style="background:{{ $tone[0] }};color:{{ $tone[1] }};">{{ $rp->badge() }}</span>
     </div>
+
+    {{-- The refund: where to send it (asked once the return is approved), then where it stands. --}}
+    @php $refund = $rp->refund(); @endphp
+    @if ($refund && $refund->status === 'awaiting_details')
+        @php $m = old('method', 'gcash'); @endphp
+        <form method="POST" action="{{ route('orders.refund-details', $order->id) }}" class="mx-5 mt-5 rounded-xl border-2 p-4" style="border-color:#fa4e1c;background:#FFF8F4;" data-refund-details-form>
+            @csrf
+            <p class="text-base font-bold" style="color:#222;">Where should we send your ₱{{ number_format((float) $refund->amount, 2) }}?</p>
+            <p class="mt-0.5 text-xs" style="color:#57534E;">
+                @if ($refund->item_back_at)
+                    The item is already back with the seller, so ALVY sends your refund as soon as you save this.
+                @else
+                    ALVY sends it as soon as the item is back with the seller.
+                @endif
+                Use an account in your name. Once saved, the details are locked.
+            </p>
+            @if ($refund->admin_note)
+                <p class="mt-2 rounded-lg px-3 py-2 text-xs font-semibold" style="background:#FEF2F2;color:#B91C1C;" data-refund-sent-back>ALVY couldn't send your refund: {{ $refund->admin_note }}</p>
+            @endif
+
+            <div class="mt-3 flex flex-wrap gap-2" role="radiogroup" aria-label="Send my refund to">
+                @foreach (['gcash' => 'GCash', 'maya' => 'Maya', 'bank' => 'Bank account'] as $key => $label)
+                    <label class="flex cursor-pointer items-center gap-2 rounded-lg border bg-white px-3 py-2 text-sm font-semibold" style="border-color:#E7D8CE;">
+                        <input type="radio" name="method" value="{{ $key }}" @checked($m === $key) onchange="this.form.dataset.method = this.value" required> {{ $label }}
+                    </label>
+                @endforeach
+            </div>
+
+            <div class="mt-3 grid gap-3 sm:grid-cols-2">
+                <div data-bank-only @style(['display:none' => $m !== 'bank'])>
+                    <label class="mb-1 block text-xs font-semibold" for="rf-bank">Bank *</label>
+                    <select id="rf-bank" name="bank_name" class="pf-input">
+                        <option value="">Choose your bank</option>
+                        @foreach (\App\Models\Refund::BANKS as $b)<option @selected(old('bank_name') === $b)>{{ $b }}</option>@endforeach
+                    </select>
+                </div>
+                <div>
+                    <label class="mb-1 block text-xs font-semibold" for="rf-name">Name on the account *</label>
+                    <input id="rf-name" name="account_name" value="{{ old('account_name', auth()->user()->name) }}" required maxlength="100" class="pf-input" autocomplete="name">
+                </div>
+                <div>
+                    <label class="mb-1 block text-xs font-semibold" for="rf-number"><span data-number-label>{{ $m === 'bank' ? 'Account number' : 'Mobile number' }}</span> *</label>
+                    <input id="rf-number" name="account_number" value="{{ old('account_number') }}" required inputmode="numeric" maxlength="{{ $m === 'bank' ? 16 : 11 }}"
+                           class="pf-input font-mono" autocomplete="off" placeholder="{{ $m === 'bank' ? '8 to 16 numbers' : '09XXXXXXXXX' }}"
+                           oninput="this.value = this.value.replace(/\D/g, '').slice(0, this.maxLength)">
+                    <p class="mt-1 text-[11px] pf-muted" data-number-hint>{{ $m === 'bank' ? 'Numbers only, 8 to 16.' : 'Numbers only, 11 digits.' }}</p>
+                </div>
+            </div>
+            <label class="mt-3 flex items-start gap-2 text-xs" style="color:#57534E;">
+                <input type="checkbox" name="confirm" value="1" required class="mt-0.5"> These details are correct. I understand ALVY sends my refund to this account.
+            </label>
+            <button class="pf-btn mt-3 px-6">Save refund details</button>
+        </form>
+        <script>
+            (function () {
+                var f = document.querySelector('[data-refund-details-form]');
+                if (!f) return;
+                f.addEventListener('change', function () {
+                    var bank = (f.querySelector('input[name=method]:checked') || {}).value === 'bank';
+                    f.querySelector('[data-bank-only]').style.display = bank ? '' : 'none';
+                    f.querySelector('[data-number-label]').textContent = bank ? 'Account number' : 'Mobile number';
+                    var n = f.querySelector('#rf-number');
+                    n.placeholder = bank ? '8 to 16 numbers' : '09XXXXXXXXX';
+                    n.maxLength = bank ? 16 : 11;
+                    n.value = n.value.slice(0, n.maxLength);
+                    f.querySelector('[data-number-hint]').textContent = bank ? 'Numbers only, 8 to 16.' : 'Numbers only, 11 digits.';
+                });
+            })();
+        </script>
+    @elseif ($refund && $refund->method)
+        <div class="mx-5 mt-5 flex flex-wrap items-center gap-3 rounded-xl border px-4 py-3 text-sm" style="{{ $refund->isSent() ? 'border-color:#A7F3D0;background:#ECFDF5;' : 'border-color:#BFDBFE;background:#F5F9FF;' }}" data-refund-status="{{ $refund->status }}">
+            <div class="min-w-0 flex-1">
+                <p class="font-bold" style="color:{{ $refund->isSent() ? '#047857' : '#1E3A8A' }};">
+                    @if ($refund->isSent()) Refund sent · ₱{{ number_format((float) $refund->amount, 2) }}
+                    @elseif ($refund->status === 'ready_to_send') ALVY is sending your ₱{{ number_format((float) $refund->amount, 2) }} now
+                    @else Your ₱{{ number_format((float) $refund->amount, 2) }} is sent once the item is back with the seller
+                    @endif
+                </p>
+                <p class="text-xs" style="color:#57534E;">To {{ $refund->destination() }}@if ($refund->method !== 'original' && $refund->account_name) · {{ $refund->account_name }}@endif
+                    @if ($refund->isSent()) · {{ $refund->sent_at->format('M j, Y g:i A') }}@if ($refund->reference) · Ref No. <span class="font-mono">{{ $refund->reference }}</span>@endif @endif
+                </p>
+            </div>
+        </div>
+    @endif
 
     {{-- Steps --}}
     @php $steps = $rp->steps(); @endphp

@@ -216,6 +216,17 @@
                     b.textContent = data.protection;
                     msgsEl.parentNode.insertBefore(b, msgsEl);
                 }
+                // ALVY Admin's announcements: read only, no reply box.
+                var ro = form.parentNode.querySelector('[data-chat-readonly]');
+                if (ro) ro.remove();
+                if (data.read_only) {
+                    form.classList.add('hidden'); form.classList.remove('flex');
+                    var n = document.createElement('p');
+                    n.setAttribute('data-chat-readonly', '');
+                    n.style.cssText = 'padding:10px 12px;font-size:11.5px;line-height:1.4;text-align:center;color:#6b7c8a;border-top:1px solid #eef2f6;';
+                    n.textContent = data.read_only_note;
+                    form.parentNode.insertBefore(n, form);
+                }
             });
     }
 

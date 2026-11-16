@@ -240,10 +240,10 @@
                         </div>
                         <div class="role-chip p-3 text-center" data-role="courier">
                             <svg class="mx-auto mb-1 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2 6h11v11H2zM13 10h4l3 3v4h-7"/><circle cx="6" cy="18" r="2" stroke-width="2"/><circle cx="17" cy="18" r="2" stroke-width="2"/>
                             </svg>
-                            <span class="block text-xs font-semibold">Courier</span>
-                            <span class="block text-[10px] opacity-75">Deliver parcels</span>
+                            <span class="block text-xs font-semibold">Linehaul Driver</span>
+                            <span class="block text-[10px] opacity-75">Drive hub-to-hub trips</span>
                         </div>
                         @if ($scInvite)
                         <div class="role-chip p-3 text-center" data-role="logistics">
@@ -495,8 +495,8 @@
                 </section>
 
                 {{-- COURIER FIELDS --}}
-                <section id="courierSection" class="hidden-section form-card wiz-step" data-step="courier" data-title="Courier">
-                    <h2 class="card-title"><span class="card-num">5</span> Courier Details</h2>
+                <section id="courierSection" class="hidden-section form-card wiz-step" data-step="courier" data-title="Linehaul Driver">
+                    <h2 class="card-title"><span class="card-num">5</span> Linehaul Driver Details</h2>
 
                     <div class="section-divider">
                         <div class="section-bar"></div>
@@ -514,9 +514,9 @@
                             </div>
                             <div class="wheel-chip p-3 text-center @if (old('vehicle_type') === 'car') active @endif" data-wheel="car">
                                 <svg class="mx-auto mb-1 h-6 w-6" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M5 17H3v-5l2-5h14l2 5v5h-2M5 12h14"/><circle cx="7.5" cy="17" r="2"/><circle cx="16.5" cy="17" r="2"/>
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M2 6h11v11H2zM13 10h4l3 3v4h-7"/><circle cx="6" cy="18" r="2"/><circle cx="17" cy="18" r="2"/>
                                 </svg>
-                                <p class="text-xs font-semibold">4 Wheels<br/>(Car/Van)</p>
+                                <p class="text-xs font-semibold">4 Wheels<br/>(Van/Truck)</p>
                             </div>
                         </div>
                         <input type="hidden" name="vehicle_type" id="vehicleTypeInput" value="{{ old('vehicle_type') === 'car' ? 'car' : 'tricycle' }}">
@@ -575,7 +575,7 @@
                             </span>
                         </label>
                     @empty
-                        <p class="rounded-lg border p-3 text-sm" style="border-color:#F0E4DC;color:#8a7a70;">No sorting centers are accepting couriers yet. Please check back later.</p>
+                        <p class="rounded-lg border p-3 text-sm" style="border-color:#F0E4DC;color:#8a7a70;">No sorting centers are accepting linehaul drivers yet. Please check back later.</p>
                     @endforelse
                     <p class="field-error" data-error-for="logisticsHub">@error('logistics_id'){{ $message }}@enderror</p>
                 </section>
@@ -683,6 +683,17 @@ document.addEventListener('DOMContentLoaded', function() {
     const roleInput = document.getElementById('roleInput');
     const genderInput = document.getElementById('genderInput');
     const vehicleTypeInput = document.getElementById('vehicleTypeInput');
+
+    // Dark mode marks boxes once, when the page loads (partials/theme: the orange chip keeps its colours, a white one
+    // becomes a slate card). A chip changes when picked, so its mark follows: picked = orange, the others = slate.
+    function chipColors(chips) {
+        chips.forEach(c => {
+            c.removeAttribute('data-keep-colors');
+            c.removeAttribute('data-surface');
+            if (c.classList.contains('active')) c.setAttribute('data-keep-colors', '');
+            else c.setAttribute('data-surface', 'card');
+        });
+    }
     
     const sellerSection = document.getElementById('sellerSection');
     const courierSection = document.getElementById('courierSection');
@@ -709,6 +720,7 @@ document.addEventListener('DOMContentLoaded', function() {
         chip.addEventListener('click', function() {
             roleChips.forEach(c => c.classList.remove('active'));
             this.classList.add('active');
+            chipColors(roleChips);
             const role = this.dataset.role;
             roleInput.value = role;
             
@@ -735,6 +747,7 @@ document.addEventListener('DOMContentLoaded', function() {
             genderChips.forEach(c => c.classList.remove('active'));
             this.classList.add('active');
             genderInput.value = this.dataset.gender;
+            chipColors(genderChips);
         });
     });
     
@@ -744,8 +757,10 @@ document.addEventListener('DOMContentLoaded', function() {
             wheelChips.forEach(c => c.classList.remove('active'));
             this.classList.add('active');
             vehicleTypeInput.value = this.dataset.wheel;
+            chipColors(wheelChips);
         });
     });
+    [roleChips, genderChips, wheelChips].forEach(chipColors);
     
     // Password show / hide (each field has its own eye)
     [['togglePassword', 'password'], ['togglePasswordConfirmation', 'passwordConfirmation']].forEach(function (pair) {

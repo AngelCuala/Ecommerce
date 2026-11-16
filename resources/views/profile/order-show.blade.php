@@ -13,7 +13,7 @@
         'Completed'        => 'Order completed',
         'Cancelled'        => 'Order cancelled',
         'Return Requested' => 'Return requested',
-        'Refunded'         => 'Return approved — refunded',
+        'Refunded'         => 'Return approved',
         'In Dispute'       => 'Escalated — ALVY is reviewing the return',
         default            => $status,
     };
@@ -329,6 +329,10 @@
                     <div class="mt-1 flex justify-between text-xs pf-muted"><span>Method</span><span>{{ $methodLabel }} · {{ $order->payment_status }}</span></div>
                     @if ((float) $order->refunded_amount > 0)
                         <div class="mt-1 flex justify-between text-xs font-semibold" style="color:#047857;"><span>Refunded</span><span>₱{{ number_format($order->refunded_amount, 2) }}</span></div>
+                    @endif
+                    @php $pendingRefund = $order->refunds->where('status', '!=', 'sent')->sortByDesc('id')->first(); @endphp
+                    @if ($pendingRefund)
+                        <div class="mt-1 flex justify-between text-xs font-semibold" style="color:#B45309;" data-refund-pending><span>Refund pending</span><span>₱{{ number_format($pendingRefund->amount, 2) }}</span></div>
                     @endif
                     @if ($order->isGcashReceipt())
                         <div class="mt-3 flex items-center justify-between gap-2 rounded-lg px-3 py-2 text-xs" style="background:#F5F9FF;color:#1E3A8A;" data-gcash-receipt>

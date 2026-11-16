@@ -99,6 +99,8 @@
     /* The profile card and menu (same as the buyer's account sidebar) */
     .acs-side { overflow: hidden; }
     @media (min-width: 961px) { .acs-side { position: sticky; top: 84px; } }
+    /* LogiSort pages scroll inside .content, under their own top bar: the card stays near the top of that area. */
+    @media (min-width: 961px) { .content .acs-side { top: 16px; } }
     .acs-cover { height: 80px; background: linear-gradient(120deg, #fa4e1c 0%, #ff8a5b 45%, #002b4d 130%); }
     .acs-avatar { position: relative; display: flex; width: 80px; height: 80px; margin: -40px 0 0 20px; align-items: center; justify-content: center; overflow: hidden; border-radius: 18px;
                   background: #002b4d; border: 4px solid #fff; box-shadow: 0 8px 20px -10px rgba(0,0,0,.4); cursor: pointer; color: #fff; font-family: 'Nunito', 'Inter', sans-serif; font-size: 26px; font-weight: 800; }

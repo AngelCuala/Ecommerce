@@ -211,9 +211,16 @@
                                 @else
                                     <span class="id-link">{{ $i->parcel->waybill_number ?? $i->parcel->tracking_number ?? '—' }}</span>
                                 @endif
+                                @if ($i->return_shipment_id)<span class="badge badge-purple" style="margin-left:4px;font-size:10px;" data-return-item>Return</span>@endif
                             </td>
+                            @if ($i->return_shipment_id)
+                                {{-- A buyer's return goes back to the seller. --}}
+                                <td>{{ $i->parcel?->seller?->storeName() ?? '—' }} <span class="text-muted">(seller)</span></td>
+                                <td style="font-size:12.5px;">{{ \App\Models\SellerApplication::where('user_id', $i->parcel?->seller_id)->value('municipality') ?? '—' }}</td>
+                            @else
                             <td>{{ $i->parcel->receiver_name ?? '—' }}</td>
                             <td style="font-size:12.5px;">{{ trim(($i->parcel->destination_municipality ?? '') . ', ' . ($i->parcel->destination_province ?? ''), ', ') ?: '—' }}</td>
+                            @endif
                             <td>{{ $i->parcel?->weight_kg ? number_format($i->parcel->weight_kg, 2) . ' kg' : '—' }}</td>
                             <td><span class="badge {{ $parcelBadge($i->status) }}">{{ $labels[$i->status] ?? ucfirst(str_replace('_', ' ', $i->status)) }}</span></td>
                             <td style="font-size:12.5px;">{{ $i->loaded_at?->format('M j, g:i A') ?? '—' }}</td>

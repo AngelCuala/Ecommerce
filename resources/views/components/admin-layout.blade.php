@@ -138,6 +138,8 @@ $navSections = [
                 'product-approvals'   => ['route' => 'admin.product-approvals.index',   'label' => 'Approvals',                    'icon' => 'box',
                                           'also' => ['seller-applications', 'sc-applications'],
                                           'badge' => \App\Models\Product::awaitingApproval()->where('is_archived', false)->count()],
+                'refunds'             => ['route' => 'admin.refunds.index',             'label' => 'Refunds',                      'icon' => 'wallet',
+                                          'badge' => \App\Models\Refund::where('status', 'ready_to_send')->count()],
                 'disputes'            => ['route' => 'admin.disputes.index',            'label' => 'Return Disputes',              'icon' => 'flag',
                                           'badge' => \App\Services\ReturnDecisions::openDisputes()->count()],
                 'compliance'          => ['route' => 'admin.compliance.index',          'label' => 'Reports & Complaints',         'icon' => 'flag'],

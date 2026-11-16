@@ -16,6 +16,18 @@ class Message extends Model
         'reminder' => 'Reminder: keep orders and payments on ALVY. Deals made outside ALVY have no buyer protection, refunds or tracking.',
     ];
 
+    /** Under a conversation with ALVY Admin: its messages are announcements, read only. */
+    public const READ_ONLY = 'Messages from ALVY Admin are announcements. You can read them, but replies are turned off.';
+
+    /** Refused when anyone but an admin writes to an admin. */
+    public const NO_ADMIN = 'ALVY Admin doesn\'t receive messages. For help with an order, report it from the order page, or ask ALLIE (the shop assistant) to contact ALVY support.';
+
+    /** A conversation the signed-in user can only read: the other side is an admin and they are not. */
+    public static function readOnlyFor(?User $me, ?User $other): bool
+    {
+        return $me && $other && $other->isAdmin() && ! $me->isAdmin();
+    }
+
     /** Shown at the top of every buyer–seller chat. */
     public const PROTECTION = 'ALVY Buyer Protection: order and pay only through ALVY. Your payment is protected until you receive the item, every parcel has an ALVY waybill you can track, and returns and refunds are handled for you. Phone numbers, emails and links are hidden in chats.';
 
@@ -26,6 +38,12 @@ class Message extends Model
     {
         // A buyer–seller chat: contact details are hidden before the message is saved (the original is never stored).
         static::creating(function (Message $m) {
+            // Nobody but an admin can message an admin (ALVY Admin only sends announcements).
+            $to = $m->receiver_id ? User::find($m->receiver_id) : null;
+            $from = $m->sender_id ? User::find($m->sender_id) : null;
+            if ($to && $to->isAdmin() && ! $from?->isAdmin()) {
+                throw \Illuminate\Validation\ValidationException::withMessages(['body' => self::NO_ADMIN]);
+            }
             if (! $m->body || ! self::isBuyerSellerChat($m)) {
                 return;
             }

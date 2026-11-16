@@ -240,7 +240,8 @@ class SharedRulesA25A37Test extends TestCase
             ->assertSessionHas('success', fn ($m) => str_contains($m, '₱417.81'));
         $order->refresh();
         $this->assertSame(Order::DELIVERED, $order->status);   // the tote is kept
-        $this->assertEquals(417.81, (float) $order->refunded_amount);
+        $this->assertEquals(417.81, (float) ReturnRequest::sole()->refund->amount);   // sent once the item is back
+        $this->assertEquals(0, (float) $order->refunded_amount);
         $this->assertNotNull($basket->fresh()->refunded_at);
         $this->assertNull(OrderItem::where('order_id', $order->id)->where('product_id', $this->p01->id)->value('refunded_at'));
 

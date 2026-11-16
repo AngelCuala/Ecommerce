@@ -37,6 +37,12 @@ class Order extends Model
     /** Not (yet) a sale: void, or an online order nobody has paid for yet. */
     public const NOT_SALES = [self::CANCELLED, self::REFUNDED, self::AWAITING_PAYMENT];
 
+    /**
+     * Orders whose money ALVY took in. A refunded order still counts: ALVY keeps its commission, and its money
+     * goes down only by what was actually sent back to the buyer (refunded_amount, written when the refund is sent).
+     */
+    public const NOT_PAID_IN = [self::CANCELLED, self::AWAITING_PAYMENT];
+
     /** Logistics is finished with these orders (nothing more to pick up or deliver). */
     public const LOGISTICS_DONE = [self::CANCELLED, self::DELIVERED, self::COMPLETED, self::RETURN_REQUESTED, self::REFUNDED, self::IN_DISPUTE];
 
@@ -172,7 +178,8 @@ class Order extends Model
                 }
             }
             // An approved return on an order paid online is refunded through the gateway too.
-            if ($order->status === self::REFUNDED && $order->isPaidOnline()) {
+            // (Not a return's refund: that one waits until the item is back with the seller, App\Services\Refunds.)
+            if ($order->status === self::REFUNDED && $order->isPaidOnline() && ! \App\Models\Refund::where('order_id', $order->id)->exists()) {
                 app(\App\Services\PaymentService::class)->refund($order, 'Return approved');
             }
 
@@ -423,9 +430,20 @@ class Order extends Model
             self::COMPLETED        => 'Completed',
             self::CANCELLED        => 'Cancelled',
             self::RETURN_REQUESTED => 'Return requested',
-            self::REFUNDED         => 'Refunded',
+            self::REFUNDED         => ($r = $this->refundRecord()) && ! $r->isSent() ? 'Return approved · refund pending' : 'Refunded',
             default                => $this->status,
         };
+    }
+
+    /** The latest refund of a return on this order (App\Services\Refunds), if any. */
+    public function refundRecord(): ?Refund
+    {
+        return $this->relationLoaded('refunds') ? $this->refunds->sortByDesc('id')->first() : $this->refunds()->latest('id')->first();
+    }
+
+    public function refunds(): HasMany
+    {
+        return $this->hasMany(Refund::class);
     }
 
     /** "#000123" */

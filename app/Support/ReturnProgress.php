@@ -8,7 +8,9 @@ use Illuminate\Support\Carbon;
 
 /**
  * What happened with a buyer's return, for the order page:
- *   - steps():   the short tracker (Requested → Seller's answer → [ALVY review] → Refunded → Picked up → Back to the seller)
+ *   - steps():   the short tracker (Requested → Seller's answer → [ALVY review] → Your refund details → Picked up
+ *                → Back to the seller → Refund sent). The money is a Refund (App\Services\Refunds), sent once the item
+ *                is back; older returns without one keep "Refunded" right after the approval.
  *   - history(): every event with its time, newest last (also merged into the order timeline).
  */
 class ReturnProgress
@@ -17,12 +19,25 @@ class ReturnProgress
 
     public static function for(ReturnRequest $return): self
     {
-        return new self($return->loadMissing(['shipment.pickupRider', 'shipment.sellerRider', 'shipment.sortingCenter', 'order']));
+        return new self($return->loadMissing(['shipment.pickupRider', 'shipment.sellerRider', 'shipment.sortingCenter', 'order', 'refund']));
+    }
+
+    /** The refund of an approved return (null for older returns, refunded on approval). */
+    public function refund(): ?\App\Models\Refund
+    {
+        return $this->return->refund;
     }
 
     private function refundedAt(): ?Carbon
     {
-        return $this->return->status === 'approved' ? ($this->return->admin_decided_at ?? $this->return->resolved_at) : null;
+        if ($this->return->status !== 'approved') {
+            return null;
+        }
+        if ($refund = $this->refund()) {
+            return $refund->sent_at;
+        }
+
+        return $this->return->admin_decided_at ?? $this->return->resolved_at;
     }
 
     /** When the seller answered (lost once ALVY decides a dispute, which writes resolved_at again). */
@@ -79,8 +94,16 @@ class ReturnProgress
         }
 
         $ended = in_array($r->status, ['rejected', 'closed'], true);
-        $steps[] = ['key' => 'refund', 'label' => 'Refunded', 'sub' => $this->refundedAt()?->format('M j') ?? ($ended ? 'no refund' : null),
-            'state' => $this->refundedAt() ? 'done' : ($ended ? 'skipped' : 'todo')];
+        $refund = $this->refund();
+        $legacy = $r->status === 'approved' && ! $refund;
+        if ($legacy) {
+            $steps[] = ['key' => 'refund', 'label' => 'Refunded', 'sub' => $this->refundedAt()?->format('M j'), 'state' => 'done'];
+        } elseif (! $refund || $refund->method !== 'original') {
+            // Where to send the money: asked once the return is approved.
+            $steps[] = ['key' => 'details', 'label' => 'Your refund details',
+                'sub' => $refund?->details_at?->format('M j') ?? ($ended ? 'not needed' : ($refund ? 'needed' : 'after approval')),
+                'state' => $refund?->details_at ? 'done' : ($ended ? 'skipped' : ($refund ? 'current' : 'todo'))];
+        }
 
         // The item's trip back: picked up from the buyer, then handed to the seller.
         $cancelled = ! $rs || $rs->status === 'cancelled';
@@ -89,8 +112,14 @@ class ReturnProgress
             'sub' => $pickedUp?->format('M j') ?? ($cancelled ? 'not needed' : ($rs->status === 'pickup_assigned' ? 'rider on the way' : 'waiting for a rider')),
             'state' => $pickedUp ? 'done' : ($cancelled ? 'skipped' : (in_array($r->status, ['requested', 'approved'], true) ? 'current' : 'todo'))];
         $steps[] = ['key' => 'returned', 'label' => 'Back to the seller',
-            'sub' => $rs?->returned_at?->format('M j') ?? ($cancelled && ! $pickedUp ? 'not needed' : ($rs && in_array($rs->status, ['at_hub', 'to_seller'], true) ? $rs->statusLabel() : null)),
-            'state' => $rs?->returned_at ? 'done' : ($cancelled && ! $pickedUp ? 'skipped' : ($rs && in_array($rs->status, ['at_hub', 'to_seller'], true) ? 'current' : 'todo'))];
+            'sub' => $rs?->returned_at?->format('M j') ?? ($cancelled && ! $pickedUp ? 'not needed' : ($rs && in_array($rs->status, ['at_hub', 'in_transit', 'to_seller'], true) ? $rs->statusLabel() : null)),
+            'state' => $rs?->returned_at ? 'done' : ($cancelled && ! $pickedUp ? 'skipped' : ($rs && in_array($rs->status, ['at_hub', 'in_transit', 'to_seller'], true) ? 'current' : 'todo'))];
+
+        if (! $legacy) {
+            $steps[] = ['key' => 'refund', 'label' => 'Refund sent',
+                'sub' => $refund?->sent_at?->format('M j') ?? ($ended ? 'no refund' : ($refund?->status === 'ready_to_send' ? 'ALVY is sending it' : 'once the item is back')),
+                'state' => $refund?->isSent() ? 'done' : ($ended ? 'skipped' : ($refund?->status === 'ready_to_send' ? 'current' : 'todo'))];
+        }
 
         // Only one "current": the first one wins (the rest wait).
         $seen = false;
@@ -125,7 +154,11 @@ class ReturnProgress
             if ($rs->picked_up_at) {
                 $add($rs->picked_up_at, 'Item picked up from you', $rs->pickupRider?->full_name ? 'by ' . $rs->pickupRider->full_name : null, 'done');
             }
-            if ($rs->received_at) {
+            // The first hub (from its record; older returns have only received_at). The next hubs come from the trips below.
+            $arrived = $rs->scans()->with('hub.company')->where('type', 'arrived')->first();
+            if ($arrived) {
+                $add($arrived->created_at, 'Item arrived at the hub', $arrived->hub?->company ? SortingCenters::displayName($arrived->hub->company) : $arrived->hub?->code);
+            } elseif ($rs->received_at && ! $rs->scans()->exists()) {
                 $add($rs->received_at, 'Item arrived at the hub', $rs->sortingCenter ? SortingCenters::displayName($rs->sortingCenter) : null);
             }
             if ($rs->seller_assigned_at) {
@@ -136,6 +169,14 @@ class ReturnProgress
             }
             if ($rs->status === 'cancelled') {
                 $add($rs->updated_at, 'Return pickup cancelled', $rs->cancel_reason, 'muted');
+            }
+            // Hub to hub, when the seller is in another town.
+            foreach ($rs->scans()->with('hub')->whereIn('type', ['departed', 'received', 'missing'])->get() as $e) {
+                match ($e->type) {
+                    'departed' => $add($e->created_at, 'On a hub-to-hub trip', $e->note),
+                    'received' => $add($e->created_at, 'Arrived at ' . ($e->hub?->code ?? 'the next hub'), $e->note),
+                    default    => $add($e->created_at, 'Missing in transit', $e->note, 'bad'),
+                };
             }
         }
 
@@ -152,7 +193,18 @@ class ReturnProgress
         if ($r->admin_decided_at) {
             $add($r->admin_decided_at, $r->admin_decision === 'refund' ? 'ALVY decided: refund' : 'ALVY decided: no refund', $r->admin_note, $r->admin_decision === 'refund' ? 'done' : 'bad');
         }
-        if ($at = $this->refundedAt()) {
+        $refund = $this->refund();
+        if ($refund) {
+            if ($refund->details_at) {
+                $add($refund->details_at, 'You gave your refund details', $refund->destination());
+            }
+            if ($refund->ready_at && ! $refund->isSent()) {
+                $add($refund->ready_at, 'ALVY is sending your refund', 'The item is back with the seller.');
+            }
+            if ($refund->sent_at) {
+                $add($refund->sent_at, 'Refund sent · ' . $money, $refund->destination() . ($refund->reference ? ' · Ref No. ' . $refund->reference : ''), 'done');
+            }
+        } elseif ($at = $this->refundedAt()) {
             $add($at, 'Refunded ' . $money, 'Goes ' . $this->refundTo() . '.', 'done');
         }
 
@@ -171,8 +223,12 @@ class ReturnProgress
     {
         $r = $this->return;
         $rs = $r->shipment;
+        $refund = $this->refund();
 
         return match (true) {
+            $r->status === 'approved' && $refund?->status === 'awaiting_details' => 'Approved · tell us where to send your refund',
+            $r->status === 'approved' && $refund?->status === 'waiting_for_item' => 'Approved · your refund is sent once the item is back with the seller',
+            $r->status === 'approved' && $refund?->status === 'ready_to_send'    => 'The item is back · ALVY is sending your refund',
             $r->status === 'requested' => 'Waiting for the seller to answer',
             $r->status === 'disputed'  => 'ALVY is reviewing your return',
             $r->status === 'rejected'  => 'The seller rejected your return',
@@ -182,8 +238,24 @@ class ReturnProgress
         };
     }
 
+    /** The pill in the card header. */
+    public function badge(): string
+    {
+        $refund = $this->refund();
+
+        return match (true) {
+            $this->return->status !== 'approved' => $this->return->statusLabel(),
+            ! $refund || $refund->isSent()       => 'Approved · refunded',
+            default                              => 'Approved · refund pending',
+        };
+    }
+
     public function tone(): string
     {
+        if ($this->refund()?->status === 'awaiting_details') {
+            return 'wait';
+        }
+
         return match ($this->return->status) {
             'approved' => 'done', 'rejected', 'closed' => 'bad', default => 'wait',
         };

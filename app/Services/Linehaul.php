@@ -315,7 +315,11 @@ class Linehaul
         }
         $item = $trip->onBoard()->where('parcel_id', $parcel->id)->first() ?? $this->fail('parcel', "{$parcel->tracking_number} is not on {$trip->code}.");
         $item->update(['status' => 'removed', 'loaded_at' => null]);
-        $parcel->update(['current_hub_id' => $trip->origin_hub_id]);
+        if ($item->return_shipment_id) {
+            app(ReturnShipments::class)->takenOffTrip($item, $trip);
+        } else {
+            $parcel->update(['current_hub_id' => $trip->origin_hub_id]);
+        }
         if ($trip->sealed_at) {
             $trip->update(['sealed_at' => null]);
         }
@@ -324,12 +328,21 @@ class Linehaul
         return $trip;
     }
 
+    /** Returns still on a trip that is cancelled or re-routed go back to their hub, ready to send again. */
+    private function releaseReturns(LinehaulTrip $trip): void
+    {
+        foreach ($trip->items()->whereIn('status', ['pending', 'loaded'])->whereNotNull('return_shipment_id')->get() as $item) {
+            app(ReturnShipments::class)->takenOffTrip($item, $trip);
+        }
+    }
+
     public function cancel(LinehaulTrip $trip, string $reason): LinehaulTrip
     {
         if (! in_array($trip->status, LinehaulTrip::BEFORE_DEPARTURE, true)) {
             $this->fail('reason', "{$trip->code} already departed and cannot be cancelled.");
         }
         $courier = $trip->courier;
+        $this->releaseReturns($trip);
         $trip->items()->whereIn('status', ['pending', 'loaded'])->update(['status' => 'removed']);
         $trip->update(['status' => 'cancelled']);
         $trip->log('cancelled', $reason);
@@ -371,6 +384,7 @@ class Linehaul
                 }
                 $old = $trip->destination;
                 $oldReceiver = $trip->crossCompany() && $trip->handover_status !== 'rejected' ? $trip->receiverId() : null;
+                $this->releaseReturns($trip);
                 $removed = $trip->items()->whereIn('status', ['pending', 'loaded'])->update(['status' => 'removed']);
                 $cross = (int) $dest->sorting_center_id !== (int) $sc->id;
                 $trip->update(['destination_hub_id' => $dest->id, 'destination_sorting_center_id' => $dest->sorting_center_id,
@@ -583,6 +597,10 @@ class Linehaul
                 $trip->locations()->create(['lat' => $lat, 'lng' => $lng, 'recorded_at' => now()]);
             }
             foreach ($trip->onBoard()->with('parcel')->get() as $item) {
+                if ($item->return_shipment_id) {
+                    app(ReturnShipments::class)->departed($item, $trip);
+                    continue;
+                }
                 $p = $item->parcel;
                 $p->linehaulStep = true;
                 $p->update(['status' => 'linehaul', 'current_hub_id' => null]);
@@ -717,6 +735,14 @@ class Linehaul
             $this->fail('photo', 'Take a photo of the damage first (JPG or PNG, up to 5 MB).');
         }
         $path = $photo->store('linehaul-incidents', 'local');
+        if ($item->return_shipment_id) {   // a return arrives damaged: received, with the damage on its record
+            $item->update(['status' => 'damaged', 'damage_photo_path' => $path, 'received_at' => now()]);
+            app(ReturnShipments::class)->arrivedFromTrip($item, $trip, $path);
+            $trip->update(['needs_courier_note' => true]);
+            $trip->log('damaged', null, ['old_value' => 'Return ' . $item->returnShipment?->order?->number(), 'photo_path' => $path]);
+
+            return $trip;
+        }
         $item->update(['status' => 'damaged', 'damage_photo_path' => $path, 'received_at' => now()]);
         $parcel->linehaulStep = true;
         $parcel->update(['status' => 'damaged', 'current_hub_id' => $trip->destination_hub_id, 'current_sorting_center_id' => $trip->receiverId(), 'exception_photo_path' => $path]);
@@ -747,6 +773,12 @@ class Linehaul
 
         return DB::transaction(function () use ($trip, $missing) {
             foreach ($missing as $item) {
+                if ($item->return_shipment_id) {
+                    $item->update(['status' => 'missing']);
+                    app(ReturnShipments::class)->missingOnTrip($item, $trip);
+                    $trip->log('missing', null, ['old_value' => 'Return ' . $item->returnShipment?->order?->number()]);
+                    continue;
+                }
                 $p = $item->parcel;
                 $item->update(['status' => 'missing']);
                 $p->linehaulStep = true;
@@ -844,6 +876,39 @@ class Linehaul
         }
 
         return count($ids);
+    }
+
+    /**
+     * A buyer's return goes on a trip to the next hub on its way back to the seller (App\Services\ReturnShipments):
+     * the trip must leave from the hub that has it and go to its next hub, and not have departed.
+     */
+    public function addReturn(User $sc, LinehaulTrip $trip, \App\Models\ReturnShipment $rs): LinehaulTripParcel
+    {
+        if ((int) $trip->sorting_center_id !== (int) $sc->id) {
+            $this->fail('trip', 'Only the sending sorting center can add the return.');
+        }
+        if (! in_array($trip->status, LinehaulTrip::BEFORE_DEPARTURE, true)) {
+            $this->fail('trip', "{$trip->code} is {$trip->label()}: a return can be added only before it departs.");
+        }
+        if ((int) $trip->origin_hub_id !== (int) $rs->current_hub_id || (int) $trip->destination_hub_id !== (int) $rs->next_hub_id) {
+            $this->fail('trip', "{$trip->code} doesn't go from this return's hub to its next hub.");
+        }
+        if (! $rs->parcel_id) {
+            $this->fail('trip', 'This return has no waybill to scan, so it can\'t go on a trip.');
+        }
+        if (LinehaulTripParcel::where('return_shipment_id', $rs->id)->whereIn('status', ['pending', 'loaded'])->exists()) {
+            $this->fail('trip', 'This return is already on a trip.');
+        }
+
+        return DB::transaction(function () use ($trip, $rs) {
+            $item = $trip->items()->create(['parcel_id' => $rs->parcel_id, 'return_shipment_id' => $rs->id, 'status' => 'pending']);
+            $trip->log('parcels_added', null, ['new_value' => 'Return ' . $rs->order?->number()]);
+            if ($trip->sealed_at) {
+                $trip->update(['sealed_at' => null]);   // the load changed: the hub hands over again
+            }
+
+            return $item;
+        });
     }
 
     /** Auto-assign: every parcel waiting at the origin whose nearest hub to the buyer is this trip's destination. */
@@ -1022,6 +1087,12 @@ class Linehaul
     /** One parcel received at the destination hub: it is at that hub, belongs to the receiving company, and can be sorted. */
     private function receiveItem(LinehaulTrip $trip, LinehaulTripParcel $item, Parcel $parcel): void
     {
+        if ($item->return_shipment_id) {   // a buyer's return: it goes into the receiving hub's Return Items
+            $item->update(['status' => 'received', 'received_at' => now()]);
+            app(ReturnShipments::class)->arrivedFromTrip($item, $trip);
+
+            return;
+        }
         $item->update(['status' => 'received', 'received_at' => now()]);
         $parcel->linehaulStep = true;
         $parcel->update(['status' => 'picked_up', 'current_hub_id' => $trip->destination_hub_id, 'current_sorting_center_id' => $trip->receiverId(),

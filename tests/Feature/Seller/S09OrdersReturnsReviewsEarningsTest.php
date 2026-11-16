@@ -284,7 +284,7 @@ class S09OrdersReturnsReviewsEarningsTest extends TestCase
         $this->seller('post', 'seller.orders.return', $order, ['decision' => 'approve'])->assertSessionHas('success');
         $this->assertSame('approved', ReturnRequest::sole()->status);
         $this->assertSame(Order::REFUNDED, $order->fresh()->status);
-        $this->assertTrue(UserNotification::where('user_id', $this->buyer1->id)->where('title', 'Refund approved')->exists());
+        $this->assertTrue(UserNotification::where('user_id', $this->buyer1->id)->where('title', 'Return approved')->where('body', 'like', '%Tell us where to send%')->exists());
         $this->actingAs($this->buyer1)->get(route('profile.orders.show', $order->id))->assertOk()->assertSee('Refund');
         // The amount leaves Seller 1's pending earnings.
         $this->assertEquals(0, $this->balances()['pending']);
@@ -349,7 +349,8 @@ class S09OrdersReturnsReviewsEarningsTest extends TestCase
         $this->artisan('returns:auto-approve')->assertSuccessful();
         $this->assertSame('approved', ReturnRequest::sole()->status);
         $this->assertSame(Order::REFUNDED, $order->fresh()->status);
-        $this->assertTrue(UserNotification::where('user_id', $this->buyer1->id)->where('title', 'Refund approved')->exists());
+        $this->assertTrue(UserNotification::where('user_id', $this->buyer1->id)->where('title', 'Return approved')->exists());
+        $this->assertSame('awaiting_details', ReturnRequest::sole()->refund->status);
     }
 
     /** SEL-RET-007 (A15) */

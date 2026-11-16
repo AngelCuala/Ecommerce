@@ -66,14 +66,15 @@ class ReturnRequest extends Model
             }
             // The seller hears when the buyer is refunded (unless the seller just did it).
             if ($r->status === 'approved' && $r->seller_id && (int) auth()->id() !== (int) $r->seller_id) {
-                UserNotification::create(['user_id' => $r->seller_id, 'title' => 'Return refunded',
-                    'body' => ($r->order?->number() ?? 'An order') . ': the buyer was refunded ₱' . number_format((float) $r->refund_amount, 2) . '. ' . ($r->seller_note ?: ''),
+                UserNotification::create(['user_id' => $r->seller_id, 'title' => 'Return approved',
+                    'body' => ($r->order?->number() ?? 'An order') . ': the return was approved. The buyer is refunded ₱' . number_format((float) $r->refund_amount, 2) . ' once the item is back with you. ' . ($r->seller_note ?: ''),
                     'type' => 'warning', 'link' => route('seller.orders.show', $r->order_id)]);
             }
         });
     }
 
     public function shipment(): \Illuminate\Database\Eloquent\Relations\HasOne { return $this->hasOne(ReturnShipment::class); }
+    public function refund(): \Illuminate\Database\Eloquent\Relations\HasOne   { return $this->hasOne(Refund::class); }
 
     public function order(): BelongsTo  { return $this->belongsTo(Order::class); }
     public function user(): BelongsTo   { return $this->belongsTo(User::class); }

@@ -85,7 +85,10 @@ class ReportController extends Controller
 
         } else {
             // ── Commission Report ────────────────────────────────
-            $totalCommission = $items()->sum('order_items.commission_amount');
+            // ALVY keeps its commission on refunded orders too.
+            $totalCommission = OrderItem::join('orders', 'orders.id', '=', 'order_items.order_id')
+                ->whereBetween('orders.created_at', $dateFilter)->whereNotIn('orders.status', Order::NOT_PAID_IN)
+                ->sum('order_items.commission_amount');
             $totalPayout     = $items()->sum('order_items.seller_earning');
             $totalGross      = (float) $items()->selectRaw('SUM(order_items.price * order_items.quantity) as g')->value('g');
 

@@ -94,6 +94,16 @@ class SettingsController extends Controller
             UserNotification::insert($batch);
         }
 
+        // The same announcement as a message from ALVY Admin in each recipient's Messages (read only: they can't reply).
+        $adminId = (int) auth()->id();
+        $body = $announcement->title . "\n\n" . $announcement->body;
+        foreach (array_chunk(array_column($rows, 'user_id'), 500) as $ids) {
+            \App\Models\Message::insert(array_map(fn ($id) => [
+                'thread_key' => \App\Models\Message::threadKey($adminId, (int) $id), 'sender_id' => $adminId, 'receiver_id' => $id,
+                'body' => $body, 'is_read' => false, 'created_at' => $now, 'updated_at' => $now,
+            ], $ids));
+        }
+
         return count($rows);
     }
 

@@ -46,7 +46,18 @@
     .cv-riders { display: inline-flex; align-items: center; gap: 5px; border-radius: 999px; padding: 2px 9px; font-size: 11.5px; font-weight: 700; white-space: nowrap; }
 </style>
 
-<div class="page-header"><h1>Coverage Areas</h1></div>
+<div class="page-header" style="display:block;">
+    <a href="{{ $back }}" class="cv-back" data-back>
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
+        Back
+    </a>
+    <h1>Coverage Areas</h1>
+</div>
+<style>
+    .cv-back { display: inline-flex; align-items: center; gap: 4px; margin-bottom: 8px; padding: 6px 12px 6px 8px; border: 1px solid var(--border); border-radius: 999px;
+               background: var(--surface, #fff); font: 600 12.5px/1 Inter, system-ui, sans-serif; color: var(--text-sub); letter-spacing: 0; }
+    .cv-back:hover { text-decoration: none; color: var(--accent-blue); border-color: var(--accent-blue); }
+</style>
 <div class="page-body">
 
     @if (! $sc->assigned_municipality)

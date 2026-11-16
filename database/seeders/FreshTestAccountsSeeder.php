@@ -213,6 +213,7 @@ class FreshTestAccountsSeeder extends Seeder
 
     public function run(): void
     {
+        DemoDocuments::ensure();   // the sample ID and permit the demo accounts point to
         if (app()->environment('production')) {
             throw new \RuntimeException('FreshTestAccountsSeeder is not for production.');
         }
@@ -256,7 +257,7 @@ class FreshTestAccountsSeeder extends Seeder
                 'municipality' => $townName, 'municipality_code' => $town['code'], 'barangay' => $brgy['name'], 'barangay_code' => $brgy['code'],
                 'street' => 'National Highway', 'house_number' => (string) (100 + $n), 'zip_code' => '4000',
                 'address' => (100 + $n) . ' National Highway, ' . $brgy['name'] . ', ' . $townName . ', Laguna',
-                'government_id_path' => 'ids/sample-id.jpg', 'business_permit_path' => 'permits/sample-permit.pdf',
+                'government_id_path' => DemoDocuments::ID, 'business_permit_path' => DemoDocuments::PERMIT,
             ]);
             $areas = [];
             foreach ($town['barangays'] as $j => $b) {
@@ -302,7 +303,7 @@ class FreshTestAccountsSeeder extends Seeder
                 'street' => $street, 'zip_code' => '4000',
                 'address' => $street . ', ' . $brgy['name'] . ', ' . $townName . ', Laguna, 4000',
                 'description' => $shop . ' — quality ' . strtolower($categories[$slug]->name ?? 'items') . ' from Laguna, shipped fast.',
-                'government_id_path' => 'ids/sample-id.jpg', 'status' => 'approved',
+                'government_id_path' => DemoDocuments::ID, 'status' => 'approved',
             ]);
             $cat = $categories[$slug] ?? null;
             $pics = array_values($images[(string) $cat?->id] ?? []);

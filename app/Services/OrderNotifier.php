@@ -54,7 +54,9 @@ class OrderNotifier
                     . ($order->payment_status === 'Refund pending' ? ' The money you sent will be returned to your GCash.' : ''), 'warning']
                 : ['Order cancelled', "Order {$n} was cancelled" . ($order->cancellation_reason ? ': ' . $order->cancellation_reason : '.'), 'warning'],
             Order::RETURN_REQUESTED => ['Return requested', "Your return request for order {$n} was sent to the seller.", 'info'],
-            Order::REFUNDED         => ['Refund approved', "Your return for order {$n} was approved. Your refund is on its way.", 'success'],
+            Order::REFUNDED         => ($refund = $order->refundRecord())
+                ? ['Return approved', "Your return for order {$n} was approved. " . Refunds::nextStep($order, (float) $refund->amount), 'success']
+                : ['Refund approved', "Your return for order {$n} was approved. Your refund is on its way.", 'success'],
             Order::IN_DISPUTE       => ['Return escalated', "Order {$n} is In Dispute. ALVY will review the return and decide.", 'info'],
             default                 => ['Order update', "Order {$n} is now {$order->status}.", 'info'],
         };
@@ -64,7 +66,7 @@ class OrderNotifier
             Order::CANCELLED        => ["Order {$n} cancelled", 'The order was cancelled' . ($order->cancellation_reason ? ': ' . $order->cancellation_reason : '.') . ' Its stock has been put back.'],
             Order::RETURN_REQUESTED => ["Return request for {$n}", 'The buyer asked for a return. Please review it on the order page.'],
             Order::IN_DISPUTE       => ["Order {$n} is In Dispute", 'The buyer escalated your rejected return to ALVY. ALVY will decide; you no longer need to act.'],
-            Order::REFUNDED         => ["Order {$n} refunded", 'The return was approved and the buyer refunded. The amount is removed from your earnings.'],
+            Order::REFUNDED         => ["Order {$n}: return approved", 'The return was approved. The amount is removed from your earnings; the buyer is refunded once the item is back with you.'],
             Order::COMPLETED        => ["Order {$n} completed", 'The buyer received the order. Your earnings for it are now available.'],
             Order::DELIVERED        => $from === Order::RETURN_REQUESTED ? null : ["Order {$n} delivered", 'The parcel reached the buyer.'],
             default                 => null,

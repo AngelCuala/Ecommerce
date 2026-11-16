@@ -261,7 +261,7 @@ class ShopAssistantTest extends TestCase
         $this->assertSame(['error' => 'The buyer is not signed in. Ask them to sign in at /login first.'], $this->tool('prepare_add_to_cart', ['product_id' => $this->ref($this->p02)]));
     }
 
-    public function test_contact_support_sends_a_message_to_alvy_after_confirm(): void
+    public function test_contact_support_notifies_alvy_after_confirm(): void
     {
         $admin = User::forceCreate(['name' => 'ALVY Admin', 'email' => 'admin@alvy.test', 'password' => Hash::make('Admin@2026'), 'role' => 'admin', 'approval_status' => 'approved']);
         $this->model->replies = [ScriptedAssistantModel::tool('prepare_support_request', ['topic' => 'seller not responding', 'message' => 'The seller has not replied to me for three days.']),
@@ -269,10 +269,12 @@ class ShopAssistantTest extends TestCase
         $token = $this->ask('The seller is not responding, I want to talk to support', $this->buyer1)->json('actions.0.token');
         $this->assertSame(0, Message::count());
 
+        // Nobody can message the admin: the request reaches the admins as a notification, not a chat message.
         $this->postJson(route('assistant.confirm', $token))->assertOk()->assertJson(['ok' => true]);
-        $msg = Message::sole();
-        $this->assertSame([$this->buyer1->id, $admin->id], [$msg->sender_id, $msg->receiver_id]);
-        $this->assertStringContainsString('Topic: seller not responding', $msg->body);
+        $this->assertSame(0, Message::count());
+        $note = \App\Models\UserNotification::where('user_id', $admin->id)->where('title', 'New support request')->sole();
+        $this->assertStringContainsString('seller not responding', $note->body);
+        $this->assertStringContainsString('The seller has not replied to me for three days.', $note->body);
     }
 
     // ── Safety, memory and failures ────────────────────────────

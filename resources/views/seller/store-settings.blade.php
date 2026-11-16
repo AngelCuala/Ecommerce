@@ -10,6 +10,13 @@
     $shopName = old('shop_name', $a->shop_name);
     $logoUrl = $a->logo_path ? asset('storage/' . $a->logo_path) : null;
     $bannerUrl = $a->banner_path ? asset('storage/' . $a->banner_path) : null;
+    $sellerId = auth()->id();
+    $productCount = \App\Models\Product::where('seller_id', $sellerId)->count();
+    $ratings = \App\Models\Review::whereHas('product', fn ($q) => $q->withTrashed()->where('seller_id', $sellerId));
+    $ratingAvg = round((float) (clone $ratings)->avg('rating'), 1);
+    $ratingCount = (clone $ratings)->count();
+    $followers = \App\Models\StoreFollow::where('seller_id', $sellerId)->count();
+    $onVacation = (bool) old('is_on_vacation', $a->is_on_vacation);
     $svg = fn (string $d, string $cls = 'h-5 w-5') => '<svg class="' . $cls . '" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" aria-hidden="true">' . $d . '</svg>';
 @endphp
 <style>
@@ -57,47 +64,106 @@
     .ss-save-state { display:none; font-size:.8125rem; font-weight:500; color:#92400E; }
     .ss-save.is-dirty .ss-save-state { display:inline-block; }
     .ss-save > span:last-child { margin-left:auto; }
+
+    /* Two columns: the store card (left, stays in view) and the settings (right). */
+    .ss-layout { display:grid; gap:1.5rem; grid-template-columns:minmax(0,22rem) minmax(0,1fr); align-items:start; }
+    @media (max-width:1100px) { .ss-layout { grid-template-columns:minmax(0,1fr); } }
+    @media (min-width:1101px) { .ss-aside { position:sticky; top:1.5rem; } }
+    @media (max-width:1100px) { .ss-jump { display:none; } }
+    .ss-aside .ss-banner { height:8.5rem; }
+    .ss-aside .ss-id { flex-direction:column; align-items:center; text-align:center; margin-top:-2.75rem; padding-bottom:.25rem; }
+    .ss-aside .ss-id > div { padding-top:.5rem; }
+    .ss-aside .ss-logo { height:5.25rem; width:5.25rem; font-size:1.9rem; }
+    .ss-aside .ss-desc { padding:0 1.25rem 1rem; text-align:center; }
+    .ss-status { display:inline-flex; align-items:center; gap:.35rem; margin-top:.35rem; padding:.2rem .65rem; border-radius:9999px; font-size:.72rem; font-weight:700; }
+    .ss-status i { width:.45rem; height:.45rem; border-radius:9999px; background:currentColor; }
+    .ss-stats { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); border-top:1px solid #F2EEEA; }
+    .ss-stats div { padding:.8rem .25rem; text-align:center; }
+    .ss-stats div + div { border-left:1px solid #F2EEEA; }
+    .ss-stats b { display:block; font-size:1.05rem; font-weight:800; color:#222; }
+    .ss-stats span { font-size:.68rem; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:#a39890; }
+    .ss-links { display:grid; gap:.5rem; padding:1rem 1.25rem 1.25rem; border-top:1px solid #F2EEEA; }
+    .ss-link { display:flex; align-items:center; justify-content:center; gap:.45rem; padding:.6rem .9rem; border-radius:.65rem; font-size:.8125rem; font-weight:600; transition:background .15s, border-color .15s, color .15s; }
+    .ss-link.main { background:#fa4e1c; color:#fff; box-shadow:0 8px 18px -10px rgba(250,78,28,.9); }
+    .ss-link.main:hover { background:#e2400f; }
+    .ss-link.soft { border:1px solid #ECE7E3; color:#44403C; background:#fff; }
+    .ss-link.soft:hover { border-color:#fa4e1c; color:#fa4e1c; }
+    .ss-jump { margin-top:1rem; padding:.9rem 1rem; }
+    .ss-jump p { margin-bottom:.4rem; font-size:.68rem; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:#a39890; }
+    .ss-jump a { display:flex; align-items:center; gap:.55rem; padding:.45rem .5rem; border-radius:.55rem; font-size:.8125rem; font-weight:600; color:#57534E; }
+    .ss-jump a:hover { background:#FFF7F3; color:#fa4e1c; }
+    .ss-jump a b { display:flex; width:1.35rem; height:1.35rem; align-items:center; justify-content:center; border-radius:9999px; background:#F5F2EF; font-size:.7rem; }
+
+    /* Section heads: a number, a coloured icon and a soft tint behind. */
+    .ss-card { overflow:hidden; scroll-margin-top:1.5rem; }
+    .ss-head { position:relative; background:linear-gradient(90deg, var(--tint, #FFF7F3) 0%, #fff 70%); }
+    .ss-num { margin-left:auto; flex:none; font-size:.7rem; font-weight:800; letter-spacing:.06em; color:#C8BFB8; }
+
+    /* Vacation: a coloured status panel */
+    .ss-vac-panel { display:flex; align-items:center; gap:1rem; padding:1rem 1.1rem; border-radius:.9rem; border:1px solid #D1FAE5; background:#F0FDF4; transition:background .2s, border-color .2s; }
+    .ss-vac-panel:has(input:checked) { border-color:#FDE68A; background:#FFFBEB; }
+    .ss-vac-emoji { display:flex; flex:none; width:2.75rem; height:2.75rem; align-items:center; justify-content:center; border-radius:9999px; background:#fff; box-shadow:0 2px 8px -4px rgba(0,0,0,.2); color:#059669; }
+    .ss-vac-panel:has(input:checked) .ss-vac-emoji { color:#B45309; }
 </style>
 
-<div class="mx-auto max-w-3xl">
-    <div class="mb-5 flex flex-wrap items-end justify-between gap-3">
-        <div>
-            <span class="section-eyebrow">Store</span>
-            <h1 class="text-2xl">Store Settings</h1>
-            <p class="text-sm" style="color:#8a7f78;">What buyers see on your store page, and where couriers pick up your parcels.</p>
-        </div>
-        <a href="{{ route('stores.show', auth()->id()) }}" target="_blank" class="btn-outline inline-flex items-center gap-1.5" style="padding:.5rem 1rem;">
-            {!! $svg('<path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/>', 'h-4 w-4') !!} View store page
-        </a>
+<div class="mx-auto max-w-6xl">
+    <div class="mb-5">
+        <h1 class="font-display text-2xl font-bold" style="color:#222;">Store Settings</h1>
+        <p class="mt-0.5 text-sm" style="color:#8a7f78;">What buyers see on your store page, and where couriers pick up your parcels. Your store card updates as you type.</p>
     </div>
 
+    <div class="ss-layout">
+    {{-- The store as buyers see it (updates as you type and pick pictures), its numbers, and shortcuts. --}}
+    <aside class="ss-aside">
+        <div class="ss-card">
+            <div class="ss-preview" style="border:0;border-radius:0;" data-preview>
+                <div class="ss-banner" data-preview-banner>@if ($bannerUrl)<img src="{{ $bannerUrl }}" alt="">@endif</div>
+                <div class="ss-id">
+                    <span class="ss-logo" data-preview-logo>@if ($logoUrl)<img src="{{ $logoUrl }}" alt="">@else{{ mb_strtoupper(mb_substr($shopName ?: 'S', 0, 1)) }}@endif</span>
+                    <div class="min-w-0 max-w-full">
+                        <p class="truncate font-display text-lg font-bold" style="color:#222;" data-preview-name>{{ $shopName ?: 'Your store name' }}</p>
+                        <span class="ss-status" style="{{ $onVacation ? 'background:#FEF3C7;color:#92400E;' : 'background:#DCFCE7;color:#166534;' }}" data-store-status><i></i><span data-store-status-text>{{ $onVacation ? 'On vacation' : 'Open for orders' }}</span></span>
+                        <span class="ss-tag hidden" data-preview-vacation></span>
+                    </div>
+                </div>
+                <p class="ss-desc text-sm" style="color:#57534E;white-space:pre-line;" data-preview-desc>{{ old('description', $a->description) ?: 'Your description shows here.' }}</p>
+            </div>
+            <div class="ss-stats" data-store-stats>
+                <div><b>{{ number_format($productCount) }}</b><span>Products</span></div>
+                <div><b>{{ $ratingCount ? number_format($ratingAvg, 1) . '★' : '—' }}</b><span>{{ $ratingCount ? $ratingCount . ' ' . \Illuminate\Support\Str::plural('review', $ratingCount) : 'Rating' }}</span></div>
+                <div><b>{{ number_format($followers) }}</b><span>Followers</span></div>
+                <div><b>{{ $a->created_at?->format('Y') ?? '—' }}</b><span>Since</span></div>
+            </div>
+            <div class="ss-links">
+                <a href="{{ route('stores.show', auth()->id()) }}" target="_blank" class="ss-link main" data-keep-colors>
+                    {!! $svg('<path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/>', 'h-4 w-4') !!} View store page
+                </a>
+                <a href="{{ route('seller.books.index') }}" class="ss-link soft">
+                    {!! $svg('<path d="M21 8 12 3 3 8v8l9 5 9-5V8Z"/><path d="m3 8 9 5 9-5M12 13v8"/>', 'h-4 w-4') !!} Manage products
+                </a>
+            </div>
+        </div>
+        <nav class="ss-card ss-jump" aria-label="Sections">
+            <p>Jump to</p>
+            <a href="#ss-profile"><b>1</b>Store profile</a>
+            <a href="#ss-address"><b>2</b>Contact and pickup address</a>
+            <a href="#ss-vacation"><b>3</b>Vacation mode</a>
+        </nav>
+    </aside>
+
+    <div>
     @if ($errors->any())<div class="mb-4 rounded-2xl border px-5 py-3 text-sm font-medium" style="background:#FEF2F2;border-color:#FECACA;color:#991B1B;" role="alert">Please fix the highlighted fields. Nothing was saved.</div>@endif
 
     <form method="POST" action="{{ route('seller.store-settings.update') }}" enctype="multipart/form-data" class="space-y-5" novalidate data-store-form data-start-dirty="{{ $errors->any() ? '1' : '0' }}">
         @csrf @method('PATCH')
 
-        <section class="ss-card">
-            <div class="ss-head">
+        <section class="ss-card" id="ss-profile">
+            <div class="ss-head" style="--tint:#FFF7F3;">
                 <span class="ss-ic" style="background:#FFF1EB;color:#fa4e1c;">{!! $svg('<path d="M3 9l1.5-5h15L21 9M3 9h18M3 9a3 3 0 006 0 3 3 0 006 0 3 3 0 006 0M5 12v8h14v-8"/>') !!}</span>
-                <div><h2>Store profile</h2><p>Shown on your public store page.</p></div>
+                <div><h2>Store profile</h2><p>Your name, description, logo and banner on the public store page.</p></div>
+                <span class="ss-num">01</span>
             </div>
             <div class="ss-body space-y-5">
-                {{-- What buyers will see (updates as you type and pick pictures) --}}
-                <div>
-                    <p class="ss-label">Preview</p>
-                    <div class="ss-preview" data-preview>
-                        <div class="ss-banner" data-preview-banner>@if ($bannerUrl)<img src="{{ $bannerUrl }}" alt="">@endif</div>
-                        <div class="ss-id">
-                            <span class="ss-logo" data-preview-logo>@if ($logoUrl)<img src="{{ $logoUrl }}" alt="">@else{{ mb_strtoupper(mb_substr($shopName ?: 'S', 0, 1)) }}@endif</span>
-                            <div class="min-w-0 pb-1">
-                                <p class="truncate font-display text-lg font-bold" style="color:#222;" data-preview-name>{{ $shopName ?: 'Your store name' }}</p>
-                                <span class="ss-tag {{ old('is_on_vacation', $a->is_on_vacation) ? '' : 'hidden' }}" style="background:#FEF3C7;color:#92400E;" data-preview-vacation>On vacation</span>
-                            </div>
-                        </div>
-                        <p class="px-4 pb-4 text-sm" style="color:#57534E;white-space:pre-line;" data-preview-desc>{{ old('description', $a->description) ?: 'Your description shows here.' }}</p>
-                    </div>
-                </div>
-
                 <div>
                     <label class="ss-label" for="shop_name">Store name *</label>
                     <input id="shop_name" name="shop_name" maxlength="30" value="{{ $shopName }}" class="input @error('shop_name') is-invalid @enderror">
@@ -133,12 +199,13 @@
             </div>
         </section>
 
-        <section class="ss-card">
-            <div class="ss-head">
+        <section class="ss-card" id="ss-address">
+            <div class="ss-head" style="--tint:#F3F7FB;">
                 <span class="ss-ic" style="background:#EEF3F7;color:#002b4d;">{!! $svg('<path d="M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11Z"/><circle cx="12" cy="10" r="2.5"/>') !!}</span>
                 <div class="min-w-0"><h2>Contact and pickup address</h2><p>Printed on your waybills. Couriers pick up parcels here.</p>
                     @if ($a->address)<p class="mt-2 inline-flex rounded-lg px-2.5 py-1 text-xs" style="background:#F5F2EF;color:#57534E;" data-saved-address>Saved: {{ $a->address }}</p>@endif
                 </div>
+                <span class="ss-num">02</span>
             </div>
             <div class="ss-body grid gap-4 sm:grid-cols-2">
                 <div class="sm:col-span-2">
@@ -181,14 +248,16 @@
             </div>
         </section>
 
-        <section class="ss-card">
-            <div class="ss-head">
+        <section class="ss-card" id="ss-vacation">
+            <div class="ss-head" style="--tint:#FFFBEB;">
                 <span class="ss-ic" style="background:#FEF3C7;color:#B45309;">{!! $svg('<circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M2 12h2m16 0h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>') !!}</span>
-                <div><h2>Vacation mode</h2><p>Your products stay visible with an "On vacation" label, but buyers can't add them to the cart, buy now or check out.</p></div>
+                <div><h2>Vacation mode</h2><p>Taking a break? Your products stay visible with an "On vacation" label, but buyers can't add them to the cart, buy now or check out.</p></div>
+                <span class="ss-num">03</span>
             </div>
             <div class="ss-body">
-                <label class="ss-vac flex cursor-pointer items-center justify-between gap-4 text-sm font-medium" style="color:#222;">
-                    <span>
+                <label class="ss-vac ss-vac-panel cursor-pointer text-sm font-medium" style="color:#222;">
+                    <span class="ss-vac-emoji" aria-hidden="true">{!! $svg('<path d="M3 21h18M5 21V10l7-5 7 5v11"/><path d="M9 21v-6h6v6"/>') !!}</span>
+                    <span class="flex-1">
                         My store is on vacation
                         <span class="block text-xs font-normal" style="color:#8a7f78;" data-vacation-note>{{ old('is_on_vacation', $a->is_on_vacation) ? 'Buyers see your store as on vacation.' : 'Your store is open for orders.' }}</span>
                     </span>
@@ -207,6 +276,8 @@
             </span>
         </div>
     </form>
+    </div>
+    </div>
 </div>
 
 <script src="{{ asset('js/register-address-fallback.js') }}"></script>
@@ -230,7 +301,9 @@ document.addEventListener('DOMContentLoaded', function () {
         q('[data-preview-desc]').textContent = desc.value.trim() || 'Your description shows here.';
         var logo = q('[data-preview-logo]');
         if (!logo.querySelector('img')) logo.textContent = (name.value.trim() || 'S').charAt(0).toUpperCase();
-        q('[data-preview-vacation]').classList.toggle('hidden', !vac.checked);
+        var st = q('[data-store-status]');
+        st.style.cssText = vac.checked ? 'background:#FEF3C7;color:#92400E;' : 'background:#DCFCE7;color:#166534;';
+        q('[data-store-status-text]').textContent = vac.checked ? 'On vacation' : 'Open for orders';
         q('[data-vacation-note]').textContent = vac.checked ? 'Buyers see your store as on vacation.' : 'Your store is open for orders.';
         form.querySelectorAll('[data-count]').forEach(function (c) { c.textContent = form.elements[c.dataset.count].value.length; });
     }

@@ -115,11 +115,14 @@ class SortingCenterCommissionTest extends TestCase
             ->assertOk()->assertSee('No parcels for this period');
         $this->get(route('sc.commissions', ['status' => 'bogus']))->assertSessionHasErrors('status');
 
-        $csv = $this->get(route('sc.commissions', ['export' => 'csv']));
-        $csv->assertOk();
-        $body = $csv->streamedContent();
-        $this->assertStringContainsString('ALVY commission (PHP)', $body);
-        $this->assertStringContainsString($this->a->tracking_number, $body);
+        // Download PDF (no CSV any more; an old ?export=csv link gets the PDF too).
+        $this->get(route('sc.commissions'))->assertSee('Download PDF')->assertDontSee('Export CSV')->assertSee('data-how-split', false);
+        foreach (['pdf', 'csv'] as $asked) {
+            $pdf = $this->get(route('sc.commissions', ['export' => $asked]));
+            $pdf->assertOk()->assertHeader('content-type', 'application/pdf');
+            $this->assertStringStartsWith('%PDF', $pdf->getContent());
+            $this->assertStringContainsString('sc-commission_', $pdf->headers->get('content-disposition'));
+        }
     }
 
     public function test_a_parcel_delivered_without_a_rider_pickup_does_not_break_the_page(): void

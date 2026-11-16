@@ -59,15 +59,15 @@ class WebFixesNov4Test extends TestCase
 
     // ── Messaging ALVY ──
 
-    public function test_buyers_riders_and_logistics_can_message_the_admin(): void
+    public function test_buyers_riders_and_logistics_cannot_message_the_admin(): void
     {
         foreach ([$this->buyer1, $this->rider1->user, $this->logistics1] as $user) {
             $threads = $this->actingAs($user)->getJson(route('chat.threads'))->assertOk()->json('threads');
-            $this->assertContains('ALVY Admin', array_column($threads, 'label'), $user->role . ' sees ALVY: ' . json_encode(array_column($threads, 'label')));
+            $this->assertNotContains('ALVY Admin', array_column($threads, 'label'), $user->role . ' sees: ' . json_encode(array_column($threads, 'label')));
 
             $key = Message::threadKey($user->id, $this->admin->id);
-            $this->actingAs($user)->postJson(route('chat.send', ['direct', $key]), ['body' => 'Hello ALVY'])->assertOk();
-            $this->assertDatabaseHas('messages', ['sender_id' => $user->id, 'receiver_id' => $this->admin->id, 'body' => 'Hello ALVY']);
+            $this->actingAs($user)->postJson(route('chat.send', ['direct', $key]), ['body' => 'Hello ALVY'])->assertStatus(422);
+            $this->assertDatabaseMissing('messages', ['sender_id' => $user->id, 'receiver_id' => $this->admin->id]);
         }
     }
 

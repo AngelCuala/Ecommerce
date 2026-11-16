@@ -19,29 +19,60 @@
 <div class="page-header"><h1>Shipment Board</h1></div>
 <div class="page-body">
 
-    {{-- Scan: finds the parcel; receipt is confirmed on the next page --}}
-    <div class="card" style="padding:16px 18px;margin-bottom:16px;display:flex;flex-wrap:wrap;gap:16px;align-items:flex-end;justify-content:space-between;">
-        <div style="flex:1;min-width:280px;max-width:520px;">
-        <form method="POST" action="{{ route('sc.parcels.scan') }}" id="scan-form" style="display:flex;gap:8px;">
-            @csrf
-            <input type="text" name="tracking_number" class="form-input" placeholder="Scan or type a waybill / tracking number" required autofocus autocomplete="off" style="font-family:'SF Mono',Consolas,monospace;">
-            <button class="btn btn-blue">Find</button>
-        </form>
-        <div style="margin-top:10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">@include('partials.waybill-scanner', ['lookup' => route('sc.parcels.scan')])<span class="text-muted" style="font-size:12px;">Opens the parcel straight from its waybill QR code.</span></div>
+    {{-- Scan: finds the parcel (receipt is confirmed on the next page); then the board's own search and filter. --}}
+    <style>
+        .sb-tools { padding: 16px 18px; margin-bottom: 16px; display: grid; gap: 14px 24px; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; }
+        @media (max-width: 1100px) { .sb-tools { grid-template-columns: minmax(0, 1fr); } }
+        .sb-label { display: block; margin-bottom: 6px; font-size: 12px; font-weight: 700; color: var(--text-sub); }
+        .sb-row { display: grid; gap: 8px; grid-template-columns: minmax(0, 1fr) auto auto; align-items: stretch; }
+        .sb-row > * { min-height: 42px; }
+        .sb-code { font-family: 'SF Mono', Consolas, monospace; font-size: 14px; }
+        .sb-code::placeholder { font-family: Inter, system-ui, sans-serif; font-size: 13px; }
+        .sb-btn { justify-content: center; min-width: 84px; font-size: 13.5px; border-radius: 9px; }
+        .sb-find { background: #fa4e1c !important; border-color: #fa4e1c !important; color: #fff !important; }
+        .sb-row .wbs-trigger { height: 100%; min-height: 42px; justify-content: center; padding: 0 16px; font-size: 13.5px; }
+        .sb-hint { margin: 6px 0 0; font-size: 12px; color: var(--text-muted); }
+        .sb-filter { display: grid; gap: 8px; grid-template-columns: minmax(0, 1fr) minmax(0, 170px) auto; align-items: stretch; }
+        .sb-actions { display: flex; gap: 8px; }
+        .sb-actions > * { flex: 1; }
+        .sb-filter > * { min-height: 42px; }
+        @media (max-width: 560px) {
+            .sb-row { grid-template-columns: 1fr 1fr; }
+            .sb-row > :first-child { grid-column: 1 / -1; }
+            .sb-filter { grid-template-columns: 1fr; }
+        }
+    </style>
+    <div class="card sb-tools" data-board-tools>
+        <div>
+            <label class="sb-label" for="sb-code">Find a parcel</label>
+            {{-- The scanner pop-up has its own form, so the input and Find button join this form by its id. --}}
+            <form method="POST" action="{{ route('sc.parcels.scan') }}" id="scan-form">@csrf</form>
+            <div class="sb-row">
+                <input id="sb-code" type="text" name="tracking_number" form="scan-form" class="form-input sb-code" placeholder="Waybill or tracking number" required autofocus autocomplete="off">
+                <button form="scan-form" class="btn sb-btn sb-find" data-keep-colors>Find</button>
+                @include('partials.waybill-scanner', ['lookup' => route('sc.parcels.scan'), 'label' => 'Scan QR', 'style' => 'ghost'])
+            </div>
+            <p class="sb-hint">Scan QR opens the camera and goes straight to the parcel.</p>
         </div>
-        <form method="GET" action="{{ route('sc.tracking') }}" style="display:flex;gap:8px;flex-wrap:wrap;">
-            <input type="text" name="q" value="{{ request('q') }}" class="form-input" placeholder="Tracking, #order, seller, municipality" style="width:240px;">
-            <select name="status" class="form-input" style="width:auto;">
-                <option value="">Any status</option>
-                @foreach (\App\Models\Parcel::STATUS_LABELS as $k => $l)<option value="{{ $k }}" @selected(request('status') === $k)>{{ $l }}</option>@endforeach
-            </select>
-            @foreach (['bucket', 'from', 'to'] as $keep)@if (request($keep))<input type="hidden" name="{{ $keep }}" value="{{ request($keep) }}">@endif @endforeach
-            <button class="btn btn-ghost">Search</button>
+
+        <div>
+            <label class="sb-label" for="sb-q">Filter the board</label>
+            <form method="GET" action="{{ route('sc.tracking') }}" class="sb-filter">
+                <input id="sb-q" type="text" name="q" value="{{ request('q') }}" class="form-input" placeholder="Tracking, #order, seller, municipality">
+                <select name="status" class="form-input" aria-label="Status">
+                    <option value="">Any status</option>
+                    @foreach (\App\Models\Parcel::STATUS_LABELS as $k => $l)<option value="{{ $k }}" @selected(request('status') === $k)>{{ $l }}</option>@endforeach
+                </select>
+                @foreach (['bucket', 'from', 'to'] as $keep)@if (request($keep))<input type="hidden" name="{{ $keep }}" value="{{ request($keep) }}">@endif @endforeach
+                <div class="sb-actions">
+                    <button class="btn btn-ghost sb-btn">Search</button>
+                    @if (request()->hasAny(['q', 'status', 'bucket', 'from', 'to']))<a href="{{ route('sc.tracking') }}" class="btn btn-ghost sb-btn">Reset</a>@endif
+                </div>
+            </form>
             @if (request('bucket') || request('from') || request('to'))
-                <span class="badge badge-blue" style="align-self:center;" data-board-filter>{{ ucfirst(str_replace('_', ' ', request('bucket') ?: 'all')) }}{{ request('from') || request('to') ? ' · ' . (request('from') ?: '…') . ' to ' . (request('to') ?: '…') : '' }}</span>
+                <span class="badge badge-blue" style="margin-top:8px;" data-board-filter>{{ ucfirst(str_replace('_', ' ', request('bucket') ?: 'all')) }}{{ request('from') || request('to') ? ' · ' . (request('from') ?: '…') . ' to ' . (request('to') ?: '…') : '' }}</span>
             @endif
-            @if (request()->hasAny(['q', 'status', 'bucket', 'from', 'to']))<a href="{{ route('sc.tracking') }}" class="btn btn-ghost">Reset</a>@endif
-        </form>
+        </div>
     </div>
 
     {{-- The inventory: every parcel this center handles. The status opens the page where its job is done. --}}

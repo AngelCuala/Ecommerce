@@ -25,7 +25,15 @@
     /* Fills the page: the form on the left, sign-in details and tips on the right. */
     /* Inside the account layout: the form on top, sign-in details, how it works and tips in a row under it. */
     .se-grid { display: grid; grid-template-columns: 1fr; gap: 18px; }
-    .se-side { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); align-items: start; }
+    /* The three side cards: one row of equal-height cards when wide; Sign-in details across the top with the other two
+       side by side on a medium screen; one column on a phone (no card left alone with an empty space beside it). */
+    .se-side { display: grid; gap: 16px; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: stretch; }
+    .se-side > .card { display: flex; flex-direction: column; }
+    /* By the space the cards really get (the page also has the menu and the profile card), not the screen width. */
+    .se-grid { container-type: inline-size; }
+    @container (max-width: 780px) { .se-side { grid-template-columns: repeat(2, minmax(0, 1fr)); } .se-side > .se-wide { grid-column: 1 / -1; } .se-wide .se-list { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    @container (max-width: 480px) { .se-side { grid-template-columns: minmax(0, 1fr); } .se-wide .se-list { grid-template-columns: minmax(0, 1fr); } }
+    .se-tick { display: flex; flex: none; width: 18px; height: 18px; margin-top: 1px; align-items: center; justify-content: center; border-radius: 999px; background: #ecfdf3; color: var(--accent-green); }
     .se-head { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; padding: 18px 20px; border-bottom: 1px solid var(--border-dim); }
     .se-head h2 { margin: 0; font-size: 17px; font-weight: 700; color: var(--text); }
     .se-head p { margin: 3px 0 0; font-size: 13px; color: var(--text-muted); }
@@ -178,7 +186,7 @@
         </div>
 
         <aside class="se-side">
-            <div class="card">
+            <div class="card se-wide">
                 <div class="se-card-title"><span>{!! $ico($shield) !!}</span>Sign-in details</div>
                 <div class="se-list" style="gap:14px;">
                     <div class="se-kv"><small>Email</small><span>{{ $maskedEmail }}</span></div>
@@ -196,9 +204,9 @@
             <div class="card">
                 <div class="se-card-title"><span>{!! $ico($bulb) !!}</span>Tips</div>
                 <ul class="se-list">
-                    <li><span class="se-num">&bull;</span><span>Don't reuse a password from another site.</span></li>
-                    <li><span class="se-num">&bull;</span><span>Never share your password or code with riders or staff. ALVY will never ask for it.</span></li>
-                    <li><span class="se-num">&bull;</span><span>A short phrase with a number and a symbol is easy to remember and hard to guess.</span></li>
+                    <li><span class="se-tick"><svg width="11" height="11" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 13l4 4L19 7"/></svg></span><span>Don't reuse a password from another site.</span></li>
+                    <li><span class="se-tick"><svg width="11" height="11" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 13l4 4L19 7"/></svg></span><span>Never share your password or code with riders or staff. ALVY will never ask for it.</span></li>
+                    <li><span class="se-tick"><svg width="11" height="11" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 13l4 4L19 7"/></svg></span><span>A short phrase with a number and a symbol is easy to remember and hard to guess.</span></li>
                 </ul>
             </div>
         </aside>

@@ -124,6 +124,46 @@ class OrderController extends Controller
         return back()->with('success', 'Your request was escalated. ALVY will review it and decide; the order is now In Dispute.');
     }
 
+    /**
+     * Where to send the refund of an approved return: GCash, Maya or a bank account. The number is stored
+     * encrypted; once given it is locked (ALVY sends it back if it doesn't work).
+     */
+    public function saveRefundDetails(Request $request, int $id)
+    {
+        $order = Order::where('user_id', auth()->id())->findOrFail($id);
+        $refund = $order->refundRecord();
+        if (! $refund || $refund->status !== 'awaiting_details') {
+            return back()->with('error', 'This order has no refund waiting for your details.');
+        }
+
+        $request->merge(['account_number' => preg_replace('/[\s-]/', '', (string) $request->input('account_number'))]);
+        $bank = $request->input('method') === 'bank';
+        $data = $request->validate([
+            'method'         => ['required', Rule::in(['gcash', 'maya', 'bank'])],
+            'account_name'   => ['required', 'string', 'min:3', 'max:100'],
+            'bank_name'      => [Rule::requiredIf($bank), 'nullable', Rule::in(\App\Models\Refund::BANKS)],
+            'account_number' => ['required', $bank ? 'regex:/^\d{8,16}$/' : 'regex:/^09\d{9}$/'],
+            'confirm'        => ['accepted'],
+        ], [
+            'method.required'          => 'Choose where to send your refund.',
+            'account_name.required'    => 'Enter the name on the account.',
+            'bank_name.required'       => 'Choose your bank.',
+            'account_number.regex'     => $bank ? 'The bank account number is 8 to 16 numbers.' : 'Enter the mobile number as 11 numbers starting with 09.',
+            'confirm.accepted'         => 'Tick the box to confirm the details are correct.',
+        ]);
+
+        try {
+            app(\App\Services\Refunds::class)->saveDetails($refund, $data);
+        } catch (\RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+        $refund->refresh();
+
+        return redirect(route('profile.orders.show', $order->id) . '#return')->with('success', $refund->status === 'ready_to_send'
+            ? 'Thanks! The item is already back with the seller, so ALVY is sending your refund now.'
+            : 'Thanks! ALVY sends your refund to ' . $refund->destination() . ' as soon as the item is back with the seller.');
+    }
+
     public function requestReturn(Request $request, int $id)
     {
         $order = Order::where('user_id', auth()->id())->findOrFail($id);

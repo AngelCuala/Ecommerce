@@ -77,7 +77,13 @@ class LogisticsReturnsApiTest extends TestCase
         $this->api('POST', "/rider/return-jobs/{$rs->id}/confirm", ['tracking_number' => $parcel->waybill_number, 'proof_photo' => UploadedFile::fake()->image('i.jpg')], $this->rider1->user)->assertOk();
         $this->assertSame('picked_up', $rs->fresh()->status);
 
-        $this->api('POST', "/logistics/returns/{$rs->id}/receive")->assertOk();
+        // At the hub: sort → check → scan, then the rider to the seller (same town). Out of order is refused.
+        $this->assertSame('sort', $this->api('GET', '/logistics/returns?tab=hub')->json('data.0.action'));
+        $this->api('POST', "/logistics/returns/{$rs->id}/to-seller", ['rider_id' => $this->rider1->id])->assertStatus(422);
+        $this->api('POST', "/logistics/returns/{$rs->id}/sort")->assertOk();
+        $this->api('POST', "/logistics/returns/{$rs->id}/check", ['condition' => 'good'])->assertOk();
+        $this->api('POST', "/logistics/returns/{$rs->id}/scan", ['tracking' => $parcel->waybill_number])->assertOk();
+        $this->assertSame('assign_seller', $this->api('GET', '/logistics/returns?tab=process')->json('data.0.action'));
         $this->api('POST', "/logistics/returns/{$rs->id}/to-seller", ['rider_id' => $this->rider1->id])->assertOk();
         $this->api('POST', "/rider/return-jobs/{$rs->id}/handed", [], $this->rider1->user)->assertOk();
         $this->assertSame('returned', $rs->fresh()->status);

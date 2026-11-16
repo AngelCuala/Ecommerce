@@ -10,7 +10,7 @@
             </span>
             <div class="min-w-0">
                 <p class="truncate text-sm font-semibold" style="color:#222;">{{ $otherUser->name }}</p>
-                <p class="text-xs" style="color:#8a7f78;">{{ ucfirst($otherUser->role ?? 'User') }}</p>
+                <p class="text-xs" style="color:#8a7f78;">{{ \App\Models\Message::readOnlyFor(auth()->user(), $otherUser) ? 'Announcements · read only' : ucfirst($otherUser->role ?? 'User') }}</p>
             </div>
         </header>
 
@@ -65,6 +65,10 @@
                 @include('messages._product-card', ['product' => $aboutProduct])
             </div>
         @endif
+        @if (\App\Models\Message::readOnlyFor(auth()->user(), $otherUser))
+            {{-- ALVY Admin's announcements: read only. --}}
+            <p class="border-t px-4 py-3 text-center text-xs" style="border-color:#F2EEEA;color:#8a7f78;" data-read-only>{{ \App\Models\Message::READ_ONLY }}</p>
+        @else
         <form action="{{ \App\Support\Portal::route('messages.direct.store', $threadKey) }}" method="POST" enctype="multipart/form-data" class="flex items-end gap-2 border-t px-4 py-3" style="border-color:#F2EEEA;">
             @csrf
             <label class="flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-lg border" style="border-color:#E7E5E4;color:#57534E;" title="Attach a photo (JPG or PNG, up to 5 MB)">
@@ -76,6 +80,7 @@
                       style="border-color:#E7E5E4;color:#222;" placeholder="Write a message"></textarea>
             <button type="submit" class="rounded-lg px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90" style="background:#fa4e1c;">Send</button>
         </form>
+        @endif
         <p data-file class="px-4 pb-1 text-[11px]" style="color:#8a7f78;"></p>
         @error('body')<p class="px-4 pb-3 text-xs" style="color:#B91C1C;">{{ $message }}</p>@enderror
         @error('attachment')<p class="px-4 pb-3 text-xs" style="color:#B91C1C;">{{ $message }}</p>@enderror

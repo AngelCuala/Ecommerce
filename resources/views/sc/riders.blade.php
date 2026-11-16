@@ -9,8 +9,11 @@
 @section('content')
 
 @include('partials.page-tabs', ['tabs' => [['Riders', 'sc.riders', 'sc.riders'], ['Courier applications', 'sc.courier-applications.index', 'sc.courier-applications.*']]])
-<div class="page-header"><h1>Rider Management</h1>
-    <p class="text-muted" style="margin:4px 0 0;font-size:13px;">The vehicle decides the work: <strong>riders</strong> (motorcycle, tricycle, bicycle, car, van) pick up from sellers and deliver to buyers; only cars and vans take <strong>bulky</strong> parcels (over {{ \App\Models\Parcel::BULKY_KG }} kg, or big items like a table). <strong>Linehaul drivers</strong> drive trucks and carry parcels in bulk from hub to hub (Linehaul Trips); they are marked <span class="badge badge-blue" style="font-size:10px;">Linehaul driver</span>.</p>
+<div class="page-header" style="display:block;"><h1>Rider Management</h1>
+    <p style="margin:4px 0 0;max-width:860px;font:400 13px/1.55 Inter,system-ui,sans-serif;letter-spacing:0;color:var(--text-sub);">
+        <b style="color:var(--text);">Riders</b> pick up from sellers and deliver to buyers; only cars and vans take bulky parcels (over {{ \App\Models\Parcel::BULKY_KG }} kg, or big items like a table).
+        <b style="color:var(--text);">Linehaul drivers</b> drive trucks between hubs (Linehaul Trips) and are marked <span class="badge badge-blue" style="font-size:10px;">Linehaul driver</span>.
+    </p>
 </div>
 <div class="page-body">
 
@@ -133,11 +136,21 @@
         .riders-table th, .riders-table td { padding-left: 12px; padding-right: 12px; }
     </style>
     <div class="card" style="overflow-x:auto;">
+        <style>
+            .riders-table td { vertical-align: middle; }
+            .rt-who { display: flex; align-items: center; gap: 10px; }
+            .rt-avatar { display: flex; width: 34px; height: 34px; flex: none; align-items: center; justify-content: center; border-radius: 10px; background: #fff1ee; color: var(--accent-blue); font-weight: 800; font-size: 14px; }
+            .rt-name { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-weight: 700; }
+            .rt-name a { color: var(--accent-blue); }
+            .rt-tag { font-size: 10px; white-space: nowrap; }
+            .rt-main { font-size: 13px; font-weight: 600; color: var(--text); white-space: nowrap; }
+            .rt-sub { margin-top: 2px; font-size: 12px; color: var(--text-muted); }
+            .riders-table details[open] summary { margin-left: auto; }
+        </style>
         <table class="data-table riders-table">
             <thead>
                 <tr>
-                    <th>ID</th><th>Name</th><th>Vehicle</th><th>Area</th>
-                    <th>Availability</th><th>Active jobs</th><th>Delivered today</th><th>Deliveries</th><th>Status</th><th>Actions</th>
+                    <th>Rider</th><th>Vehicle &amp; area</th><th>Availability</th><th>Delivered</th><th>Status</th><th style="text-align:right;">Actions</th>
                 </tr>
             </thead>
             <tbody id="riders-tbody">
@@ -164,31 +177,48 @@
                     }
                 @endphp
                 <tr @if($rider->isTruck()) data-truck-rider="{{ $rider->id }}" @endif>
-                    <td><span class="id-link">RDR-{{ str_pad($rider->id,3,'0',STR_PAD_LEFT) }}</span></td>
+                    {{-- Rider: ID, name and type, contact --}}
                     <td>
-                        <a href="{{ route('sc.riders.show', $rider) }}" style="font-weight:600;color:var(--accent-blue);">{{ $rider->full_name }}</a>
-                        @if($rider->isTruck())<span class="badge badge-blue" style="font-size:10px;margin-left:4px;white-space:nowrap;">Linehaul driver</span>@elseif($rider->canCarryBulky())<span class="badge badge-yellow" style="font-size:10px;margin-left:4px;white-space:nowrap;">4 wheels · bulky OK</span>@endif
-                        <div class="text-muted text-sm">{{ $rider->user->email ?? '' }}{{ $rider->phone ? ' · ' . $rider->phone : '' }}</div>
+                        <div class="rt-who">
+                            <span class="rt-avatar">{{ mb_strtoupper(mb_substr($rider->full_name, 0, 1)) }}</span>
+                            <div style="min-width:0;">
+                                <div class="rt-name">
+                                    <a href="{{ route('sc.riders.show', $rider) }}">{{ $rider->full_name }}</a>
+                                    @if($rider->isTruck())<span class="badge badge-blue rt-tag">Linehaul driver</span>@elseif($rider->canCarryBulky())<span class="badge badge-yellow rt-tag">4 wheels · bulky OK</span>@endif
+                                </div>
+                                <div class="rt-sub"><span class="id-link">RDR-{{ str_pad($rider->id,3,'0',STR_PAD_LEFT) }}</span> · {{ $rider->user->email ?? '' }}{{ $rider->phone ? ' · ' . $rider->phone : '' }}</div>
+                            </div>
+                        </div>
                     </td>
-                    <td>{{ $rider->vehicle_type ?? '—' }}{{ $rider->plate_number ? ' · ' . $rider->plate_number : '' }}
-                        @if($rider->needs_reverification)<div><span class="badge badge-yellow" style="font-size:10px;">Re-verify vehicle</span></div>@endif
+                    {{-- Vehicle and where they work --}}
+                    <td>
+                        <div class="rt-main">{{ $rider->vehicle_type ?? '—' }}{{ $rider->plate_number ? ' · ' . $rider->plate_number : '' }}</div>
+                        @if($rider->isTruck())
+                            <div class="rt-sub"><span class="text-orange">{{ $truck?->homeHub?->code ?? 'No hub yet' }}</span> · hub to hub{{ $truck?->load_capacity_kg ? ' · ' . number_format($truck->load_capacity_kg) . ' kg' : '' }}</div>
+                        @else
+                            <div class="rt-sub"><span class="text-orange">{{ $rider->barangayNames() }}</span></div>
+                        @endif
+                        @if($rider->needs_reverification)<span class="badge badge-yellow rt-tag" style="margin:4px 0 0;">Re-verify vehicle</span>@endif
                     </td>
-                    @if($rider->isTruck())
-                        <td><span class="text-orange" style="white-space:nowrap;">{{ $truck?->homeHub?->code ?? 'No hub yet' }}</span><div class="text-muted text-sm">hub to hub{{ $truck?->load_capacity_kg ? ' · ' . number_format($truck->load_capacity_kg) . ' kg' : '' }}</div></td>
-                        <td>@if($truck?->isOnDutyNow())<span class="badge badge-green" data-online>Online</span>@else<span class="badge badge-gray">Offline</span>@endif</td>
-                        <td data-active-jobs="{{ $activeJobs }}">@if($trip)<a href="{{ route('sc.trips.show', $trip) }}" class="badge badge-blue">{{ $trip->code }}</a>@else<span class="badge badge-gray">0</span>@endif</td>
-                        <td data-today="{{ $todayDelivered }}">{{ $todayDelivered }} {{ \Illuminate\Support\Str::plural('trip', $todayDelivered) }}</td>
-                        <td>{{ $deliveries }} {{ \Illuminate\Support\Str::plural('trip', $deliveries) }}</td>
-                    @else
-                        <td><span class="text-orange">{{ $rider->barangayNames() }}</span></td>
-                        <td>@if($rider->isOnlineNow())<span class="badge badge-green" data-online>Online</span>@else<span class="badge badge-gray">Offline</span>@endif</td>
-                        <td data-active-jobs="{{ $activeJobs }}"><span class="badge badge-gray">{{ $activeJobs }}</span></td>
-                        <td data-today="{{ $todayDelivered }}">{{ $todayDelivered }}</td>
-                        <td>{{ $deliveries }}</td>
-                    @endif
+                    {{-- Online, and the job or trip they are on --}}
+                    <td>
+                        @if($rider->isTruck() ? $truck?->isOnDutyNow() : $rider->isOnlineNow())<span class="badge badge-green" data-online>Online</span>@else<span class="badge badge-gray">Offline</span>@endif
+                        <div class="rt-sub" style="margin-top:4px;" data-active-jobs="{{ $activeJobs }}">
+                            @if($rider->isTruck())
+                                @if($trip)On <a href="{{ route('sc.trips.show', $trip) }}">{{ $trip->code }}</a>@else No trip now @endif
+                            @else
+                                {{ $activeJobs }} active {{ \Illuminate\Support\Str::plural('job', $activeJobs) }}
+                            @endif
+                        </div>
+                    </td>
+                    {{-- Delivered today, and in total --}}
+                    <td data-today="{{ $todayDelivered }}">
+                        <div class="rt-main">{{ $todayDelivered }} today</div>
+                        <div class="rt-sub">{{ $deliveries }} {{ $rider->isTruck() ? \Illuminate\Support\Str::plural('trip', $deliveries) : \Illuminate\Support\Str::plural('delivery', $deliveries) }} in total</div>
+                    </td>
                     <td><span class="badge {{ $badgeClass }}">{{ $badgeLabel }}</span></td>
-                    <td>
-                        <div style="display:flex;gap:5px;flex-wrap:wrap;">
+                    <td style="text-align:right;">
+                        <div style="display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end;">
                             @if($isPending)
                                 <form method="POST" action="{{ route('sc.riders.approve',$rider) }}">@csrf
                                     <button class="btn btn-green btn-sm">Approve</button>
@@ -220,7 +250,7 @@
             @endforeach
 
             @if($riders->isEmpty())
-                <tr><td colspan="10" style="text-align:center;padding:30px;color:var(--text-muted);">No riders found.</td></tr>
+                <tr><td colspan="6" style="text-align:center;padding:30px;color:var(--text-muted);">No riders found.</td></tr>
             @endif
             </tbody>
         </table>

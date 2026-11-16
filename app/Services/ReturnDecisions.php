@@ -16,8 +16,9 @@ use RuntimeException;
  * Deciding a return: the seller approves or rejects it, and when the buyer escalates a rejection, an ALVY admin decides
  * the dispute. Both approvals refund the buyer the same way (approve()), so an admin's "Refund" really refunds:
  *   - only some items (A8): those items are marked refunded, the rest of the order stays delivered;
- *   - the whole order: it becomes Refunded (an online payment goes back through the gateway, see Order::booted);
- *   - cash on delivery: the amount is recorded as refunded to the buyer.
+ *   - the whole order: it becomes Refunded (the seller's earning for it is removed).
+ * The money itself is a Refund (App\Services\Refunds): the buyer says where to send it, and it is sent as soon as
+ * the item is back with the seller (paid online: back through the gateway then).
  */
 class ReturnDecisions
 {
@@ -25,32 +26,33 @@ class ReturnDecisions
     public function approve(ReturnRequest $return, string $by = 'The seller'): string
     {
         $order = $return->order;
+        $refunds = app(Refunds::class);
 
         if ($return->isPartial()) {
-            DB::transaction(function () use ($order, $return, $by) {
+            $refund = DB::transaction(function () use ($order, $return, $by, $refunds) {
                 foreach (OrderItem::where('order_id', $order->id)->whereIn('id', $return->item_ids)->get() as $item) {
                     $item->forceFill(['refunded_at' => now(), 'refund_amount' => ReturnRequest::itemRefund($item)])->save();
                 }
                 $order->forceFill(['status' => Order::DELIVERED])->saveQuietly();
-                $order->events()->create(['status' => Order::DELIVERED, 'note' => 'Partial refund of ₱' . number_format($return->refund_amount, 2) . ' approved', 'created_at' => now()]);
-                if ($order->isPaidOnline()) {
-                    app(PaymentService::class)->refund($order, 'Partial return approved', (float) $return->refund_amount);
-                } else {
-                    $order->forceFill(['refunded_amount' => (float) $order->refunded_amount + (float) $return->refund_amount])->saveQuietly();
-                }
-                UserNotification::create(['user_id' => $order->user_id, 'title' => 'Partial refund approved', 'type' => 'success',
-                    'body' => "{$by} approved your return for order " . $order->number() . '. ₱' . number_format($return->refund_amount, 2)
-                        . ($order->isPaidOnline() ? ' goes back to your payment method.' : ' goes to your refund account.'),
-                    'link' => route('profile.orders.show', $order->id, false)]);
-            });
+                $order->events()->create(['status' => Order::DELIVERED, 'note' => 'Partial return of ₱' . number_format($return->refund_amount, 2) . ' approved', 'created_at' => now()]);
+                $refund = $refunds->open($return);
+                UserNotification::create(['user_id' => $order->user_id, 'title' => 'Partial return approved', 'type' => 'success',
+                    'body' => "{$by} approved your return for order " . $order->number() . '. ' . Refunds::nextStep($order, (float) $return->refund_amount),
+                    'link' => route('profile.orders.show', $order->id, false) . '#return']);
 
-            return 'Partial return approved. The buyer will be refunded ₱' . number_format($return->refund_amount, 2) . '.';
+                return $refund;
+            });
+            $refunds->advance($refund);
+
+            return 'Partial return approved. The buyer gets ₱' . number_format($return->refund_amount, 2) . ' back once the item is back with the seller.';
         }
 
-        // The whole order. A COD order's refund goes to the buyer's refund account (A31): record it like the gateway does.
-        $order->update(['status' => Order::REFUNDED] + (! $order->isPaidOnline() ? ['refunded_amount' => (float) $return->refund_amount] : []));
+        // The whole order. The refund exists first, so the order doesn't refund through the gateway now (Order::booted).
+        $refund = $refunds->open($return);
+        $order->update(['status' => Order::REFUNDED]);
+        $refunds->advance($refund);
 
-        return 'Return approved. The buyer will be refunded.';
+        return 'Return approved. The buyer is refunded once the item is back with the seller.';
     }
 
     /** Return requests the buyer escalated, waiting for an admin. */
@@ -91,7 +93,7 @@ class ReturnDecisions
             $ref = $order->number();
             UserNotification::create(['user_id' => $order->user_id, 'type' => $refund ? 'success' : 'info',
                 'title' => $refund ? 'ALVY decided your dispute: refund approved' : 'ALVY decided your dispute: no refund',
-                'body' => "{$ref}: " . ($refund ? 'you will be refunded ₱' . number_format((float) $return->refund_amount, 2) . '. ' : 'the return was not approved. ') . 'Reason: ' . $reason,
+                'body' => "{$ref}: " . ($refund ? 'you will be refunded ₱' . number_format((float) $return->refund_amount, 2) . ' once the item is back with the seller. ' : 'the return was not approved. ') . 'Reason: ' . $reason,
                 'link' => route('profile.orders.show', $order->id, false)]);
             if ($return->seller_id && ! $refund) {   // a refund already tells the seller (ReturnRequest::booted)
                 UserNotification::create(['user_id' => $return->seller_id, 'type' => 'info', 'title' => 'Dispute decided: no refund',

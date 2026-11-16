@@ -20,7 +20,9 @@
     .hs-photo { width: 72px; height: 72px; flex: none; border-radius: 16px; object-fit: cover; background: #fff1ee; color: var(--accent-orange); display: flex; align-items: center; justify-content: center; font-size: 28px; font-weight: 900; }
     .hs-who h2 { margin: 0; font-size: 19px; font-weight: 800; }
     .hs-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 14px; }
-    .hs-facts div { padding: 10px 12px; border-radius: 10px; background: var(--card-hover, #f8f8f8); }
+    .hs-facts > div { padding: 10px 12px; border-radius: 10px; background: rgba(0,0,0,.04); }
+    .hs-scan input::placeholder { text-transform: none; }
+    .hs-go { background: #fa4e1c !important; border-color: #fa4e1c !important; color: #fff !important; }
     .hs-facts small { display: block; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: var(--text-muted); }
     .hs-facts b { font-size: 14px; }
     .hs-counts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
@@ -36,6 +38,7 @@
     .hs-list th { font-size: 11.5px; text-transform: uppercase; letter-spacing: .04em; color: var(--text-muted); }
 </style>
 
+<div class="page-body">
 <p style="margin:0 0 12px;"><a href="{{ route('sc.handover') }}" class="text-muted">&larr; Scan driver QR</a> · <a href="{{ route('sc.trips.show', $trip) }}" class="text-muted">Open {{ $trip->code }}</a></p>
 
 <div class="hs-grid" data-handover="{{ $h->id }}" data-open="{{ $open ? 1 : 0 }}" data-live="{{ route('sc.handover.live', $h) }}">
@@ -94,7 +97,7 @@
                     <label for="hs-note" class="text-muted" style="display:block;font-size:12.5px;font-weight:700;margin-bottom:5px;">
                         Note <span data-note-need @if ($done === $counts['expected']) hidden @endif style="color:#b45309;">(required: the count doesn't match)</span></label>
                     <textarea id="hs-note" name="note" class="form-input" rows="2" maxlength="300" placeholder="{{ $load ? 'e.g. 1 parcel not found on the shelf; it stays at the hub.' : 'e.g. 1 parcel was not on the truck.' }}">{{ old('note') }}</textarea>
-                    <button class="btn {{ $load ? 'btn-orange' : 'btn-green' }}" style="width:100%;margin-top:10px;min-height:46px;font-size:15px;">
+                    <button class="btn {{ $load ? 'hs-go' : 'btn-green' }}" style="width:100%;margin-top:10px;min-height:46px;font-size:15px;">
                         {{ $load ? 'Confirm handover · seal the truck' : 'Confirm receipt' }}</button>
                     <p class="text-muted" style="font-size:12px;margin:6px 0 0;">{{ $load ? 'Parcels not scanned come off the trip and stay at ' . $trip->origin?->code . '.' : 'Parcels not scanned become Missing in Transit.' }}</p>
                 </form>
@@ -105,8 +108,8 @@
             <tbody>
             @foreach ($items as $i)
                 <tr data-hs-item="{{ $i->parcel?->tracking_number }}">
-                    <td style="font-family:monospace;font-weight:700;">{{ $i->parcel?->tracking_number }}</td>
-                    <td>{{ $i->parcel?->destination_municipality }}</td>
+                    <td style="font-family:monospace;font-weight:700;">{{ $i->parcel?->tracking_number }}@if ($i->return_shipment_id)<span class="badge badge-purple" style="margin-left:4px;font-size:10px;" data-return-item>Return</span>@endif</td>
+                    <td>{{ $i->return_shipment_id ? (\App\Models\SellerApplication::where('user_id', $i->parcel?->seller_id)->value('municipality') ?? 'Seller') . ' (return to seller)' : $i->parcel?->destination_municipality }}</td>
                     <td>{{ $i->parcel?->weight_kg ? number_format((float) $i->parcel->weight_kg, 2) . ' kg' : '—' }}</td>
                     <td><span class="badge {{ $badge($i->status) }}" data-hs-status>{{ $word($i->status) }}</span></td>
                 </tr>
@@ -114,6 +117,8 @@
             </tbody>
         </table>
     </div>
+</div>
+
 </div>
 
 @if ($open)

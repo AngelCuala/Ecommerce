@@ -130,13 +130,67 @@
                     <p class="acs-label" style="margin:18px 0 8px;">Documents</p>
                     <div class="ac-docs">
                         @foreach ($documents as $label => $path)
-                            <div class="ac-doc">
+                            @php
+                                $docUrl = \App\Support\ProtectedFile::exists($path) ? \App\Support\ProtectedFile::url($path) : null;
+                                $isPdf = str_ends_with(strtolower($path), '.pdf');
+                            @endphp
+                            <div class="ac-doc" data-doc="{{ $label }}">
                                 <svg width="16" height="16" fill="none" stroke="#fa4e1c" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6Zm0 0v6h6"/></svg>
                                 <span>{{ $label }}</span>
-                                <a href="{{ \App\Support\ProtectedFile::url($path) }}" target="_blank" rel="noopener" aria-label="View {{ $label }}">View</a>
+                                @if ($docUrl)
+                                    {{-- Opens in a pop-up on the page (a picture, or the PDF); "Open in new tab" is there too. --}}
+                                    <a href="{{ $docUrl }}" target="_blank" rel="noopener" aria-label="View {{ $label }}"
+                                       data-view-doc data-url="{{ $docUrl }}" data-pdf="{{ $isPdf ? 1 : 0 }}" data-title="{{ $label }}">View</a>
+                                @else
+                                    <span style="font-size:12px;font-weight:600;color:#B91C1C;" data-doc-missing>File missing</span>
+                                @endif
                             </div>
                         @endforeach
                     </div>
+                    <dialog class="ac-viewer" data-doc-viewer aria-labelledby="ac-viewer-title">
+                        <div class="ac-viewer-head">
+                            <b id="ac-viewer-title" data-doc-title></b>
+                            <a href="#" target="_blank" rel="noopener" data-doc-open>Open in new tab</a>
+                            <button type="button" data-doc-close aria-label="Close">✕</button>
+                        </div>
+                        <div class="ac-viewer-body" data-doc-body></div>
+                    </dialog>
+                    <style>
+                        .ac-viewer { position: fixed; inset: 0; margin: auto; width: min(860px, 94vw); height: min(640px, 88vh); padding: 0; border: 0; border-radius: 16px; overflow: hidden; box-shadow: 0 30px 70px -20px rgba(0,0,0,.45); }
+                        .ac-viewer::backdrop { background: rgba(28,25,23,.55); }
+                        .ac-viewer[open] { display: flex; flex-direction: column; }
+                        .ac-viewer-head { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid #F2EEEA; }
+                        .ac-viewer-head b { flex: 1; font-size: 14px; color: #222; }
+                        .ac-viewer-head a { font-size: 13px; font-weight: 600; color: #fa4e1c; }
+                        .ac-viewer-head button { width: 30px; height: 30px; border-radius: 999px; background: #F5F2EF; color: #57534E; }
+                        .ac-viewer-body { flex: 1; display: flex; align-items: center; justify-content: center; background: #F7F5F3; overflow: auto; }
+                        .ac-viewer-body img { max-width: 100%; max-height: 100%; object-fit: contain; }
+                        .ac-viewer-body iframe { width: 100%; height: 100%; border: 0; background: #fff; }
+                    </style>
+                    <script>
+                    (function () {
+                        var dlg = document.querySelector('[data-doc-viewer]');
+                        if (!dlg) return;
+                        document.querySelectorAll('[data-view-doc]').forEach(function (a) {
+                            a.addEventListener('click', function (e) {
+                                if (!dlg.showModal) return;   // very old browsers: the link opens it in a new tab
+                                e.preventDefault();
+                                var body = dlg.querySelector('[data-doc-body]'), url = a.dataset.url;
+                                dlg.querySelector('[data-doc-title]').textContent = a.dataset.title;
+                                dlg.querySelector('[data-doc-open]').href = url;
+                                body.innerHTML = '<p data-doc-loading style="font-size:13px;color:#8a7f78;">Loading…</p>';
+                                var el = document.createElement(a.dataset.pdf === '1' ? 'iframe' : 'img');
+                                el.onload = function () { var w = body.querySelector('[data-doc-loading]'); if (w) w.remove(); };
+                                el.src = url; el.alt = a.dataset.title; el.title = a.dataset.title;
+                                body.appendChild(el);
+                                dlg.showModal();
+                            });
+                        });
+                        dlg.querySelector('[data-doc-close]').addEventListener('click', function () { dlg.close(); });
+                        dlg.addEventListener('click', function (e) { if (e.target === dlg) dlg.close(); });
+                        dlg.addEventListener('close', function () { dlg.querySelector('[data-doc-body]').innerHTML = ''; });
+                    })();
+                    </script>
                     <p class="acs-note">To change your business details or documents, contact ALVY support.</p>
                 @endif
             </section>

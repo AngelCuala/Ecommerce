@@ -44,14 +44,17 @@
         <div class="db-card db-stat">
             <div class="flex items-start justify-between">
                 <div>
-                    <p class="db-stat-label">Gross Sales</p>
-                    <p class="db-stat-value">₱{{ number_format($grossSales, 2) }}</p>
+                    <p class="db-stat-label">Sales (after refunds)</p>
+                    <p class="db-stat-value" data-net-sales>₱{{ number_format($grossSales, 2) }}</p>
                 </div>
                 <span class="db-icon tone-orange">
                     <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 17l6-6 4 4 8-8M14 7h7v7"/></svg>
                 </span>
             </div>
-            <p class="db-stat-foot">₱{{ number_format($salesMonth, 2) }} this month</p>
+            <p class="db-stat-foot">₱{{ number_format($salesMonth, 2) }} this month
+                @if ($refundsSent > 0)<span class="block" style="color:#B91C1C;" data-refunds-sent>−₱{{ number_format($refundsSent, 2) }} refunded to buyers</span>@endif
+                @if ($refundsToSend > 0)<a href="{{ route('admin.refunds.index') }}" class="block font-semibold" style="color:#B45309;" data-refunds-to-send>₱{{ number_format($refundsToSend, 2) }} still to refund</a>@endif
+            </p>
         </div>
 
         <div class="db-card db-stat">
@@ -64,7 +67,7 @@
                     <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/></svg>
                 </span>
             </div>
-            <p class="db-stat-foot">ALVY's fee on completed sales</p>
+            <p class="db-stat-foot">ALVY's fee on sales · kept when an order is refunded</p>
         </div>
 
         <div class="db-card db-stat">

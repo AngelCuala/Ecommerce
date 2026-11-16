@@ -236,6 +236,11 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         Route::post('/returns/{return}/assign',          [Logistics\IssuesController::class, 'returnAssign'])->whereNumber('return')->name('returns.assign');
         Route::post('/returns/{return}/receive',         [Logistics\IssuesController::class, 'returnReceive'])->whereNumber('return')->name('returns.receive');
         Route::post('/returns/{return}/to-seller',       [Logistics\IssuesController::class, 'returnToSeller'])->whereNumber('return')->name('returns.to-seller');
+        // At the hub: sort → check (condition, photo) → scan (tracking) → send (hub-to-hub trip) or to-seller.
+        Route::post('/returns/{return}/sort',            [Logistics\IssuesController::class, 'returnSort'])->whereNumber('return')->name('returns.sort');
+        Route::post('/returns/{return}/check',           [Logistics\IssuesController::class, 'returnCheck'])->whereNumber('return')->name('returns.check');   // POST: multipart photo
+        Route::post('/returns/{return}/scan',            [Logistics\IssuesController::class, 'returnScan'])->whereNumber('return')->name('returns.scan');
+        Route::post('/returns/{return}/send',            [Logistics\IssuesController::class, 'returnSend'])->whereNumber('return')->name('returns.send');
         Route::get('/assignment',                        [Logistics\HubController::class, 'assignment'])->name('assignment');
         Route::post('/assignment/{parcel}',              [Logistics\HubController::class, 'assign'])->whereNumber('parcel')->name('assignment.assign');
         Route::get('/monitoring',                        [Logistics\HubController::class, 'monitoring'])->name('monitoring');

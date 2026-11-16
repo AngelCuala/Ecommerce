@@ -16,17 +16,13 @@
 @endphp
 
 <div class="mx-auto max-w-6xl space-y-5">
-    <div class="flex flex-wrap items-end justify-between gap-3">
+    <div class="xp-head">
         <div>
-            <span class="section-eyebrow">Finance</span>
-            <h1 class="text-2xl">Commission</h1>
+            <h1 class="font-display text-2xl font-bold" style="color:#222;">Commission</h1>
             <p class="text-sm pl-muted">ALVY's fee on each item you sell. The rate shown is the one in force when the order was placed.
                 Cancelled and unpaid orders are never charged; refunded items give the commission back.</p>
         </div>
-        <a href="{{ route('seller.commissions', $base + array_filter(['status' => $status]) + ['export' => 'pdf']) }}" class="pl-btn-line inline-flex items-center gap-1.5" data-export-pdf>
-            <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M12 18v-6M9 15l3 3 3-3"/></svg>
-            Export PDF
-        </a>
+        @include('partials.export-pdf', ['href' => route('seller.commissions', $base + array_filter(['status' => $status]) + ['export' => 'pdf'])])
     </div>
 
     @if ($configuredRate === null || $configuredRate === '')
