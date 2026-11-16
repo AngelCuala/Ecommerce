@@ -128,7 +128,7 @@ class RegisteredUserController extends Controller
 
         // Role-specific validation rules (buyers don't upload an ID)
         if ($role === 'courier') {
-            $rules['vehicle_type'] = 'required|in:motorcycle,tricycle,car,truck';
+            $rules['vehicle_type'] = 'required|in:tricycle,car';
             $rules['plate_number'] = ['required', 'string', 'max:50', function ($attr, $value, $fail) {
                 if (\App\Support\PersonRules::plateTaken((string) $value)) {
                     $fail('Plate number ' . strtoupper((string) $value) . ' is already registered to another courier or rider.');

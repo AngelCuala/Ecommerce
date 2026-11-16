@@ -505,33 +505,21 @@
 
                     <div class="mb-3">
                         <label class="fld-label">Vehicle Type</label>
-                        <div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                            <div class="wheel-chip active p-3 text-center" data-wheel="motorcycle">
-                                <svg class="mx-auto mb-1 h-6 w-6" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
-                                    <circle cx="5.5" cy="16.5" r="3.5"/><circle cx="18.5" cy="16.5" r="3.5"/><path stroke-linecap="round" stroke-linejoin="round" d="M5.5 16.5 9 9h5l4.5 7.5M14 9l-1-3h3"/>
-                                </svg>
-                                <p class="text-xs font-semibold">2 Wheels<br/>(Motorcycle)</p>
-                            </div>
-                            <div class="wheel-chip p-3 text-center" data-wheel="tricycle">
+                        <div class="grid grid-cols-2 gap-2">
+                            <div class="wheel-chip p-3 text-center @if (old('vehicle_type', 'tricycle') === 'tricycle') active @endif" data-wheel="tricycle">
                                 <svg class="mx-auto mb-1 h-6 w-6" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
                                     <circle cx="5" cy="17" r="3"/><circle cx="19" cy="17" r="3"/><path stroke-linecap="round" stroke-linejoin="round" d="M5 17h4l3-8h7v8M12 9V6h4"/>
                                 </svg>
                                 <p class="text-xs font-semibold">3 Wheels<br/>(Tricycle)</p>
                             </div>
-                            <div class="wheel-chip p-3 text-center" data-wheel="car">
+                            <div class="wheel-chip p-3 text-center @if (old('vehicle_type') === 'car') active @endif" data-wheel="car">
                                 <svg class="mx-auto mb-1 h-6 w-6" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M5 17H3v-5l2-5h14l2 5v5h-2M5 12h14"/><circle cx="7.5" cy="17" r="2"/><circle cx="16.5" cy="17" r="2"/>
                                 </svg>
                                 <p class="text-xs font-semibold">4 Wheels<br/>(Car/Van)</p>
                             </div>
-                            <div class="wheel-chip p-3 text-center" data-wheel="truck">
-                                <svg class="mx-auto mb-1 h-6 w-6" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M2 6h12v11H2zM14 10h4l4 4v3h-8"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="18" r="2"/>
-                                </svg>
-                                <p class="text-xs font-semibold">6+ Wheels<br/>(Truck)</p>
-                            </div>
                         </div>
-                        <input type="hidden" name="vehicle_type" id="vehicleTypeInput" value="motorcycle">
+                        <input type="hidden" name="vehicle_type" id="vehicleTypeInput" value="{{ old('vehicle_type') === 'car' ? 'car' : 'tricycle' }}">
                     </div>
 
                     <div class="mb-3">

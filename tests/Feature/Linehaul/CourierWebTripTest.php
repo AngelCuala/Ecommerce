@@ -56,6 +56,12 @@ class CourierWebTripTest extends TestCase
             ->assertSessionHas('error', fn ($m) => str_contains($m, $parcels[1]->tracking_number));
         $post('scan', ['tracking_number' => strtolower($parcels[1]->tracking_number)])->assertSessionHas('success', fn ($m) => str_contains($m, 'Every parcel is on board'));
 
+        // Everything loaded, but the hub hasn't confirmed the handover: the driver shows the Handover QR first.
+        $page()->assertSee('Handover QR')->assertSee('aria-labelledby="ho-title"', false);
+        $post('depart', ['lat' => self::AT_QC[0], 'lng' => self::AT_QC[1]])->assertSessionHas('error', fn ($m) => str_contains($m, 'Handover QR'));
+        $this->sealTrip($trip);
+        $page()->assertSee('Sealed')->assertDontSee('aria-labelledby="ho-title"', false);
+
         // Depart is the courier's signal: no seal number, and no need to be at the origin hub.
         $post('depart', ['lat' => self::AT_DVO[0], 'lng' => self::AT_DVO[1]])->assertSessionHas('success');
         $this->assertSame('in_transit', $trip->fresh()->status);
@@ -71,17 +77,19 @@ class CourierWebTripTest extends TestCase
         $this->assertSame('arrived', $trip->fresh()->status);
         $page()->assertSee('Arrived at HUB-DVO');
 
-        // The receiving hub receives the parcels straight away (no seal check): the trip is paid, like a rider's finished job.
+        // The receiving hub scans the driver's Handover QR, then receives the parcels: the trip is paid, like a rider's finished job.
+        $page()->assertSee('Handover QR');
+        $this->arrivalHandover($trip);
         app(Linehaul::class)->receiveScan($this->logistics2, $this->hubDvo->id, $parcels[1]->fresh()->waybill_number);   // by waybill too
         app(Linehaul::class)->receiveAll($this->logistics2, $trip->fresh());
         $this->assertContains($trip->fresh()->status, LinehaulTrip::DONE);
         $pay = '₱' . number_format(Linehaul::payFor($this->courier1->fresh()), 2);
         $this->actingAs($c)->get(route('courier.trips.history'))->assertOk()
-            ->assertSee('Job History')->assertSee('data-history="' . $trip->code . '"', false)->assertSee('HUB-QC → HUB-DVO')->assertSee($pay);
+            ->assertSee('Trip History')->assertSee('data-history="' . $trip->code . '"', false)->assertSee('HUB-QC → HUB-DVO')->assertSee($pay);
         $this->actingAs($c)->get(route('courier.trips.pay', ['period' => 'today']))->assertOk()
-            ->assertSee('Rider Pay')->assertSee('data-pay-row="' . $trip->code . '"', false)->assertSee('+' . $pay);
+            ->assertSee('Trip Pay')->assertSee('data-pay-row="' . $trip->code . '"', false)->assertSee('+' . $pay);
         $this->actingAs($c)->get(route('courier.account'))->assertOk()
-            ->assertSee('Courier · truck')->assertSee('Paid trips')->assertSee('data-account-earned', false)->assertSee($pay)->assertSee('NAB4521');
+            ->assertSee('Linehaul driver')->assertSee('Paid trips')->assertSee('data-account-earned', false)->assertSee($pay)->assertSee('NAB4521');
         // A 4-wheel rider's rider pages open the hub-to-hub ones.
         $this->actingAs($c)->get(route('courier.rider'))->assertRedirect(route('courier.trips'));
         $this->actingAs($c)->get(route('courier.rider.history'))->assertRedirect(route('courier.trips.history'));

@@ -66,6 +66,7 @@ class CourierModulesTest extends TestCase
         foreach ($parcels as $p) {
             $this->c1('POST', "/trips/{$trip->id}/scan", ['tracking' => $p->tracking_number]);
         }
+        $this->sealTrip($trip);
         $this->c1('POST', "/trips/{$trip->id}/depart", $this->at(self::AT_QC))->assertOk();
 
         return $trip->fresh();
@@ -223,6 +224,7 @@ class CourierModulesTest extends TestCase
         $this->notBuilt('COU-LOAD-007', 'Removed (Nov 13): Depart is the courier signal that the truck is leaving, so it no longer needs the truck at the hub (far trips, GPS off).');
 
         // COU-LOAD-005 / 006
+        $this->sealTrip($trip);   // the origin hub scans the driver's Handover QR and confirms
         $go = $this->c1('POST', "/trips/{$trip->id}/depart", $this->at(self::AT_QC));
         $this->notBuilt('COU-LOAD-005', 'The truck seal number was removed (Nov 13): the courier departs without typing a seal.');
         $line = OrderStatusEvent::where('order_id', $parcels[0]->order_id)->where('note', 'like', '%In Transit (HUB-QC → HUB-PSG)%')->get();
@@ -305,6 +307,7 @@ class CourierModulesTest extends TestCase
 
         // COU-ARR-001 (arrive), 006 (courier can't close), 005 (wrong hub)
         $arr = $this->c1('POST', "/trips/{$trip->id}/arrived", $this->at(self::AT_PSG));
+        $this->arrivalHandover($trip);   // the receiving hub scans the driver's Handover QR
         $own = $this->withToken($this->tok($this->courier1))->postJson("/api/v1/logistics/trips/{$trip->id}/close");
         $this->record('COU-ARR-006', $own->status() === 403 && $trip->fresh()->status === 'arrived', "Refused (HTTP {$own->status()}). The trip stays Arrived until hub staff close receiving.");
         $wrong = $this->lg('POST', '/trips/receive', ['hub_id' => $this->hubStr->id, 'tracking' => $parcels[0]->tracking_number]);
@@ -326,6 +329,7 @@ class CourierModulesTest extends TestCase
         $p2 = $this->tripParcels();
         $t2 = $this->departed($p2);
         $this->c1('POST', "/trips/{$t2->id}/arrived", $this->at(self::AT_PSG));
+        $this->arrivalHandover($t2);
         $this->notBuilt('COU-ARR-002', 'The truck seal number was removed (Nov 13): the receiving hub no longer checks a seal.');
         foreach (array_slice($p2, 0, 3) as $p) {
             $this->ps('POST', '/trips/receive', ['hub_id' => $this->hubPsg->id, 'tracking' => $p->tracking_number]);
@@ -358,6 +362,7 @@ class CourierModulesTest extends TestCase
         }
         $still = $p3[0]->fresh()->status === 'linehaul';
         $this->withToken($c2)->postJson("/api/v1/linehaul/trips/{$t3->id}/arrived", $this->at(self::AT_PSG))->assertOk();
+        $this->arrivalHandover($t3);
         foreach ($p3 as $p) {
             $this->ps('POST', '/trips/receive', ['hub_id' => $this->hubPsg->id, 'tracking' => $p->tracking_number]);
         }

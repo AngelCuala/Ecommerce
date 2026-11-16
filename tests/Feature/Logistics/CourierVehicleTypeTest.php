@@ -12,20 +12,25 @@ use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 /**
- * Couriers can register with a truck on both the main /register form and /become-courier.
+ * The public sign-up is for riders: 3 wheels (tricycle) or 4 wheels (car/van) only. Trucks are linehaul — a different role,
+ * not signed up here — and motorcycles are no longer offered.
  */
 class CourierVehicleTypeTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_register_form_offers_and_accepts_truck(): void
+    public function test_register_form_offers_only_tricycle_and_car(): void
     {
-        $this->get(route('register'))->assertOk()->assertSee('data-wheel="truck"', false);
+        $this->get(route('register'))->assertOk()
+            ->assertSee('data-wheel="tricycle"', false)->assertSee('data-wheel="car"', false)
+            ->assertDontSee('data-wheel="truck"', false)->assertDontSee('data-wheel="motorcycle"', false);
 
-        $this->post(route('register'), ['role' => 'courier', 'vehicle_type' => 'truck'])
-            ->assertSessionDoesntHaveErrors('vehicle_type');
-        $this->post(route('register'), ['role' => 'courier', 'vehicle_type' => 'boat'])
-            ->assertSessionHasErrors('vehicle_type');
+        foreach (['tricycle', 'car'] as $ok) {
+            $this->post(route('register'), ['role' => 'courier', 'vehicle_type' => $ok])->assertSessionDoesntHaveErrors('vehicle_type');
+        }
+        foreach (['truck', 'motorcycle', 'boat'] as $no) {
+            $this->post(route('register'), ['role' => 'courier', 'vehicle_type' => $no])->assertSessionHasErrors('vehicle_type');
+        }
     }
 
     /** An approved sorting center for the courier to apply to. */
@@ -43,7 +48,7 @@ class CourierVehicleTypeTest extends TestCase
             'sex' => 'male', 'contact_no' => '09181234568', 'birthday' => '1995-05-20',
             'region' => 'NCR', 'province' => 'Metro Manila', 'municipality' => 'Quezon City', 'municipality_code' => '137404000', 'barangay' => 'Commonwealth',
             'house_number' => '12', 'street' => 'Rizal St', 'password' => 'Secret@123', 'password_confirmation' => 'Secret@123',
-            'vehicle_type' => 'truck', 'plate_number' => 'abc 1234', 'terms' => '1',
+            'vehicle_type' => 'car', 'plate_number' => 'abc 1234', 'terms' => '1',
             'logistics_id' => $this->hubId(),
             'or_cr_image'       => UploadedFile::fake()->create('license.jpg', 300, 'image/jpeg'),
             'vehicle_reg_image' => UploadedFile::fake()->create('or_cr.pdf', 300, 'application/pdf'),
@@ -60,7 +65,7 @@ class CourierVehicleTypeTest extends TestCase
             ->assertRedirect(route('otp.show'));
 
         $courier = Courier::firstOrFail();
-        $this->assertSame('truck', $courier->vehicle_type);
+        $this->assertSame('car', $courier->vehicle_type);
         $this->assertSame('ABC 1234', $courier->plate_number);
         $this->assertSame('09181234568', $courier->contact_no);
         $this->assertSame('Quezon City', $courier->municipality);

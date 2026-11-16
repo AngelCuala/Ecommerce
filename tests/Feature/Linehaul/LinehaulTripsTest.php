@@ -120,6 +120,10 @@ class LinehaulTripsTest extends TestCase
         $this->as($this->hub)->postJson("/api/v1/logistics/trips/{$trip->id}/parcels/{$parcels[4]->id}/remove")->assertOk()->assertJsonPath('trip.parcels', 4);
         $this->assertSame($this->hubQc->id, $parcels[4]->fresh()->current_hub_id);
 
+        // Not sealed yet: the origin hub scans the driver's Handover QR and confirms first.
+        $this->as($c)->postJson("/api/v1/linehaul/trips/{$trip->id}/depart", $this->at(self::AT_QC))->assertJsonValidationErrors(['trip' => 'Handover QR']);
+        $this->sealTrip($trip);
+
         // Departing no longer checks where the truck is (Linehaul::depart); arriving still does.
         $this->as($c)->postJson("/api/v1/linehaul/trips/{$trip->id}/depart", $this->at(self::AT_QC))
             ->assertOk()->assertJsonPath('trip.status_label', 'In Transit');
@@ -140,6 +144,7 @@ class LinehaulTripsTest extends TestCase
         $this->as($c)->postJson("/api/v1/linehaul/trips/{$trip->id}/arrived", $this->at(self::AT_QC))->assertJsonValidationErrors(['location' => 'HUB-PSG']);
         $this->as($c)->postJson("/api/v1/linehaul/trips/{$trip->id}/arrived", $this->at(self::AT_PSG))->assertOk()->assertJsonPath('trip.status_label', 'Arrived');
         $this->as($c)->postJson("/api/v1/logistics/trips/{$trip->id}/close")->assertForbidden();
+        $this->arrivalHandover($trip);
 
         $this->as($this->hub)->postJson('/api/v1/logistics/trips/receive', ['hub_id' => $this->hubStr->id, 'tracking' => $parcels[0]->tracking_number])
             ->assertStatus(422);   // not at the trip's destination hub
@@ -186,6 +191,7 @@ class LinehaulTripsTest extends TestCase
         foreach ($parcels as $p) {
             $this->as($c1)->postJson("/api/v1/linehaul/trips/{$trip->id}/scan", ['tracking' => $p->tracking_number]);
         }
+        $this->sealTrip($trip);
         $this->as($c1)->postJson("/api/v1/linehaul/trips/{$trip->id}/depart", $this->at(self::AT_QC))->assertOk();
 
         // Reassigning In Transit needs a breakdown report first.
@@ -204,6 +210,7 @@ class LinehaulTripsTest extends TestCase
         }
         $this->assertSame('linehaul', $parcels[0]->fresh()->status);
         $this->as($c2)->postJson("/api/v1/linehaul/trips/{$trip->id}/arrived", $this->at(self::AT_PSG))->assertOk();
+        $this->arrivalHandover($trip);
         foreach ($parcels as $p) {
             $this->as($this->hub2)->postJson('/api/v1/logistics/trips/receive', ['hub_id' => $this->hubPsg->id, 'tracking' => $p->tracking_number]);
         }
@@ -224,8 +231,10 @@ class LinehaulTripsTest extends TestCase
         foreach ($parcels as $p) {
             $this->as($c)->postJson("/api/v1/linehaul/trips/{$trip->id}/scan", ['tracking' => $p->tracking_number]);
         }
+        $this->sealTrip($trip);
         $this->as($c)->postJson("/api/v1/linehaul/trips/{$trip->id}/depart", $this->at(self::AT_QC));
         $this->as($c)->postJson("/api/v1/linehaul/trips/{$trip->id}/arrived", $this->at(self::AT_PSG));
+        $this->arrivalHandover($trip);
 
 
         foreach (array_slice($parcels, 0, 3) as $p) {

@@ -1,7 +1,8 @@
 @props(['title' => 'Courier — ALVY', 'active' => ''])
 @php
-    // Riders (motorcycle, tricycle, or a 4-wheeler for hub-to-hub trips) see "Rider"; only direct couriers see "Courier".
-    $portalLabel = auth()->check() && \App\Models\Rider::where('user_id', auth()->id())->exists() ? 'Rider' : 'Courier';
+    // Linehaul drivers (trucks, hub to hub) see "Linehaul"; riders (pickups and deliveries) see "Rider"; direct couriers "Courier".
+    $portalLabel = ! auth()->check() ? 'Courier'
+        : (\App\Http\Controllers\Courier\TruckDutyController::truckCourier() ? 'Linehaul' : (\App\Models\Rider::where('user_id', auth()->id())->exists() ? 'Rider' : 'Courier'));
 @endphp
 <!doctype html>
 <html lang="en">
@@ -50,9 +51,9 @@
     $truck = auth()->check() ? \App\Http\Controllers\Courier\TruckDutyController::truckCourier() : null;
     if ($truck) {
         $links = [
-            'trips'         => ['route' => 'courier.trips',         'label' => 'Hub Jobs',    'icon' => 'parcel'],
-            'trips-history' => ['route' => 'courier.trips.history', 'label' => 'Job History', 'icon' => 'history'],
-            'trips-pay'     => ['route' => 'courier.trips.pay',     'label' => 'Rider Pay',   'icon' => 'earnings'],
+            'trips'         => ['route' => 'courier.trips',         'label' => 'Trips',        'icon' => 'parcel'],
+            'trips-history' => ['route' => 'courier.trips.history', 'label' => 'Trip History', 'icon' => 'history'],
+            'trips-pay'     => ['route' => 'courier.trips.pay',     'label' => 'Trip Pay',     'icon' => 'earnings'],
         ] + array_intersect_key($links, ['notifications' => 1, 'account' => 1]);
     }
 @endphp

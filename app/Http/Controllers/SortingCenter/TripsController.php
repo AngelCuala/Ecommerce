@@ -38,6 +38,8 @@ class TripsController extends Controller
         'damaged' => 'Parcel marked damaged', 'missing' => 'Parcel missing', 'parcel_removed' => 'Parcel taken off the trip',
         'rescanned' => 'Parcels rescanned', 'parcels_added' => 'Parcels added', 'courier_note' => 'Rider note', 'completed' => 'Received and completed',
         'completed_discrepancy' => 'Completed with discrepancy', 'cancelled' => 'Trip cancelled', 'edited' => 'Trip edited',
+        'handover_scanned' => "Driver's Handover QR scanned", 'sealed' => 'Handover confirmed: truck sealed',
+        'receipt_confirmed' => 'Receipt confirmed', 'extra_scan' => 'Extra parcel scanned (not on this trip)',
     ];
 
     public const PARCEL_LABELS = [

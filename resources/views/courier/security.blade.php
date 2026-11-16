@@ -5,9 +5,9 @@
     $meRider = \App\Models\Rider::where('user_id', $me->id)->first();
     $meTruck = $meRider ? $meRider->isTruck() : (bool) \App\Http\Controllers\Courier\TruckDutyController::truckCourier();
 @endphp
-<x-account-shell title="Accounts & Security" subtitle="Change the password you sign in with." portal="ALVY {{ $meRider ? 'Rider' : 'Courier' }}"
+<x-account-shell title="Accounts & Security" subtitle="Change the password you sign in with." portal="ALVY {{ $meTruck ? 'Linehaul' : ($meRider ? 'Rider' : 'Courier') }}"
                  :nav="\App\Support\AccountNav::rider('security', $meTruck)" :name="$meRider->full_name ?? $me->name"
-                 :badges="[['text' => $meRider ? ($meTruck ? 'Courier · truck' : 'Rider') : 'Courier']]">
+                 :badges="[['text' => $meTruck ? 'Linehaul driver' : ($meRider ? 'Rider' : 'Courier')]]">
 
 @if ($errors->any())
     <div class="acs-alert acs-alert-error">

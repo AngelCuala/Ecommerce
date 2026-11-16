@@ -228,6 +228,13 @@ Route::middleware(['auth', 'is_sc', 'prevent.back'])->prefix('sc')->name('sc.')-
     Route::post('/trips/{trip}/respond',     [\App\Http\Controllers\SortingCenter\TripsController::class, 'respond'])->whereNumber('trip')->name('trips.respond');
     Route::post('/trips/{trip}/message',     [\App\Http\Controllers\SortingCenter\TripsController::class, 'message'])->whereNumber('trip')->name('trips.message');
     Route::post('/trips/{trip}/receive',     [\App\Http\Controllers\SortingCenter\TripsController::class, 'receive'])->whereNumber('trip')->name('trips.receive');
+    // Scan driver QR: the linehaul driver's Handover QR (or 6-digit code) at loading and arrival, then the parcels on / off.
+    Route::get('/handover',                         [\App\Http\Controllers\SortingCenter\HandoverController::class, 'index'])->name('handover');
+    Route::post('/handover',                        [\App\Http\Controllers\SortingCenter\HandoverController::class, 'verify'])->middleware('throttle:30,1')->name('handover.verify');
+    Route::get('/handover/{handover}',              [\App\Http\Controllers\SortingCenter\HandoverController::class, 'show'])->whereNumber('handover')->name('handover.show');
+    Route::get('/handover/{handover}/live',         [\App\Http\Controllers\SortingCenter\HandoverController::class, 'live'])->whereNumber('handover')->name('handover.live');
+    Route::post('/handover/{handover}/scan',        [\App\Http\Controllers\SortingCenter\HandoverController::class, 'scan'])->whereNumber('handover')->middleware('throttle:120,1')->name('handover.scan');
+    Route::post('/handover/{handover}/confirm',     [\App\Http\Controllers\SortingCenter\HandoverController::class, 'confirm'])->whereNumber('handover')->name('handover.confirm');
     Route::post('/transfers/initiate',                          [\App\Http\Controllers\SortingCenter\SortingCenterController::class, 'initiateTransfer'])->name('transfers.initiate');
     Route::post('/transfers/{transfer}/accept',                 [\App\Http\Controllers\SortingCenter\SortingCenterController::class, 'acceptTransfer'])->name('transfers.accept');
     Route::post('/transfers/{transfer}/reject',                 [\App\Http\Controllers\SortingCenter\SortingCenterController::class, 'rejectTransfer'])->name('transfers.reject');
@@ -726,6 +733,7 @@ Route::middleware(['auth', 'role:courier,admin', 'prevent.back'])
     Route::post('/trips/{trip}/depart',         [\App\Http\Controllers\Courier\TruckDutyController::class, 'depart'])->whereNumber('trip')->name('trips.depart');
     Route::post('/trips/{trip}/delay',          [\App\Http\Controllers\Courier\TruckDutyController::class, 'delay'])->whereNumber('trip')->name('trips.delay');
     Route::post('/trips/{trip}/arrived',        [\App\Http\Controllers\Courier\TruckDutyController::class, 'arrived'])->whereNumber('trip')->name('trips.arrived');
+    Route::get('/trips/{trip}/handover',        [\App\Http\Controllers\Courier\TruckDutyController::class, 'handover'])->whereNumber('trip')->name('trips.handover');   // the rotating Handover QR + counts
     Route::post('/trips/{trip}/note',           [\App\Http\Controllers\Courier\TruckDutyController::class, 'note'])->whereNumber('trip')->name('trips.note');
     Route::get('/notifications',               [CourierDashboardController::class, 'notifications'])->name('notifications');
     Route::get('/notifications/{id}/open',     [CourierDashboardController::class, 'openNotification'])->whereNumber('id')->name('notifications.open');

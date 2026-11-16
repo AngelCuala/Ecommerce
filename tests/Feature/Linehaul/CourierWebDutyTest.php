@@ -30,7 +30,7 @@ class CourierWebDutyTest extends TestCase
         // The courier portal opens on Hub Trips, Off Duty, with the Go On Duty button.
         $this->actingAs($user)->get(route('courier.dashboard'))->assertRedirect(route('courier.trips'));
         $this->actingAs($user)->get(route('courier.trips'))->assertOk()
-            ->assertSee('Go Online')->assertSee("You're Offline", false)->assertSee('Pre-trip checklist')->assertSee('Hub Jobs')->assertSee('Job History')->assertSee('Rider Pay')->assertSee('HUB-SCZ')->assertSee('data-duty-pill', false)
+            ->assertSee('Go Online')->assertSee("You're Offline", false)->assertSee('Pre-trip checklist')->assertSee('Trips')->assertSee('Trip History')->assertSee('Trip Pay')->assertSee('ALVY Linehaul')->assertSee('HUB-SCZ')->assertSee('data-duty-pill', false)
             ->assertDontSee('Delivery History');
         $this->assertSame([], $this->names('logistics6@alvy.test'));
 

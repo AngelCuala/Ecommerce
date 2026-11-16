@@ -106,6 +106,20 @@
                     <span style="margin-left:auto;background:var(--accent-blue);color:#fff;border-radius:999px;padding:1px 7px;font-size:10px;font-weight:700;" title="Trips on the road">{{ $tripsOnRoad }}</span>
                 @endif
             </a>
+            {{-- Hub staff: the linehaul driver's Handover QR at loading and arrival. --}}
+            <a href="{{ route('sc.handover') }}" class="nav-link {{ request()->routeIs('sc.handover*') ? 'active' : '' }}">
+                @php
+                    $myHubs = \App\Models\LogisticsHub::where('sorting_center_id', auth()->id())->pluck('id');
+                    $atHubs = \App\Models\LinehaulTrip::whereNotNull('courier_id')->where(fn ($q) => $q
+                        ->where(fn ($o) => $o->whereIn('origin_hub_id', $myHubs)->whereIn('status', ['accepted', 'loading'])->whereNull('sealed_at')->where(fn ($h) => $h->whereNull('handover_status')->orWhere('handover_status', 'accepted')))
+                        ->orWhere(fn ($d) => $d->whereIn('destination_hub_id', $myHubs)->where('status', 'arrived')))->count();
+                @endphp
+                <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path stroke-linecap="round" d="M14 14h3v3h-3zM17 17h4v4h-4"/></svg>
+                Scan driver QR
+                @if ($atHubs > 0)
+                    <span style="margin-left:auto;background:var(--accent-orange);color:#fff;border-radius:999px;padding:1px 7px;font-size:10px;font-weight:700;" title="Trucks waiting for a handover at your hubs">{{ $atHubs }}</span>
+                @endif
+            </a>
             <p class="nav-section">Riders</p>
             <a href="{{ route('sc.riders') }}" class="nav-link {{ request()->routeIs('sc.riders', 'sc.courier-applications.*') ? 'active' : '' }}">
                 <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
