@@ -1,5 +1,4 @@
 <x-courier-layout title="Hub Jobs" active="rider">
-@php $pay = ['pickup' => \App\Services\RiderDispatch::PAY_PICKUP, 'delivery' => \App\Services\RiderDispatch::PAY_DELIVERY]; @endphp
 
 <div class="cx-page-head">
     <h1 class="font-display">Hub Jobs</h1>
@@ -44,7 +43,7 @@
                     <p class="cx-item-title">{{ ucfirst($o->kind) }} · {{ $p->tracking_number }}</p>
                     <p class="cx-item-meta">Pickup: {{ $p->seller->name ?? 'Seller' }} — {{ $p->pickup_address }}</p>
                     <p class="cx-item-meta">Drop-off: {{ $o->kind === 'pickup' ? $rider->companyName() . ' hub' : ($p->area->name ?? '') . ' ' . $p->destination_municipality }}</p>
-                    <p class="cx-item-meta">COD: {{ $cod ? '₱' . number_format($order->total_price, 2) : 'None (paid)' }} · Pay: ₱{{ number_format($pay[$o->kind], 2) }} {{ $o->kind }}</p>
+                    <p class="cx-item-meta">COD: {{ $cod ? '₱' . number_format($order->total_price, 2) : 'None (paid)' }} · Pay: ₱{{ number_format(\App\Services\RiderDispatch::jobPay($o->kind, $p), 2) }} {{ $o->kind }}</p>
                 </div>
                 <div style="text-align:right;">
                     <p class="cx-pill cx-pill-amber"><span data-countdown="{{ $o->expires_at->toIso8601String() }}">{{ $o->secondsLeft() }}</span>s</p>

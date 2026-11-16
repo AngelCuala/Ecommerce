@@ -207,6 +207,7 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
     Route::middleware(['auth:sanctum', 'api.logistics', 'api.session'])->prefix('logistics')->name('logistics.')->group(function () {
         // Parcels through the hub
         Route::get('/dashboard',                         [Logistics\HubController::class, 'dashboard'])->name('dashboard');
+        Route::get('/badges',                            [Logistics\HubController::class, 'badges'])->name('badges');
         Route::get('/shipments',                         [Logistics\HubController::class, 'shipments'])->name('shipments');
         Route::get('/parcels/{parcel}',                  [Logistics\HubController::class, 'parcel'])->whereNumber('parcel')->name('parcels.show');
         Route::post('/parcels/{parcel}/exception',       [Logistics\HubController::class, 'exception'])->whereNumber('parcel')->name('parcels.exception');   // multipart photo

@@ -76,7 +76,7 @@ class RiderPayPageTest extends TestCase
 
         $this->page(['period' => 'today'])
             ->assertSee('data-period-pay>₱80.00', false)                    // ₱50 delivery + ₱30 pickup
-            ->assertSee('1 × ₱50')->assertSee('1 × ₱30')->assertSee('1 × ₱0')
+            ->assertSee('1 × ₱0')
             ->assertSee('data-pending-pay>₱80.00', false)
             ->assertSee('₱500.00')->assertSee('not your pay');
     }

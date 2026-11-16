@@ -67,7 +67,7 @@ class RiderJson
                 ? $rider->companyName() . ' hub'
                 : trim(($p?->area->name ?? '') . ' ' . $p?->destination_municipality),
             'cod'          => $cod ? (float) $order->total_price : null,
-            'pay'          => $o->kind === RiderJobOffer::PICKUP ? RiderDispatch::PAY_PICKUP : RiderDispatch::PAY_DELIVERY,
+            'pay'          => $o->kind === RiderJobOffer::PICKUP ? RiderDispatch::pickupPay($p) : RiderDispatch::deliveryPay($p),
             'seconds_left' => $o->secondsLeft(),
             'expires_at'   => $o->expires_at?->toIso8601String(),
         ];
@@ -99,7 +99,7 @@ class RiderJson
             'acknowledged'   => (bool) $pu->acknowledged_at,
             'waybill'        => $p?->waybill_number,
             'has_proof'      => (bool) $pu->proof_path,
-            'pay'            => RiderDispatch::PAY_PICKUP,
+            'pay'            => RiderDispatch::pickupPay($p, $pu->picked_up_at),
         ]);
     }
 
@@ -138,7 +138,7 @@ class RiderJson
                 'fail'    => in_array($d->status, ParcelDelivery::OPEN, true),
             ],
             'failure_reasons' => ParcelDelivery::FAILURE_REASONS,
-            'pay'             => RiderDispatch::PAY_DELIVERY,
+            'pay'             => RiderDispatch::deliveryPay($d->parcel, $d->delivered_at),
         ];
     }
 

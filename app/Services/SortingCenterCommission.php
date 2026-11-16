@@ -8,14 +8,19 @@ use App\Models\Rider;
 use Illuminate\Support\Collection;
 
 /**
- * A sorting center's earnings, parcel by parcel:
+ * A sorting center's earnings, parcel by parcel. The parcel's shipping fee is the order's shipping fee split evenly
+ * between the parcels of the order. Since RiderDispatch::SHARE_SINCE it is split 30/30/40:
  *
- *   share       the order's shipping fee, split evenly between the parcels of the order and then between
- *               the hubs that handled the parcel (the hub its rider picked it up for, the hub its rider
- *               delivered it for, and the hub holding it now): one hub keeps it all, two split 50/50
+ *   riders      30% to the rider who picked it up, 30% to the rider who delivered it (RiderDispatch::jobPay)
+ *   share       40%, split evenly between every hub the parcel passed: the hubs at both ends of each linehaul
+ *               trip it travelled on and the hub holding it (or that delivered it). A sorting center with two of
+ *               those hubs gets two parts. Four hubs: each gets a quarter of the 40%.
  *   commission  ALVY's cut of that share (config marketplace.sorting_center_commission_rate, %)
- *   rider pay   what the hub owes its own riders for this parcel (RiderWallet rates: pickup, delivery)
- *   net         share − commission − rider pay
+ *   rider pay   this company's riders' 30% parts (paid from the riders' shares, not from the hub's)
+ *   net         share − commission
+ *
+ * Parcels created before SHARE_SINCE keep the old rule: the whole fee split between the companies that handled
+ * it, and net = share − commission − rider pay (₱30 a pickup, ₱50 a delivery).
  *
  * Status of a line:
  *   pending   on its way: the share may still change (e.g. a second hub joins after a transfer)
@@ -50,9 +55,14 @@ class SortingCenterCommission
         $parcels = Parcel::query()
             ->where(fn ($q) => $q->where('current_sorting_center_id', $scId)
                 ->orWhereHas('pickups', fn ($p) => $p->whereIn('rider_id', $riderIds)->whereIn('status', ['picked_up', 'received']))
-                ->orWhereHas('deliveries', fn ($d) => $d->whereIn('rider_id', $riderIds)->where('status', 'delivered')))
+                ->orWhereHas('deliveries', fn ($d) => $d->whereIn('rider_id', $riderIds)->where('status', 'delivered'))
+                // It passed one of this company's hubs on a linehaul trip (its part of the hubs' 40%).
+                ->orWhereHas('linehaulItems', fn ($i) => $i->whereNotIn('status', ['pending', 'removed'])
+                    ->whereHas('trip', fn ($t) => $t->where('status', '!=', 'cancelled')
+                        ->where(fn ($w) => $w->where('sorting_center_id', $scId)->orWhere('destination_sorting_center_id', $scId)))))
             ->when($between, fn ($q) => $q->whereBetween('created_at', $between))
-            ->with(['order:id,status,shipping_fee,created_at', 'pickups.rider:id,sorting_center_id', 'deliveries.rider:id,sorting_center_id'])
+            ->with(['order:id,status,shipping_fee,created_at', 'pickups.rider:id,sorting_center_id', 'deliveries.rider:id,sorting_center_id',
+                'linehaulItems.trip:id,status,origin_hub_id,destination_hub_id', 'currentHub:id,sorting_center_id'])
             ->latest('id')
             ->get();
 
@@ -75,11 +85,32 @@ class SortingCenterCommission
 
         $status = $this->statusOf($parcel);
         $fee    = round((float) ($parcel->order?->shipping_fee ?? 0) / $parcelsInOrder, 2);
-        $share  = $status === 'reversed' ? 0.0 : round($fee / max(1, $hubs->count()), 2);
-        $commission = round($share * self::rate() / 100, 2);
+        $mineJobs = fn ($jobs) => $jobs->filter(fn ($j) => (int) $j->rider?->sorting_center_id === $scId);
 
-        $mine = fn ($jobs) => $jobs->filter(fn ($j) => (int) $j->rider?->sorting_center_id === $scId)->count();
-        $riderPay = round($mine($pickups) * RiderDispatch::PAY_PICKUP + $mine($deliveries) * RiderDispatch::PAY_DELIVERY, 2);
+        if ($parcel->created_at && $parcel->created_at->lt(RiderDispatch::shareSince())) {
+            // The old rule: the whole fee between the companies; the hub pays its riders out of it.
+            $units = max(1, $hubs->count());
+            $share = $status === 'reversed' ? 0.0 : round($fee / $units, 2);
+            $commission = round($share * self::rate() / 100, 2);
+            $riderPay = round($mineJobs($pickups)->count() * RiderDispatch::PAY_PICKUP + $mineJobs($deliveries)->count() * RiderDispatch::PAY_DELIVERY, 2);
+            $net = round($share - $commission - $riderPay, 2);
+        } else {
+            // 30/30/40: the hubs' 40% split evenly between every hub the parcel passed.
+            $path = $this->hubPath($parcel);
+            foreach ($hubs as $company) {   // a company that handled it with no hub on record counts as one hub
+                if (! $path->contains($company)) {
+                    $path->push($company);
+                }
+            }
+            $units = max(1, $path->count());
+            $mineUnits = $path->filter(fn ($c) => $c === $scId)->count();
+            $hubsPart = $fee * RiderDispatch::HUBS_SHARE / 100;
+            $share = $status === 'reversed' ? 0.0 : round($hubsPart * $mineUnits / $units, 2);
+            $commission = round($share * self::rate() / 100, 2);
+            $riderPay = round($mineJobs($pickups)->sum(fn ($j) => RiderDispatch::pickupPay($parcel, $j->picked_up_at))
+                + $mineJobs($deliveries)->sum(fn ($j) => RiderDispatch::deliveryPay($parcel, $j->delivered_at)), 2);
+            $net = round($share - $commission, 2);
+        }
 
         $role = match (true) {
             $pickupHubs->contains($scId) && $deliveryHubs->contains($scId) => 'Pickup & delivery',
@@ -89,10 +120,33 @@ class SortingCenterCommission
         };
 
         return [
-            'parcel' => $parcel, 'hubs' => max(1, $hubs->count()), 'fee' => $fee, 'share' => $share,
+            'parcel' => $parcel, 'hubs' => $units, 'fee' => $fee, 'share' => $share,
             'commission' => $commission, 'rider_pay' => $riderPay,
-            'net' => round($share - $commission - $riderPay, 2), 'status' => $status, 'role' => $role,
+            'net' => $net, 'status' => $status, 'role' => $role,
         ];
+    }
+
+    /**
+     * The sorting center of every hub the parcel passed, one entry per hub: both ends of each linehaul trip it
+     * travelled on (not one it was taken off, or a cancelled trip), and the hub holding it now.
+     *
+     * @return \Illuminate\Support\Collection<int, int>
+     */
+    public function hubPath(Parcel $parcel): Collection
+    {
+        $hubIds = collect();
+        foreach ($parcel->linehaulItems as $item) {
+            if (in_array($item->status, ['pending', 'removed'], true) || ! $item->trip || $item->trip->status === 'cancelled') {
+                continue;
+            }
+            $hubIds->push($item->trip->origin_hub_id, $item->trip->destination_hub_id);
+        }
+        $hubIds->push($parcel->current_hub_id);
+        $hubIds = $hubIds->filter()->map(fn ($id) => (int) $id)->unique()->values();
+
+        $owner = \App\Models\LogisticsHub::whereIn('id', $hubIds)->pluck('sorting_center_id', 'id');
+
+        return $hubIds->map(fn ($id) => (int) ($owner[$id] ?? 0))->filter()->values();
     }
 
     public function statusOf(Parcel $parcel): string

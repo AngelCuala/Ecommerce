@@ -60,25 +60,39 @@
             <div class="rm-head">
                 <div class="rm-head-text">
                     <h2>Remittances</h2>
-                    <p>Cash each rider handed over. Confirm once you have the money in hand.@if($pendingCount > 0) <strong style="color:#a86f00;">{{ $pendingCount }} waiting for you.</strong>@endif</p>
+                    <p>Cash each rider handed over. Count it and confirm what you counted: a match puts the rider's pay for those COD deliveries in their wallet;
+                        a shortage is charged to the rider and their pay stays on hold until they pay it or you take it from their earnings.@if($pendingCount > 0) <strong style="color:#a86f00;">{{ $pendingCount }} waiting for you.</strong>@endif</p>
                 </div>
             </div>
             <table class="data-table">
-                <thead><tr><th>Sent</th><th>Rider</th><th>Cash handed over</th><th>Rider's pay kept</th><th>COD balance then</th><th>Reconciliation</th><th>Status</th></tr></thead>
+                <thead><tr><th>Sent</th><th>Rider</th><th>Cash handed over</th><th>Rider's pay kept</th><th>COD balance then</th><th>Reconciliation</th><th>Count and confirm</th></tr></thead>
                 <tbody>
                 @forelse($remittances as $rm)
                     <tr data-remittance="{{ $rm->id }}">
                         <td>{{ $rm->created_at->format('M j, g:i A') }}</td>
                         <td>{{ $rm->rider->full_name ?? '—' }}</td>
-                        <td style="font-weight:700;">₱{{ number_format($rm->amount, 2) }}</td>
+                        <td style="font-weight:700;">₱{{ number_format($rm->amount, 2) }}@if($rm->status === 'confirmed' && $rm->counted_amount !== null)<div class="text-muted" style="font-size:11.5px;font-weight:400;">counted</div>@endif</td>
                         <td>{{ (float) $rm->pay_kept > 0 ? '₱' . number_format($rm->pay_kept, 2) : '—' }}</td>
                         <td>₱{{ number_format($rm->expected_amount, 2) }}</td>
-                        <td>@if($rm->shortfall() > 0)<span class="badge badge-red" data-shortfall>Short ₱{{ number_format($rm->shortfall(), 2) }}</span>@else <span class="badge badge-green">Matches</span>@endif</td>
+                        <td>@if($rm->status === 'pending')<span class="badge">Not counted yet</span>
+                            @elseif($rm->shortfall() > 0)<span class="badge badge-red" data-shortfall>Short ₱{{ number_format($rm->shortfall(), 2) }}</span>
+                            @else <span class="badge badge-green">Matches</span>@if((float) $rm->deducted > 0)<div class="text-muted" style="font-size:11.5px;">₱{{ number_format($rm->deducted, 2) }} taken from earnings</div>@endif
+                            @endif</td>
                         <td>
                             @if($rm->status === 'pending')
-                                <form method="POST" action="{{ route('sc.remittances.confirm', $rm) }}">@csrf<button class="btn btn-green btn-sm">Confirm received</button></form>
+                                <form method="POST" action="{{ route('sc.remittances.confirm', $rm) }}" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;" data-count-form>@csrf
+                                    <input type="number" name="counted" step="0.01" min="0" max="{{ number_format((float) $rm->expected_amount - (float) $rm->pay_kept, 2, '.', '') }}"
+                                           value="{{ number_format((float) $rm->amount, 2, '.', '') }}" class="form-input" style="width:120px;" aria-label="Cash counted (₱)" title="Cash you counted">
+                                    <button class="btn btn-green btn-sm">Confirm counted</button>
+                                </form>
                             @else
-                                Confirmed {{ $rm->confirmed_at?->format('M j, g:i A') }}
+                                Confirmed {{ $rm->confirmed_at?->format('M j, g:i A') }}@if($rm->confirmer) by {{ $rm->confirmer->name }}@endif
+                                @if($rm->shortfall() > 0 && app(\App\Services\RiderWallet::class)->openShortage($rm->rider)?->id === $rm->id)
+                                    <form method="POST" action="{{ route('sc.remittances.deduct', $rm) }}" style="margin-top:6px;" data-deduct
+                                          onsubmit="return confirm({{ \Illuminate\Support\Js::from('Take ₱' . number_format($rm->shortfall(), 2) . ' from ' . ($rm->rider->full_name ?? 'the rider') . "'s earnings?") }});">@csrf
+                                        <button class="btn btn-red btn-sm">Take ₱{{ number_format($rm->shortfall(), 2) }} from earnings</button>
+                                    </form>
+                                @endif
                             @endif
                         </td>
                     </tr>

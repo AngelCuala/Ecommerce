@@ -45,7 +45,7 @@
 
 <div class="cx-page-head">
     <h1 class="font-display">Rider Pay</h1>
-    <p>₱{{ number_format(\App\Services\RiderDispatch::PAY_PICKUP, 0) }} per completed pickup · ₱{{ number_format(\App\Services\RiderDispatch::PAY_DELIVERY, 0) }} per successful delivery · ₱0 for a failed attempt. COD cash isn't part of your pay.</p>
+    <p>Your pay: {{ \App\Services\RiderDispatch::payRule() }}. ₱0 for a failed attempt. COD cash isn't part of your pay.</p>
 </div>
 
 {{-- Today / this week / this month (Philippine time) --}}
@@ -79,8 +79,8 @@
         <section class="card" data-breakdown>
             <div class="rp-head"><h2>{{ $periods[$period] }}</h2><span class="cx-stat-label" style="margin:0;">{{ $range }}</span></div>
             <div class="rp-rows">
-                <div class="rp-row"><span>Deliveries <small>{{ $breakdown['deliveries']['count'] }} × ₱{{ number_format(\App\Services\RiderDispatch::PAY_DELIVERY, 0) }}</small></span><span>{{ $peso($breakdown['deliveries']['pay']) }}</span></div>
-                <div class="rp-row"><span>Pickups <small>{{ $breakdown['pickups']['count'] }} × ₱{{ number_format(\App\Services\RiderDispatch::PAY_PICKUP, 0) }}</small></span><span>{{ $peso($breakdown['pickups']['pay']) }}</span></div>
+                <div class="rp-row"><span>Deliveries <small>{{ $breakdown['deliveries']['count'] }}</small></span><span>{{ $peso($breakdown['deliveries']['pay']) }}</span></div>
+                <div class="rp-row"><span>Pickups <small>{{ $breakdown['pickups']['count'] }}</small></span><span>{{ $peso($breakdown['pickups']['pay']) }}</span></div>
                 <div class="rp-row"><span>Failed attempts <small>{{ $breakdown['failed'] }} × ₱0</small></span><span>{{ $peso(0) }}</span></div>
                 <div class="rp-row total"><span>Your pay</span><span style="color:var(--green);" data-period-pay>{{ $peso($breakdown['total']) }}</span></div>
             </div>

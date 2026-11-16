@@ -126,6 +126,7 @@ Route::middleware(['auth', 'is_sc', 'prevent.back'])->prefix('sc')->name('sc.')-
     Route::post('/rider-pay/cashouts/{entry}/paid',   [\App\Http\Controllers\SortingCenter\RiderWorkController::class, 'cashoutPaid'])->whereNumber('entry')->name('rider-pay.cashout.paid');
     Route::post('/rider-pay/cashouts/{entry}/reject', [\App\Http\Controllers\SortingCenter\RiderWorkController::class, 'cashoutReject'])->whereNumber('entry')->name('rider-pay.cashout.reject');
     Route::post('/remittances/{remittance}/confirm', [\App\Http\Controllers\SortingCenter\RiderWorkController::class, 'confirmRemittance'])->name('remittances.confirm');
+    Route::post('/remittances/{remittance}/deduct', [\App\Http\Controllers\SortingCenter\RiderWorkController::class, 'deductShortage'])->name('remittances.deduct');
 
     // Commission and net earnings: share of the shipping fee, ALVY's commission, rider pay
     Route::get('/commissions',               [\App\Http\Controllers\SortingCenter\CommissionController::class, 'index'])->name('commissions');
@@ -563,6 +564,11 @@ Route::middleware(['auth', 'role:admin', 'prevent.back'])
     Route::post('/gcash-payments/{group}/approve',     [\App\Http\Controllers\Admin\GcashPaymentController::class, 'approve'])->whereUuid('group')->name('gcash.approve');
     Route::post('/gcash-payments/{group}/reject',      [\App\Http\Controllers\Admin\GcashPaymentController::class, 'reject'])->whereUuid('group')->name('gcash.reject');
     Route::post('/gcash-payments/refunds/{order}',     [\App\Http\Controllers\Admin\GcashPaymentController::class, 'refunded'])->whereNumber('order')->name('gcash.refunded');
+
+    // Seller withdrawals: ALVY sends them from its bank, then marks them completed (bank reference) or failed
+    Route::get('/seller-payouts',                      [\App\Http\Controllers\Admin\SellerPayoutController::class, 'index'])->name('seller-payouts.index');
+    Route::post('/seller-payouts/{payout}/paid',       [\App\Http\Controllers\Admin\SellerPayoutController::class, 'paid'])->whereNumber('payout')->name('seller-payouts.paid');
+    Route::post('/seller-payouts/{payout}/failed',     [\App\Http\Controllers\Admin\SellerPayoutController::class, 'failed'])->whereNumber('payout')->name('seller-payouts.failed');
     Route::post('/gcash-payments/account',             [\App\Http\Controllers\Admin\GcashPaymentController::class, 'updateAccount'])->name('gcash.account');
 
     Route::get('/orders',                [AdminOrderController::class, 'index'])->name('orders.index');

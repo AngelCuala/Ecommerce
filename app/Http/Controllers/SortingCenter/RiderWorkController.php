@@ -177,7 +177,7 @@ class RiderWorkController extends Controller
         $request->validate(['date' => 'nullable|date'], ['date.date' => 'Choose a valid date.']);
         $date = $request->filled('date') ? \Carbon\Carbon::parse($request->date) : today();
 
-        $remittances = RiderRemittance::where('sorting_center_id', $this->scId())->with('rider')->latest()->paginate(20);
+        $remittances = RiderRemittance::where('sorting_center_id', $this->scId())->with('rider', 'confirmer')->latest()->paginate(20);
         $approved = Rider::where('sorting_center_id', $this->scId())->where('application_status', 'approved')->orderBy('full_name')->get();
         $riders = $approved->map(fn ($r) => ['rider' => $r, 'collected' => $this->wallet->codCollected($r), 'balance' => $this->wallet->codBalance($r),
             'pending' => $this->wallet->pendingRemittance($r), 'next' => $this->wallet->toRemit($r)]);
@@ -206,8 +206,8 @@ class RiderWorkController extends Controller
     {
         $riders = Rider::where('sorting_center_id', $this->scId())->where('application_status', 'approved')->orderBy('full_name')->get()
             ->reject(fn (Rider $r) => $r->isTruck())
-            ->map(fn (Rider $r) => ['rider' => $r, 'to_send' => $this->wallet->toSend($r), 'jobs' => $this->wallet->unsentJobs($r),
-                'balance' => $this->wallet->walletBalance($r)])
+            ->map(fn (Rider $r) => ['rider' => $r, 'jobs' => $this->wallet->unsentJobs($r)] + ($b = $this->wallet->balances($r))
+                + ['balance' => $b['available']])
             ->sortByDesc('to_send')->values();
         $sent = \App\Models\RiderWalletEntry::where('sorting_center_id', $this->scId())->where('type', 'pay')
             ->with('rider', 'sender')->latest('id')->paginate(20);
@@ -258,24 +258,35 @@ class RiderWorkController extends Controller
         return back()->with('success', '₱' . number_format((float) $entry->amount, 2) . " sent to {$rider->full_name}'s wallet.");
     }
 
-    public function confirmRemittance(RiderRemittance $remittance)
+    /**
+     * The hub counts the cash and confirms what it counted (counted; empty: the amount sent). Matches: the rider's pay for
+     * those COD deliveries goes into their wallet. Short: the gap is charged to the rider and that pay is on hold.
+     */
+    public function confirmRemittance(Request $request, RiderRemittance $remittance)
     {
         abort_unless((int) $remittance->sorting_center_id === $this->scId(), 403);
-        if ($remittance->status !== 'pending') {
-            return back()->with('error', 'This remittance is already confirmed.');
+        $request->validate(['counted' => 'nullable|numeric|min:0|max:10000000'], ['counted.numeric' => 'Enter the cash you counted.']);
+        try {
+            $r = $this->wallet->confirmRemittance($remittance, auth()->user(), $request->filled('counted') ? (float) $request->counted : null);
+        } catch (\RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
         }
-        $remittance->update(['status' => 'confirmed', 'confirmed_by' => $this->scId(), 'confirmed_at' => now()]);
-        \App\Models\ActivityLog::change('Pending ₱' . number_format($remittance->amount, 2), 'Confirmed ₱' . number_format($remittance->amount, 2),
-            $remittance->shortfall() > 0 ? 'Short by ₱' . number_format($remittance->shortfall(), 2) : null);
-        $rider = $remittance->rider;
-        UserNotification::create(['user_id' => $rider->user_id, 'title' => 'COD remittance confirmed',
-            'body' => 'Your remittance of ₱' . number_format($remittance->amount, 2) . ' was confirmed.'
-                . ($remittance->shortfall() > 0 ? ' ₱' . number_format($remittance->shortfall(), 2) . ' is still outstanding.' : ''), 'type' => 'info',
-            'link' => route('courier.rider.cod')]);
-        \App\Models\ActivityLog::note('Confirmed ₱' . number_format($remittance->amount, 2) . ' COD from ' . $rider->full_name
-            . ($remittance->shortfall() > 0 ? ' (short ₱' . number_format($remittance->shortfall(), 2) . ')' : ''), $remittance);
 
-        return back()->with('success', 'Remittance confirmed.' . ($remittance->shortfall() > 0 ? ' Shortfall of ₱' . number_format($remittance->shortfall(), 2) . ' flagged.' : ''));
+        return back()->with('success', 'Remittance confirmed: ₱' . number_format((float) $r->amount, 2) . ' counted.'
+            . ($r->shortfall() > 0 ? ' Short by ₱' . number_format($r->shortfall(), 2) . ': the rider pays it, or take it from their earnings.' : ''));
+    }
+
+    /** Take a remittance's open shortage from the rider's earnings (their held pay is released). */
+    public function deductShortage(RiderRemittance $remittance)
+    {
+        abort_unless((int) $remittance->sorting_center_id === $this->scId(), 403);
+        try {
+            $short = $this->wallet->deductShortage($remittance, auth()->user());
+        } catch (\RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return back()->with('success', '₱' . number_format($short, 2) . ' taken from ' . $remittance->rider->full_name . "'s earnings. Their held pay is available.");
     }
 
     private function guard(Parcel $parcel): void

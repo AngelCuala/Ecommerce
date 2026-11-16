@@ -115,6 +115,8 @@ class Parcel extends Model
 
     public function rtsRider(): BelongsTo { return $this->belongsTo(Rider::class, 'rts_rider_id'); }
     public function currentHub(): BelongsTo { return $this->belongsTo(LogisticsHub::class, 'current_hub_id'); }
+    /** The linehaul trips it was put on (one row per trip). */
+    public function linehaulItems(): \Illuminate\Database\Eloquent\Relations\HasMany { return $this->hasMany(LinehaulTripParcel::class); }
 
     /** Set while a linehaul trip moves the parcel: the trip writes the timeline line itself. */
     public bool $linehaulStep = false;

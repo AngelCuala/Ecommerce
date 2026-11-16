@@ -92,7 +92,7 @@ class RemittanceReceiptTest extends TestCase
         $remit = RiderRemittance::sole();
 
         Carbon::setTestNow(Carbon::parse('2026-10-26 15:52', 'Asia/Manila'));
-        $this->actingAs($this->logistics1)->post(route('sc.remittances.confirm', $remit))->assertSessionHas('success', 'Remittance confirmed.');
+        $this->actingAs($this->logistics1)->post(route('sc.remittances.confirm', $remit))->assertSessionHas('success', fn ($m) => str_starts_with($m, 'Remittance confirmed'));
 
         $this->actingAs($this->rider1->user)->get(route('courier.rider.cod.receipt', $remit))->assertOk()
             ->assertSee('data-status="confirmed"', false)->assertSee('CONFIRMED')->assertDontSee('PENDING CONFIRMATION')

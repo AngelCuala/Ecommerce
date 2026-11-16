@@ -27,9 +27,79 @@ class RiderDispatch
     public const OFFER_SECONDS = 60;
     public const MAX_OFFERS    = 3;
 
-    /** Rider pay (A33). */
+    /**
+     * Rider pay. Since SHARE_SINCE the shipping fee is split 30/30/40: 30% to the rider who picked the parcel up
+     * (seller → hub), 30% to the rider who delivered it (hub → buyer), and 40% split evenly between every hub the
+     * parcel passed (SortingCenterCommission). One rider doing both jobs gets 60%.
+     * Jobs done before SHARE_SINCE keep the old fixed pay (PAY_PICKUP, PAY_DELIVERY).
+     */
+    public const PICKUP_SHARE   = 30;   // % of the parcel's shipping fee
+    public const DELIVERY_SHARE = 30;
+    public const HUBS_SHARE     = 40;   // split between the hubs the parcel passed
+    public const SHARE_SINCE  = '2026-11-16 00:00:00';   // default of config marketplace.rider_share_since
     public const PAY_PICKUP   = 30.00;
     public const PAY_DELIVERY = 50.00;
+
+    /** When the 30/30/40 split started (config marketplace.rider_share_since). */
+    public static function shareSince(): \Illuminate\Support\Carbon
+    {
+        return \Illuminate\Support\Carbon::parse(config('marketplace.rider_share_since') ?: self::SHARE_SINCE);
+    }
+
+    /** The parcel's part of its order's shipping fee (an order with several parcels splits it evenly). */
+    public static function parcelFee(?Parcel $parcel): float
+    {
+        if (! $parcel || ! $parcel->order) {
+            return 0.0;
+        }
+        $n = $parcel->relationLoaded('order') && $parcel->order->relationLoaded('parcels')
+            ? $parcel->order->parcels->count() : Parcel::where('order_id', $parcel->order_id)->count();
+
+        return round((float) $parcel->order->shipping_fee / max(1, $n), 2);
+    }
+
+    /** Pay for one job (pickup or successful delivery): 30% of the parcel's shipping fee (the old fixed rate before SHARE_SINCE). */
+    public static function jobPay(string $kind, ?Parcel $parcel, $at = null): float
+    {
+        // A job not done yet is paid at today's rule.
+        if (\Illuminate\Support\Carbon::parse($at ?? now())->lt(self::shareSince())) {
+            return $kind === 'pickup' ? self::PAY_PICKUP : self::PAY_DELIVERY;
+        }
+
+        return round(self::parcelFee($parcel) * ($kind === 'pickup' ? self::PICKUP_SHARE : self::DELIVERY_SHARE) / 100, 2);
+    }
+
+    public static function pickupPay(?Parcel $parcel, $at = null): float
+    {
+        return self::jobPay('pickup', $parcel, $at);
+    }
+
+    public static function deliveryPay(?Parcel $parcel, $at = null): float
+    {
+        return self::jobPay('delivery', $parcel, $at);
+    }
+
+    /** What jobs already given to the rider will pay once done (each at its parcel's shipping fee). */
+    public static function pendingPay(Rider $rider): float
+    {
+        $pickups = ParcelPickup::where('rider_id', $rider->id)->where('status', 'assigned')->with('parcel.order')->get();
+        $deliveries = ParcelDelivery::where('rider_id', $rider->id)->whereIn('status', ParcelDelivery::OPEN)->with('parcel.order')->get();
+
+        return round($pickups->sum(fn ($j) => self::pickupPay($j->parcel)) + $deliveries->sum(fn ($j) => self::deliveryPay($j->parcel)), 2);
+    }
+
+    /** For the app: the share (percent of the shipping fee) and the sentence that explains it. */
+    public static function payRates(): array
+    {
+        return ['pickup' => self::PICKUP_SHARE, 'delivery' => self::DELIVERY_SHARE, 'hubs' => self::HUBS_SHARE, 'unit' => 'percent', 'rule' => self::payRule()];
+    }
+
+    /** "30% of the shipping fee per pickup, 30% per delivery" for the pages that explain the pay. */
+    public static function payRule(): string
+    {
+        return self::PICKUP_SHARE . "% of the parcel's shipping fee per pickup and " . self::DELIVERY_SHARE . '% per successful delivery ('
+            . (self::PICKUP_SHARE + self::DELIVERY_SHARE) . '% when you do both)';
+    }
 
     /** The job the parcel is waiting for: 'pickup', 'delivery' or null. */
     public function jobKind(Parcel $parcel): ?string

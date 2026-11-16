@@ -229,8 +229,8 @@ class SellerApiTest extends TestCase
 
         $e = $this->api('GET', '/earnings')->assertOk();
         $this->assertGreaterThan(0, $e->json('balances.available'));
-        $this->api('POST', '/earnings/payouts', ['amount' => 50, 'request_token' => $e->json('request_token')])->assertStatus(422)
-            ->assertJsonValidationErrors(['amount' => 'The minimum payout is ₱100.00.']);
+        $this->api('POST', '/earnings/payouts', ['amount' => 0, 'request_token' => $e->json('request_token')])->assertStatus(422)
+            ->assertJsonValidationErrors(['amount' => 'Enter an amount above ₱0.']);   // no minimum, no fee
         $this->api('POST', '/earnings/payouts', ['amount' => 100000, 'request_token' => (string) \Illuminate\Support\Str::uuid()])->assertStatus(422)
             ->assertJsonValidationErrors('amount');
 

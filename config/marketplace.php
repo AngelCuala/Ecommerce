@@ -27,6 +27,17 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Shipping fee 30/30/40
+    |--------------------------------------------------------------------------
+    | From this time each parcel's shipping fee goes 30% to the pickup rider, 30% to the delivery rider, and the hubs the
+    | parcel passed split the other 40% (App\Services\RiderDispatch, SortingCenterCommission). Jobs and parcels
+    | from before keep the old rule (₱30 a pickup, ₱50 a delivery).
+    |
+    */
+    'rider_share_since' => env('RIDER_SHARE_SINCE', '2026-11-16 00:00:00'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Returns and refunds
     |--------------------------------------------------------------------------
     | On: buyers can ask for a return within Order::RETURN_DAYS of delivery, and the

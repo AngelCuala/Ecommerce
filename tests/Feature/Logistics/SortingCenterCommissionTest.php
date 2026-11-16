@@ -94,9 +94,9 @@ class SortingCenterCommissionTest extends TestCase
             ->assertSee('Commission &amp; Earnings', false)
             ->assertSee('data-total="fees">₱150.00', false)
             ->assertSee('data-total="commission">−₱15.00', false)
-            ->assertSee('data-total="rider_pay">−₱90.00', false)
+            ->assertSee('data-total="rider_pay">₱90.00', false)
             ->assertSee('data-total="net">₱45.00', false)
-            ->assertSee($this->a->tracking_number)->assertSee('Split with 1 other hub')
+            ->assertSee($this->a->tracking_number)->assertSee('2 hubs split the hubs')
             ->assertSee(route('sc.commissions'), false);   // sidebar link
 
         // Logistics 2 only sees the parcel it delivered.

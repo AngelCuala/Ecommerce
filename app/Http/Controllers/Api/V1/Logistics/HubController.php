@@ -49,6 +49,12 @@ class HubController extends Controller
         ]);
     }
 
+    /** The numbers beside the web sidebar's items: work waiting on Pickup Requests, Parcel Sorting, Deliveries and COD Remittances. */
+    public function badges(): JsonResponse
+    {
+        return response()->json(\App\Support\SortingCenterBadges::for((int) auth()->id()));
+    }
+
     /** status (bucket), q (tracking, order no. or receiver), from, to, page. */
     public function shipments(): JsonResponse
     {

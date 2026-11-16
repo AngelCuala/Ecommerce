@@ -173,7 +173,7 @@ class L07RatesAndCodTest extends TestCase
         $this->assertEquals(1800, $wallet->codBalance($this->rider1));
 
         $this->actingAs($this->logistics1)->from(route('sc.remittances'))->post(route('sc.remittances.confirm', $remittance))
-            ->assertSessionHas('success', 'Remittance confirmed.');
+            ->assertSessionHas('success', fn ($m) => str_starts_with($m, 'Remittance confirmed'));
         $this->assertSame('confirmed', $remittance->fresh()->status);
         $this->assertEquals(0, $wallet->codBalance($this->rider1->fresh()));   // ₱1,700 cash + ₱100 pay kept
         $this->assertEquals(0, $wallet->unpaidPay($this->rider1->fresh()));

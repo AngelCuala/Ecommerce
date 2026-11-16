@@ -54,7 +54,7 @@ class WalletStrikesApiTest extends TestCase
 
         $wallet = $this->api('GET', '/rider/wallet', [], $this->rider1->user)->assertOk();
         $this->assertSame([250.0, 0.0], [(float) $wallet->json('balance'), (float) $wallet->json('to_send')]);
-        $this->api('POST', '/rider/wallet/cashout', ['amount' => 50, 'gcash_number' => '09171234567', 'gcash_name' => 'Pedro'], $this->rider1->user)
+        $this->api('POST', '/rider/wallet/cashout', ['amount' => 0, 'gcash_number' => '09171234567', 'gcash_name' => 'Pedro'], $this->rider1->user)
             ->assertStatus(422);
         $this->api('POST', '/rider/wallet/cashout', ['amount' => 150, 'gcash_number' => '09171234567', 'gcash_name' => 'Pedro Garcia'], $this->rider1->user)
             ->assertOk()->assertJsonPath('pending_cashout.gcash_number', '09171234567');

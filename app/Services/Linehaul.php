@@ -46,9 +46,14 @@ class Linehaul
         }
     }
 
+    /**
+     * Truck couriers are paid by their company (salary), not per trip or per parcel: the shipping fee is split
+     * 30/30/40 between the pickup rider, the delivery rider and the hubs (RiderDispatch, SortingCenterCommission).
+     * PAY is kept for trips paid before.
+     */
     public static function payFor(Courier $courier): float
     {
-        return self::PAY[$courier->vehicle_type] ?? 0.0;
+        return now()->lt(RiderDispatch::shareSince()) ? (self::PAY[$courier->vehicle_type] ?? 0.0) : 0.0;
     }
 
     /**
@@ -293,7 +298,9 @@ class Linehaul
                 $trip->log('reassigned_away', $reason, ['courier_id' => $previous->id, 'old_value' => $previous->fullName(), 'new_value' => $courier->fullName()]);
                 $this->notify($previous->user_id, "{$trip->code} was reassigned", "{$trip->code} ({$trip->route()}) was given to another courier" . ($reason ? ": $reason" : '.') . ' It no longer pays you.');
             }
-            $this->notify($courier->user_id, "New trip {$trip->code}", "{$trip->route()}, {$trip->onBoard()->count()} parcel(s), pays ₱" . number_format(self::payFor($courier), 2)
+            $pay = self::payFor($courier);   // ₱0 since the 30/30/40 split: the company pays its trucks
+            $this->notify($courier->user_id, "New trip {$trip->code}", "{$trip->route()}, {$trip->onBoard()->count()} parcel(s)"
+                . ($pay > 0 ? ', pays ₱' . number_format($pay, 2) : '')
                 . ($inTransit ? '. Scan every parcel again before continuing.' : '. Open it to accept or decline.'));
 
             return $trip;
@@ -708,7 +715,7 @@ class Linehaul
             $trip->log($discrepancy ? 'completed_discrepancy' : 'completed', null, ['new_value' => number_format($pay, 2)]);
             if ($courier) {
                 $courier->increment('total_earnings', $pay);
-                $this->notify($courier->user_id, "{$trip->code} completed", '₱' . number_format($pay, 2) . " earned for {$trip->route()}."
+                $this->notify($courier->user_id, "{$trip->code} completed", "{$trip->route()} was received."
                     . ($discrepancy ? ' There was a discrepancy: open the trip and add your note.' : ''));
             }
             if ($discrepancy) {
