@@ -126,10 +126,10 @@
                             assign the parcels below. <b>Auto-assign</b> puts in every parcel going to {{ $trip->destination->code }}, or tick them yourself.
                         @elseif ($stage === 1)
                             assign a truck (right side). The courier then scans each parcel onto the truck.
-                        @elseif ($stage === 2)
-                            {{ $trip->courier?->fullName() ?? 'The courier' }} is loading: {{ $onBoard->where('status', 'loaded')->count() }} of {{ $onBoard->count() }} parcel(s) scanned onto the truck.
+                        @elseif ($trip->sealed_at)
+                            sealed {{ $trip->sealed_at->format('g:i A') }} ({{ $onBoard->where('status', 'loaded')->count() }} parcel(s)). {{ $trip->courier?->fullName() ?? 'The driver' }} departs for {{ $trip->destination->code }}.
                         @else
-                            all parcels are on the truck. {{ $trip->courier?->fullName() ?? 'The courier' }} departs for {{ $trip->destination->code }}.
+                            {{ $onBoard->where('status', 'loaded')->count() }} of {{ $onBoard->count() }} parcel(s) on the truck. At {{ $trip->origin->code }}, <a href="{{ route('sc.handover', ['hub' => $trip->origin_hub_id]) }}">scan {{ $trip->courier?->fullName() ?? 'the driver' }}'s Handover QR</a>, scan the parcels on and confirm the handover to seal the truck.
                         @endif
                     </div>
                 @endif
@@ -141,34 +141,26 @@
             </div>
 
             {{-- Receiving (the receiving sorting center, after arrival) --}}
-            @if ($receiver && $trip->status === 'arrived')
-                {{-- Receiving: scan each parcel off the truck; the ones not scanned become Missing in Transit when you finish. --}}
-                @php $scannedIn = $onBoard->where('status', 'received')->count(); @endphp
-                <div class="card" data-trip-receive id="receive">
-                    <div class="card-header"><h2>Scan the parcels in</h2><span class="card-meta">{{ $scannedIn }}/{{ $onBoard->whereNotIn('status', ['removed'])->count() }} scanned · arrived {{ $trip->arrived_at?->format('M j, g:i A') }}</span></div>
-                    <div style="padding:14px 18px;display:grid;gap:10px;">
-                        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-                            @include('partials.waybill-scanner', ['lookup' => route('sc.trips.receive-scan', $trip), 'label' => 'Scan parcel'])
-                            <form method="POST" action="{{ route('sc.trips.receive-scan', $trip) }}" style="display:flex;gap:6px;flex:1;min-width:220px;">@csrf
-                                <input name="tracking_number" class="form-input" placeholder="or type the waybill number" required maxlength="50" autocomplete="off" aria-label="Waybill number">
-                                <button class="btn btn-blue btn-sm">Receive</button>
-                            </form>
-                        </div>
-                        <div class="ts-recv">
-                            @foreach ($onBoard->whereNotIn('status', ['removed']) as $i)
-                                <div data-receive-line="{{ $i->parcel_id }}" style="display:flex;gap:8px;align-items:center;padding:4px 0;">
-                                    <span class="badge {{ $i->status === 'received' ? 'badge-green' : ($i->status === 'damaged' ? 'badge-red' : 'badge-yellow') }}">{{ $i->status === 'received' ? 'Scanned in' : ($i->status === 'damaged' ? 'Damaged' : 'Not yet') }}</span>
-                                    <span style="font-weight:700;">{{ $i->parcel->waybill_number ?? $i->parcel->tracking_number ?? '—' }}</span>
-                                    <span class="text-muted">{{ $i->parcel->receiver_name ?? '' }} · {{ $i->parcel->destination_municipality ?? '' }}</span>
-                                </div>
-                            @endforeach
-                        </div>
-                        <form method="POST" action="{{ route('sc.trips.finish', $trip) }}" data-finish-receiving
-                              @if ($toReceive->isNotEmpty()) data-confirm="{{ $toReceive->count() }} parcel(s) not scanned in become Missing in Transit." data-confirm-title="Finish receiving?" data-confirm-ok="Finish" @endif>@csrf
-                            <input type="hidden" name="confirm" value="1">
-                            <button class="btn btn-green" style="width:100%;">Finish receiving ({{ $scannedIn }} scanned{{ $toReceive->isNotEmpty() ? ', ' . $toReceive->count() . ' missing' : '' }})</button>
-                        </form>
+            @if ($receiver && $trip->status === 'arrived' && ! $trip->handovers()->where('stage', 'receive')->exists())
+                <div class="card" data-trip-receive-qr>
+                    <div class="card-header"><h2>Receive the parcels</h2><span class="card-meta">Arrived {{ $trip->arrived_at?->format('M j, g:i A') }}</span></div>
+                    <div style="padding:14px 18px;font-size:13.5px;">
+                        <p style="margin:0 0 10px;">First scan the driver's <b>Handover QR</b> (or type the 6-digit code on their phone) to check the driver and truck. Then scan the parcels off the truck.</p>
+                        <a href="{{ route('sc.handover', ['hub' => $trip->destination_hub_id]) }}" class="btn btn-orange">Scan driver QR</a>
                     </div>
+                </div>
+            @elseif ($receiver && $trip->status === 'arrived')
+                <div class="card" data-trip-receive>
+                    <div class="card-header"><h2>Receive the parcels</h2><span class="card-meta">Arrived {{ $trip->arrived_at?->format('M j, g:i A') }}</span></div>
+                        <form method="POST" action="{{ route('sc.trips.receive', $trip) }}" class="ts-recv"
+                              data-confirm="Ticked parcels become yours and wait in Parcel Sorting. Unticked ones are marked Missing in Transit." data-confirm-title="Receive this trip?" data-confirm-ok="Receive">
+                            @csrf
+                            <div class="text-muted" style="font-size:13px;padding:12px 18px 6px;">Untick any parcel that is not on the truck.</div>
+                            @foreach ($toReceive as $i)
+                                <label><input type="checkbox" name="found[]" value="{{ $i->parcel_id }}" checked> <span style="font-weight:700;">{{ $i->parcel->tracking_number ?? '—' }}</span> <span class="text-muted">{{ $i->parcel->receiver_name ?? '' }} · {{ $i->parcel->destination_municipality ?? '' }}</span></label>
+                            @endforeach
+                            <div style="padding:12px 18px;"><button class="btn btn-green" style="width:100%;">Receive {{ $toReceive->count() }} parcel(s) — ready for sorting</button></div>
+                        </form>
                 </div>
             @endif
 

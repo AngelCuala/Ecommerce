@@ -3,11 +3,13 @@
 namespace Tests\Concerns;
 
 use App\Models\Courier;
+use App\Models\LinehaulHandover;
 use App\Models\LinehaulTrip;
 use App\Models\LogisticsHub;
 use App\Models\Parcel;
 use App\Models\User;
 use App\Services\Linehaul;
+use App\Services\TripHandover;
 
 /**
  * The Courier Modules (C1–C7) test data: Logistics 1's hubs HUB-QC and HUB-STR, Logistics 2's (Agila) HUB-DVO, the Pasig
@@ -102,5 +104,48 @@ trait LinehaulTestData
         $this->app['auth']->forgetGuards();
 
         return $trip->fresh();
+    }
+
+    /** The driver's current Handover QR text for the trip's handover stage (as the driver's phone shows it). */
+    protected function handoverQr(LinehaulTrip $trip): string
+    {
+        $trip = $trip->fresh(['courier', 'origin', 'destination']);
+        $stage = TripHandover::stageOf($trip) ?? $this->fail("{$trip->code} ({$trip->status}) is not waiting for a handover.");
+
+        return TripHandover::qrFor($trip, $stage, intdiv(now()->getTimestamp(), TripHandover::period()));
+    }
+
+    /**
+     * The origin hub scans the driver's Handover QR and confirms (seals the truck). By default the hub also scans every
+     * parcel still not loaded, so the counts match; with $loadAll false it seals what the driver already loaded.
+     */
+    protected function sealTrip(LinehaulTrip $trip, bool $loadAll = true, ?string $note = null): LinehaulTrip
+    {
+        $trip = $trip->fresh();
+        $sc = User::find($trip->sorting_center_id);
+        $this->actingAs($sc);
+        $service = app(TripHandover::class);
+        $h = $service->verify($sc, (int) $trip->origin_hub_id, $this->handoverQr($trip));
+        if ($loadAll) {
+            foreach ($trip->fresh()->onBoard()->where('status', 'pending')->with('parcel')->get() as $item) {
+                $service->scan($h, $sc, $item->parcel->tracking_number);
+            }
+        }
+        $service->confirm($h, $sc, $note);
+        $this->app['auth']->forgetGuards();
+
+        return $trip->fresh();
+    }
+
+    /** The destination hub scans the driver's Handover QR after arrival (receiving can then start). */
+    protected function arrivalHandover(LinehaulTrip $trip): LinehaulHandover
+    {
+        $trip = $trip->fresh();
+        $sc = User::find($trip->receiverId());
+        $this->actingAs($sc);
+        $h = app(TripHandover::class)->verify($sc, (int) $trip->destination_hub_id, $this->handoverQr($trip));
+        $this->app['auth']->forgetGuards();
+
+        return $h;
     }
 }

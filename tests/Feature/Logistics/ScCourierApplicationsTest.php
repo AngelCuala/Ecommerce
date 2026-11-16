@@ -45,7 +45,7 @@ class ScCourierApplicationsTest extends TestCase
             'sex' => 'male', 'contact_no' => '09181234568', 'birthday' => '1995-05-20',
             'region' => 'CALABARZON', 'province' => 'Laguna', 'province_code' => '043400000', 'municipality' => 'Magdalena', 'municipality_code' => '043415000', 'barangay' => 'Poblacion',
             'house_number' => '12', 'street' => 'Rizal St', 'password' => 'Secret@123', 'password_confirmation' => 'Secret@123',
-            'vehicle_type' => 'motorcycle', 'plate_number' => 'ABC 1234', 'terms' => '1',
+            'vehicle_type' => 'tricycle', 'plate_number' => 'ABC 1234', 'terms' => '1',
             'or_cr_image'       => UploadedFile::fake()->image('license.jpg'),
             'vehicle_reg_image' => UploadedFile::fake()->create('orcr.pdf', 100, 'application/pdf'),
         ], $overrides));

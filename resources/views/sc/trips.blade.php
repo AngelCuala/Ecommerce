@@ -54,8 +54,8 @@
 </style>
 
 <div class="page-header" style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;"><h1>Linehaul Trips</h1>
-    {{-- A truck arrived: scan the trip QR on the courier's phone to open it and scan its parcels in. --}}
-    <div data-scan-trip>@include('partials.waybill-scanner', ['lookup' => route('sc.trips.scan-qr'), 'label' => 'Scan trip QR'])</div></div>
+    {{-- A truck at the hub: scan the driver's Handover QR (loading or arrival), then the parcels on or off. --}}
+    <a href="{{ route('sc.handover') }}" class="btn btn-orange" data-scan-trip>Scan driver QR</a></div>
 <div class="page-body">
     <p class="text-muted" style="margin:-4px 0 16px;font-size:13px;">
         Send parcels hub to hub with your truck couriers to the sorting center nearer the buyer.

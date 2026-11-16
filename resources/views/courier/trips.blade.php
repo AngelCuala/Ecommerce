@@ -1,4 +1,4 @@
-<x-courier-layout title="Hub Jobs" active="trips">
+<x-courier-layout title="Trips" active="trips">
 @php
     $hub = $courier->homeHub;
     $online = $courier->isOnDutyNow();
@@ -67,11 +67,34 @@
     .tr-delay form { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 6px; }
     .tr-delay .cx-input { width: auto; flex: 1 1 180px; }
     .tr-notecard { padding: 18px 20px; margin-bottom: 18px; border-left: 4px solid #f59e0b; font-size: 13.5px; }
+    /* The load: what the driver carries (counts only, no buyer or seller details). */
+    .tr-load { margin-top: 14px; padding: 14px 16px; border: 1px solid #f1ede9; border-radius: 14px; }
+    .tr-load-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+    @media (max-width: 560px) { .tr-load-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    .tr-load-grid small { display: block; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: #8a7f78; }
+    .tr-load-grid b { display: block; font-size: 22px; font-weight: 900; line-height: 1.2; }
+    .tr-load-grid span { font-size: 12px; color: #8a7f78; }
+    .tr-cap { margin-top: 10px; height: 8px; border-radius: 999px; background: #f1ede9; overflow: hidden; }
+    .tr-cap i { display: block; height: 100%; border-radius: inherit; background: #10b981; transition: width .3s; }
+    .tr-cap.is-over i { background: #e5484d; }
+    .tr-warn { margin: 10px 0 0; padding: 8px 12px; border-radius: 10px; font-size: 13px; font-weight: 700; }
+    .tr-warn.is-amber { background: #fffbeb; color: #b45309; }
+    .tr-warn.is-red { background: #fef2f2; color: #b91c1c; }
+    /* Handover QR */
+    .tr-ho-btn { min-height: 52px; padding: 12px 22px; font-size: 16px; gap: 10px; }
+    .tr-ho { width: min(400px, calc(100vw - 24px)); }
+    .tr-ho-in { padding: 20px 20px 18px; text-align: center; }
+    .tr-ho-in h3 { margin: 0; font-size: 18px; font-weight: 800; }
+    .tr-ho-qr { display: flex; justify-content: center; margin: 14px auto 6px; padding: 10px; border-radius: 14px; background: #fff; width: fit-content; }
+    .tr-ho-qr svg { width: 240px; height: 240px; display: block; }
+    .tr-ho-code { margin: 4px 0 0; font: 900 32px/1.1 ui-monospace, Menlo, monospace; letter-spacing: .14em; }
+    .tr-ho-left { height: 6px; margin: 10px auto 4px; width: 80%; border-radius: 999px; background: #f1ede9; overflow: hidden; }
+    .tr-ho-left i { display: block; height: 100%; background: #fa4e1c; transition: width 1s linear; }
 </style>
 @endpush
 
 <div class="cx-page-head">
-    <h1 class="font-display">Hub Jobs</h1>
+    <h1 class="font-display">Trips</h1>
     <p>{{ $courier->hubName() }} · {{ $courier->fullName() }} · {{ $courier->vehicle_type }} ({{ $courier->plate_number }}) · Courier (truck): you carry parcels in bulk from hub to hub</p>
 </div>
 
@@ -117,7 +140,24 @@
             <span class="cx-pill {{ $trip->status === 'assigned' ? 'cx-pill-amber' : 'cx-pill-green' }}">{{ $trip->label() }}</span>
         </div>
         <div class="tr-route">{{ $trip->origin?->code }} <span>&rarr;</span> {{ $trip->destination?->code }}</div>
-        <p style="font-size:13px;color:#8a7f78;">{{ $trip->origin?->name }} to {{ $trip->destination?->name }} · {{ $trip->items()->count() }} {{ \Illuminate\Support\Str::plural('parcel', $trip->items()->count()) }}</p>
+        <p style="font-size:13px;color:#8a7f78;">{{ $trip->origin?->name }} to {{ $trip->destination?->name }}</p>
+        @php
+            $load = $trip->counts();
+            $hoStage = \App\Services\TripHandover::stageOf($trip);
+        @endphp
+        {{-- What the truck carries: parcels expected / loaded / unloaded and the weight against the truck (counts only). --}}
+        <div class="tr-load" data-load data-status="{{ $trip->status }}" data-sealed="{{ $load['sealed'] ? 1 : 0 }}"
+             data-live="{{ in_array($trip->status, ['accepted', 'loading', 'in_transit', 'arrived'], true) ? route('courier.trips.handover', $trip->id) : '' }}">
+            <div class="tr-load-grid">
+                <div><small>Parcels</small><b data-c="expected">{{ $load['expected'] }}</b><span>on this trip</span></div>
+                <div><small>Loaded</small><b data-c="loaded">{{ $load['loaded'] }}</b><span>on the truck</span></div>
+                <div><small>Unloaded</small><b data-c="unloaded">{{ $load['unloaded'] }}</b><span>at {{ $trip->destination?->code }}</span></div>
+                <div><small>Weight</small><b><span data-c="weight_kg" style="font-size:inherit;color:inherit;">{{ rtrim(rtrim(number_format($load['weight_kg'], 2), '0'), '.') ?: 0 }}</span> kg</b>
+                    <span>{{ $load['capacity_kg'] ? 'of ' . number_format($load['capacity_kg']) . ' kg (' : 'truck capacity not set' }}<span data-c="load_pct" style="font-size:inherit;">{{ $load['load_pct'] }}</span>{{ $load['capacity_kg'] ? '%)' : '' }}</span></div>
+            </div>
+            <div class="tr-cap {{ $load['over_capacity'] ? 'is-over' : '' }}" data-c-cap><i style="width:{{ min(100, (int) $load['load_pct']) }}%"></i></div>
+            <p class="tr-warn" data-c-warn hidden></p>
+        </div>
         @if ($trip->status === 'assigned')
             <div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:16px;align-items:center;">
                 <form method="POST" action="{{ route('courier.trips.accept', $trip->id) }}">@csrf<button class="cx-btn cx-btn-orange">Accept trip</button></form>
@@ -154,8 +194,10 @@
                         <p><b>Next:</b> go to {{ $trip->origin?->code }} and start loading the truck.</p>
                         <form method="POST" action="{{ route('courier.trips.loading', $trip->id) }}">@csrf<button class="cx-btn cx-btn-orange">Start loading</button></form>
                     @endif
+                @elseif ($trip->status === 'loading' && $trip->sealed_at)
+                    <p class="tr-ok"><b>Sealed</b> {{ $trip->sealed_at->format('g:i A') }}: {{ $trip->origin?->code }} confirmed the handover ({{ $loaded }} parcels). You can depart.</p>
                 @elseif ($trip->status === 'loading')
-                    <p><b>Next:</b> scan the waybill on every parcel as it goes on the truck ({{ $loaded }}/{{ $total }} loaded), then depart.</p>
+                    <p><b>Next:</b> show your <b>Handover QR</b> to the {{ $trip->origin?->code }} staff. They scan the parcels onto the truck ({{ $loaded }}/{{ $total }} loaded) and confirm; then depart.</p>
                 @elseif ($trip->status === 'in_transit' && $trip->needs_rescan)
                     <p class="tr-wait">You took over this trip after a breakdown. Scan every parcel again before continuing ({{ $loaded }}/{{ $total }}).</p>
                 @elseif ($trip->status === 'in_transit')
@@ -166,18 +208,13 @@
                         <button class="cx-btn cx-btn-green">I've arrived at {{ $trip->destination?->code }}</button>
                     </form>
                 @elseif ($trip->status === 'arrived')
-                    <p class="tr-ok">Arrived at {{ $trip->destination?->code }} {{ $trip->arrived_at?->format('g:i A') }}. Show this QR to {{ $trip->destination?->code }}: they scan it, then scan each parcel in.</p>
-                    {{-- Trip QR: like a parcel's waybill, but for the whole trip (the receiving hub scans it to open the trip). --}}
-                    <div class="card" data-trip-qr style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;padding:14px 16px;margin-top:10px;">
-                        <div style="background:#fff;padding:8px;border-radius:10px;">{!! \App\Support\QrCode::svg($trip->code, 180, 2) !!}</div>
-                        <div style="font-size:13px;line-height:1.6;">
-                            <div style="font-size:18px;font-weight:800;font-family:monospace;">{{ $trip->code }}</div>
-                            <div>{{ $trip->origin?->code }} → {{ $trip->destination?->code }}</div>
-                            <div>{{ $trip->onBoard()->count() }} parcel(s) · {{ number_format($trip->weightKg(), 2) }} kg</div>
-                            <div>{{ $courier->fullName() }}{{ $courier->plate_number ? ' · ' . $courier->plate_number : '' }}</div>
-                            <div>Arrived {{ $trip->arrived_at?->format('M j, g:i A') }}</div>
-                        </div>
-                    </div>
+                    <p class="tr-ok">Arrived at {{ $trip->destination?->code }} {{ $trip->arrived_at?->format('g:i A') }}. Show your <b>Handover QR</b> to the {{ $trip->destination?->code }} staff: they scan the parcels off the truck and confirm. You're paid when they finish receiving.</p>
+                @endif
+                @if ($hoStage)
+                    <button type="button" class="cx-btn cx-btn-orange tr-ho-btn" data-open-handover>
+                        <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3zM17 17h4v4h-4"/></svg>
+                        Handover QR
+                    </button>
                 @endif
             </div>
 
@@ -210,8 +247,9 @@
             @if ($trip->status === 'loading')
                 <form method="POST" action="{{ route('courier.trips.depart', $trip->id) }}" class="tr-depart" data-located="origin">@csrf
                     <input type="hidden" name="lat"><input type="hidden" name="lng">
-                    <button class="cx-btn cx-btn-orange" @disabled($loaded < $total || ! $total)>Depart</button>
-                    @if ($loaded < $total)<span class="tr-hint">Scan every parcel first ({{ $total - $loaded }} left).</span>@endif
+                    <button class="cx-btn cx-btn-orange" @disabled($loaded < $total || ! $total || ! $trip->sealed_at)>Depart</button>
+                    @if (! $trip->sealed_at)<span class="tr-hint">The hub confirms the handover first (your Handover QR).</span>
+                    @elseif ($loaded < $total)<span class="tr-hint">Scan every parcel first ({{ $total - $loaded }} left).</span>@endif
                 </form>
                 {{-- Can't take it after all: the trip goes back to the hub (the parcels come off the truck). --}}
                 <details class="tr-delay" style="margin-top:10px;" data-courier-cancel>
@@ -245,6 +283,22 @@
             @endif
         @endif
     </div>
+    @if ($trip->status !== 'assigned' && $hoStage)
+        @php $ho = app(\App\Services\TripHandover::class)->forDriver($trip); @endphp
+        <dialog class="tr-modal tr-ho" data-handover-dialog aria-labelledby="ho-title">
+            <div class="tr-ho-in">
+                <h3 id="ho-title">Show this to the {{ $ho['hub'] }} staff</h3>
+                <p class="tr-hint" data-ho-stage>{{ $ho['stage_label'] }} · {{ $trip->code }} · {{ $courier->plate_number }}</p>
+                <div class="tr-ho-qr" data-ho-qr>{!! $ho['svg'] !!}</div>
+                <p class="tr-hint" style="margin:6px 0 0;">Camera not working? Tell them this code:</p>
+                <p class="tr-ho-code" data-ho-code>{{ substr($ho['code'], 0, 3) }} {{ substr($ho['code'], 3) }}</p>
+                <div class="tr-ho-left"><i data-ho-bar style="width:100%"></i></div>
+                <p class="tr-hint" style="margin:0;">Changes in <b data-ho-left>{{ $ho['seconds_left'] }}</b> s. Each one works once, so a screenshot won't work.</p>
+                <p class="tr-hint" style="margin:10px 0 0;"><b data-ho-counts>{{ $load['loaded'] }}/{{ $load['expected'] }} loaded · {{ $load['unloaded'] }} unloaded</b></p>
+                <button type="button" class="cx-btn cx-btn-outline" style="margin-top:14px;width:100%;" data-close-handover>Close</button>
+            </div>
+        </dialog>
+    @endif
 @else
     <div class="card cx-empty" style="margin-bottom:24px;">
         <p class="cx-empty-title">No trip right now</p>
@@ -262,6 +316,66 @@
         </form>
     </div>
 @endforeach
+
+@if ($trip)
+<script>
+(function () {
+    var box = document.querySelector('[data-load]');
+    if (!box || !box.dataset.live) return;
+    var url = box.dataset.live, status = box.dataset.status, sealed = box.dataset.sealed;
+    var dlg = document.querySelector('[data-handover-dialog]');
+    var left = dlg ? parseInt(dlg.querySelector('[data-ho-left]').textContent, 10) : 0, period = {{ \App\Services\TripHandover::period() }};
+    var fmt = function (n) { return (Math.round(n * 100) / 100).toString(); };
+
+    function show(c) {
+        ['expected', 'loaded', 'unloaded'].forEach(function (k) { var el = box.querySelector('[data-c="' + k + '"]'); if (el) el.textContent = c[k]; });
+        box.querySelector('[data-c="weight_kg"]').textContent = fmt(c.weight_kg);
+        var pct = box.querySelector('[data-c="load_pct"]'); if (pct) pct.textContent = c.load_pct === null ? '' : c.load_pct;
+        var cap = box.querySelector('[data-c-cap]');
+        cap.classList.toggle('is-over', !!c.over_capacity);
+        cap.querySelector('i').style.width = Math.min(100, c.load_pct || 0) + '%';
+        var warn = box.querySelector('[data-c-warn]'), text = '', red = false;
+        if (c.over_capacity) { text = 'Over the truck\'s capacity: ' + fmt(c.weight_kg) + ' kg of ' + c.capacity_kg + ' kg.'; red = true; }
+        else if (c.missing || c.damaged) { text = (c.missing ? c.missing + ' missing' : '') + (c.missing && c.damaged ? ', ' : '') + (c.damaged ? c.damaged + ' damaged' : '') + ' at unloading.'; red = true; }
+        else if (status === 'arrived' && c.unloaded < c.expected) { text = 'Expected ' + c.expected + ', unloaded ' + c.unloaded + ' so far.'; }
+        else if ((status === 'loading' || status === 'accepted') && c.loaded < c.expected) { text = 'Expected ' + c.expected + ', loaded ' + c.loaded + ' so far.'; }
+        warn.hidden = !text; warn.textContent = text; warn.className = 'tr-warn ' + (red ? 'is-red' : 'is-amber');
+        if (dlg) dlg.querySelector('[data-ho-counts]').textContent = c.loaded + '/' + c.expected + ' loaded · ' + c.unloaded + ' unloaded';
+    }
+
+    function poll() {
+        fetch(url, { headers: { 'Accept': 'application/json' }, credentials: 'same-origin' })
+            .then(function (r) { return r.ok ? r.json() : null; })
+            .then(function (d) {
+                if (!d) return;
+                // The trip moved on (sealed, departed, received…): show the new step.
+                if (d.status !== status || (d.counts.sealed ? '1' : '0') !== sealed) { location.reload(); return; }
+                show(d.counts);
+                if (dlg && d.svg) {
+                    dlg.querySelector('[data-ho-qr]').innerHTML = d.svg;
+                    dlg.querySelector('[data-ho-code]').textContent = d.code.slice(0, 3) + ' ' + d.code.slice(3);
+                    left = d.seconds_left;
+                }
+            }).catch(function () {});
+    }
+    show(@json($load));
+    setInterval(poll, 8000);
+
+    if (dlg) {
+        document.querySelectorAll('[data-open-handover]').forEach(function (b) { b.addEventListener('click', function () { dlg.showModal(); poll(); }); });
+        dlg.querySelector('[data-close-handover]').addEventListener('click', function () { dlg.close(); });
+        setInterval(function () {
+            if (!dlg.open) return;
+            left = Math.max(0, left - 1);
+            dlg.querySelector('[data-ho-left]').textContent = left;
+            dlg.querySelector('[data-ho-bar]').style.width = Math.round(left / period * 100) + '%';
+            if (left <= 0) { left = period; poll(); }   // a new QR and code
+        }, 1000);
+        @if (request('handover')) dlg.showModal(); @endif
+    }
+})();
+</script>
+@endif
 
 @if ($recent->isNotEmpty())
     <h2 class="cx-section-title">Recent trips</h2>

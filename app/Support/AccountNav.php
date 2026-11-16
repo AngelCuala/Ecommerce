@@ -43,7 +43,7 @@ class AccountNav
         return self::items([
             'account'       => ['label' => 'My Account', 'href' => route('courier.account'), 'icon' => 'user'],
             'vehicle'       => ['label' => 'Vehicle & License', 'href' => route('courier.account') . '#rider-profile', 'icon' => 'truck'],
-            'pay'           => ['label' => $truck ? 'Rider Pay' : 'Pay & COD', 'href' => $truck ? route('courier.trips.pay') : route('courier.rider.earnings'), 'icon' => 'pay'],
+            'pay'           => ['label' => $truck ? 'Trip Pay' : 'Pay & COD', 'href' => $truck ? route('courier.trips.pay') : route('courier.rider.earnings'), 'icon' => 'pay'],
             'notifications' => ['label' => 'Notifications', 'href' => route('courier.notifications'), 'icon' => 'bell'],
             'security'      => ['label' => 'Accounts & Security', 'href' => route('courier.account.security'), 'icon' => 'lock'],
         ], $active);

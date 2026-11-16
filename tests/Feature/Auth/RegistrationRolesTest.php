@@ -60,7 +60,7 @@ class RegistrationRolesTest extends TestCase
     public function test_courier_waits_on_status_page_then_gets_in_after_approval(): void
     {
         $this->post(route('register'), $this->base([
-            'role' => 'courier', 'vehicle_type' => 'motorcycle', 'plate_number' => 'ABC 1234',
+            'role' => 'courier', 'vehicle_type' => 'tricycle', 'plate_number' => 'ABC 1234',
             'logistics_id' => User::create([
                 'name' => 'Hub', 'email' => 'hub@alvy.test', 'password' => Hash::make('Secret@123'),
                 'role' => 'sorting_center', 'approval_status' => 'approved',

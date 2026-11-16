@@ -1,5 +1,5 @@
-<x-courier-layout title="Job History" active="trips-history">
-<div class="cx-page-head"><h1 class="font-display">Job History</h1><p>Every hub-to-hub trip you finished, declined or handed over, with its pay.</p></div>
+<x-courier-layout title="Trip History" active="trips-history">
+<div class="cx-page-head"><h1 class="font-display">Trip History</h1><p>Every hub-to-hub trip you finished, declined or handed over, with its pay.</p></div>
 
 <form method="GET" class="cx-filters card" style="padding:14px 18px;margin-bottom:16px;display:flex;flex-wrap:wrap;gap:10px;align-items:end;">
     <div><label class="cx-label" for="from">From</label><input type="date" id="from" name="from" value="{{ request('from') }}" class="input"></div>

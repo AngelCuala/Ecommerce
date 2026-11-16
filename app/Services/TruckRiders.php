@@ -108,7 +108,7 @@ class TruckRiders
     {
         foreach ($truck->trips()->whereIn('status', ['assigned', 'accepted', 'loading'])->get() as $trip) {
             $trip->items()->where('status', 'loaded')->update(['status' => 'pending', 'loaded_at' => null]);
-            $trip->update(['status' => 'scheduled', 'courier_id' => null]);
+            $trip->update(['status' => 'scheduled', 'courier_id' => null, 'sealed_at' => null]);
             $trip->log('unassigned', $reason, ['courier_id' => $truck->id, 'old_value' => $truck->fullName()]);
         }
     }

@@ -279,6 +279,54 @@ class TripsController extends Controller
         return $this->show($t, "{$t->code} found. Scan each parcel in.");
     }
 
+    // ── Scan driver QR (handover at loading and arrival) ──
+
+    private function handoverJson(\App\Models\LinehaulHandover $h, string $message = ''): JsonResponse
+    {
+        abort_unless((int) $h->hub?->sorting_center_id === (int) auth()->id(), 404);
+        $trip = $h->trip()->with('courier.user', 'origin', 'destination')->firstOrFail();
+        $c = $trip->courier;
+
+        return response()->json(array_filter(['message' => $message]) + ['handover' => [
+            'id' => $h->id, 'stage' => $h->stage, 'stage_label' => $h->stageLabel(), 'hub' => $h->hub?->code, 'method' => $h->method,
+            'verified_at' => $h->verified_at?->toIso8601String(), 'confirmed_at' => $h->confirmed_at?->toIso8601String(), 'note' => $h->note,
+            'open' => ! $h->confirmed_at && \App\Services\TripHandover::stageOf($trip) === $h->stage,
+            'driver' => ['name' => $c?->fullName(), 'photo_url' => $c?->user?->profile_photo_url, 'plate_number' => $c?->plate_number, 'vehicle_type' => $c?->vehicle_type],
+            'counts' => $trip->counts(),
+        ], 'trip' => LinehaulJson::trip($trip, true)]);
+    }
+
+    /** hub_id, code (the QR text or the 6 digits). */
+    public function handoverVerify(Request $r): JsonResponse
+    {
+        $h = app(\App\Services\TripHandover::class)->verify(auth()->user(), (int) $r->input('hub_id'), (string) $r->input('code'));
+
+        return $this->handoverJson($h, 'Driver verified.');
+    }
+
+    public function handoverShow(\App\Models\LinehaulHandover $handover): JsonResponse
+    {
+        return $this->handoverJson($handover);
+    }
+
+    /** tracking. */
+    public function handoverScan(Request $r, \App\Models\LinehaulHandover $handover): JsonResponse
+    {
+        abort_unless((int) $handover->hub?->sorting_center_id === (int) auth()->id(), 404);
+        $res = app(\App\Services\TripHandover::class)->scan($handover, auth()->user(), (string) $r->input('tracking'));
+
+        return $this->handoverJson($handover, $res['message']);
+    }
+
+    /** note (required when the count doesn't match). */
+    public function handoverConfirm(Request $r, \App\Models\LinehaulHandover $handover): JsonResponse
+    {
+        abort_unless((int) $handover->hub?->sorting_center_id === (int) auth()->id(), 404);
+        $trip = app(\App\Services\TripHandover::class)->confirm($handover, auth()->user(), $r->input('note'));
+
+        return $this->handoverJson($handover->fresh(), $handover->isLoad() ? "{$trip->code} is sealed." : "{$trip->code} received.");
+    }
+
     // ── Couriers: duty board, suspend, verify ──
 
     public function couriers(): JsonResponse

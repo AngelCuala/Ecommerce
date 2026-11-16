@@ -84,7 +84,7 @@ class WorkbookRulesTest extends TestCase
             'role' => 'courier', 'first_name' => 'Ernesto', 'last_name' => 'Villareal', 'email' => 'ernesto.villareal@example.com', 'contact_no' => '09276543210',
             'birthday' => '1990-07-15', 'password' => 'Kurier@2026', 'password_confirmation' => 'Kurier@2026', 'terms' => '1', 'sex' => 'male',
             'region' => 'NCR', 'municipality' => 'Quezon City', 'municipality_code' => '137404000', 'barangay' => 'Central', 'house_number' => '8', 'street' => 'Malakas St.',
-            'vehicle_type' => 'truck', 'plate_number' => 'NAB4521', 'logistics_id' => $this->logistics1->id,
+            'vehicle_type' => 'car', 'plate_number' => 'NAB4521', 'logistics_id' => $this->logistics1->id,
             'or_cr_image' => UploadedFile::fake()->image('license.jpg', 800, 500), 'vehicle_reg_image' => UploadedFile::fake()->create('or_cr.pdf', 300, 'application/pdf'),
         ], $over);
         $this->logistics1->forceFill(['assigned_municipality' => 'Quezon City', 'assigned_municipality_code' => '137404000'])->save();

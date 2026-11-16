@@ -43,7 +43,7 @@ class FourWheelRidersTest extends TestCase
 
         // Both are riders on the Riders page; the 4-wheeler is marked hub to hub with its hub.
         $this->actingAs($sc)->get(route('sc.riders'))->assertOk()
-            ->assertSee('Jericho Manalo')->assertSee('Jesus Ramos')->assertSee('Courier · truck')->assertSee('HUB-SCZ')
+            ->assertSee('Jericho Manalo')->assertSee('Jesus Ramos')->assertSee('Linehaul driver')->assertSee('HUB-SCZ')
             ->assertSee('data-truck-rider="' . $truckRider->id . '"', false)->assertDontSee('data-courier-row', false)->assertDontSee('CUR-');
         $this->assertTrue($truckRider->isTruck());
         $this->assertFalse($bike->isTruck());
@@ -81,7 +81,7 @@ class FourWheelRidersTest extends TestCase
         $this->actingAs($bike->user)->get(route('courier.rider'))->assertOk()->assertSee('Hub Jobs');
 
         // The sorting center's Add Rider form offers the vehicles by the work they do.
-        $this->actingAs($sc)->get(route('sc.riders'))->assertSee('Rider · pickups and deliveries')->assertSee('Rider · 4 wheels, also bulky parcels')->assertSee('Courier · truck, hub to hub');
+        $this->actingAs($sc)->get(route('sc.riders'))->assertSee('Rider · pickups and deliveries')->assertSee('Rider · 4 wheels, also bulky parcels')->assertSee('Linehaul driver · truck, hub to hub');
     }
 
     public function test_old_courier_accounts_become_riders(): void

@@ -38,6 +38,8 @@ class TripsController extends Controller
         'damaged' => 'Parcel marked damaged', 'missing' => 'Parcel missing', 'parcel_removed' => 'Parcel taken off the trip',
         'rescanned' => 'Parcels rescanned', 'parcels_added' => 'Parcels added', 'courier_note' => 'Rider note', 'completed' => 'Received and completed',
         'completed_discrepancy' => 'Completed with discrepancy', 'cancelled' => 'Trip cancelled', 'edited' => 'Trip edited',
+        'handover_scanned' => "Driver's Handover QR scanned", 'sealed' => 'Handover confirmed: truck sealed',
+        'receipt_confirmed' => 'Receipt confirmed', 'extra_scan' => 'Extra parcel scanned (not on this trip)',
     ];
 
     public const PARCEL_LABELS = [
@@ -262,49 +264,6 @@ class TripsController extends Controller
     }
 
     /** The receiving company receives the parcels (unticked ones become Missing in Transit); they can then be sorted. */
-    /** The trip QR on the courier's phone (scanner pop-up): opens the trip to scan its parcels in. */
-    public function scanTrip(Request $request)
-    {
-        try {
-            $trip = $this->linehaul->tripForQr($this->me(), (string) $request->input('tracking_number'));
-        } catch (\Illuminate\Validation\ValidationException $e) {
-            return response()->json(['ok' => false, 'message' => collect($e->errors())->flatten()->first()], 422);
-        }
-
-        return response()->json(['ok' => true, 'message' => "{$trip->code} found. Scan each parcel in.", 'url' => route('sc.trips.show', $trip) . '#receive']);
-    }
-
-    /** One parcel scanned in at the destination hub (scanner pop-up or typed): back to the trip for the next one. */
-    public function receiveScan(Request $request, LinehaulTrip $trip)
-    {
-        $this->visible($trip);
-        try {
-            $res = $this->linehaul->receiveScan($this->me(), (int) $trip->destination_hub_id, (string) $request->input('tracking_number'));
-        } catch (\Illuminate\Validation\ValidationException $e) {
-            $msg = collect($e->errors())->flatten()->first();
-
-            return $request->expectsJson() ? response()->json(['ok' => false, 'message' => $msg], 422) : back()->with('error', $msg);
-        }
-        if ((int) $res['trip_id'] !== $trip->id) {
-            return $request->expectsJson() ? response()->json(['ok' => false, 'message' => 'That parcel is on another trip.'], 422) : back()->with('error', 'That parcel is on another trip.');
-        }
-
-        return $request->expectsJson() ? response()->json(['ok' => true, 'message' => $res['message'], 'url' => route('sc.trips.show', $trip) . '#receive'] + $res)
-            : back()->with('success', $res['message']);
-    }
-
-    /** Done scanning: parcels not scanned in become Missing in Transit (asked first). */
-    public function finishReceiving(Request $request, LinehaulTrip $trip)
-    {
-        $this->visible($trip);
-        abort_unless($trip->receiverId() === (int) $this->me()->id, 403);
-        $trip = $this->linehaul->closeReceiving($trip, $request->boolean('confirm'));
-        \App\Models\ActivityLog::note("Linehaul trip {$trip->code} received at {$trip->destination->code}", $trip);
-        $missing = $trip->onBoard()->where('status', 'missing')->count();
-
-        return back()->with('success', "{$trip->code} received. The parcels are in Parcel Sorting." . ($missing ? " $missing not scanned: marked Missing in Transit." : ''));
-    }
-
     public function receive(Request $request, LinehaulTrip $trip)
     {
         $this->visible($trip);

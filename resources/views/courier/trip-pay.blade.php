@@ -1,4 +1,4 @@
-<x-courier-layout title="Rider Pay" active="trips-pay">
+<x-courier-layout title="Trip Pay" active="trips-pay">
 @php
     $peso = fn ($v) => '₱' . number_format((float) $v, 2);
     $range = $period === 'today' ? $from->format('l, M j') : $from->format('M j') . ' – ' . $to->format('M j, Y');
@@ -40,7 +40,7 @@
 </style>
 
 <div class="cx-page-head">
-    <h1 class="font-display">Rider Pay</h1>
+    <h1 class="font-display">Trip Pay</h1>
     <p>{{ $peso($perTrip) }} per completed trip for your {{ $courier->vehicle_type }} · ₱0 for a declined or handed-over trip. You're paid when the receiving hub finishes receiving.</p>
 </div>
 
