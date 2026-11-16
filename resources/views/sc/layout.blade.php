@@ -121,6 +121,10 @@
                 COD Remittances
                 @if ($navBadges['remittances'])<span data-nav-count="remittances" style="margin-left:auto;background:var(--accent-orange);color:#fff;border-radius:999px;padding:1px 7px;font-size:10px;font-weight:700;" title="Cash remittances to confirm">{{ $navBadges['remittances'] }}</span>@endif
             </a>
+            <a href="{{ route('sc.alvy-remittances') }}" class="nav-link {{ request()->routeIs('sc.alvy-remittances*') ? 'active' : '' }}">
+                <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 10l9-6 9 6M5 10v8m4-8v8m6-8v8m4-8v8M3 20h18"/></svg>
+                ALVY Remittance
+            </a>
             <a href="{{ route('sc.rider-pay') }}" class="nav-link {{ request()->routeIs('sc.rider-pay*') ? 'active' : '' }}">
                 <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 7h15a3 3 0 013 3v7a3 3 0 01-3 3H6a3 3 0 01-3-3V7zm0 0l2.5-3h11L18 7M16.5 13.5h.01"/></svg>
                 Rider Pay

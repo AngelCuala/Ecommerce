@@ -136,9 +136,8 @@ class LinehaulTripsTest extends TestCase
         $this->as($c)->postJson('/api/v1/linehaul/ping', $this->at([14.62, 121.07]))->assertOk();
         $this->assertNotNull($this->as($this->hub)->getJson("/api/v1/logistics/trips/{$trip->id}")->json('trip.last_location'));
 
-        // Arrived only at HUB-PSG; receiving by hub staff only.
-        $this->as($c)->postJson("/api/v1/linehaul/trips/{$trip->id}/arrived", $this->at(self::AT_QC))->assertJsonValidationErrors(['location' => 'HUB-PSG']);
-        $this->as($c)->postJson("/api/v1/linehaul/trips/{$trip->id}/arrived", $this->at(self::AT_PSG))->assertOk()->assertJsonPath('trip.status_label', 'Arrived');
+        // Arrived from anywhere (no location check); receiving by hub staff only.
+        $this->as($c)->postJson("/api/v1/linehaul/trips/{$trip->id}/arrived", $this->at(self::AT_QC))->assertOk()->assertJsonPath('trip.status_label', 'Arrived');
         $this->as($c)->postJson("/api/v1/logistics/trips/{$trip->id}/close")->assertForbidden();
 
         $this->as($this->hub)->postJson('/api/v1/logistics/trips/receive', ['hub_id' => $this->hubStr->id, 'tracking' => $parcels[0]->tracking_number])

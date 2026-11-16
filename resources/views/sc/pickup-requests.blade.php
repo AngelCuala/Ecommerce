@@ -60,6 +60,11 @@
                     <td style="max-width:200px;">
                         <div style="font-weight:600;">{{ $parcel->seller->sellerApplication->shop_name ?? $parcel->seller->name ?? '—' }}</div>
                         <div class="text-muted text-sm">{{ $parcel->pickup_address }}</div>
+                        @if ($parcel->pickupStop)
+                            @php $onStop = $parcel->pickupStop->parcels()->whereIn('status', \App\Models\PickupStop::OPEN_PARCELS)->count(); @endphp
+                            <div style="margin-top:4px;" data-stop="{{ $parcel->pickup_stop_id }}"><span class="badge badge-blue" style="font-size:10px;">Stop {{ $parcel->pickupStop->code() }}</span>
+                                <span class="text-sm">{{ $parcel->pickupStop->windowLabel() }}{{ $onStop > 1 ? " · {$onStop} parcels, one rider" : '' }}</span></div>
+                        @endif
                     </td>
                     <td style="max-width:200px;">
                         <div style="font-weight:600;">{{ $parcel->receiver_name }}</div>

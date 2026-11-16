@@ -277,7 +277,9 @@ class OrderController extends Controller
             'sorting_center_id'   => ['required', 'integer', \Illuminate\Validation\Rule::exists('users', 'id')->where('role', 'sorting_center')->where('approval_status', 'approved')],
             'pickup_scheduled_at' => 'nullable|date',
             'notes'               => 'nullable|string|max:500',
+            'pickup_window'       => ['nullable', \Illuminate\Validation\Rule::in(array_keys(\App\Services\PickupStops::choices()))],
         ], [
+            'pickup_window.in' => 'Choose one of the pickup windows offered.',
             'sorting_center_id.required' => 'Choose the logistics company whose rider will pick up the parcel.',
             'sorting_center_id.exists'   => 'Choose one of the listed logistics companies.',
         ]);
@@ -306,18 +308,33 @@ class OrderController extends Controller
         $sc = \App\Models\User::findOrFail($request->sorting_center_id);
         $svc = app(\App\Services\ParcelService::class);
 
-        \Illuminate\Support\Facades\DB::transaction(function () use ($order, $sc, $request, $svc) {
+        $stop = \Illuminate\Support\Facades\DB::transaction(function () use ($order, $sc, $request, $svc) {
             $parcel = $svc->createForSeller($order, auth()->user(), null, $request->notes, $sc);
+            // Bulk pickup: the parcel joins the seller's stop for the day (before the cutoff: today), in a window the company offers.
+            $stop = app(\App\Services\PickupStops::class)->stopFor($sc, auth()->user(), $request->pickup_window);
             // A request for the chosen company: it confirms the request in Pickup Requests, then assigns a rider.
-            $parcel->update(['status' => 'pending_pickup', 'current_sorting_center_id' => $sc->id, 'failure_reason' => null]);
+            $parcel->update(['status' => 'pending_pickup', 'current_sorting_center_id' => $sc->id, 'failure_reason' => null, 'pickup_stop_id' => $stop->id]);
             $svc->syncOrder($parcel);
-            $svc->notify($sc->id, 'New pickup request', "{$parcel->tracking_number} from " . auth()->user()->storeName() . ' is ready for pickup. Assign a rider.', 'info', route('sc.pickup-requests'));
+            $svc->notify($sc->id, 'New pickup request', "{$parcel->tracking_number} from " . auth()->user()->storeName() . " is ready for pickup ({$stop->windowLabel()}, stop {$stop->code()}). Assign a rider.", 'info', route('sc.pickup-requests'));
+
+            // The stop already has its rider: this parcel goes to them too.
+            if ($stop->rider_id && ($rider = \App\Models\Rider::find($stop->rider_id))) {
+                try {
+                    app(\App\Services\RiderDispatch::class)->assignManually($parcel->fresh(), $rider, $sc);
+                } catch (\RuntimeException) {
+                    // not available any more: the company assigns another rider
+                }
+            }
+
+            return $stop;
         });
 
         $name = \App\Models\SortingCenterApplication::where('user_id', $sc->id)->where('status', 'approved')->value('business_name') ?: $sc->name;
         \App\Models\ActivityLog::note('Order ' . $order->number() . ' pickup requested from ' . $name, $order);
+        $count = $stop->parcels()->whereIn('status', \App\Models\PickupStop::OPEN_PARCELS)->count();
 
-        return back()->with('success', "Pickup requested. {$name} will confirm it and assign a rider to pick it up.");
+        return back()->with('success', "Pickup requested for {$stop->windowLabel()}" . ($count > 1 ? " with your other {$count} parcels" : '')
+            . ". {$name} will confirm it and send one rider for all your parcels.");
     }
 
     /** Mark as handed over to courier → status becomes Shipped */

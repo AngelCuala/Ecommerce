@@ -10,7 +10,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 class Parcel extends Model
 {
     protected $fillable = [
-        'tracking_number', 'waybill_number', 'order_id',
+        'tracking_number', 'waybill_number', 'order_id', 'pickup_stop_id',
         'seller_id', 'pickup_address', 'dropoff_address',
         'destination_municipality', 'destination_province',
         'receiver_name', 'receiver_phone',
@@ -115,6 +115,8 @@ class Parcel extends Model
 
     public function rtsRider(): BelongsTo { return $this->belongsTo(Rider::class, 'rts_rider_id'); }
     public function currentHub(): BelongsTo { return $this->belongsTo(LogisticsHub::class, 'current_hub_id'); }
+    /** The bulk pickup stop it is collected on (one visit to the seller, one rider for all its parcels). */
+    public function pickupStop(): BelongsTo { return $this->belongsTo(PickupStop::class); }
     /** The linehaul trips it was put on (one row per trip). */
     public function linehaulItems(): \Illuminate\Database\Eloquent\Relations\HasMany { return $this->hasMany(LinehaulTripParcel::class); }
 

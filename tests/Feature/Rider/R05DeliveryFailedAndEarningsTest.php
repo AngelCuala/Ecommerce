@@ -291,7 +291,7 @@ class R05DeliveryFailedAndEarningsTest extends TestCase
 
         $this->actingAs($this->logistics1)->post(route('sc.remittances.confirm', $remit))->assertSessionHas('success', fn ($m) => str_starts_with($m, 'Remittance confirmed'));
         $this->assertEquals(0, $this->wallet()->codBalance($this->rider1));
-        $this->actingAs($this->rider1->user)->get(route('courier.rider.cod'))->assertSee('Confirmed');
+        $this->actingAs($this->rider1->user)->get(route('courier.rider.cod'))->assertSee('Accepted');
 
         // Sending the same form twice creates one remittance only (A37).
         $this->deliveredCod(100);

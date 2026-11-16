@@ -528,7 +528,7 @@ class SortingCenterController extends Controller
             'rejected'  => ['pickup_rejected'],
         ];
 
-        $query = $this->pickupScope()->with(['seller.sellerApplication', 'order']);
+        $query = $this->pickupScope()->with(['seller.sellerApplication', 'order', 'pickupStop']);
         if (isset($tabStatuses[$tab])) $query->whereIn('status', $tabStatuses[$tab]);
 
         $requests = $query->latest()->paginate(15)->withQueryString();

@@ -177,7 +177,14 @@ class RiderWorkController extends Controller
         $request->validate(['date' => 'nullable|date'], ['date.date' => 'Choose a valid date.']);
         $date = $request->filled('date') ? \Carbon\Carbon::parse($request->date) : today();
 
-        $remittances = RiderRemittance::where('sorting_center_id', $this->scId())->with('rider', 'confirmer')->latest()->paginate(20);
+        // History: only this company's riders; filter by status, rider and dates.
+        $request->validate(['status' => 'nullable|in:pending,confirmed,rejected', 'rider' => 'nullable|integer', 'from' => 'nullable|date', 'to' => 'nullable|date']);
+        $remittances = RiderRemittance::where('sorting_center_id', $this->scId())->with('rider', 'confirmer', 'rejecter')
+            ->when($request->status, fn ($q, $s) => $q->where('status', $s))
+            ->when($request->rider, fn ($q, $id) => $q->where('rider_id', (int) $id))
+            ->when($request->from, fn ($q, $d) => $q->where('created_at', '>=', \Carbon\Carbon::parse($d, config('app.business_timezone'))->startOfDay()->utc()))
+            ->when($request->to, fn ($q, $d) => $q->where('created_at', '<=', \Carbon\Carbon::parse($d, config('app.business_timezone'))->endOfDay()->utc()))
+            ->latest()->paginate(20)->withQueryString();
         $approved = Rider::where('sorting_center_id', $this->scId())->where('application_status', 'approved')->orderBy('full_name')->get();
         $riders = $approved->map(fn ($r) => ['rider' => $r, 'collected' => $this->wallet->codCollected($r), 'balance' => $this->wallet->codBalance($r),
             'pending' => $this->wallet->pendingRemittance($r), 'next' => $this->wallet->toRemit($r)]);
@@ -274,6 +281,20 @@ class RiderWorkController extends Controller
 
         return back()->with('success', 'Remittance confirmed: ₱' . number_format((float) $r->amount, 2) . ' counted.'
             . ($r->shortfall() > 0 ? ' Short by ₱' . number_format($r->shortfall(), 2) . ': the rider pays it, or take it from their earnings.' : ''));
+    }
+
+    /** Not accepted (e.g. the cash wasn't handed over): it doesn't count; the rider remits again. */
+    public function rejectRemittance(Request $request, RiderRemittance $remittance)
+    {
+        abort_unless((int) $remittance->sorting_center_id === $this->scId(), 403);
+        $data = $request->validate(['reason' => 'required|string|min:5|max:300'], ['reason.required' => 'Tell the rider why (5 to 300 characters).']);
+        try {
+            $this->wallet->rejectRemittance($remittance, auth()->user(), trim($data['reason']));
+        } catch (\RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return back()->with('success', 'Remittance rejected. The COD stays with ' . $remittance->rider->full_name . ' to remit again.');
     }
 
     /** Take a remittance's open shortage from the rider's earnings (their held pay is released). */

@@ -223,14 +223,34 @@ class RiderController extends Controller
             'company'  => $d['rider']->companyName(),
             'balance'  => round((float) $d['balance'], 2),
             'pending'  => round((float) $d['pending'], 2),
+            // The money cards: the rider's wallet next to the hub's cash.
+            'available' => (float) $d['balances']['available'], 'expected' => (float) $d['balances']['expected'],
+            'held' => (float) $d['balances']['held'], 'cash_to_remit' => (float) $d['balances']['cash_to_remit'],
             // The next remittance, worked out: COD on hand − unpaid pay kept = cash to hand over.
             'next'     => $d['next'],
             'orders'   => $d['orders']->map(fn (ParcelDelivery $x) => ['delivered_at' => $x->delivered_at?->toIso8601String(),
                 'tracking' => $x->parcel?->tracking_number, 'order_number' => $x->parcel?->order?->number(), 'cod' => (float) $x->cod_collected])->values(),
-            'remittances' => $d['remittances']->map(fn (RiderRemittance $r) => ['id' => $r->id, 'created_at' => $r->created_at?->toIso8601String(),
-                'amount' => (float) $r->amount, 'pay_kept' => (float) $r->pay_kept, 'status' => $r->status, 'shortfall' => $r->shortfall()])->values(),
+            'remittances' => $d['remittances']->map(fn (RiderRemittance $r) => self::remittanceRow($r))->values(),
             'request_token' => $d['token'],
         ]);
+    }
+
+    private static function remittanceRow(RiderRemittance $r): array
+    {
+        return ['id' => $r->id, 'receipt' => $r->receiptNumber(), 'created_at' => $r->created_at?->toIso8601String(),
+            'amount' => (float) $r->amount, 'pay_kept' => (float) $r->pay_kept, 'expected' => (float) $r->expected_amount, 'status' => $r->status,
+            'status_label' => $r->statusLabel(), 'shortfall' => $r->shortfall(), 'deducted' => (float) $r->deducted,
+            'counted' => $r->counted_amount !== null ? (float) $r->counted_amount : null,
+            'accepted_by' => $r->confirmer?->name, 'accepted_at' => $r->confirmed_at?->toIso8601String(),
+            'reject_reason' => $r->reject_reason, 'rejected_at' => $r->rejected_at?->toIso8601String()];
+    }
+
+    /** Every remittance this rider sent (only theirs): status (pending/confirmed/rejected), from, to, page. */
+    public function remittanceHistory(): JsonResponse
+    {
+        $d = $this->pageData($this->web(WebRider::class, 'remittanceHistory'));
+
+        return response()->json(\App\Support\ApiJson::page($d['remittances'], fn (RiderRemittance $r) => self::remittanceRow($r)));
     }
 
     /** E-wallet: the pay the hub sent in, pay earned but not sent yet, history and the GCash cash-out. */
@@ -249,6 +269,7 @@ class RiderController extends Controller
             // PAYMENTS_SPEC: available (can withdraw), held (remittance short), expected (COD not remitted), cash to remit (not pay).
             'available' => (float) $d['balances']['available'], 'held' => (float) $d['balances']['held'],
             'expected' => (float) $d['balances']['expected'], 'cash_to_remit' => (float) $d['balances']['cash_to_remit'],
+            'pending_remit' => (float) $d['pendingRemit'],
             'expected_jobs' => $d['expected']->map(fn ($j) => ['at' => $j['at']?->toIso8601String(), 'tracking' => $j['tracking'], 'pay' => $j['pay'], 'cod' => $j['cod']])->values(),
             'accounts' => $d['accounts']->map(fn ($a) => ['id' => $a->id, 'method' => $a->method, 'bank_name' => $a->bank_name, 'account_name' => $a->account_name,
                 'account_number' => $a->account_number, 'label' => $a->label()])->values(),
@@ -256,6 +277,8 @@ class RiderController extends Controller
             'to_send'  => (float) $d['toSend'],
             'unsent'   => $d['unsent']->map(fn ($r) => RiderJson::walletRow($r))->values(),
             'entries'  => collect($d['entries']->items())->map($e)->values(),
+            // The website pages the ledger 20 lines at a time: ?page=2 …
+            'entries_page' => $d['entries']->currentPage(), 'entries_has_more' => $d['entries']->hasMorePages(),
             'pending_cashout' => $d['pendingCashout'] ? $e($d['pendingCashout']) : null,
             'last_gcash' => $d['lastGcash'] ? ['number' => $d['lastGcash']->gcash_number, 'name' => $d['lastGcash']->gcash_name] : null,
             'cashout_min' => \App\Services\RiderWallet::CASHOUT_MIN,

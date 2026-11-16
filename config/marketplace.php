@@ -38,6 +38,17 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Bulk pickups
+    |--------------------------------------------------------------------------
+    | A pickup request before the cutoff (Philippine time) is picked up today, after it tomorrow. The seller gets
+    | one of these time windows; all their parcels that day go on one stop with one rider (App\Services\PickupStops).
+    |
+    */
+    'pickup_cutoff'  => env('PICKUP_CUTOFF', '12:00'),
+    'pickup_windows' => ['09:00-12:00', '13:00-17:00'],
+
+    /*
+    |--------------------------------------------------------------------------
     | Returns and refunds
     |--------------------------------------------------------------------------
     | On: buyers can ask for a return within Order::RETURN_DAYS of delivery, and the

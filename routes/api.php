@@ -178,6 +178,7 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
             Route::get('/history',                         [Rider\RiderController::class, 'history'])->name('history');
             Route::get('/earnings',                        [Rider\RiderController::class, 'earnings'])->name('earnings');
             Route::get('/cod',                             [Rider\RiderController::class, 'cod'])->name('cod');
+            Route::get('/cod/history',                     [Rider\RiderController::class, 'remittanceHistory'])->name('cod.history');
             Route::get('/wallet',                          [Rider\RiderController::class, 'wallet'])->name('wallet');
             Route::post('/wallet/cashout',                 [Rider\RiderController::class, 'cashout'])->middleware('throttle:10,1')->name('wallet.cashout');
             Route::post('/cod/remit',                      [Rider\RiderController::class, 'remit'])->name('cod.remit');
@@ -271,6 +272,12 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         Route::get('/riders/{rider}/documents/{document}', [Logistics\RidersController::class, 'document'])->whereIn('document', ['license', 'or-cr'])->name('riders.document');
         Route::get('/remittances',                       [Logistics\RidersController::class, 'remittances'])->name('remittances');
         Route::post('/remittances/{remittance}/confirm', [Logistics\RidersController::class, 'confirmRemittance'])->name('remittances.confirm');
+        Route::post('/remittances/{remittance}/deduct',  [Logistics\RidersController::class, 'deductShortage'])->name('remittances.deduct');
+        Route::post('/remittances/{remittance}/reject',  [Logistics\RidersController::class, 'rejectRemittance'])->name('remittances.reject');
+        // The item price to ALVY with a report of each order (PAYMENTS_SPEC §3.1 step 5)
+        Route::get('/alvy-remittances',                  [Logistics\AlvyRemittanceController::class, 'index'])->name('alvy-remittances');
+        Route::post('/alvy-remittances',                 [Logistics\AlvyRemittanceController::class, 'submit'])->name('alvy-remittances.submit');
+        Route::get('/alvy-remittances/{remittance}',     [Logistics\AlvyRemittanceController::class, 'show'])->whereNumber('remittance')->name('alvy-remittances.show');
         Route::get('/couriers',                          [Logistics\RidersController::class, 'couriers'])->name('couriers');
         Route::get('/couriers/{courier}',                [Logistics\RidersController::class, 'courier'])->whereNumber('courier')->name('couriers.show');
         Route::post('/couriers/{courier}/approve',       [Logistics\RidersController::class, 'approveCourier'])->name('couriers.approve');
@@ -290,6 +297,7 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         Route::get('/trips/form',                        [Logistics\TripsController::class, 'form'])->name('trips.form');
         Route::post('/trips',                            [Logistics\TripsController::class, 'store'])->name('trips.store');
         Route::post('/trips/receive',                    [Logistics\TripsController::class, 'receive'])->name('trips.receive');
+        Route::post('/trips/scan-qr',                    [Logistics\TripsController::class, 'scanQr'])->name('trips.scan-qr');
         Route::post('/trips/auto-assign',                [Logistics\TripsController::class, 'autoAssignAll'])->name('trips.auto-all');
         Route::get('/trips/{trip}',                      [Logistics\TripsController::class, 'trip'])->whereNumber('trip')->name('trips.show');
         Route::post('/trips/{trip}/assign',              [Logistics\TripsController::class, 'assign'])->whereNumber('trip')->name('trips.assign');

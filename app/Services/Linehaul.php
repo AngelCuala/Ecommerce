@@ -606,10 +606,14 @@ class Linehaul
         if ($trip->needs_rescan) {
             $this->fail('trip', 'Scan every parcel of ' . $trip->code . ' again before continuing (' . $trip->onBoard()->where('status', 'loaded')->count() . '/' . $trip->onBoard()->count() . ' scanned).');
         }
-        $this->at($trip->destination, $lat, $lng, 'mark Arrived');
+        // Arrived is the courier's signal, like Depart (no location check). The receiving hub scans the trip's QR
+        // on the courier's phone, then scans each parcel in.
         $trip->update(['status' => 'arrived', 'arrived_at' => now(), 'delayed' => false]);
         $trip->log('arrived');
-        $this->notifyBoth($trip, "{$trip->code} arrived at {$trip->destination->code}", "Receive the {$trip->onBoard()->count()} parcel(s).");
+        if ($lat !== null && $lng !== null) {
+            $trip->locations()->create(['lat' => $lat, 'lng' => $lng, 'recorded_at' => now()]);
+        }
+        $this->notifyBoth($trip, "{$trip->code} arrived at {$trip->destination->code}", "Scan the trip QR on the courier's phone, then scan each of the {$trip->onBoard()->count()} parcel(s) in.");
 
         return $trip;
     }
@@ -655,6 +659,24 @@ class Linehaul
         [$in, $all] = [$trip->onBoard()->where('status', 'received')->count(), $trip->onBoard()->count()];
 
         return ['message' => "$tracking received at {$hub->code} ($in/$all).", 'received' => $in, 'total' => $all, 'trip_id' => $trip->id];
+    }
+
+    /**
+     * The trip QR the courier shows on arrival holds the trip code (TRIP-000034). The receiving sorting center scans it
+     * to open the trip; only a trip coming to it that is on the road or arrived.
+     */
+    public function tripForQr(User $sc, string $code): LinehaulTrip
+    {
+        $code = strtoupper(trim($code));
+        $trip = LinehaulTrip::where('code', $code)->first() ?? $this->fail('tracking', "$code is not a trip QR. Scan the QR on the courier's phone.");
+        if ($trip->receiverId() !== (int) $sc->id) {
+            $this->fail('tracking', "{$trip->code} is not coming to you.");
+        }
+        if (! in_array($trip->status, ['in_transit', 'arrived'], true)) {
+            $this->fail('tracking', "{$trip->code} is {$trip->label()}.");
+        }
+
+        return $trip;
     }
 
     /** A parcel damaged at unloading: a photo is required. */

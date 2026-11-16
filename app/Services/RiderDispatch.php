@@ -362,6 +362,9 @@ class RiderDispatch
         $result = ['assigned' => 0, 'no_rider' => 0, 'riders' => [], 'notified' => 0];
         $eligible = $this->eligibleRiders((int) $by->id);
         foreach ($this->waiting((int) $by->id, $kind) as $parcel) {
+            if ($this->jobKind($parcel->fresh()) === null) {
+                continue;   // already assigned with the rest of its pickup stop
+            }
             $rider = $this->barangayRider($parcel, $kind, $eligible);
             if (! $rider) {
                 $result['no_rider']++;
@@ -427,12 +430,24 @@ class RiderDispatch
             RiderJobOffer::where('parcel_id', $parcel->id)->where('status', 'pending')->update(['status' => 'cancelled']);
             $this->assign($parcel, $kind, $rider, $by->id);
 
+            // Bulk pickup: the same rider collects every parcel still waiting on the seller's stop.
+            if ($kind === RiderJobOffer::PICKUP && $parcel->pickup_stop_id) {
+                \App\Models\PickupStop::whereKey($parcel->pickup_stop_id)->update(['rider_id' => $rider->id]);
+                foreach (app(PickupStops::class)->siblings($parcel) as $sibling) {
+                    $sibling = Parcel::lockForUpdate()->find($sibling->id);
+                    if ($sibling && $this->jobKind($sibling) === RiderJobOffer::PICKUP && ! ($sibling->isBulky() && ! $rider->canCarryBulky())) {
+                        RiderJobOffer::where('parcel_id', $sibling->id)->where('status', 'pending')->update(['status' => 'cancelled']);
+                        $this->assign($sibling, RiderJobOffer::PICKUP, $rider, $by->id, true);
+                    }
+                }
+            }
+
             return $kind;
         });
     }
 
     /** Create the rider's job (call inside a transaction with the parcel locked). */
-    private function assign(Parcel $parcel, string $kind, Rider $rider, ?int $by): void
+    private function assign(Parcel $parcel, string $kind, Rider $rider, ?int $by, bool $quiet = false): void
     {
         $svc = app(ParcelService::class);
         $parcel->forceFill(['unassigned_at' => null])->save();
@@ -441,7 +456,7 @@ class RiderDispatch
         }
 
         // A rider who accepted an offer already knows; a hub assignment is announced to the rider.
-        $notify = fn (int $jobId) => $by !== null
+        $notify = fn (int $jobId) => $by !== null && ! $quiet
             ? $this->lastNotification = app(RiderNotifier::class)->assigned($parcel->fresh(), $rider, $kind, $jobId)
             : null;
 
@@ -460,8 +475,11 @@ class RiderDispatch
             ]);
             $notify($job->id);
             app(ShipmentTracker::class)->record($parcel, 'pickup_rider_assigned', ['pickup_id' => $job->id, 'dedupe_key' => 'rider-job:pickup:' . $job->id . ':assigned-event']);
-            $svc->notifySeller($parcel, 'Rider on the way for pickup',
-                "Rider {$rider->full_name} will pick up {$parcel->tracking_number}. Please have it packed and labeled.");
+            if (! $quiet) {
+                $stop = $parcel->pickupStop;
+                $svc->notifySeller($parcel, 'Rider on the way for pickup', "Rider {$rider->full_name} will pick up "
+                    . ($stop ? 'your parcels on stop ' . $stop->code() . ' (' . $stop->windowLabel() . ')' : $parcel->tracking_number) . '. Please have them packed and labeled.');
+            }
             return;
         }
 

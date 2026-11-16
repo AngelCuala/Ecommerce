@@ -81,6 +81,8 @@ class RiderJson
             'seller' => $p?->seller->name ?? '', 'pickup_address' => $p?->pickup_address,
             // The website's Acknowledge and "On my way" (the seller is told the rider is coming).
             'acknowledged' => (bool) $pu->acknowledged_at, 'on_the_way' => (bool) $pu->en_route_at,
+            // Bulk pickup: one stop at the seller for all its parcels (PAYMENTS_SPEC §11).
+            'stop' => $p?->pickupStop ? ['id' => $p->pickup_stop_id, 'code' => $p->pickupStop->code(), 'window' => $p->pickupStop->windowLabel()] : null,
         ];
     }
 

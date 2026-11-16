@@ -243,6 +243,10 @@
                         <div><dt>Tracking no.</dt><dd class="font-medium">{{ $parcel->tracking_number }}</dd></div>
                         <div><dt>Sorting center</dt><dd>{{ $parcel->currentSortingCenter->name ?? 'Awaiting assignment' }}</dd></div>
                         <div><dt>Status</dt><dd>{{ $parcel->statusLabel() }}</dd></div>
+                        @if ($parcel->pickupStop && in_array($parcel->status, ['pending_pickup', 'pickup_approved', 'in_transit_to_hub'], true))
+                            @php $stopCount = $parcel->pickupStop->parcels()->whereIn('status', ['pending_pickup', 'pickup_approved', 'in_transit_to_hub'])->count(); @endphp
+                            <div data-pickup-stop><dt>Pickup</dt><dd class="font-medium">{{ $parcel->pickupStop->windowLabel() }} · stop {{ $parcel->pickupStop->code() }}{{ $stopCount > 1 ? " · {$stopCount} parcels together" : '' }}</dd></div>
+                        @endif
                         @php $pickupJob = $parcel->pickups()->with('rider')->whereNotIn('status', ['cancelled'])->latest('id')->first(); @endphp
                         @if (in_array($parcel->status, ['pending_pickup', 'pickup_approved', 'in_transit_to_hub'], true) || $pickupJob)
                             <div><dt>Pickup rider</dt><dd class="font-medium">{{ $pickupJob?->rider?->full_name ?? 'Waiting for the logistics company to assign a rider' }}@if ($pickupJob?->rider?->phone) · {{ $pickupJob->rider->phone }}@endif</dd></div>
@@ -278,6 +282,16 @@
                                 </select>
                                 @error('sorting_center_id')<p class="text-xs" style="color:#B91C1C;">{{ $message }}</p>@enderror
                                 <p class="mt-1 text-xs pl-muted">One of their riders picks the parcel up from you and brings it to their hub.</p>
+                            </div>
+                            {{-- Bulk pickup: before the cutoff it's today, after it tomorrow; all your parcels that day go with one rider. --}}
+                            @php $pickupWindows = \App\Services\PickupStops::choices(); @endphp
+                            <div>
+                                <label for="pickup_window" class="pl-label">Pickup window</label>
+                                <select id="pickup_window" name="pickup_window" class="input text-sm" data-pickup-window>
+                                    @foreach ($pickupWindows as $key => $label)<option value="{{ $key }}" @selected(old('pickup_window') === $key)>{{ $label }}</option>@endforeach
+                                </select>
+                                <p class="mt-1 text-xs pl-muted">Requests before {{ \Illuminate\Support\Carbon::createFromFormat('H:i', \App\Services\PickupStops::cutoff())->format('g A') }} are picked up today, later ones tomorrow.
+                                    All your parcels that day are collected together by one rider.</p>
                             </div>
                             <button type="submit" class="pl-btn w-full">Ready for pickup</button>
                         </form>

@@ -29,6 +29,10 @@ class LogisticsJson
             'id'              => $p->id,
             'tracking'        => $p->tracking_number,
             'waybill'         => $p->waybill_number,
+            // Bulk pickup stop (PAYMENTS_SPEC §11): one visit to the seller, one rider for its parcels.
+            'pickup_stop'     => $p->pickup_stop_id && in_array($p->status, ['pending_pickup', 'pickup_approved'], true) && $p->pickupStop
+                ? ['code' => $p->pickupStop->code(), 'window' => $p->pickupStop->windowLabel(),
+                    'parcels' => $p->pickupStop->parcels()->whereIn('status', \App\Models\PickupStop::OPEN_PARCELS)->count()] : null,
             'status'          => $p->status,
             'status_label'    => $p->statusLabel(),
             'order_id'        => $p->order_id,
@@ -126,6 +130,12 @@ class LogisticsJson
             'id' => $r->id, 'rider' => $r->rider?->full_name, 'amount' => (float) $r->amount, 'expected' => (float) $r->expected_amount,
             'shortfall' => $r->shortfall(), 'status' => $r->status, 'created_at' => $r->created_at?->toIso8601String(),
             'confirmed_at' => $r->confirmed_at?->toIso8601String(),
+            // PAYMENTS_SPEC: the cash the hub counted, who confirmed it, a shortage taken from earnings; can_deduct: an open shortage.
+            'pay_kept' => (float) $r->pay_kept, 'due' => round((float) $r->expected_amount - (float) $r->pay_kept, 2),
+            'counted' => $r->counted_amount !== null ? (float) $r->counted_amount : null, 'deducted' => (float) $r->deducted,
+            'confirmed_by' => $r->confirmer?->name, 'status_label' => $r->statusLabel(), 'reject_reason' => $r->reject_reason,
+            'rejected_at' => $r->rejected_at?->toIso8601String(),
+            'can_deduct' => $r->status === 'confirmed' && $r->shortfall() > 0 && $r->rider && app(\App\Services\RiderWallet::class)->openShortage($r->rider)?->id === $r->id,
         ];
     }
 

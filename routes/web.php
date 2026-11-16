@@ -127,6 +127,11 @@ Route::middleware(['auth', 'is_sc', 'prevent.back'])->prefix('sc')->name('sc.')-
     Route::post('/rider-pay/cashouts/{entry}/reject', [\App\Http\Controllers\SortingCenter\RiderWorkController::class, 'cashoutReject'])->whereNumber('entry')->name('rider-pay.cashout.reject');
     Route::post('/remittances/{remittance}/confirm', [\App\Http\Controllers\SortingCenter\RiderWorkController::class, 'confirmRemittance'])->name('remittances.confirm');
     Route::post('/remittances/{remittance}/deduct', [\App\Http\Controllers\SortingCenter\RiderWorkController::class, 'deductShortage'])->name('remittances.deduct');
+    Route::post('/remittances/{remittance}/reject', [\App\Http\Controllers\SortingCenter\RiderWorkController::class, 'rejectRemittance'])->name('remittances.reject');
+    // The item price goes to ALVY with a report of each order (PAYMENTS_SPEC §3.1 step 5)
+    Route::get('/alvy-remittances',                 [\App\Http\Controllers\SortingCenter\AlvyRemittanceController::class, 'index'])->name('alvy-remittances');
+    Route::post('/alvy-remittances',                [\App\Http\Controllers\SortingCenter\AlvyRemittanceController::class, 'submit'])->middleware('throttle:10,1')->name('alvy-remittances.submit');
+    Route::get('/alvy-remittances/{remittance}',    [\App\Http\Controllers\SortingCenter\AlvyRemittanceController::class, 'show'])->whereNumber('remittance')->name('alvy-remittances.show');
 
     // Commission and net earnings: share of the shipping fee, ALVY's commission, rider pay
     Route::get('/commissions',               [\App\Http\Controllers\SortingCenter\CommissionController::class, 'index'])->name('commissions');
@@ -228,6 +233,9 @@ Route::middleware(['auth', 'is_sc', 'prevent.back'])->prefix('sc')->name('sc.')-
     Route::post('/trips/{trip}/respond',     [\App\Http\Controllers\SortingCenter\TripsController::class, 'respond'])->whereNumber('trip')->name('trips.respond');
     Route::post('/trips/{trip}/message',     [\App\Http\Controllers\SortingCenter\TripsController::class, 'message'])->whereNumber('trip')->name('trips.message');
     Route::post('/trips/{trip}/receive',     [\App\Http\Controllers\SortingCenter\TripsController::class, 'receive'])->whereNumber('trip')->name('trips.receive');
+    Route::post('/trips/scan-qr',             [\App\Http\Controllers\SortingCenter\TripsController::class, 'scanTrip'])->middleware('throttle:60,1')->name('trips.scan-qr');
+    Route::post('/trips/{trip}/receive-scan', [\App\Http\Controllers\SortingCenter\TripsController::class, 'receiveScan'])->whereNumber('trip')->middleware('throttle:120,1')->name('trips.receive-scan');
+    Route::post('/trips/{trip}/finish',       [\App\Http\Controllers\SortingCenter\TripsController::class, 'finishReceiving'])->whereNumber('trip')->name('trips.finish');
     Route::post('/transfers/initiate',                          [\App\Http\Controllers\SortingCenter\SortingCenterController::class, 'initiateTransfer'])->name('transfers.initiate');
     Route::post('/transfers/{transfer}/accept',                 [\App\Http\Controllers\SortingCenter\SortingCenterController::class, 'acceptTransfer'])->name('transfers.accept');
     Route::post('/transfers/{transfer}/reject',                 [\App\Http\Controllers\SortingCenter\SortingCenterController::class, 'rejectTransfer'])->name('transfers.reject');
@@ -569,6 +577,11 @@ Route::middleware(['auth', 'role:admin', 'prevent.back'])
     Route::get('/seller-payouts',                      [\App\Http\Controllers\Admin\SellerPayoutController::class, 'index'])->name('seller-payouts.index');
     Route::post('/seller-payouts/{payout}/paid',       [\App\Http\Controllers\Admin\SellerPayoutController::class, 'paid'])->whereNumber('payout')->name('seller-payouts.paid');
     Route::post('/seller-payouts/{payout}/failed',     [\App\Http\Controllers\Admin\SellerPayoutController::class, 'failed'])->whereNumber('payout')->name('seller-payouts.failed');
+
+    // Hub remittances to ALVY: check each report against its orders and the amount received
+    Route::get('/hub-remittances',                     [\App\Http\Controllers\Admin\HubRemittanceController::class, 'index'])->name('hub-remittances.index');
+    Route::get('/hub-remittances/{remittance}',        [\App\Http\Controllers\Admin\HubRemittanceController::class, 'show'])->whereNumber('remittance')->name('hub-remittances.show');
+    Route::post('/hub-remittances/{remittance}/review', [\App\Http\Controllers\Admin\HubRemittanceController::class, 'review'])->whereNumber('remittance')->name('hub-remittances.review');
     Route::post('/gcash-payments/account',             [\App\Http\Controllers\Admin\GcashPaymentController::class, 'updateAccount'])->name('gcash.account');
 
     Route::get('/orders',                [AdminOrderController::class, 'index'])->name('orders.index');
@@ -765,6 +778,7 @@ Route::middleware(['auth', 'role:courier,admin', 'prevent.back'])
     Route::get('/rider/wallet',                    [\App\Http\Controllers\Courier\RiderController::class, 'wallet'])->name('rider.wallet');
     Route::post('/rider/wallet/cashout',           [\App\Http\Controllers\Courier\RiderController::class, 'cashout'])->middleware('throttle:10,1')->name('rider.wallet.cashout');
     Route::get('/rider/cod',                       [\App\Http\Controllers\Courier\RiderController::class, 'cod'])->name('rider.cod');
+    Route::get('/rider/cod/history',               [\App\Http\Controllers\Courier\RiderController::class, 'remittanceHistory'])->name('rider.cod.history');
     Route::post('/rider/cod/remit',                [\App\Http\Controllers\Courier\RiderController::class, 'remit'])->name('rider.cod.remit');
     Route::get('/rider/cod/remittances/{remittance}/receipt', [\App\Http\Controllers\Courier\RiderController::class, 'remittanceReceipt'])->whereNumber('remittance')->name('rider.cod.receipt');
 

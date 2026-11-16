@@ -53,7 +53,9 @@
     .lt-parcels label { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-bottom: 1px solid #F1F5F9; font-size: 13px; cursor: pointer; }
 </style>
 
-<div class="page-header"><h1>Linehaul Trips</h1></div>
+<div class="page-header" style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;"><h1>Linehaul Trips</h1>
+    {{-- A truck arrived: scan the trip QR on the courier's phone to open it and scan its parcels in. --}}
+    <div data-scan-trip>@include('partials.waybill-scanner', ['lookup' => route('sc.trips.scan-qr'), 'label' => 'Scan trip QR'])</div></div>
 <div class="page-body">
     <p class="text-muted" style="margin:-4px 0 16px;font-size:13px;">
         Send parcels hub to hub with your truck couriers to the sorting center nearer the buyer.

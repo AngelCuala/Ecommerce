@@ -60,12 +60,31 @@
             <div class="rm-head">
                 <div class="rm-head-text">
                     <h2>Remittances</h2>
-                    <p>Cash each rider handed over. Count it and confirm what you counted: a match puts the rider's pay for those COD deliveries in their wallet;
-                        a shortage is charged to the rider and their pay stays on hold until they pay it or you take it from their earnings.@if($pendingCount > 0) <strong style="color:#a86f00;">{{ $pendingCount }} waiting for you.</strong>@endif</p>
+                    <p>Cash each rider handed over. <strong>Accept</strong> it with the cash you counted: a match puts the rider's pay for those COD deliveries in their wallet;
+                        a shortage is charged to the rider and their pay stays on hold until they pay it or you take it from their earnings.
+                        <strong>Reject</strong> it when the cash wasn't handed over: it doesn't count and the rider remits again.@if($pendingCount > 0) <strong style="color:#a86f00;">{{ $pendingCount }} waiting for you.</strong>@endif</p>
                 </div>
             </div>
+            {{-- History: your riders' remittances only; filter them. --}}
+            <form method="GET" action="{{ route('sc.remittances') }}" style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;padding:0 16px 12px;" data-remit-filter>
+                <input type="hidden" name="tab" value="remittances">
+                <label class="text-muted" style="font-size:12px;">Status
+                    <select name="status" class="form-select" style="display:block;margin-top:2px;">
+                        <option value="">All</option>
+                        @foreach (\App\Models\RiderRemittance::STATUS_LABELS as $k => $l)<option value="{{ $k }}" @selected(request('status') === $k)>{{ $l }}</option>@endforeach
+                    </select></label>
+                <label class="text-muted" style="font-size:12px;">Rider
+                    <select name="rider" class="form-select" style="display:block;margin-top:2px;">
+                        <option value="">All riders</option>
+                        @foreach ($riders as $row)<option value="{{ $row['rider']->id }}" @selected((int) request('rider') === $row['rider']->id)>{{ $row['rider']->full_name }}</option>@endforeach
+                    </select></label>
+                <label class="text-muted" style="font-size:12px;">From<input type="date" name="from" value="{{ request('from') }}" class="form-input" style="display:block;margin-top:2px;"></label>
+                <label class="text-muted" style="font-size:12px;">To<input type="date" name="to" value="{{ request('to') }}" class="form-input" style="display:block;margin-top:2px;"></label>
+                <button class="btn btn-blue btn-sm">Filter</button>
+                @if (request()->hasAny(['status', 'rider', 'from', 'to']))<a href="{{ route('sc.remittances', ['tab' => 'remittances']) }}" class="btn btn-ghost btn-sm">Clear</a>@endif
+            </form>
             <table class="data-table">
-                <thead><tr><th>Sent</th><th>Rider</th><th>Cash handed over</th><th>Rider's pay kept</th><th>COD balance then</th><th>Reconciliation</th><th>Count and confirm</th></tr></thead>
+                <thead><tr><th>Sent</th><th>Rider</th><th>Cash handed over</th><th>Rider's pay kept</th><th>COD balance then</th><th>Reconciliation</th><th>Accept or reject</th></tr></thead>
                 <tbody>
                 @forelse($remittances as $rm)
                     <tr data-remittance="{{ $rm->id }}">
@@ -74,7 +93,8 @@
                         <td style="font-weight:700;">₱{{ number_format($rm->amount, 2) }}@if($rm->status === 'confirmed' && $rm->counted_amount !== null)<div class="text-muted" style="font-size:11.5px;font-weight:400;">counted</div>@endif</td>
                         <td>{{ (float) $rm->pay_kept > 0 ? '₱' . number_format($rm->pay_kept, 2) : '—' }}</td>
                         <td>₱{{ number_format($rm->expected_amount, 2) }}</td>
-                        <td>@if($rm->status === 'pending')<span class="badge">Not counted yet</span>
+                        <td>@if($rm->status === 'rejected')<span class="badge badge-gray">Rejected</span>
+                            @elseif($rm->status === 'pending')<span class="badge">Not counted yet</span>
                             @elseif($rm->shortfall() > 0)<span class="badge badge-red" data-shortfall>Short ₱{{ number_format($rm->shortfall(), 2) }}</span>
                             @else <span class="badge badge-green">Matches</span>@if((float) $rm->deducted > 0)<div class="text-muted" style="font-size:11.5px;">₱{{ number_format($rm->deducted, 2) }} taken from earnings</div>@endif
                             @endif</td>
@@ -83,10 +103,19 @@
                                 <form method="POST" action="{{ route('sc.remittances.confirm', $rm) }}" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;" data-count-form>@csrf
                                     <input type="number" name="counted" step="0.01" min="0" max="{{ number_format((float) $rm->expected_amount - (float) $rm->pay_kept, 2, '.', '') }}"
                                            value="{{ number_format((float) $rm->amount, 2, '.', '') }}" class="form-input" style="width:120px;" aria-label="Cash counted (₱)" title="Cash you counted">
-                                    <button class="btn btn-green btn-sm">Confirm counted</button>
+                                    <button class="btn btn-green btn-sm">Accept</button>
                                 </form>
+                                <details style="margin-top:6px;" data-reject-remittance><summary class="text-sm" style="cursor:pointer;color:#B91C1C;">Reject…</summary>
+                                    <form method="POST" action="{{ route('sc.remittances.reject', $rm) }}" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;">@csrf
+                                        <input name="reason" class="form-input" placeholder="Why (e.g. the cash wasn't handed over)" required minlength="5" maxlength="300" style="flex:1;min-width:160px;" aria-label="Reason">
+                                        <button class="btn btn-red btn-sm">Reject</button>
+                                    </form>
+                                </details>
+                            @elseif($rm->status === 'rejected')
+                                Rejected {{ $rm->rejected_at?->format('M j, g:i A') }}@if($rm->rejecter) by {{ $rm->rejecter->name }}@endif
+                                <div class="text-muted" style="font-size:11.5px;">{{ $rm->reject_reason }}</div>
                             @else
-                                Confirmed {{ $rm->confirmed_at?->format('M j, g:i A') }}@if($rm->confirmer) by {{ $rm->confirmer->name }}@endif
+                                Accepted {{ $rm->confirmed_at?->format('M j, g:i A') }}@if($rm->confirmer) by {{ $rm->confirmer->name }}@endif
                                 @if($rm->shortfall() > 0 && app(\App\Services\RiderWallet::class)->openShortage($rm->rider)?->id === $rm->id)
                                     <form method="POST" action="{{ route('sc.remittances.deduct', $rm) }}" style="margin-top:6px;" data-deduct
                                           onsubmit="return confirm({{ \Illuminate\Support\Js::from('Take ₱' . number_format($rm->shortfall(), 2) . ' from ' . ($rm->rider->full_name ?? 'the rider') . "'s earnings?") }});">@csrf
@@ -97,7 +126,7 @@
                         </td>
                     </tr>
                 @empty
-                    <tr><td colspan="7" class="rm-empty">No remittances yet.</td></tr>
+                    <tr><td colspan="7" class="rm-empty">{{ request()->hasAny(['status', 'rider', 'from', 'to']) ? 'No remittances match the filter.' : 'No remittances yet.' }}</td></tr>
                 @endforelse
                 </tbody>
             </table>

@@ -265,8 +265,18 @@ class TripsController extends Controller
     public function close(Request $r, LinehaulTrip $trip): JsonResponse
     {
         $t = $this->linehaul->closeReceiving($this->receiving($trip), $r->boolean('confirm'));
+        $missing = $t->onBoard()->where('status', 'missing')->count();
 
-        return $this->show($t, "{$t->code} is {$t->label()}. ₱" . number_format((float) $t->pay, 2) . ' goes to ' . ($t->paidCourier?->fullName() ?? 'nobody') . '.');
+        return $this->show($t, "{$t->code} received. The parcels are in Parcel Sorting." . ($missing ? " $missing not scanned: Missing in Transit." : '')
+            . ((float) $t->pay > 0 ? ' ₱' . number_format((float) $t->pay, 2) . ' goes to ' . ($t->paidCourier?->fullName() ?? 'nobody') . '.' : ''));
+    }
+
+    /** code: the trip QR on the courier's phone (TRIP-000034). The receiving sorting center opens the trip with it. */
+    public function scanQr(Request $r): JsonResponse
+    {
+        $t = $this->linehaul->tripForQr(auth()->user(), (string) $r->input('code'));
+
+        return $this->show($t, "{$t->code} found. Scan each parcel in.");
     }
 
     // ── Couriers: duty board, suspend, verify ──

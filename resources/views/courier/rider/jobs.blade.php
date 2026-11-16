@@ -81,6 +81,10 @@
                     <div>
                         <p class="cx-item-title">{{ ucfirst($kind) }} · {{ $p->waybill_number ?: $p->tracking_number }}</p>
                         <p class="cx-item-meta">{{ $kind === 'pickup' ? 'Collect at ' . ($p->seller->name ?? 'the seller') . ' — ' . $p->pickup_address : 'Collect at ' . $rider->companyName() . ' hub, deliver to ' . ($p->area->name ?? '') . ' ' . $p->destination_municipality }}</p>
+                        @if ($kind === 'pickup' && $p->pickupStop)
+                            @php $stopJobs = $pickups->where('status', 'assigned')->filter(fn ($x) => $x->parcel->pickup_stop_id === $p->pickup_stop_id)->count(); @endphp
+                            <p class="cx-item-meta" data-rider-stop>Stop {{ $p->pickupStop->code() }} · {{ $p->pickupStop->windowLabel() }}{{ $stopJobs > 1 ? " · {$stopJobs} parcels at this seller" : '' }}</p>
+                        @endif
                         @if ($kind === 'pickup' && $p->notes)<p class="cx-item-meta">Instructions: {{ $p->notes }}</p>@endif
                     </div>
                     <span class="cx-pill cx-pill-amber">New · {{ $job->created_at->format('M j, g:i A') }}</span>
@@ -114,6 +118,10 @@
                 <div style="min-width:0;">
                     <p class="cx-item-title">Pickup · {{ $pu->parcel->waybill_number ?: $pu->parcel->tracking_number }}</p>
                     <p class="cx-item-meta">{{ $pu->parcel->seller->name ?? '' }} — {{ $pu->parcel->pickup_address }}</p>
+                    @if ($pu->parcel->pickupStop)
+                        @php $stopJobs = $okPickups->filter(fn ($x) => $x->parcel->pickup_stop_id === $pu->parcel->pickup_stop_id)->count(); @endphp
+                        <p class="cx-item-meta" data-rider-stop>Stop {{ $pu->parcel->pickupStop->code() }} · {{ $pu->parcel->pickupStop->windowLabel() }}{{ $stopJobs > 1 ? " · {$stopJobs} parcels at this seller" : '' }}</p>
+                    @endif
                 </div>
                 <span class="jb-details">Details <span aria-hidden="true">›</span></span>
             </a>

@@ -156,9 +156,22 @@ class RidersController extends Controller
         ]);
     }
 
+    /** counted: the cash the hub counted (empty: the amount sent). Short: the rider's pay for those deliveries is held. */
     public function confirmRemittance(RiderRemittance $remittance): JsonResponse
     {
         return $this->with($this->web(WebRiderWork::class, 'confirmRemittance', ['remittance' => $remittance]), fn () => $this->remittances());
+    }
+
+    /** reason: not accepted (e.g. the cash wasn't handed over); the rider remits again. */
+    public function rejectRemittance(RiderRemittance $remittance): JsonResponse
+    {
+        return $this->with($this->web(WebRiderWork::class, 'rejectRemittance', ['remittance' => $remittance]), fn () => $this->remittances());
+    }
+
+    /** Take a remittance's open shortage from the rider's earnings (their held pay is released). */
+    public function deductShortage(RiderRemittance $remittance): JsonResponse
+    {
+        return $this->with($this->web(WebRiderWork::class, 'deductShortage', ['remittance' => $remittance]), fn () => $this->remittances());
     }
 
     // ── Courier applications ─────────────────────────────────────

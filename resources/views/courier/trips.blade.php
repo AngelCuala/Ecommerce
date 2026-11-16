@@ -166,7 +166,18 @@
                         <button class="cx-btn cx-btn-green">I've arrived at {{ $trip->destination?->code }}</button>
                     </form>
                 @elseif ($trip->status === 'arrived')
-                    <p class="tr-ok">Arrived at {{ $trip->destination?->code }} {{ $trip->arrived_at?->format('g:i A') }}. Hand the truck over: {{ $trip->destination?->code }} scans the parcels in. You're paid when they finish receiving.</p>
+                    <p class="tr-ok">Arrived at {{ $trip->destination?->code }} {{ $trip->arrived_at?->format('g:i A') }}. Show this QR to {{ $trip->destination?->code }}: they scan it, then scan each parcel in.</p>
+                    {{-- Trip QR: like a parcel's waybill, but for the whole trip (the receiving hub scans it to open the trip). --}}
+                    <div class="card" data-trip-qr style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;padding:14px 16px;margin-top:10px;">
+                        <div style="background:#fff;padding:8px;border-radius:10px;">{!! \App\Support\QrCode::svg($trip->code, 180, 2) !!}</div>
+                        <div style="font-size:13px;line-height:1.6;">
+                            <div style="font-size:18px;font-weight:800;font-family:monospace;">{{ $trip->code }}</div>
+                            <div>{{ $trip->origin?->code }} → {{ $trip->destination?->code }}</div>
+                            <div>{{ $trip->onBoard()->count() }} parcel(s) · {{ number_format($trip->weightKg(), 2) }} kg</div>
+                            <div>{{ $courier->fullName() }}{{ $courier->plate_number ? ' · ' . $courier->plate_number : '' }}</div>
+                            <div>Arrived {{ $trip->arrived_at?->format('M j, g:i A') }}</div>
+                        </div>
+                    </div>
                 @endif
             </div>
 

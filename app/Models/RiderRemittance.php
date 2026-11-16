@@ -8,16 +8,21 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 /** COD cash a rider hands to their logistics company; only the company can confirm it. */
 class RiderRemittance extends Model
 {
-    protected $fillable = ['rider_id', 'sorting_center_id', 'amount', 'pay_kept', 'expected_amount', 'counted_amount', 'deducted', 'status', 'request_token',
-        'confirmed_by', 'confirmed_at', 'settled_by', 'settled_at'];
+    protected $fillable = ['rider_id', 'sorting_center_id', 'amount', 'pay_kept', 'expected_amount', 'counted_amount', 'deducted', 'status', 'reject_reason', 'request_token',
+        'confirmed_by', 'confirmed_at', 'settled_by', 'settled_at', 'rejected_by', 'rejected_at'];
 
     protected $casts = ['amount' => 'decimal:2', 'pay_kept' => 'decimal:2', 'expected_amount' => 'decimal:2', 'counted_amount' => 'decimal:2',
-        'deducted' => 'decimal:2', 'confirmed_at' => 'datetime', 'settled_at' => 'datetime'];
+        'deducted' => 'decimal:2', 'confirmed_at' => 'datetime', 'settled_at' => 'datetime', 'rejected_at' => 'datetime'];
 
     public function rider(): BelongsTo { return $this->belongsTo(Rider::class); }
     public function sortingCenter(): BelongsTo { return $this->belongsTo(User::class, 'sorting_center_id'); }
     public function confirmer(): BelongsTo { return $this->belongsTo(User::class, 'confirmed_by'); }
     public function settler(): BelongsTo { return $this->belongsTo(User::class, 'settled_by'); }
+    public function rejecter(): BelongsTo { return $this->belongsTo(User::class, 'rejected_by'); }
+
+    public const STATUS_LABELS = ['pending' => 'Waiting for the hub', 'confirmed' => 'Accepted', 'rejected' => 'Rejected'];
+
+    public function statusLabel(): string { return self::STATUS_LABELS[$this->status] ?? ucfirst((string) $this->status); }
 
     /** Receipt number, e.g. RR-261026-000001: the remittance's date (Philippine time) and its unique ID. */
     public function receiptNumber(): string
@@ -31,7 +36,7 @@ class RiderRemittance extends Model
      */
     public function coveredDeliveries()
     {
-        $previous = self::where('rider_id', $this->rider_id)->where('id', '<', $this->id)->latest('id')->value('created_at');
+        $previous = self::where('rider_id', $this->rider_id)->where('id', '<', $this->id)->where('status', '!=', 'rejected')->latest('id')->value('created_at');
 
         return ParcelDelivery::where('rider_id', $this->rider_id)->where('status', 'delivered')->where('cod_collected', '>', 0)
             ->where('delivered_at', '<=', $this->created_at)
@@ -42,6 +47,10 @@ class RiderRemittance extends Model
     /** Less than the COD balance at the time, counting the pay the rider kept out of it and any shortage taken from their earnings. */
     public function shortfall(): float
     {
+        if ($this->status === 'rejected') {
+            return 0.0;   // not counted at all: the COD stays on the rider
+        }
+
         return round(max(0, (float) $this->expected_amount - (float) $this->amount - (float) $this->pay_kept - (float) $this->deducted), 2);
     }
 }

@@ -152,7 +152,15 @@ class SellerJson
                 // Who will pick it up (the website's "Pickup rider" row).
                 'pickup_rider' => ($job = $parcel->pickups()->with('rider')->where('status', '!=', 'cancelled')->latest('id')->first())?->rider
                     ? ['name' => $job->rider->full_name, 'phone' => $job->rider->phone] : null,
+                // Bulk pickup (PAYMENTS_SPEC §11): its stop, window and how many parcels go together.
+                'pickup_stop' => $parcel->pickupStop && in_array($parcel->status, ['pending_pickup', 'pickup_approved', 'in_transit_to_hub'], true) ? [
+                    'code' => $parcel->pickupStop->code(), 'window' => $parcel->pickupStop->windowLabel(),
+                    'parcels' => $parcel->pickupStop->parcels()->whereIn('status', ['pending_pickup', 'pickup_approved', 'in_transit_to_hub'])->count(),
+                ] : null,
             ] : null,
+            // The pickup windows the company offers for a new request (before the cutoff: today; after it: tomorrow).
+            'pickup_windows' => $canBook ? collect(\App\Services\PickupStops::choices())->map(fn ($label, $key) => ['value' => $key, 'label' => $label])->values() : [],
+            'pickup_cutoff' => \Illuminate\Support\Carbon::createFromFormat('H:i', \App\Services\PickupStops::cutoff())->format('g A'),
             'delivery' => $delivery ? ['status' => $delivery->status, 'tracking_number' => $delivery->tracking_number, 'notes' => $delivery->notes,
                 'pickup_scheduled_at' => $delivery->pickup_scheduled_at?->toIso8601String()] : null,
             'sorting_centers' => $canBook ? collect($d['sortingCenters'])->map(fn ($sc) => [

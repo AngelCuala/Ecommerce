@@ -66,10 +66,17 @@ class CourierWebTripTest extends TestCase
         $post('delay', ['reason' => 'Heavy traffic', 'eta' => now()->subHour()->toDateTimeString()])->assertSessionHas('error');
         $post('delay', ['reason' => 'Heavy traffic', 'eta' => now()->timezone(config('app.business_timezone'))->addHours(3)->format('Y-m-d\TH:i')])->assertSessionHas('success');
         $this->assertTrue((bool) $trip->fresh()->delayed);
-        $post('arrived', ['lat' => self::AT_QC[0], 'lng' => self::AT_QC[1]])->assertSessionHas('error', fn ($m) => str_contains($m, 'HUB-DVO'));
-        $post('arrived', ['lat' => self::AT_DVO[0], 'lng' => self::AT_DVO[1]])->assertSessionHas('success');
+        // Arrived is a signal (no location check, like Depart); the courier then shows the trip QR.
+        $post('arrived', ['lat' => self::AT_QC[0], 'lng' => self::AT_QC[1]])->assertSessionHas('success');
         $this->assertSame('arrived', $trip->fresh()->status);
-        $page()->assertSee('Arrived at HUB-DVO');
+        $page()->assertSee('Arrived at HUB-DVO')->assertSee('data-trip-qr', false)->assertSee($trip->code);
+
+        // The receiving hub scans the trip QR to open it, then scans the parcels in.
+        $this->actingAs($this->logistics2)->postJson(route('sc.trips.scan-qr'), ['tracking_number' => $trip->code])
+            ->assertOk()->assertJsonPath('url', route('sc.trips.show', $trip) . '#receive');
+        $this->actingAs($this->logistics1)->postJson(route('sc.trips.scan-qr'), ['tracking_number' => $trip->code])->assertStatus(422);   // not coming to them
+        $this->actingAs($this->logistics2)->get(route('sc.trips.show', $trip))->assertOk()->assertSee('Scan the parcels in')->assertSee('0/2 scanned');
+        $this->actingAs($this->logistics2)->postJson(route('sc.trips.receive-scan', $trip), ['tracking_number' => 'NOT-A-PARCEL'])->assertStatus(422);
 
         // The receiving hub receives the parcels straight away (no seal check): the trip is paid, like a rider's finished job.
         app(Linehaul::class)->receiveScan($this->logistics2, $this->hubDvo->id, $parcels[1]->fresh()->waybill_number);   // by waybill too

@@ -398,6 +398,25 @@ class RiderWallet
         });
     }
 
+    /** The hub doesn't accept a remittance (e.g. the cash wasn't handed over): it doesn't count; the rider remits again. */
+    public function rejectRemittance(RiderRemittance $remittance, User $actor, string $reason): RiderRemittance
+    {
+        return DB::transaction(function () use ($remittance, $actor, $reason) {
+            $r = RiderRemittance::lockForUpdate()->findOrFail($remittance->id);
+            if ($r->status !== 'pending') {
+                throw new RuntimeException('This remittance was already ' . ($r->status === 'confirmed' ? 'accepted' : 'rejected') . '.');
+            }
+            $r->update(['status' => 'rejected', 'reject_reason' => $reason, 'rejected_by' => $actor->id, 'rejected_at' => now()]);
+            $rider = $r->rider;
+            UserNotification::create(['user_id' => $rider->user_id, 'type' => 'warning', 'title' => 'COD remittance rejected',
+                'body' => 'Your remittance ' . $r->receiptNumber() . ' of ₱' . number_format((float) $r->amount, 2) . " was not accepted: {$reason}. The COD is still yours to remit: send it again.",
+                'link' => route('courier.rider.cod')]);
+            ActivityLog::note('Rejected COD remittance ' . $r->receiptNumber() . ' from ' . $rider->full_name . ": $reason", $r);
+
+            return $r->fresh();
+        });
+    }
+
     /** The hub takes an open shortage from the rider's earnings: a −shortage line, and the held pay is released. */
     public function deductShortage(RiderRemittance $remittance, User $actor): float
     {

@@ -150,7 +150,12 @@ class PanelController extends Controller
         return response()->json(ApiJson::page($d['orders'], fn ($o) => [
             'id' => $o->id, 'number' => $o->number(), 'status' => $o->status, 'created_at' => $o->created_at?->toIso8601String(),
             'earning' => round((float) $o->items->sum('seller_earning'), 2), 'completed' => $o->status === \App\Models\Order::COMPLETED,
+            // The website's per-order breakdown.
+            'gross' => round((float) $o->items->sum(fn ($i) => $i->quantity * $i->price), 2), 'store_voucher' => round((float) $o->items->sum('seller_discount'), 2),
+            'promos' => round((float) $o->items->sum('promo_discount'), 2), 'commission' => round((float) $o->items->sum('commission_amount'), 2),
         ]) + [
+            // The website pages the ledger 20 lines at a time: ?ledger=2 …
+            'ledger_page' => $d['ledger']->currentPage(), 'ledger_has_more' => $d['ledger']->hasMorePages(),
             'balances' => $d['balances'],
             'minimum_payout' => \App\Models\SellerPayout::MINIMUM,
             'payouts'  => $d['payouts']->map(fn ($p) => ['id' => $p->id, 'amount' => (float) $p->amount, 'status' => $p->status,

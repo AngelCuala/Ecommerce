@@ -11,33 +11,14 @@
     <p>Your share of the shipping fee: {{ \App\Services\RiderDispatch::payRule() }}. A pickup is added once the hub receives the parcel,
         a prepaid delivery once it's delivered, and a COD delivery once {{ $rider->companyName() }} confirms your remittance.</p></div>
 
-{{-- Available (can withdraw), on hold (remittance short), expected (COD not remitted yet), cash to remit (not yours). --}}
-<div class="cx-grid cx-cols-2" style="margin-bottom:24px;">
-    <div class="card cx-stat" style="color:#fff;border:0;background:radial-gradient(120% 160% at 100% 0, #0b4a7a 0, var(--navy) 60%);">
-        <p class="cx-stat-value" style="color:#fff;" data-wallet-balance>{{ $peso($balances['available']) }}</p>
-        <p class="cx-stat-label" style="color:rgba(255,255,255,.75);">Available: you can withdraw it</p>
-    </div>
-    <div class="card cx-stat">
-        <p class="cx-stat-value" data-wallet-expected>{{ $peso($balances['expected']) }}</p>
-        <p class="cx-stat-label">Expected: COD deliveries, added once your remittance is confirmed</p>
-    </div>
-    @if ($balances['held'] > 0)
-    <div class="card cx-stat" style="border:1.5px solid #FCA5A5;">
-        <p class="cx-stat-value" style="color:#B91C1C;" data-wallet-held>{{ $peso($balances['held']) }}</p>
-        <p class="cx-stat-label">On hold: your last remittance was short. Hand over the gap, or {{ $rider->companyName() }} takes it from your earnings.</p>
-    </div>
-    @endif
-    <div class="card cx-stat">
-        <p class="cx-stat-value" data-wallet-cash>{{ $peso($balances['cash_to_remit']) }}</p>
-        <p class="cx-stat-label">Cash to remit: COD you collected (not your pay) · <a href="{{ route('courier.rider.cod') }}">Remit</a></p>
-    </div>
-    @if ($toSend > 0)
-    <div class="card cx-stat">
-        <p class="cx-stat-value" data-wallet-to-send>{{ $peso($toSend) }}</p>
-        <p class="cx-stat-label">Older jobs: waiting for {{ $rider->companyName() }} to send</p>
-    </div>
-    @endif
+{{-- Where the money is: your pay (wallet) and the hub's cash, side by side, so the two are never mixed up. --}}
+@include('courier.rider.partials.money-cards', ['b' => $balances, 'pendingRemit' => $pendingRemit, 'company' => $rider->companyName()])
+@if ($toSend > 0)
+<div class="card cx-stat" style="margin-bottom:24px;">
+    <p class="cx-stat-value" data-wallet-to-send>{{ $peso($toSend) }}</p>
+    <p class="cx-stat-label">Older jobs: waiting for {{ $rider->companyName() }} to send to your wallet</p>
 </div>
+@endif
 
 {{-- Withdraw: any amount up to the available balance, no fee, to a saved or new GCash, Maya or bank account. --}}
 <div class="card" style="padding:18px 20px;margin-bottom:24px;" id="cashout">

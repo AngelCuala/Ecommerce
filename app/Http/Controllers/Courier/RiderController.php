@@ -574,6 +574,7 @@ class RiderController extends Controller
             'rider'    => $rider,
             'balance'  => $b['available'],
             'balances' => $b,
+            'pendingRemit' => $this->wallet->pendingRemittance($rider),
             'expected' => $this->wallet->expectedJobs($rider),
             'toSend'   => $b['to_send'],
             'unsent'   => $this->wallet->unsentJobs($rider),
@@ -679,6 +680,7 @@ class RiderController extends Controller
 
         return view('courier.rider.cod', [
             'rider'       => $rider,
+            'balances'    => $this->wallet->balances($rider),   // the money cards: your wallet next to the hub's cash
             'balance'     => $this->wallet->codBalance($rider),
             'next'        => $this->wallet->toRemit($rider),   // COD − the rider's unpaid pay = what to hand over
             'pending'     => $this->wallet->pendingRemittance($rider),
@@ -686,6 +688,21 @@ class RiderController extends Controller
             'remittances' => RiderRemittance::where('rider_id', $rider->id)->latest()->take(20)->get(),
             'token'       => (string) Str::uuid(),
         ]);
+    }
+
+    /** Every remittance this rider sent (only theirs): filter by status and dates; each has its receipt. */
+    public function remittanceHistory(Request $request)
+    {
+        $rider = $this->rider();
+        $request->validate(['status' => 'nullable|in:pending,confirmed,rejected', 'from' => 'nullable|date', 'to' => 'nullable|date']);
+        $tz = config('app.business_timezone');
+        $remittances = RiderRemittance::where('rider_id', $rider->id)->with('confirmer', 'rejecter')
+            ->when($request->status, fn ($q, $s) => $q->where('status', $s))
+            ->when($request->from, fn ($q, $d) => $q->where('created_at', '>=', \Carbon\Carbon::parse($d, $tz)->startOfDay()->utc()))
+            ->when($request->to, fn ($q, $d) => $q->where('created_at', '<=', \Carbon\Carbon::parse($d, $tz)->endOfDay()->utc()))
+            ->latest()->paginate(20)->withQueryString();
+
+        return view('courier.rider.remittance-history', compact('rider', 'remittances'));
     }
 
     /**
