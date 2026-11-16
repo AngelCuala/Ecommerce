@@ -22,9 +22,10 @@ use Illuminate\Support\Str;
 
 /**
  * A small working marketplace for local testing, in Laguna (the delivery area):
- * 1 admin, 6 sellers (6 products each, most with variations), 4 buyers,
- * 6 logistics companies (each with a hub and barangay coverage: Calamba, Santa Rosa, Biñan, Los Baños, Luisiana, Santa Cruz),
- * 12 riders, two per company: a motorcycle or tricycle (pickups and deliveries to buyers) and a 4-wheel truck (hub to hub).
+ * 1 admin, 8 sellers (6 products each, most with variations), 6 buyers,
+ * 8 logistics companies (each with a hub and barangay coverage: Calamba, Santa Rosa, Biñan, Los Baños, Luisiana, Santa Cruz,
+ * Pagsanjan, Cavinti), 16 riders, two per company: a motorcycle or tricycle (pickups and deliveries to buyers) and a
+ * 4-wheel truck (hub to hub).
  *
  *   php artisan db:seed --class=DemoAccountsAndProductsSeeder
  *
@@ -46,6 +47,8 @@ class DemoAccountsAndProductsSeeder extends Seeder
         ['Los Baños Campus Couriers', 'Miguel Navarro', 'Los Baños', 'LSB', 14.1699, 121.2441],
         ['Luisiana Highland Logistics', 'Teresa Alcantara', 'Luisiana', 'LUI', 14.1853, 121.5108],
         ['Santa Cruz Lakeshore Logistics', 'Antonio Ilagan', 'Santa Cruz', 'SCZ', 14.2814, 121.4161],
+        ['Pagsanjan Falls Freight', 'Lorna Bautista', 'Pagsanjan', 'PGS', 14.2731, 121.4553],
+        ['Cavinti Highlands Express', 'Rogelio Sarmiento', 'Cavinti', 'CVT', 14.2453, 121.5070],
     ];
 
     /** [name, vehicle, plate] — one rider per logistics company, same order. */
@@ -56,6 +59,8 @@ class DemoAccountsAndProductsSeeder extends Seeder
         ['Kevin Mendoza', 'Motorcycle', 'NIJ7890'],
         ['Paolo Dela Rosa', 'Motorcycle', 'NKL2345'],
         ['Jericho Manalo', 'Motorcycle', 'NMN6789'],
+        ['Arvin Castillo', 'Motorcycle', 'NPQ4567'],
+        ['Dennis Ocampo', 'Tricycle', 'NRS8901'],
     ];
 
     /** [name, town] */
@@ -64,6 +69,8 @@ class DemoAccountsAndProductsSeeder extends Seeder
         ['Jose Rafael Reyes', 'Los Baños'],
         ['Kristine Joy Valdez', 'Luisiana'],
         ['Mark Joseph Aguilar', 'Santa Cruz'],
+        ['Patricia Ann Ramos', 'Pagsanjan'],
+        ['Christian Paul Torres', 'Cavinti'],
     ];
 
     /** Photo key => file under public/images. */
@@ -319,6 +326,30 @@ class DemoAccountsAndProductsSeeder extends Seeder
                 ['SK-05', 'Baby Cotton Onesie Pack', 'Kids & Baby', 'Munting Anghel', 549, 0, 0.3, 'kids', 'Soft cotton onesies with snap buttons, pack of three.',
                     'Size', [['0-3 months', null, 15], ['3-6 months', null, 12], ['6-12 months', null, 9]]],
                 ['SK-06', 'Kids Wooden Puzzle Set', 'Kids & Baby', 'Munting Anghel', 399, 0, 0.6, 'kids', 'Three chunky wooden puzzles for ages 2 and up.', null, 20],
+            ]],
+            ['Pagsanjan Falls Pasalubong', 'Gloria Manalastas', 'Pagsanjan', [
+                ['PJ-01', 'Uraro Arrowroot Cookies', 'Food & Gourmet', 'Pagsanjan Delights', 150, 0, 0.3, 'food', 'Melt-in-your-mouth arrowroot cookies, a classic Laguna pasalubong.',
+                    'Pack', [['Small (200 g)', null, 30], ['Large (400 g)', 280, 18]]],
+                ['PJ-02', 'Carved Wooden Banca Miniature', 'Home & Garden', 'Pagsanjan Woodcraft', 599, 0, 0.7, 'home', 'Hand-carved model of the bancas that shoot the Pagsanjan rapids.',
+                    'Size', [['Small', null, 12], ['Large', 899, 6]]],
+                ['PJ-03', 'Bamboo Wind Chime', 'Home & Garden', 'Pagsanjan Woodcraft', 299, 10, 0.4, 'home', 'Soft-toned bamboo chimes for a porch or garden.', null, 25],
+                ['PJ-04', 'Pagsanjan Falls Graphic Tee', "Men's Apparel", 'Talon Wear', 349, 0, 0.25, 'polo', 'Cotton tee with a print of the falls and the gorge.',
+                    'Color, Size', $this->grid(['White', 'Green'], ['M', 'L', 'XL'])],
+                ['PJ-05', 'Coconut Jam (Matamis na Bao)', 'Food & Gourmet', 'Pagsanjan Delights', 180, 0, 0.5, 'food', 'Thick coconut jam cooked with brown sugar. Great on pandesal.',
+                    'Size', [['250 g', null, 24], ['500 g', 320, 14]]],
+                ['PJ-06', 'Woven Abaca Shoulder Bag', 'Bags & Luggage', 'Talon Wear', 499, 0, 0.45, 'bag', 'Light everyday bag woven from abaca with a zip pocket.', null, 15],
+            ]],
+            ['Cavinti Farm & Lake Supply', 'Eduardo Navarro', 'Cavinti', [
+                ['CV-01', 'Cavinti Barako Coffee Beans', 'Food & Gourmet', 'Caliraya Brew', 260, 0, 0.5, 'food', 'Strong Liberica beans grown in the Cavinti highlands, roasted to order.',
+                    'Grind', [['Whole bean', null, 20], ['Ground', null, 20]]],
+                ['CV-02', 'Wild Forest Honey', 'Food & Gourmet', 'Caliraya Brew', 340, 0, 0.6, 'food', 'Raw honey from the forests around Lake Caliraya.',
+                    'Size', [['350 ml', null, 18], ['750 ml', 620, 9]]],
+                ['CV-03', 'Lakeside Camping Tent', 'Sports & Outdoors', 'Caliraya Outdoors', 2499, 10, 3.5, 'dumbbells', 'Waterproof dome tent with a rain fly and quick-set poles.',
+                    'Size', [['2-person', null, 8], ['4-person', 3299, 5]]],
+                ['CV-04', 'Folding Fishing Rod Set', 'Sports & Outdoors', 'Caliraya Outdoors', 1199, 0, 1.2, 'dumbbells', 'Telescopic rod, reel and tackle box for lake fishing.', null, 10],
+                ['CV-05', 'Bamboo Stool', 'Furniture & Office', 'Cavinti Crafts', 699, 0, 2, 'furniture', 'Sturdy hand-lashed bamboo stool for the kitchen or porch.',
+                    'Height', [['Low', null, 10], ['Bar height', 899, 6]]],
+                ['CV-06', 'Native Rattan Hammock', 'Furniture & Office', 'Cavinti Crafts', 1499, 0, 2.5, 'furniture', 'Woven rattan-and-cotton hammock with hanging ropes.', null, 7],
             ]],
         ];
     }

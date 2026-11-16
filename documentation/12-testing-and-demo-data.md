@@ -60,15 +60,16 @@ instead of making copies. These are the logins it creates:
 | Role | Emails | Password |
 |---|---|---|
 | Admin | `admin@alvy.test` | `Admin@2026` |
-| Seller | `seller1@alvy.test` to `seller6@alvy.test` | `Seller@2026` |
-| Buyer | `buyer1@alvy.test` to `buyer4@alvy.test` | `Buyer@2026` |
-| Logistics company | `logistics1@alvy.test` to `logistics6@alvy.test` | `Logistics@2026` |
-| Rider (motorcycle or tricycle) | `rider1@alvy.test` to `rider6@alvy.test` | `Rider@2026` |
-| Truck rider (hub to hub) | `courier1@alvy.test` to `courier6@alvy.test` | `Courier@2026` |
+| Seller | `seller1@alvy.test` to `seller8@alvy.test` | `Seller@2026` |
+| Buyer | `buyer1@alvy.test` to `buyer6@alvy.test` | `Buyer@2026` |
+| Logistics company | `logistics1@alvy.test` to `logistics8@alvy.test` | `Logistics@2026` |
+| Rider (motorcycle or tricycle) | `rider1@alvy.test` to `rider8@alvy.test` | `Rider@2026` |
+| Truck rider (hub to hub) | `courier1@alvy.test` to `courier8@alvy.test` | `Courier@2026` |
 
-The six logistics companies are in Calamba, Santa Rosa, Biñan, Los Baños, Luisiana and Santa Cruz.
+The eight logistics companies are in Calamba, Santa Rosa, Biñan, Los Baños, Luisiana, Santa Cruz, Pagsanjan
+and Cavinti (logistics1 to logistics8, in that order).
 Each has a hub, its barangays, one delivery rider and one truck rider; the number in the email
-matches (rider6 and courier6 work for logistics6). Each seller has products, most with options.
+matches (rider7 and courier7 work for logistics7, Pagsanjan). Each seller has products, most with options.
 
 ## Other seeders
 

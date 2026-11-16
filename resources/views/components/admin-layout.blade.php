@@ -134,6 +134,8 @@ $navSections = [
                 'product-approvals'   => ['route' => 'admin.product-approvals.index',   'label' => 'Approvals',                    'icon' => 'box',
                                           'also' => ['seller-applications', 'sc-applications'],
                                           'badge' => \App\Models\Product::awaitingApproval()->where('is_archived', false)->count()],
+                'disputes'            => ['route' => 'admin.disputes.index',            'label' => 'Return Disputes',              'icon' => 'flag',
+                                          'badge' => \App\Services\ReturnDecisions::openDisputes()->count()],
                 'compliance'          => ['route' => 'admin.compliance.index',          'label' => 'Reports & Complaints',         'icon' => 'flag'],
             ],
             'System' => [

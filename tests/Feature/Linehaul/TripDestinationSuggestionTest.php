@@ -16,13 +16,13 @@ class TripDestinationSuggestionTest extends TestCase
     {
         $this->seed(DemoAccountsAndProductsSeeder::class);
         $html = $this->actingAs(User::where('email', 'logistics6@alvy.test')->first())->get(route('sc.trips'))->assertOk()
-            ->assertSee('Picked automatically: <b>HUB-LUI</b>', false)->assertSee('the nearest sorting center to HUB-SCZ', false)
+            ->assertSee('Picked automatically: <b>HUB-PGS</b>', false)->assertSee('the nearest sorting center to HUB-SCZ', false)
             ->getContent();
 
-        // HUB-LUI is selected, marked suggested, and listed first (nearest); every option shows its distance.
+        // HUB-PGS (Pagsanjan, next to Santa Cruz) is selected, marked suggested, and listed first (nearest); every option shows its distance.
         preg_match_all('/<option value="(\d+)"\s*(selected)?\s*>([^<]*)<\/option>/', explode('id="lt-dest"', $html)[1] ?? '', $m, PREG_SET_ORDER);
         $this->assertNotEmpty($m);
-        $this->assertStringContainsString('HUB-LUI', $m[0][3]);
+        $this->assertStringContainsString('HUB-PGS', $m[0][3]);
         $this->assertStringContainsString('(suggested)', $m[0][3]);
         $this->assertSame('selected', $m[0][2]);
         foreach ($m as $opt) {

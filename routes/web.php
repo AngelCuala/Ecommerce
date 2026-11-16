@@ -569,7 +569,10 @@ Route::middleware(['auth', 'role:admin', 'prevent.back'])
     Route::get('/orders/{id}',           [AdminOrderController::class, 'show'])->name('orders.show');
     // Statuses follow seller → logistics → rider: these admin routes only answer "not allowed" (AdminCannotChangeShipmentStatus).
     Route::patch('/orders/{id}',         [AdminOrderController::class, 'update'])->name('orders.update')->middleware(\App\Http\Middleware\AdminCannotChangeShipmentStatus::class);
-    Route::post('/orders/{id}/dispute',  [AdminOrderController::class, 'resolveDispute'])->name('orders.dispute');
+    // Return Disputes: a seller rejected a return and the buyer escalated it; the admin decides (refund or close).
+    Route::get('/disputes',                      [\App\Http\Controllers\Admin\ReturnDisputeController::class, 'index'])->name('disputes.index');
+    Route::get('/disputes/{return}',             [\App\Http\Controllers\Admin\ReturnDisputeController::class, 'show'])->name('disputes.show');
+    Route::post('/disputes/{return}/decide',     [\App\Http\Controllers\Admin\ReturnDisputeController::class, 'decide'])->name('disputes.decide');
 
     // Buyer management
     Route::get('/customers',                        [AdminCustomerController::class, 'index'])->name('customers.index');
