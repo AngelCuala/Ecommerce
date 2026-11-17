@@ -6,7 +6,7 @@ The ALVY Android app doesn't have its own server. It talks to this same Laravel 
 web addresses starting with `/api/v1/`. Instead of HTML pages, these addresses answer with
 **JSON**, plain data the app turns into its own screens.
 
-Every role has app screens: buyers, sellers, logistics companies, riders and truck riders. (Admins
+Every role has app screens: buyers, sellers, logistics companies, riders and linehaul drivers. (Admins
 use the website only.)
 
 ## The main idea: the app reuses the website's code
@@ -52,9 +52,9 @@ server.
 | `/api/v1/cart`, `/checkout`, `/orders`, `/profile`, `/addresses`, `/wishlist`, `/vouchers` | buyers | shopping and My Account |
 | `/api/v1/assistant` | guests and buyers | ALLIE |
 | `/api/v1/seller` | sellers | products, orders, vouchers, reports |
-| `/api/v1/logistics` | sorting centers | the whole hub pipeline, riders, trips |
-| `/api/v1/rider` | riders | jobs, pickups, deliveries, pay, cash |
-| `/api/v1/linehaul` | truck riders | trips |
+| `/api/v1/logistics` | sorting centers | the whole hub pipeline, riders, trips, the return hub steps (`returns/{id}/sort`, `check`, `scan`, `send`), Handover QR (`handover`, `trips/scan-qr`), COD remittances (confirm, reject, deduct a shortage), ALVY remittances, sidebar badges |
+| `/api/v1/rider` | riders | jobs, pickups, deliveries, pay, wallet, cash, remittance history |
+| `/api/v1/linehaul` | linehaul drivers | trips, the Handover QR (`trips/{id}/handover`) |
 | `/api/v1/messages`, `/devices`, `/account/password` | everyone | chat, push notifications, password changes |
 
 Each group checks the same "are you allowed here?" rules as the matching website portal. For
@@ -83,7 +83,7 @@ phones with an older version are told to update the next time they open the app.
 | Seller screens | [Api/V1/Seller/](../app/Http/Controllers/Api/V1/Seller), [SellerJson](../app/Support/SellerJson.php) |
 | Logistics screens | [Api/V1/Logistics/](../app/Http/Controllers/Api/V1/Logistics), [LogisticsJson](../app/Support/LogisticsJson.php) |
 | Rider screens | [Api/V1/Rider/](../app/Http/Controllers/Api/V1/Rider), [RiderJson](../app/Support/RiderJson.php) |
-| Truck rider screens | [Api/V1/Linehaul/](../app/Http/Controllers/Api/V1/Linehaul), [LinehaulJson](../app/Support/LinehaulJson.php) |
+| Linehaul driver screens | [Api/V1/Linehaul/](../app/Http/Controllers/Api/V1/Linehaul), [LinehaulJson](../app/Support/LinehaulJson.php) |
 | Who may use which group | `Api*` files in [app/Http/Middleware/](../app/Http/Middleware) |
 | Push notifications | [PushDeviceController](../app/Http/Controllers/Api/V1/PushDeviceController.php), [FcmPush](../app/Services/FcmPush.php) |
 | Releasing the app | [PublishApk](../app/Console/Commands/PublishApk.php), [AppDownloadController](../app/Http/Controllers/Storefront/AppDownloadController.php) |

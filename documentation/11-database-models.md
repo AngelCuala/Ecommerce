@@ -17,7 +17,7 @@ database is a single SQLite file, `database/database.sqlite`.
 - [UserAddress](../app/Models/UserAddress.php): a buyer's saved addresses.
 - [SellerApplication](../app/Models/SellerApplication.php), [SortingCenterApplication](../app/Models/SortingCenterApplication.php): store and logistics applications.
 - [Rider](../app/Models/Rider.php): a company's rider, with vehicle, plate, licence and barangays.
-- [Courier](../app/Models/Courier.php): the truck record kept in step with each truck rider ([page 6](06-riders-and-hub-to-hub-trips.md#which-rider-does-what)); also old freelance couriers.
+- [Courier](../app/Models/Courier.php): the truck record kept in step with each linehaul driver ([page 6](06-riders-and-hub-to-hub-trips.md#which-rider-does-what)); also old freelance couriers.
 - [AccountActivation](../app/Models/AccountActivation.php): set-password links for new riders.
 - [UserNotification](../app/Models/UserNotification.php), [Announcement](../app/Models/Announcement.php), [ActivityLog](../app/Models/ActivityLog.php), [PushDevice](../app/Models/PushDevice.php).
 
@@ -30,18 +30,24 @@ database is a single SQLite file, `database/database.sqlite`.
 **Orders and money**
 - [Order](../app/Models/Order.php): one store's part of a checkout. [OrderItem](../app/Models/OrderItem.php): one line, with the commission saved at purchase.
 - [OrderStatusEvent](../app/Models/OrderStatusEvent.php): every step of an order, for its timeline.
-- [Payment](../app/Models/Payment.php), [ReturnRequest](../app/Models/ReturnRequest.php), [SellerPayout](../app/Models/SellerPayout.php).
+- [Payment](../app/Models/Payment.php), [ReturnRequest](../app/Models/ReturnRequest.php).
+- [Refund](../app/Models/Refund.php): the money of an approved return: `awaiting_details` → `waiting_for_item` → `ready_to_send` → `sent` (account number encrypted).
+- [SellerWalletEntry](../app/Models/SellerWalletEntry.php) (one line per delivered order: on hold, available, reversed), [SellerPayout](../app/Models/SellerPayout.php) (withdrawals), [PayoutAccount](../app/Models/PayoutAccount.php) (saved GCash, Maya or bank accounts).
+- [HubRemittance](../app/Models/HubRemittance.php), [HubRemittanceItem](../app/Models/HubRemittanceItem.php): a company's remittance to ALVY, one line per delivery.
 - [Message](../app/Models/Message.php): chat. [ContactStrike](../app/Models/ContactStrike.php), [SellerViolation](../app/Models/SellerViolation.php): warnings.
 
 **Deliveries**
 - [Parcel](../app/Models/Parcel.php): the delivery side of an order. It knows its step, which hub holds it, its waybill number and its barangay.
 - [ParcelPickup](../app/Models/ParcelPickup.php) (rider collecting from the seller), [ParcelDelivery](../app/Models/ParcelDelivery.php) (one delivery try).
 - [LinehaulTrip](../app/Models/LinehaulTrip.php) and the `LinehaulTrip…` models: truck trips, their parcels, history and messages.
-- [ReturnShipment](../app/Models/ReturnShipment.php): a buyer's return on its way back.
+- [ReturnShipment](../app/Models/ReturnShipment.php): a buyer's return on its way back: `requested` → `pickup_assigned` → `picked_up` → `at_hub` (sort, check, scan, send) → `in_transit` (on a trip) → `to_seller` → `returned` (or `cancelled`, `missing`).
+- [ReturnScanEvent](../app/Models/ReturnScanEvent.php): each recorded step of a return at a hub or on a trip. Never edited.
+- [PickupStop](../app/Models/PickupStop.php): one bulk pickup visit to a seller on a day, in a time window.
+- [LinehaulHandover](../app/Models/LinehaulHandover.php): each Handover QR scan at a hub.
 - [ShipmentEvent](../app/Models/ShipmentEvent.php): the tracking history. Rows are never edited or deleted.
 - [ShipmentException](../app/Models/ShipmentException.php): a lost or damaged parcel waiting for a decision.
 - [LogisticsHub](../app/Models/LogisticsHub.php), [DeliveryArea](../app/Models/DeliveryArea.php) (a covered barangay), [ShippingRate](../app/Models/ShippingRate.php), [ShippingZone](../app/Models/ShippingZone.php).
-- [RiderRemittance](../app/Models/RiderRemittance.php) (cash handed in), [RiderWalletEntry](../app/Models/RiderWalletEntry.php) (pay and cash-outs).
+- [RiderRemittance](../app/Models/RiderRemittance.php) (cash handed in: confirmed, short, or rejected), [RiderWalletEntry](../app/Models/RiderWalletEntry.php) (the wallet ledger: pickup and delivery credits, shortage deductions, cash-outs).
 - Older pieces still kept for old records: [ParcelTransfer](../app/Models/ParcelTransfer.php), [RiderJobOffer](../app/Models/RiderJobOffer.php), [Delivery](../app/Models/Delivery.php).
 
 ## The steps of an order
@@ -55,7 +61,7 @@ Awaiting Payment ──► Pending ──► Processing ──► Shipped ──
   being paid)         sees it)    accepted)      it)          it)            is final)
 
 Pending or Processing ──► Cancelled
-Delivered ──► Return Requested ──► Refunded
+Delivered ──► Return Requested ──► Refunded (return approved; the money is a Refund, sent once the item is back)
                      └──► back to Delivered (seller rejected) ──► In Dispute (buyer escalated)
 ```
 

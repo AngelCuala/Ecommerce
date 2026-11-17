@@ -79,13 +79,34 @@ What the buyer can do along the way:
 - **See the delivery photo** the rider took. Only the buyer, the seller and admins can see it.
 - **Order Received**: confirm a delivered order. If the buyer doesn't, it completes by itself 7 days
   after delivery.
-- **Return or refund**: within 7 days of delivery, with photos. The seller approves or rejects. If the
-  seller doesn't answer in 3 days, the return is approved automatically. If the seller rejects it,
-  the buyer can **escalate** it to ALVY, and an admin decides. An approved return is picked up from
-  the buyer like a normal pickup ([page 5](05-sorting-center.md#returns-from-buyers)).
+- **Return or refund**: within 7 days of delivery, with photos (see [Returns and refunds](#returns-and-refunds) below).
   (Returns can be switched off with `RETURNS_ENABLED=false`.)
 - **Review** each item of a completed order: stars, text and photos, editable once. The seller can
   reply.
+
+## Returns and refunds
+
+1. **Asking:** on a delivered order the buyer presses *Return / Refund*, chooses the reason, the
+   items (all or some of them), and adds 1 to 5 photos. A rider is booked at once to collect the
+   item ([page 5](05-sorting-center.md#returns-from-buyers)).
+2. **The seller answers** within 3 days: approve, or reject with a reason. No answer in 3 days means
+   it is approved automatically. After a rejection the buyer can **escalate** it to ALVY within 3
+   days, and an admin decides ([page 7](07-admin-panel.md#return-disputes)).
+3. **Approved:** the buyer is asked **where to send the money**: GCash, Maya or a bank account (bank
+   chosen from a list), the name on the account and the number (11 digits for GCash/Maya, 8 to 16
+   for a bank). The number is stored encrypted, and once saved the details are locked. An order paid
+   online (card, GCash online, Maya) skips this: the money goes back the way it was paid.
+4. **The money is sent as soon as the item is back with the seller.** When the rider hands the item
+   to the seller, the refund becomes urgent for ALVY's admins, who send it and type the transfer's
+   reference number ([page 7](07-admin-panel.md#refunds)). If the item came back before the buyer
+   gave the details, it is sent as soon as they do.
+5. The buyer is told at each step (approved, item back, being sent, sent with the reference). If the
+   details don't work, ALVY sends them back with the reason and the buyer enters them again.
+
+The order page shows a **return card** at the top with the steps (Requested → Seller approved →
+Your refund details → Item picked up → Back to the seller → Refund sent), everything that happened
+with its time, the photos, and the details form when it's needed. The order shows *Return approved ·
+refund pending* until the money is sent, and *Refunded* after.
 
 ## My Account
 
@@ -130,7 +151,9 @@ shoes?", "what's the return policy?"). It works like this:
 | Checkout | [Buyer/CheckoutController](../app/Http/Controllers/Buyer/CheckoutController.php), `public/js/checkout.js` |
 | Online payment | [Buyer/PaymentController](../app/Http/Controllers/Buyer/PaymentController.php), [PaymentService](../app/Services/PaymentService.php) |
 | Re-upload a GCash receipt | [Buyer/GcashResubmitController](../app/Http/Controllers/Buyer/GcashResubmitController.php) |
-| Cancel, Order Received, returns | [Buyer/OrderController](../app/Http/Controllers/Buyer/OrderController.php), [ReturnRequest](../app/Models/ReturnRequest.php) |
+| Cancel, Order Received, returns, refund details (`saveRefundDetails`) | [Buyer/OrderController](../app/Http/Controllers/Buyer/OrderController.php), [ReturnRequest](../app/Models/ReturnRequest.php) |
+| Return card on the order page | [ReturnProgress](../app/Support/ReturnProgress.php), views `profile/_return-progress`, `profile/_return-modal` |
+| Refunds: details, when the money is sent | [Refunds](../app/Services/Refunds.php), [Refund](../app/Models/Refund.php) |
 | Order steps | [Order](../app/Models/Order.php) (the comment at the top) |
 | Tracking timeline | [ShipmentProgress](../app/Support/ShipmentProgress.php) |
 | Reviews | [Buyer/ReviewController](../app/Http/Controllers/Buyer/ReviewController.php), [Review](../app/Models/Review.php) |

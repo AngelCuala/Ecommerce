@@ -79,17 +79,17 @@ class PaymentsApiTest extends TestCase
         $this->assertSame([], $this->as($this->rider2->user)->getJson('/api/v1/rider/cod/history')->assertOk()->json('data'));   // only theirs
     }
 
-    public function test_counted_remittance_deduct_and_alvy_remittance(): void
+    public function test_the_app_cannot_change_a_remittance_and_alvy_remittance(): void
     {
         $this->delivered(1100);
         $this->actingAs($this->rider1->user)->post(route('courier.rider.cod.remit'), ['request_token' => (string) Str::uuid()]);
         $r = RiderRemittance::sole();
 
+        // A "counted" amount from the app is ignored: the hub accepts what the rider sent, it can't change it.
         $this->as($this->logistics1)->postJson("/api/v1/logistics/remittances/{$r->id}/confirm", ['counted' => 1000])->assertOk();
         $list = $this->as($this->logistics1)->getJson('/api/v1/logistics/remittances')->assertOk();
-        $this->assertSame([1000.0, 100.0, true], [(float) $list->json('data.0.counted'), (float) $list->json('data.0.shortfall'), $list->json('data.0.can_deduct')]);
-        $this->as($this->logistics1)->postJson("/api/v1/logistics/remittances/{$r->id}/deduct")->assertOk();
-        $this->assertSame(-100.0, (float) RiderWalletEntry::where('type', 'shortage_adjustment')->sole()->amount);
+        $this->assertSame([1100.0, 0.0, false], [(float) $list->json('data.0.counted'), (float) $list->json('data.0.shortfall'), $list->json('data.0.can_deduct')]);
+        $this->assertFalse(RiderWalletEntry::where('type', 'shortage_adjustment')->exists());
 
         $a = $this->as($this->logistics1)->getJson('/api/v1/logistics/alvy-remittances')->assertOk();
         $this->assertSame(1000.0, (float) $a->json('total'));

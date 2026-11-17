@@ -272,14 +272,14 @@ class RiderWorkController extends Controller
     public function confirmRemittance(Request $request, RiderRemittance $remittance)
     {
         abort_unless((int) $remittance->sorting_center_id === $this->scId(), 403);
-        $request->validate(['counted' => 'nullable|numeric|min:0|max:10000000'], ['counted.numeric' => 'Enter the cash you counted.']);
+        // The hub can't change the amount: it accepts what the rider handed over, or rejects it (any amount sent is ignored).
         try {
-            $r = $this->wallet->confirmRemittance($remittance, auth()->user(), $request->filled('counted') ? (float) $request->counted : null);
+            $r = $this->wallet->confirmRemittance($remittance, auth()->user());
         } catch (\RuntimeException $e) {
             return back()->with('error', $e->getMessage());
         }
 
-        return back()->with('success', 'Remittance confirmed: ₱' . number_format((float) $r->amount, 2) . ' counted.'
+        return back()->with('success', 'Remittance confirmed: ₱' . number_format((float) $r->amount, 2) . ' accepted.'
             . ($r->shortfall() > 0 ? ' Short by ₱' . number_format($r->shortfall(), 2) . ': the rider pays it, or take it from their earnings.' : ''));
     }
 

@@ -27,6 +27,48 @@ To save time, an AI reads each receipt picture first and shows hints (is it real
 what amount and reference number does it show?). The admin still makes the decision. If a payment is
 left unchecked for 24 hours, the admins get a reminder and the buyer is told it's still being checked.
 
+## Money: refunds, payouts and remittances
+
+### Refunds
+
+`/admin/refunds` has three tabs:
+
+- **To send now** (marked URGENT, with a red count in the sidebar): returned items that are back with
+  the seller. The admin sends the money from ALVY's GCash or bank to the account shown, then types the
+  transfer's reference number (a GCash Ref No. is exactly 13 numbers; other references are 6 to 20
+  letters or numbers) and presses **Mark sent**. Every admin gets a notification when one arrives.
+- **Waiting:** the buyer hasn't given their details yet, or the item is still on its way back.
+- **Sent:** who sent each refund, when, and the reference.
+
+If the account name isn't the buyer's name it's flagged. If the details don't work, **Send back to
+the buyer** with a reason: the buyer is told and enters them again. A refund counts as refunded only
+once it's sent ([page 3](03-buyer-and-storefront.md#returns-and-refunds)).
+
+### Seller Payouts
+
+`/admin/seller-payouts`: sellers' withdrawals to send from ALVY's bank. Mark each **Completed** with
+the bank reference, or **Failed** (the amount goes back to the seller). The top shows what ALVY owes
+sellers: available, on hold, processing.
+
+### Hub Remittances
+
+`/admin/hub-remittances`: each logistics company's report of the COD item prices it sends ALVY (minus
+the shipping fees ALVY owes it for prepaid orders). The admin checks each line against its order,
+enters what arrived, and **confirms** or **flags** it.
+
+### The dashboard's money
+
+- **Sales (after refunds):** what buyers paid, less the refunds actually sent. An approved return
+  doesn't lower it; sending the refund does. It also shows the refunds sent and the refunds still to send.
+- **Commission Earned:** ALVY keeps its commission even when an order is refunded.
+
+## Return disputes
+
+`/admin/disputes`: returns a seller rejected and the buyer escalated. The admin sees the whole case
+(the buyer's photos and reason, the seller's rejection, the buyer's reply, the timeline) and decides:
+**refund the buyer** (this overrides the seller; the item is collected and the refund follows the
+normal steps) or **close it without a refund** (the order completes). Both sides see the reason.
+
 ## Keeping sellers honest (Compliance)
 
 The Compliance page brings together:
@@ -42,8 +84,7 @@ The admin can also remove **reviews** that break the rules.
 
 - **People:** lists of users, buyers, sellers, sorting centers and riders. The admin can suspend,
   restore or deactivate accounts.
-- **Orders:** every order. The admin settles **disputes** (returns the buyer escalated after the
-  seller rejected them).
+- **Orders:** every order, with a link to its return dispute if there is one.
 - **Vouchers:** ALVY's own vouchers, which ALVY pays for. The admin can also turn off any store's voucher.
 - **Banners:** the big slides on the home page, for events and sales.
 - **Categories:** the product categories.
@@ -76,7 +117,11 @@ Controllers are in [app/Http/Controllers/Admin/](../app/Http/Controllers/Admin),
 | Reviews | `/admin/reviews` | [ReviewController](../app/Http/Controllers/Admin/ReviewController.php) |
 | Users, customers, sellers | `/admin/users`, `/admin/customers`, `/admin/sellers` | [UserController](../app/Http/Controllers/Admin/UserController.php), [CustomerController](../app/Http/Controllers/Admin/CustomerController.php), [SellerController](../app/Http/Controllers/Admin/SellerController.php) |
 | Sorting centers, riders | `/admin/sorting-centers`, `/admin/riders` | [SortingCenterDirectoryController](../app/Http/Controllers/Admin/SortingCenterDirectoryController.php), [RiderDirectoryController](../app/Http/Controllers/Admin/RiderDirectoryController.php) |
-| Orders and disputes | `/admin/orders` | [OrderController](../app/Http/Controllers/Admin/OrderController.php) |
+| Orders | `/admin/orders` | [OrderController](../app/Http/Controllers/Admin/OrderController.php) |
+| Return disputes | `/admin/disputes` | [ReturnDisputeController](../app/Http/Controllers/Admin/ReturnDisputeController.php), [ReturnDecisions](../app/Services/ReturnDecisions.php) |
+| Refunds | `/admin/refunds` | [RefundController](../app/Http/Controllers/Admin/RefundController.php), [Refunds](../app/Services/Refunds.php) |
+| Seller payouts | `/admin/seller-payouts` | [SellerPayoutController](../app/Http/Controllers/Admin/SellerPayoutController.php), [SellerWallet](../app/Services/SellerWallet.php) |
+| Hub remittances | `/admin/hub-remittances` | [HubRemittanceController](../app/Http/Controllers/Admin/HubRemittanceController.php), [HubRemittances](../app/Services/HubRemittances.php) |
 | Vouchers | `/admin/vouchers` | [VoucherController](../app/Http/Controllers/Admin/VoucherController.php) |
 | Banners | `/admin/banners` | [HomeBannerController](../app/Http/Controllers/Admin/HomeBannerController.php), [HomeBanner](../app/Models/HomeBanner.php) |
 | Categories | `/admin/categories` | [CategoryController](../app/Http/Controllers/Admin/CategoryController.php) |

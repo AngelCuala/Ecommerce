@@ -81,36 +81,35 @@ class RiderLedgerTest extends TestCase
         $this->actingAs($this->rider1->user)->get(route('courier.rider.wallet'))->assertOk()->assertSee('data-expected', false);
 
         $r = $this->remit();
-        $this->confirm($r, 1100)->assertSessionHas('success', fn ($m) => str_contains($m, '₱1,100.00 counted'));
+        $this->confirm($r, 1100)->assertSessionHas('success', fn ($m) => str_contains($m, '₱1,100.00 accepted'));
         $r->refresh();
         $this->assertSame([1100.0, $this->logistics1->id], [(float) $r->counted_amount, (int) $r->confirmed_by]);   // who confirmed
         $b = $this->wallet()->balances($this->rider1);
         $this->assertSame([30.0, 0.0, 0.0], [$b['available'], $b['expected'], $b['cash_to_remit']]);
     }
 
-    public function test_a_short_count_holds_the_pay_until_the_rider_pays_the_gap(): void
+    public function test_the_hub_cannot_change_the_amount_the_rider_remitted(): void
     {
         $this->delivered(1100);
         $r = $this->remit();
-        $this->confirm($r, 1000)->assertSessionHas('success', fn ($m) => str_contains($m, 'Short by ₱100.00'));
-
-        $b = $this->wallet()->balances($this->rider1);
-        $this->assertSame([0.0, 30.0, 100.0], [$b['available'], $b['held'], $b['cash_to_remit']]);   // the gap is still owed
-
-        // The rider hands over the ₱100 gap: counted in full, the pay is released.
-        $gap = $this->remit();
-        $this->assertSame(100.0, (float) $gap->amount);
-        $this->confirm($gap, 100);
+        // An amount sent with Accept (e.g. a lower "count") is ignored: the remittance is accepted as the rider sent it.
+        $this->confirm($r, 1000)->assertSessionHas('success', fn ($m) => str_contains($m, '₱1,100.00'));
+        $r->refresh();
+        $this->assertSame(['confirmed', 1100.0, 0.0], [$r->status, (float) $r->amount, $r->shortfall()]);
         $b = $this->wallet()->balances($this->rider1);
         $this->assertSame([30.0, 0.0, 0.0], [$b['available'], $b['held'], $b['cash_to_remit']]);
+        $this->actingAs($this->logistics1)->get(route('sc.remittances'))->assertOk()->assertDontSee('name="counted"', false);
     }
 
-    public function test_the_hub_can_take_a_shortage_from_earnings(): void
+    public function test_the_hub_can_take_an_older_shortage_from_earnings(): void
     {
         $this->delivered(1100);
         $this->delivered();                       // ₱30 prepaid already available
         $r = $this->remit();
-        $this->confirm($r, 1080);
+        $this->confirm($r);
+        // A remittance counted short before the amount was locked: ₱20 still owed.
+        $r->forceFill(['amount' => 1080, 'counted_amount' => 1080])->save();
+        $this->wallet()->syncCredits($this->rider1);
 
         $this->actingAs($this->logistics1)->get(route('sc.remittances'))->assertOk()->assertSee('data-deduct', false);
         $this->actingAs($this->logistics1)->from(route('sc.remittances'))->post(route('sc.remittances.deduct', $r))->assertSessionHas('success');

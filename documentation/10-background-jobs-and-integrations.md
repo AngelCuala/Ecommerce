@@ -24,7 +24,7 @@ php artisan schedule:work
 | Read product colours | every 10 minutes | Has the AI note the colours in new product pictures, for colour search |
 | Make small pictures | every 10 minutes | Makes small copies of product pictures, so pages load faster on phones |
 | Complete delivered orders | hourly | Completes orders 7 days after delivery |
-| Approve unanswered returns | hourly | Approves returns the seller ignored for 3 days |
+| Approve unanswered returns | hourly | Approves returns the seller ignored for 3 days, the same way a seller approves (the refund then waits for the buyer's details and the item) |
 | Put barangays on the map | hourly | Looks up where each barangay is, for "nearest rider" |
 | Remove old app logins | daily | Deletes expired app tokens |
 | Remove old strikes | daily | Deletes contact strikes older than a year |

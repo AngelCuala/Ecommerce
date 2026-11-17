@@ -47,7 +47,7 @@ In **Parcel Sorting**, ALVY reads the buyer's address and suggests where the par
 - **The buyer lives in a barangay this company covers:** the parcel is sorted to that barangay
   and waits for a delivery rider.
 - **The buyer lives somewhere else:** the parcel is sorted to the sorting center that serves the
-  buyer's town. It then travels there on a **truck trip** ([page 6](06-riders-and-hub-to-hub-trips.md#trucks-hub-to-hub-trips)),
+  buyer's town. It then travels there on a **truck trip** ([page 6](06-riders-and-hub-to-hub-trips.md#linehaul-drivers-hub-to-hub-trips)),
   and that company carries on from step 3.
 
 ### Step 5: delivery
@@ -81,15 +81,27 @@ recorded by mistake, a *correction* is added that points to the wrong one.
 
 ## Returns from buyers
 
-When a seller approves a buyer's return, the company that delivered the order collects it, like a
-pickup in reverse:
+As soon as a buyer asks for a return, the company that delivered the order gets a pickup job for it
+in **Return Items**, like a pickup in reverse:
 
-1. Staff assign a rider (in **Return Items**).
-2. The rider collects the item from the buyer, with a photo and a waybill scan.
-3. The hub receives it.
-4. A rider brings it back to the seller and hands it over.
+1. Staff assign a rider. The rider accepts, then collects the item from the buyer with a photo and a
+   waybill scan.
+2. At the hub, the item goes through **four steps, in order**, on its own page (`/sc/returns/{id}`):
+   1. **Sort:** where it goes next. If the seller's town is served by this company, the next stop is
+      *the seller, from this hub*; otherwise it's the hub of the seller's town (e.g. HUB-QC).
+   2. **Check:** its condition (good, damaged, opened, wrong item), with a note. A photo is required
+      unless it's good.
+   3. **Scan** its waybill for the record.
+   4. **Send:** to a rider who brings it to the seller, or onto a **hub-to-hub trip** to the next hub
+      (a trip is made if none is waiting). The next hub receives it from the trip and does the same
+      four steps.
+3. The rider hands it to the seller. This lets the buyer's refund go
+   ([page 3](03-buyer-and-storefront.md#returns-and-refunds)).
 
-The seller is told at every step. If the buyer withdraws the return before pickup, it's cancelled.
+Every step is recorded with who, where and when (`return_scan_events`), and the buyer sees the trip
+on their return card. If the trip is cancelled, the item goes back to the hub's *Send* step. If the
+seller rejects the return before the rider collects it, the pickup is cancelled. The delivered
+parcel itself keeps the status *delivered*.
 
 ## Managing riders
 
@@ -109,19 +121,30 @@ deliveries. **Trucks** are marked "hub to hub" and only do truck trips between s
 ## Money
 
 - **COD Remittances:** cash riders collect from buyers stays with them until they hand it to the
-  company, and the company confirms it here.
-- **Rider Pay:** riders earn ₱30 for each pickup and ₱50 for each delivery (nothing for a failed
-  try). Trucks are paid per trip. The company presses *Send pay* to put it in the rider's wallet,
-  and processes the riders' requests to cash out to GCash.
-- **Commission & Earnings:** the company earns the shipping fee of the parcels it handles. If two
-  hubs handled a parcel (one picked it up, another delivered it), they split it. Rider pay comes off
-  that. A cancelled or refunded order earns nothing.
+  company. Staff count it, then **accept** the amount the rider sent (they can't change it) or
+  **reject** it with a reason (the cash doesn't match or wasn't handed over: the COD stays on the
+  rider, who remits again). Older remittances counted short before this rule can still have the gap
+  **taken from the rider's earnings**.
+- **Rider Pay:** since 16 Nov 2026 a rider earns **30% of the parcel's shipping fee** for the pickup
+  and **30%** for the delivery (nothing for a failed try; older jobs keep ₱30 / ₱50). The pay goes
+  into the rider's wallet, and the company processes the riders' cash-outs to GCash, Maya or a bank
+  (completed with a reference, or rejected).
+- **Commission & Earnings:** the other **40%** of the shipping fee is split evenly between every hub
+  the parcel passed (both ends of each trip, and the hub that delivered it), minus ALVY's commission
+  on it. A cancelled or refunded order earns nothing.
+- **ALVY Remittance:** the company sends ALVY the item price of the COD orders its riders delivered,
+  with a report of each delivery. ALVY owes the company the shipping fee of prepaid orders, so that
+  is taken off. The admin checks the report and confirms it or flags a mismatch
+  ([page 7](07-admin-panel.md#money-refunds-payouts-and-remittances)).
 - **Zones & Rates:** the company can change shipping rates ([page 8](08-payments-vouchers-shipping.md#shipping-fees)).
 
 ## Other pages
 
 - **Dashboard:** how many parcels are at each step for a date range; each number opens the list.
 - **Coverage Areas:** choose which barangays of the town the company delivers to.
+- **Scan driver QR (Handover):** staff scan the linehaul driver's Handover QR (or type its 6-digit
+  code) to load a truck or receive one, scanning the parcels on or off with live counts
+  ([page 6](06-riders-and-hub-to-hub-trips.md#the-handover-qr)).
 - **Reports** and the **Activity** log, and **Chat** with ALVY's admins.
 
 ## The admin's view
@@ -142,7 +165,10 @@ in [resources/views/sc/](../resources/views/sc).
 | Dispatch board, Auto-assign, COD, rider pay | [RiderWorkController](../app/Http/Controllers/SortingCenter/RiderWorkController.php), [RiderDispatch](../app/Services/RiderDispatch.php) |
 | Nearest rider | [NearestRiders](../app/Services/NearestRiders.php) |
 | Failed Deliveries | [IssuesController](../app/Http/Controllers/SortingCenter/IssuesController.php) |
-| Return Items | [ReturnsController](../app/Http/Controllers/SortingCenter/ReturnsController.php), [ReturnShipments](../app/Services/ReturnShipments.php) |
+| Return Items and the four hub steps | [ReturnsController](../app/Http/Controllers/SortingCenter/ReturnsController.php), [ReturnShipments](../app/Services/ReturnShipments.php), [ReturnScanEvent](../app/Models/ReturnScanEvent.php), view `sc/return-process` |
+| Scan driver QR (Handover) | [HandoverController](../app/Http/Controllers/SortingCenter/HandoverController.php), [TripHandover](../app/Services/TripHandover.php) |
+| ALVY Remittance | [AlvyRemittanceController](../app/Http/Controllers/SortingCenter/AlvyRemittanceController.php), [HubRemittances](../app/Services/HubRemittances.php), [HubRemittance](../app/Models/HubRemittance.php) |
+| Bulk pickup stops | [PickupStops](../app/Services/PickupStops.php), [PickupStop](../app/Models/PickupStop.php) |
 | Return to Seller, rates, shipment lists | [LogisticsController](../app/Http/Controllers/SortingCenter/LogisticsController.php) |
 | Truck trips | [TripsController](../app/Http/Controllers/SortingCenter/TripsController.php), [Linehaul](../app/Services/Linehaul.php) |
 | Rider applications | [CourierApplicationController](../app/Http/Controllers/SortingCenter/CourierApplicationController.php) |

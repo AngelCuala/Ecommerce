@@ -22,6 +22,8 @@ The tests are grouped like the code:
 
 - `tests/Feature/Auth`: signing in and up, codes, passwords
 - `tests/Feature/Buyer`, `Seller`, `Logistics`, `Rider`, `Linehaul`, `Admin`: each part of the system
+  (for example `Buyer/RefundFlowTest` follows a refund from the details to *Mark sent*, and
+  `Logistics/ReturnHubStepsTest` a return across two hubs on a trip)
 - `tests/Feature/Api`: the mobile app's API, including tests that the app and website agree
 - `tests/Feature/System`: rules across the whole site, like "every page opens"
 - `tests/Blackbox`: the cases from the test workbooks, which save their results to `storage/app/blackbox/`
@@ -64,11 +66,11 @@ instead of making copies. These are the logins it creates:
 | Buyer | `buyer1@alvy.test` to `buyer6@alvy.test` | `Buyer@2026` |
 | Logistics company | `logistics1@alvy.test` to `logistics8@alvy.test` | `Logistics@2026` |
 | Rider (motorcycle or tricycle) | `rider1@alvy.test` to `rider8@alvy.test` | `Rider@2026` |
-| Truck rider (hub to hub) | `courier1@alvy.test` to `courier8@alvy.test` | `Courier@2026` |
+| Linehaul driver (hub to hub) | `courier1@alvy.test` to `courier8@alvy.test` | `Courier@2026` |
 
 The eight logistics companies are in Calamba, Santa Rosa, Biñan, Los Baños, Luisiana, Santa Cruz, Pagsanjan
 and Cavinti (logistics1 to logistics8, in that order).
-Each has a hub, its barangays, one delivery rider and one truck rider; the number in the email
+Each has a hub, its barangays, one delivery rider and one linehaul driver; the number in the email
 matches (rider7 and courier7 work for logistics7, Pagsanjan). Each seller has products, most with options.
 
 ## Other seeders
@@ -82,6 +84,9 @@ Seeders are the files that fill the database with sample data. Besides the demo 
 - **SampleVoucherSeeder**: sample vouchers.
 - **FreshTestAccountsSeeder**: **careful, this deletes every account** and everything belonging to
   them, then makes fresh test accounts.
+- **DemoDocuments** (used by the two seeders above): copies a sample ID picture and a sample business
+  permit (`database/seeders/files`, marked SAMPLE ONLY) so the demo accounts' "View" document links
+  open a real file.
 - The `OneOff` folder: old one-time fixes from early development. A new setup doesn't need them.
 
 Before running any seeder on a database you care about, make a copy of `database/database.sqlite`.

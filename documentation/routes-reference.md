@@ -19,7 +19,7 @@ To refresh it after adding routes, run the same command (see [README](README.md#
 
 ## Storefront and buyer pages
 
-104 routes.
+105 routes.
 
 Controllers in this section: [AuthenticatedSessionController](../app/Http/Controllers/Auth/AuthenticatedSessionController.php), [GoogleAuthController](../app/Http/Controllers/Auth/GoogleAuthController.php), [NewPasswordController](../app/Http/Controllers/Auth/NewPasswordController.php), [PasswordResetLinkController](../app/Http/Controllers/Auth/PasswordResetLinkController.php), [PortalHandoffController](../app/Http/Controllers/Auth/PortalHandoffController.php), [RegisteredUserController](../app/Http/Controllers/Auth/RegisteredUserController.php), [AddressController](../app/Http/Controllers/Buyer/AddressController.php), [CartController](../app/Http/Controllers/Buyer/CartController.php), [CheckoutController](../app/Http/Controllers/Buyer/CheckoutController.php), [FlashSaleReminderController](../app/Http/Controllers/Buyer/FlashSaleReminderController.php), [GcashResubmitController](../app/Http/Controllers/Buyer/GcashResubmitController.php), [OrderController](../app/Http/Controllers/Buyer/OrderController.php), [PaymentController](../app/Http/Controllers/Buyer/PaymentController.php), [ProfileController](../app/Http/Controllers/Buyer/ProfileController.php), [ReviewController](../app/Http/Controllers/Buyer/ReviewController.php), [VoucherWalletController](../app/Http/Controllers/Buyer/VoucherWalletController.php), [WishlistController](../app/Http/Controllers/Buyer/WishlistController.php), [RegistrationController](../app/Http/Controllers/Courier/RegistrationController.php), [SellerApplicationController](../app/Http/Controllers/Seller/SellerApplicationController.php), [AccountActivationController](../app/Http/Controllers/Shared/AccountActivationController.php), [AssistantController](../app/Http/Controllers/Shared/AssistantController.php), [MessageController](../app/Http/Controllers/Shared/MessageController.php), [PasswordChangeController](../app/Http/Controllers/Shared/PasswordChangeController.php), [ProfilePhotoController](../app/Http/Controllers/Shared/ProfilePhotoController.php), [ProtectedFileController](../app/Http/Controllers/Shared/ProtectedFileController.php), [ShipmentTrackingController](../app/Http/Controllers/Shared/ShipmentTrackingController.php), [AppDownloadController](../app/Http/Controllers/Storefront/AppDownloadController.php), [CategoryPageController](../app/Http/Controllers/Storefront/CategoryPageController.php), [HomeController](../app/Http/Controllers/Storefront/HomeController.php), [PolicyController](../app/Http/Controllers/Storefront/PolicyController.php), [ProductController](../app/Http/Controllers/Storefront/ProductController.php), [ShopController](../app/Http/Controllers/Storefront/ShopController.php), [StoreController](../app/Http/Controllers/Storefront/StoreController.php).
 
@@ -83,6 +83,7 @@ Controllers in this section: [AuthenticatedSessionController](../app/Http/Contro
 | POST | `/orders/{id}/escalate` | `orders.escalate` | Buyer/OrderController → escalateReturn |
 | POST | `/orders/{id}/gcash-receipt` | `orders.gcash-resubmit` | Buyer/GcashResubmitController → store |
 | POST | `/orders/{id}/pay` | `orders.pay` | Buyer/PaymentController → pay |
+| POST | `/orders/{id}/refund-details` | `orders.refund-details` | Buyer/OrderController → saveRefundDetails |
 | POST | `/orders/{id}/return` | `orders.return` | Buyer/OrderController → requestReturn |
 | GET | `/orders/{order}/payment-proof` | `orders.payment-proof` | Shared/ShipmentTrackingController → paymentProof |
 | GET | `/orders/{order}/proof-of-delivery` | `shipments.pod` | Shared/ShipmentTrackingController → proofOfDelivery |
@@ -223,9 +224,9 @@ Controllers in this section: [AuthenticatedSessionController](../app/Http/Contro
 
 ## Sorting center / logistics company (/sc, /sorting-center)
 
-106 routes.
+122 routes.
 
-Controllers in this section: [AuthenticatedSessionController](../app/Http/Controllers/Auth/AuthenticatedSessionController.php), [PortalHandoffController](../app/Http/Controllers/Auth/PortalHandoffController.php), [CommissionController](../app/Http/Controllers/SortingCenter/CommissionController.php), [CourierApplicationController](../app/Http/Controllers/SortingCenter/CourierApplicationController.php), [IssuesController](../app/Http/Controllers/SortingCenter/IssuesController.php), [LogisticsController](../app/Http/Controllers/SortingCenter/LogisticsController.php), [RegistrationController](../app/Http/Controllers/SortingCenter/RegistrationController.php), [ReturnsController](../app/Http/Controllers/SortingCenter/ReturnsController.php), [RiderWorkController](../app/Http/Controllers/SortingCenter/RiderWorkController.php), [ShipmentController](../app/Http/Controllers/SortingCenter/ShipmentController.php), [SortingCenterController](../app/Http/Controllers/SortingCenter/SortingCenterController.php), [TripsController](../app/Http/Controllers/SortingCenter/TripsController.php).
+Controllers in this section: [AuthenticatedSessionController](../app/Http/Controllers/Auth/AuthenticatedSessionController.php), [PortalHandoffController](../app/Http/Controllers/Auth/PortalHandoffController.php), [AlvyRemittanceController](../app/Http/Controllers/SortingCenter/AlvyRemittanceController.php), [CommissionController](../app/Http/Controllers/SortingCenter/CommissionController.php), [CourierApplicationController](../app/Http/Controllers/SortingCenter/CourierApplicationController.php), [HandoverController](../app/Http/Controllers/SortingCenter/HandoverController.php), [IssuesController](../app/Http/Controllers/SortingCenter/IssuesController.php), [LogisticsController](../app/Http/Controllers/SortingCenter/LogisticsController.php), [RegistrationController](../app/Http/Controllers/SortingCenter/RegistrationController.php), [ReturnsController](../app/Http/Controllers/SortingCenter/ReturnsController.php), [RiderWorkController](../app/Http/Controllers/SortingCenter/RiderWorkController.php), [ShipmentController](../app/Http/Controllers/SortingCenter/ShipmentController.php), [SortingCenterController](../app/Http/Controllers/SortingCenter/SortingCenterController.php), [TripsController](../app/Http/Controllers/SortingCenter/TripsController.php).
 
 | Method | URL | Name | Handled by |
 |---|---|---|---|
@@ -237,6 +238,9 @@ Controllers in this section: [AuthenticatedSessionController](../app/Http/Contro
 | POST | `/sc/account/security/password/confirm` | `sc.account.password.confirm` | SortingCenter/SortingCenterController → confirmPasswordChange |
 | POST | `/sc/account/security/password/resend` | `sc.account.password.resend` | SortingCenter/SortingCenterController → resendPasswordCode |
 | GET | `/sc/activity` | `sc.activity` | SortingCenter/LogisticsController → activity |
+| GET | `/sc/alvy-remittances` | `sc.alvy-remittances` | SortingCenter/AlvyRemittanceController → index |
+| POST | `/sc/alvy-remittances` | `sc.alvy-remittances.submit` | SortingCenter/AlvyRemittanceController → submit |
+| GET | `/sc/alvy-remittances/{remittance}` | `sc.alvy-remittances.show` | SortingCenter/AlvyRemittanceController → show |
 | GET | `/sc/areas` | `sc.areas` | SortingCenter/SortingCenterController → areas |
 | POST | `/sc/areas` | `sc.areas.store` | SortingCenter/SortingCenterController → storeArea |
 | DELETE | `/sc/areas/{area}` | `sc.areas.destroy` | SortingCenter/SortingCenterController → destroyArea |
@@ -262,6 +266,12 @@ Controllers in this section: [AuthenticatedSessionController](../app/Http/Contro
 | POST | `/sc/dispatch/{parcel}/auto` | `sc.dispatch.auto` | SortingCenter/RiderWorkController → autoAssign |
 | POST | `/sc/dispatch/{parcel}/reassign` | `sc.dispatch.reassign` | SortingCenter/LogisticsController → reassign |
 | GET | `/sc/failed-deliveries` | `sc.failed-deliveries` | SortingCenter/IssuesController → failed |
+| GET | `/sc/handover` | `sc.handover` | SortingCenter/HandoverController → index |
+| POST | `/sc/handover` | `sc.handover.verify` | SortingCenter/HandoverController → verify |
+| GET | `/sc/handover/{handover}` | `sc.handover.show` | SortingCenter/HandoverController → show |
+| POST | `/sc/handover/{handover}/confirm` | `sc.handover.confirm` | SortingCenter/HandoverController → confirm |
+| GET | `/sc/handover/{handover}/live` | `sc.handover.live` | SortingCenter/HandoverController → live |
+| POST | `/sc/handover/{handover}/scan` | `sc.handover.scan` | SortingCenter/HandoverController → scan |
 | GET | `/sc/incoming-parcels` | `sc.incoming-parcels` | (inline in the routes file) |
 | GET | `/sc/login` | `sc.login` | Auth/AuthenticatedSessionController → create |
 | POST | `/sc/login` | `sc.login.attempt` | Auth/AuthenticatedSessionController → store |
@@ -283,10 +293,17 @@ Controllers in this section: [AuthenticatedSessionController](../app/Http/Contro
 | POST | `/sc/register` | `sc.register.store` | SortingCenter/RegistrationController → store |
 | GET | `/sc/remittances` | `sc.remittances` | SortingCenter/RiderWorkController → remittances |
 | POST | `/sc/remittances/{remittance}/confirm` | `sc.remittances.confirm` | SortingCenter/RiderWorkController → confirmRemittance |
+| POST | `/sc/remittances/{remittance}/deduct` | `sc.remittances.deduct` | SortingCenter/RiderWorkController → deductShortage |
+| POST | `/sc/remittances/{remittance}/reject` | `sc.remittances.reject` | SortingCenter/RiderWorkController → rejectRemittance |
 | GET | `/sc/reports` | `sc.reports` | SortingCenter/SortingCenterController → reports |
 | GET | `/sc/returns` | `sc.returns` | SortingCenter/ReturnsController → index |
+| GET | `/sc/returns/{return}` | `sc.returns.show` | SortingCenter/ReturnsController → show |
 | POST | `/sc/returns/{return}/assign` | `sc.returns.assign` | SortingCenter/ReturnsController → assignPickup |
+| POST | `/sc/returns/{return}/check` | `sc.returns.check` | SortingCenter/ReturnsController → check |
 | POST | `/sc/returns/{return}/receive` | `sc.returns.receive` | SortingCenter/ReturnsController → receive |
+| POST | `/sc/returns/{return}/scan` | `sc.returns.scan` | SortingCenter/ReturnsController → scan |
+| POST | `/sc/returns/{return}/send` | `sc.returns.send` | SortingCenter/ReturnsController → send |
+| POST | `/sc/returns/{return}/sort` | `sc.returns.sort` | SortingCenter/ReturnsController → sort |
 | POST | `/sc/returns/{return}/to-seller` | `sc.returns.to-seller` | SortingCenter/ReturnsController → assignSeller |
 | GET | `/sc/rider-pay` | `sc.rider-pay` | SortingCenter/RiderWorkController → riderPay |
 | POST | `/sc/rider-pay/cashouts/{entry}/paid` | `sc.rider-pay.cashout.paid` | SortingCenter/RiderWorkController → cashoutPaid |
@@ -338,7 +355,7 @@ Controllers in this section: [AuthenticatedSessionController](../app/Http/Contro
 
 ## Rider and courier portal (/courier)
 
-64 routes.
+66 routes.
 
 Controllers in this section: [AuthenticatedSessionController](../app/Http/Controllers/Auth/AuthenticatedSessionController.php), [PortalHandoffController](../app/Http/Controllers/Auth/PortalHandoffController.php), [AccountController](../app/Http/Controllers/Courier/AccountController.php), [DashboardController](../app/Http/Controllers/Courier/DashboardController.php), [DeliveryController](../app/Http/Controllers/Courier/DeliveryController.php), [ProfitController](../app/Http/Controllers/Courier/ProfitController.php), [RegistrationController](../app/Http/Controllers/Courier/RegistrationController.php), [RiderController](../app/Http/Controllers/Courier/RiderController.php), [TruckDutyController](../app/Http/Controllers/Courier/TruckDutyController.php), [MessageController](../app/Http/Controllers/Shared/MessageController.php).
 
@@ -367,6 +384,7 @@ Controllers in this section: [AuthenticatedSessionController](../app/Http/Contro
 | GET | `/courier/profit` | `courier.profit` | Courier/ProfitController → index |
 | GET | `/courier/rider` | `courier.rider` | Courier/RiderController → index |
 | GET | `/courier/rider/cod` | `courier.rider.cod` | Courier/RiderController → cod |
+| GET | `/courier/rider/cod/history` | `courier.rider.cod.history` | Courier/RiderController → remittanceHistory |
 | POST | `/courier/rider/cod/remit` | `courier.rider.cod.remit` | Courier/RiderController → remit |
 | GET | `/courier/rider/cod/remittances/{remittance}/receipt` | `courier.rider.cod.receipt` | Courier/RiderController → remittanceReceipt |
 | GET | `/courier/rider/deliveries/{delivery}` | `courier.rider.deliveries.show` | Courier/RiderController → delivery |
@@ -405,15 +423,16 @@ Controllers in this section: [AuthenticatedSessionController](../app/Http/Contro
 | POST | `/courier/trips/{trip}/decline` | `courier.trips.decline` | Courier/TruckDutyController → decline |
 | POST | `/courier/trips/{trip}/delay` | `courier.trips.delay` | Courier/TruckDutyController → delay |
 | POST | `/courier/trips/{trip}/depart` | `courier.trips.depart` | Courier/TruckDutyController → depart |
+| GET | `/courier/trips/{trip}/handover` | `courier.trips.handover` | Courier/TruckDutyController → handover |
 | POST | `/courier/trips/{trip}/loading` | `courier.trips.loading` | Courier/TruckDutyController → startLoading |
 | POST | `/courier/trips/{trip}/note` | `courier.trips.note` | Courier/TruckDutyController → note |
 | POST | `/courier/trips/{trip}/scan` | `courier.trips.scan` | Courier/TruckDutyController → scan |
 
 ## Admin panel (/admin)
 
-125 routes.
+136 routes.
 
-Controllers in this section: [ActivityLogController](../app/Http/Controllers/Admin/ActivityLogController.php), [AnalyticsController](../app/Http/Controllers/Admin/AnalyticsController.php), [CategoryController](../app/Http/Controllers/Admin/CategoryController.php), [ComplianceController](../app/Http/Controllers/Admin/ComplianceController.php), [CourierController](../app/Http/Controllers/Admin/CourierController.php), [CustomerController](../app/Http/Controllers/Admin/CustomerController.php), [DashboardController](../app/Http/Controllers/Admin/DashboardController.php), [GcashPaymentController](../app/Http/Controllers/Admin/GcashPaymentController.php), [HomeBannerController](../app/Http/Controllers/Admin/HomeBannerController.php), [ChatController](../app/Http/Controllers/Admin/Logistics/ChatController.php), [DashboardController](../app/Http/Controllers/Admin/Logistics/DashboardController.php), [DeliveryController](../app/Http/Controllers/Admin/Logistics/DeliveryController.php), [ParcelController](../app/Http/Controllers/Admin/Logistics/ParcelController.php), [PickupRequestController](../app/Http/Controllers/Admin/Logistics/PickupRequestController.php), [ReportController](../app/Http/Controllers/Admin/Logistics/ReportController.php), [RiderController](../app/Http/Controllers/Admin/Logistics/RiderController.php), [ShipmentController](../app/Http/Controllers/Admin/Logistics/ShipmentController.php), [NotificationController](../app/Http/Controllers/Admin/NotificationController.php), [OrderController](../app/Http/Controllers/Admin/OrderController.php), [ProductApprovalController](../app/Http/Controllers/Admin/ProductApprovalController.php), [ReportController](../app/Http/Controllers/Admin/ReportController.php), [ReviewController](../app/Http/Controllers/Admin/ReviewController.php), [RiderDirectoryController](../app/Http/Controllers/Admin/RiderDirectoryController.php), [SellerApplicationController](../app/Http/Controllers/Admin/SellerApplicationController.php), [SellerController](../app/Http/Controllers/Admin/SellerController.php), [SettingsController](../app/Http/Controllers/Admin/SettingsController.php), [SortingCenterApplicationController](../app/Http/Controllers/Admin/SortingCenterApplicationController.php), [SortingCenterDirectoryController](../app/Http/Controllers/Admin/SortingCenterDirectoryController.php), [UserController](../app/Http/Controllers/Admin/UserController.php), [VoucherController](../app/Http/Controllers/Admin/VoucherController.php), [AuthenticatedSessionController](../app/Http/Controllers/Auth/AuthenticatedSessionController.php), [PortalHandoffController](../app/Http/Controllers/Auth/PortalHandoffController.php), [MessageController](../app/Http/Controllers/Shared/MessageController.php), [ShipmentTrackingController](../app/Http/Controllers/Shared/ShipmentTrackingController.php).
+Controllers in this section: [ActivityLogController](../app/Http/Controllers/Admin/ActivityLogController.php), [AnalyticsController](../app/Http/Controllers/Admin/AnalyticsController.php), [CategoryController](../app/Http/Controllers/Admin/CategoryController.php), [ComplianceController](../app/Http/Controllers/Admin/ComplianceController.php), [CourierController](../app/Http/Controllers/Admin/CourierController.php), [CustomerController](../app/Http/Controllers/Admin/CustomerController.php), [DashboardController](../app/Http/Controllers/Admin/DashboardController.php), [GcashPaymentController](../app/Http/Controllers/Admin/GcashPaymentController.php), [HomeBannerController](../app/Http/Controllers/Admin/HomeBannerController.php), [HubRemittanceController](../app/Http/Controllers/Admin/HubRemittanceController.php), [ChatController](../app/Http/Controllers/Admin/Logistics/ChatController.php), [DashboardController](../app/Http/Controllers/Admin/Logistics/DashboardController.php), [DeliveryController](../app/Http/Controllers/Admin/Logistics/DeliveryController.php), [ParcelController](../app/Http/Controllers/Admin/Logistics/ParcelController.php), [PickupRequestController](../app/Http/Controllers/Admin/Logistics/PickupRequestController.php), [ReportController](../app/Http/Controllers/Admin/Logistics/ReportController.php), [RiderController](../app/Http/Controllers/Admin/Logistics/RiderController.php), [ShipmentController](../app/Http/Controllers/Admin/Logistics/ShipmentController.php), [NotificationController](../app/Http/Controllers/Admin/NotificationController.php), [OrderController](../app/Http/Controllers/Admin/OrderController.php), [ProductApprovalController](../app/Http/Controllers/Admin/ProductApprovalController.php), [RefundController](../app/Http/Controllers/Admin/RefundController.php), [ReportController](../app/Http/Controllers/Admin/ReportController.php), [ReturnDisputeController](../app/Http/Controllers/Admin/ReturnDisputeController.php), [ReviewController](../app/Http/Controllers/Admin/ReviewController.php), [RiderDirectoryController](../app/Http/Controllers/Admin/RiderDirectoryController.php), [SellerApplicationController](../app/Http/Controllers/Admin/SellerApplicationController.php), [SellerController](../app/Http/Controllers/Admin/SellerController.php), [SellerPayoutController](../app/Http/Controllers/Admin/SellerPayoutController.php), [SettingsController](../app/Http/Controllers/Admin/SettingsController.php), [SortingCenterApplicationController](../app/Http/Controllers/Admin/SortingCenterApplicationController.php), [SortingCenterDirectoryController](../app/Http/Controllers/Admin/SortingCenterDirectoryController.php), [UserController](../app/Http/Controllers/Admin/UserController.php), [VoucherController](../app/Http/Controllers/Admin/VoucherController.php), [AuthenticatedSessionController](../app/Http/Controllers/Auth/AuthenticatedSessionController.php), [PortalHandoffController](../app/Http/Controllers/Auth/PortalHandoffController.php), [MessageController](../app/Http/Controllers/Shared/MessageController.php), [ShipmentTrackingController](../app/Http/Controllers/Shared/ShipmentTrackingController.php).
 
 | Method | URL | Name | Handled by |
 |---|---|---|---|
@@ -452,11 +471,17 @@ Controllers in this section: [ActivityLogController](../app/Http/Controllers/Adm
 | PATCH | `/admin/customers/{id}/restore` | `admin.customers.restore` | Admin/CustomerController → restore |
 | PATCH | `/admin/customers/{id}/suspend` | `admin.customers.suspend` | Admin/CustomerController → suspend |
 | GET | `/admin/customers/{id}/valid-id` | `admin.customers.validId` | Admin/CustomerController → validId |
+| GET | `/admin/disputes` | `admin.disputes.index` | Admin/ReturnDisputeController → index |
+| GET | `/admin/disputes/{return}` | `admin.disputes.show` | Admin/ReturnDisputeController → show |
+| POST | `/admin/disputes/{return}/decide` | `admin.disputes.decide` | Admin/ReturnDisputeController → decide |
 | GET | `/admin/gcash-payments` | `admin.gcash.index` | Admin/GcashPaymentController → index |
 | POST | `/admin/gcash-payments/account` | `admin.gcash.account` | Admin/GcashPaymentController → updateAccount |
 | POST | `/admin/gcash-payments/refunds/{order}` | `admin.gcash.refunded` | Admin/GcashPaymentController → refunded |
 | POST | `/admin/gcash-payments/{group}/approve` | `admin.gcash.approve` | Admin/GcashPaymentController → approve |
 | POST | `/admin/gcash-payments/{group}/reject` | `admin.gcash.reject` | Admin/GcashPaymentController → reject |
+| GET | `/admin/hub-remittances` | `admin.hub-remittances.index` | Admin/HubRemittanceController → index |
+| GET | `/admin/hub-remittances/{remittance}` | `admin.hub-remittances.show` | Admin/HubRemittanceController → show |
+| POST | `/admin/hub-remittances/{remittance}/review` | `admin.hub-remittances.review` | Admin/HubRemittanceController → review |
 | GET | `/admin/login` | `admin.login` | Auth/AuthenticatedSessionController → create |
 | POST | `/admin/login` | `admin.login.attempt` | Auth/AuthenticatedSessionController → store |
 | GET | `/admin/logistics` | `admin.logistics.dashboard` | Admin/Logistics/DashboardController → index |
@@ -497,12 +522,14 @@ Controllers in this section: [ActivityLogController](../app/Http/Controllers/Adm
 | GET | `/admin/orders` | `admin.orders.index` | Admin/OrderController → index |
 | GET | `/admin/orders/{id}` | `admin.orders.show` | Admin/OrderController → show |
 | PATCH | `/admin/orders/{id}` | `admin.orders.update` | Admin/OrderController → update |
-| POST | `/admin/orders/{id}/dispute` | `admin.orders.dispute` | Admin/OrderController → resolveDispute |
 | GET | `/admin/orders/{order}/payment-proof` | `admin.orders.payment-proof` | Shared/ShipmentTrackingController → paymentProof |
 | GET | `/admin/orders/{order}/proof-of-delivery` | `admin.shipments.pod` | Shared/ShipmentTrackingController → proofOfDelivery |
 | GET | `/admin/product-approvals` | `admin.product-approvals.index` | Admin/ProductApprovalController → index |
 | PATCH | `/admin/product-approvals/{product}/approve` | `admin.product-approvals.approve` | Admin/ProductApprovalController → approve |
 | PATCH | `/admin/product-approvals/{product}/reject` | `admin.product-approvals.reject` | Admin/ProductApprovalController → reject |
+| GET | `/admin/refunds` | `admin.refunds.index` | Admin/RefundController → index |
+| POST | `/admin/refunds/{refund}/send-back` | `admin.refunds.send-back` | Admin/RefundController → sendBack |
+| POST | `/admin/refunds/{refund}/sent` | `admin.refunds.sent` | Admin/RefundController → sent |
 | GET | `/admin/reports` | `admin.reports.index` | Admin/ReportController → index |
 | GET | `/admin/reviews` | `admin.reviews.index` | Admin/ReviewController → index |
 | DELETE | `/admin/reviews/{id}` | `admin.reviews.destroy` | Admin/ReviewController → destroy |
@@ -516,6 +543,9 @@ Controllers in this section: [ActivityLogController](../app/Http/Controllers/Adm
 | GET | `/admin/seller-applications/{sellerApplication}` | `admin.seller-applications.show` | Admin/SellerApplicationController → show |
 | PATCH | `/admin/seller-applications/{sellerApplication}/approve` | `admin.seller-applications.approve` | Admin/SellerApplicationController → approve |
 | PATCH | `/admin/seller-applications/{sellerApplication}/reject` | `admin.seller-applications.reject` | Admin/SellerApplicationController → reject |
+| GET | `/admin/seller-payouts` | `admin.seller-payouts.index` | Admin/SellerPayoutController → index |
+| POST | `/admin/seller-payouts/{payout}/failed` | `admin.seller-payouts.failed` | Admin/SellerPayoutController → failed |
+| POST | `/admin/seller-payouts/{payout}/paid` | `admin.seller-payouts.paid` | Admin/SellerPayoutController → paid |
 | GET | `/admin/sellers` | `admin.sellers.index` | Admin/SellerController → index |
 | GET | `/admin/sellers/{id}` | `admin.sellers.show` | Admin/SellerController → show |
 | POST | `/admin/sellers/{id}/activate` | `admin.sellers.activate` | Admin/SellerController → activate |
@@ -545,9 +575,9 @@ Controllers in this section: [ActivityLogController](../app/Http/Controllers/Adm
 
 ## Mobile app API (/api/v1)
 
-306 routes.
+323 routes.
 
-Controllers in this section: [AuthController](../app/Http/Controllers/Api/V1/AuthController.php), [AccountController](../app/Http/Controllers/Api/V1/Buyer/AccountController.php), [AssistantController](../app/Http/Controllers/Api/V1/Buyer/AssistantController.php), [CatalogController](../app/Http/Controllers/Api/V1/Buyer/CatalogController.php), [ShoppingController](../app/Http/Controllers/Api/V1/Buyer/ShoppingController.php), [CourierTripsController](../app/Http/Controllers/Api/V1/Linehaul/CourierTripsController.php), [CompanyController](../app/Http/Controllers/Api/V1/Logistics/CompanyController.php), [HubController](../app/Http/Controllers/Api/V1/Logistics/HubController.php), [IssuesController](../app/Http/Controllers/Api/V1/Logistics/IssuesController.php), [RiderPayController](../app/Http/Controllers/Api/V1/Logistics/RiderPayController.php), [RidersController](../app/Http/Controllers/Api/V1/Logistics/RidersController.php), [StaffController](../app/Http/Controllers/Api/V1/Logistics/StaffController.php), [TrackingController](../app/Http/Controllers/Api/V1/Logistics/TrackingController.php), [TripsController](../app/Http/Controllers/Api/V1/Logistics/TripsController.php), [MessagesController](../app/Http/Controllers/Api/V1/MessagesController.php), [OrderFilesController](../app/Http/Controllers/Api/V1/OrderFilesController.php), [PasswordCodeController](../app/Http/Controllers/Api/V1/PasswordCodeController.php), [PushDeviceController](../app/Http/Controllers/Api/V1/PushDeviceController.php), [CourierController](../app/Http/Controllers/Api/V1/Rider/CourierController.php), [RiderController](../app/Http/Controllers/Api/V1/Rider/RiderController.php), [MarketingController](../app/Http/Controllers/Api/V1/Seller/MarketingController.php), [OrdersController](../app/Http/Controllers/Api/V1/Seller/OrdersController.php), [PanelController](../app/Http/Controllers/Api/V1/Seller/PanelController.php), [ProductsController](../app/Http/Controllers/Api/V1/Seller/ProductsController.php), [StrikesController](../app/Http/Controllers/Api/V1/Seller/StrikesController.php), [AppDownloadController](../app/Http/Controllers/Storefront/AppDownloadController.php).
+Controllers in this section: [AuthController](../app/Http/Controllers/Api/V1/AuthController.php), [AccountController](../app/Http/Controllers/Api/V1/Buyer/AccountController.php), [AssistantController](../app/Http/Controllers/Api/V1/Buyer/AssistantController.php), [CatalogController](../app/Http/Controllers/Api/V1/Buyer/CatalogController.php), [ShoppingController](../app/Http/Controllers/Api/V1/Buyer/ShoppingController.php), [CourierTripsController](../app/Http/Controllers/Api/V1/Linehaul/CourierTripsController.php), [AlvyRemittanceController](../app/Http/Controllers/Api/V1/Logistics/AlvyRemittanceController.php), [CompanyController](../app/Http/Controllers/Api/V1/Logistics/CompanyController.php), [HubController](../app/Http/Controllers/Api/V1/Logistics/HubController.php), [IssuesController](../app/Http/Controllers/Api/V1/Logistics/IssuesController.php), [RiderPayController](../app/Http/Controllers/Api/V1/Logistics/RiderPayController.php), [RidersController](../app/Http/Controllers/Api/V1/Logistics/RidersController.php), [StaffController](../app/Http/Controllers/Api/V1/Logistics/StaffController.php), [TrackingController](../app/Http/Controllers/Api/V1/Logistics/TrackingController.php), [TripsController](../app/Http/Controllers/Api/V1/Logistics/TripsController.php), [MessagesController](../app/Http/Controllers/Api/V1/MessagesController.php), [OrderFilesController](../app/Http/Controllers/Api/V1/OrderFilesController.php), [PasswordCodeController](../app/Http/Controllers/Api/V1/PasswordCodeController.php), [PushDeviceController](../app/Http/Controllers/Api/V1/PushDeviceController.php), [CourierController](../app/Http/Controllers/Api/V1/Rider/CourierController.php), [RiderController](../app/Http/Controllers/Api/V1/Rider/RiderController.php), [MarketingController](../app/Http/Controllers/Api/V1/Seller/MarketingController.php), [OrdersController](../app/Http/Controllers/Api/V1/Seller/OrdersController.php), [PanelController](../app/Http/Controllers/Api/V1/Seller/PanelController.php), [ProductsController](../app/Http/Controllers/Api/V1/Seller/ProductsController.php), [StrikesController](../app/Http/Controllers/Api/V1/Seller/StrikesController.php), [AppDownloadController](../app/Http/Controllers/Storefront/AppDownloadController.php).
 
 | Method | URL | Name | Handled by |
 |---|---|---|---|
@@ -615,17 +645,22 @@ Controllers in this section: [AuthController](../app/Http/Controllers/Api/V1/Aut
 | POST | `/api/v1/linehaul/trips/{id}/decline` | `api.v1.linehaul.trips.decline` | Api/V1/Linehaul/CourierTripsController → decline |
 | POST | `/api/v1/linehaul/trips/{id}/delay` | `api.v1.linehaul.trips.delay` | Api/V1/Linehaul/CourierTripsController → delay |
 | POST | `/api/v1/linehaul/trips/{id}/depart` | `api.v1.linehaul.trips.depart` | Api/V1/Linehaul/CourierTripsController → depart |
+| GET | `/api/v1/linehaul/trips/{id}/handover` | `api.v1.linehaul.trips.handover` | Api/V1/Linehaul/CourierTripsController → handover |
 | POST | `/api/v1/linehaul/trips/{id}/loading` | `api.v1.linehaul.trips.loading` | Api/V1/Linehaul/CourierTripsController → loading |
 | POST | `/api/v1/linehaul/trips/{id}/note` | `api.v1.linehaul.trips.note` | Api/V1/Linehaul/CourierTripsController → note |
 | POST | `/api/v1/linehaul/trips/{id}/scan` | `api.v1.linehaul.trips.scan` | Api/V1/Linehaul/CourierTripsController → scan |
 | GET | `/api/v1/logistics/account` | `api.v1.logistics.account` | Api/V1/Logistics/CompanyController → account |
 | PUT | `/api/v1/logistics/account` | `api.v1.logistics.account.update` | Api/V1/Logistics/CompanyController → updateAccount |
 | GET | `/api/v1/logistics/activity` | `api.v1.logistics.activity` | Api/V1/Logistics/CompanyController → activity |
+| GET | `/api/v1/logistics/alvy-remittances` | `api.v1.logistics.alvy-remittances` | Api/V1/Logistics/AlvyRemittanceController → index |
+| POST | `/api/v1/logistics/alvy-remittances` | `api.v1.logistics.alvy-remittances.submit` | Api/V1/Logistics/AlvyRemittanceController → submit |
+| GET | `/api/v1/logistics/alvy-remittances/{remittance}` | `api.v1.logistics.alvy-remittances.show` | Api/V1/Logistics/AlvyRemittanceController → show |
 | GET | `/api/v1/logistics/areas` | `api.v1.logistics.areas` | Api/V1/Logistics/CompanyController → areas |
 | POST | `/api/v1/logistics/areas` | `api.v1.logistics.areas.store` | Api/V1/Logistics/CompanyController → storeArea |
 | DELETE | `/api/v1/logistics/areas/{area}` | `api.v1.logistics.areas.destroy` | Api/V1/Logistics/CompanyController → destroyArea |
 | GET | `/api/v1/logistics/assignment` | `api.v1.logistics.assignment` | Api/V1/Logistics/HubController → assignment |
 | POST | `/api/v1/logistics/assignment/{parcel}` | `api.v1.logistics.assignment.assign` | Api/V1/Logistics/HubController → assign |
+| GET | `/api/v1/logistics/badges` | `api.v1.logistics.badges` | Api/V1/Logistics/HubController → badges |
 | GET | `/api/v1/logistics/chat` | `api.v1.logistics.chat` | Api/V1/Logistics/CompanyController → chat |
 | POST | `/api/v1/logistics/chat` | `api.v1.logistics.chat.send` | Api/V1/Logistics/CompanyController → send |
 | GET | `/api/v1/logistics/chat/poll` | `api.v1.logistics.chat.poll` | Api/V1/Logistics/CompanyController → poll |
@@ -653,6 +688,10 @@ Controllers in this section: [AuthController](../app/Http/Controllers/Api/V1/Aut
 | POST | `/api/v1/logistics/dispatch/{parcel}/auto` | `api.v1.logistics.dispatch.auto` | Api/V1/Logistics/RidersController → autoAssign |
 | POST | `/api/v1/logistics/dispatch/{parcel}/reassign` | `api.v1.logistics.dispatch.reassign` | Api/V1/Logistics/RidersController → reassign |
 | GET | `/api/v1/logistics/failed-deliveries` | `api.v1.logistics.failed-deliveries` | Api/V1/Logistics/IssuesController → failed |
+| POST | `/api/v1/logistics/handover` | `api.v1.logistics.handover.verify` | Api/V1/Logistics/TripsController → handoverVerify |
+| GET | `/api/v1/logistics/handover/{handover}` | `api.v1.logistics.handover.show` | Api/V1/Logistics/TripsController → handoverShow |
+| POST | `/api/v1/logistics/handover/{handover}/confirm` | `api.v1.logistics.handover.confirm` | Api/V1/Logistics/TripsController → handoverConfirm |
+| POST | `/api/v1/logistics/handover/{handover}/scan` | `api.v1.logistics.handover.scan` | Api/V1/Logistics/TripsController → handoverScan |
 | GET | `/api/v1/logistics/hubs` | `api.v1.logistics.hubs` | Api/V1/Logistics/StaffController → hubs |
 | POST | `/api/v1/logistics/hubs` | `api.v1.logistics.hubs.store` | Api/V1/Logistics/StaffController → storeHub |
 | PUT | `/api/v1/logistics/hubs/{hub}` | `api.v1.logistics.hubs.update` | Api/V1/Logistics/StaffController → updateHub |
@@ -670,11 +709,17 @@ Controllers in this section: [AuthController](../app/Http/Controllers/Api/V1/Aut
 | POST | `/api/v1/logistics/rates` | `api.v1.logistics.rates.update` | Api/V1/Logistics/CompanyController → updateRate |
 | GET | `/api/v1/logistics/remittances` | `api.v1.logistics.remittances` | Api/V1/Logistics/RidersController → remittances |
 | POST | `/api/v1/logistics/remittances/{remittance}/confirm` | `api.v1.logistics.remittances.confirm` | Api/V1/Logistics/RidersController → confirmRemittance |
+| POST | `/api/v1/logistics/remittances/{remittance}/deduct` | `api.v1.logistics.remittances.deduct` | Api/V1/Logistics/RidersController → deductShortage |
+| POST | `/api/v1/logistics/remittances/{remittance}/reject` | `api.v1.logistics.remittances.reject` | Api/V1/Logistics/RidersController → rejectRemittance |
 | GET | `/api/v1/logistics/reports` | `api.v1.logistics.reports` | Api/V1/Logistics/CompanyController → reports |
 | GET | `/api/v1/logistics/reports/export` | `api.v1.logistics.reports.export` | Api/V1/Logistics/CompanyController → exportReport |
 | GET | `/api/v1/logistics/returns` | `api.v1.logistics.returns` | Api/V1/Logistics/IssuesController → returns |
 | POST | `/api/v1/logistics/returns/{return}/assign` | `api.v1.logistics.returns.assign` | Api/V1/Logistics/IssuesController → returnAssign |
+| POST | `/api/v1/logistics/returns/{return}/check` | `api.v1.logistics.returns.check` | Api/V1/Logistics/IssuesController → returnCheck |
 | POST | `/api/v1/logistics/returns/{return}/receive` | `api.v1.logistics.returns.receive` | Api/V1/Logistics/IssuesController → returnReceive |
+| POST | `/api/v1/logistics/returns/{return}/scan` | `api.v1.logistics.returns.scan` | Api/V1/Logistics/IssuesController → returnScan |
+| POST | `/api/v1/logistics/returns/{return}/send` | `api.v1.logistics.returns.send` | Api/V1/Logistics/IssuesController → returnSend |
+| POST | `/api/v1/logistics/returns/{return}/sort` | `api.v1.logistics.returns.sort` | Api/V1/Logistics/IssuesController → returnSort |
 | POST | `/api/v1/logistics/returns/{return}/to-seller` | `api.v1.logistics.returns.to-seller` | Api/V1/Logistics/IssuesController → returnToSeller |
 | GET | `/api/v1/logistics/rider-pay` | `api.v1.logistics.rider-pay` | Api/V1/Logistics/RiderPayController → index |
 | POST | `/api/v1/logistics/rider-pay/cashouts/{entry}/paid` | `api.v1.logistics.rider-pay.cashout.paid` | Api/V1/Logistics/RiderPayController → paid |
@@ -712,6 +757,7 @@ Controllers in this section: [AuthController](../app/Http/Controllers/Api/V1/Aut
 | POST | `/api/v1/logistics/trips/auto-assign` | `api.v1.logistics.trips.auto-all` | Api/V1/Logistics/TripsController → autoAssignAll |
 | GET | `/api/v1/logistics/trips/form` | `api.v1.logistics.trips.form` | Api/V1/Logistics/TripsController → form |
 | POST | `/api/v1/logistics/trips/receive` | `api.v1.logistics.trips.receive` | Api/V1/Logistics/TripsController → receive |
+| POST | `/api/v1/logistics/trips/scan-qr` | `api.v1.logistics.trips.scan-qr` | Api/V1/Logistics/TripsController → scanQr |
 | GET | `/api/v1/logistics/trips/{trip}` | `api.v1.logistics.trips.show` | Api/V1/Logistics/TripsController → trip |
 | POST | `/api/v1/logistics/trips/{trip}/assign` | `api.v1.logistics.trips.assign` | Api/V1/Logistics/TripsController → assign |
 | POST | `/api/v1/logistics/trips/{trip}/auto` | `api.v1.logistics.trips.auto` | Api/V1/Logistics/TripsController → autoAdd |
@@ -759,6 +805,7 @@ Controllers in this section: [AuthController](../app/Http/Controllers/Api/V1/Aut
 | POST | `/api/v1/reviews/item/{item}` | `api.v1.reviews.store` | Api/V1/Buyer/ShoppingController → review |
 | POST | `/api/v1/reviews/{review}` | `api.v1.reviews.update` | Api/V1/Buyer/ShoppingController → editReview |
 | GET | `/api/v1/rider/cod` | `api.v1.rider.cod` | Api/V1/Rider/RiderController → cod |
+| GET | `/api/v1/rider/cod/history` | `api.v1.rider.cod.history` | Api/V1/Rider/RiderController → remittanceHistory |
 | POST | `/api/v1/rider/cod/remit` | `api.v1.rider.cod.remit` | Api/V1/Rider/RiderController → remit |
 | GET | `/api/v1/rider/cod/remittances/{remittance}` | `api.v1.rider.cod.receipt` | Api/V1/Rider/RiderController → remittanceReceipt |
 | GET | `/api/v1/rider/deliveries/{delivery}` | `api.v1.rider.deliveries.show` | Api/V1/Rider/RiderController → delivery |

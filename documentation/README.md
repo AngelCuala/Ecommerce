@@ -53,13 +53,17 @@ This is the whole system in one story. Every step links to the page that explain
    → [Sorting center](05-sorting-center.md#step-1-the-seller-asks-for-a-pickup)
 4. At the hub, staff **scan and receive** the parcel, then **sort** it. Maria lives in Santa Cruz,
    which this company doesn't deliver to, so the parcel is sorted to the Santa Cruz sorting center.
-5. A **truck rider** loads it with other parcels going the same way and drives to
-   the Santa Cruz hub. → [Trucks](06-riders-and-hub-to-hub-trips.md#trucks-hub-to-hub-trips)
+5. A **linehaul driver** shows the Handover QR, the hub scans the parcel onto the truck with others
+   going the same way, and the driver takes them to the Santa Cruz hub.
+   → [Linehaul drivers](06-riders-and-hub-to-hub-trips.md#linehaul-drivers-hub-to-hub-trips)
 6. **The Santa Cruz sorting center** receives the parcels and sorts Maria's to her
    barangay. Its rider delivers it, takes a proof-of-delivery photo and collects the cash.
    → [Riders](06-riders-and-hub-to-hub-trips.md#a-delivery-step-by-step)
 7. **Maria** taps *Order Received* (or the order completes by itself after 7 days). Now the
    seller's earnings and the sorting centers' shares are final. → [Money](08-payments-vouchers-shipping.md)
+8. *If Maria returns it instead:* a rider collects it, the hubs send it back to the seller, and once
+   the seller has it ALVY sends Maria's refund to the GCash, Maya or bank account she gave.
+   → [Returns and refunds](03-buyer-and-storefront.md#returns-and-refunds)
 
 ## A few words you'll see everywhere
 
@@ -77,6 +81,9 @@ These are Laravel words (the PHP framework ALVY is built with) and ALVY words.
 | **Seeder** | A file that fills the database with sample data. |
 | **Sorting center** | A logistics company's account. It has hubs, riders, and the barangays it delivers to. |
 | **Hub** | A building a logistics company works from, with a code like `HUB-SCZ`. |
+| **Rider / linehaul driver** | A rider picks up from sellers and delivers to buyers. A linehaul driver drives a truck between hubs. Two separate jobs. |
+| **Handover QR** | The changing QR code a linehaul driver shows so a hub can load or unload the truck. |
+| **Refund** | The money of an approved return, sent to the buyer once the item is back with the seller. |
 | **Waybill** | The printed label on a parcel, with a barcode and a QR code holding the waybill number. |
 | **PSGC** | The government's official list of every region, province, town and barangay. ALVY keeps a copy and saves addresses with its codes, so "Sta. Cruz" and "Santa Cruz" can never be confused. |
 | **COD** | Cash on delivery. |
@@ -97,3 +104,6 @@ The demo logins are in [Testing and demo accounts](12-testing-and-demo-data.md#d
 - Most PHP files start with a comment explaining what they do. These pages were written from
   those comments, so when you change how something works, update the comment and the page.
 - After adding routes, regenerate the routes reference from `php artisan route:list --json`.
+- After adding a table, run `php artisan migrate` and add the model to [The database](11-database-models.md).
+- Plans for work not built yet (or only partly) are in [plans/](plans), e.g. the refund plan
+  (revision 3) and the return-routing plan.

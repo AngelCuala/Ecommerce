@@ -60,9 +60,9 @@
             <div class="rm-head">
                 <div class="rm-head-text">
                     <h2>Remittances</h2>
-                    <p>Cash each rider handed over. <strong>Accept</strong> it with the cash you counted: a match puts the rider's pay for those COD deliveries in their wallet;
-                        a shortage is charged to the rider and their pay stays on hold until they pay it or you take it from their earnings.
-                        <strong>Reject</strong> it when the cash wasn't handed over: it doesn't count and the rider remits again.@if($pendingCount > 0) <strong style="color:#a86f00;">{{ $pendingCount }} waiting for you.</strong>@endif</p>
+                    <p>Cash each rider handed over. Count it, then <strong>Accept</strong> the amount the rider sent (it can't be changed): the rider's pay for those
+                        COD deliveries goes in their wallet. If the cash doesn't match or wasn't handed over, <strong>Reject</strong> it with the reason: it doesn't
+                        count and the rider remits again.@if($pendingCount > 0) <strong style="color:#a86f00;">{{ $pendingCount }} waiting for you.</strong>@endif</p>
                 </div>
             </div>
             {{-- History: your riders' remittances only; filter them. --}}
@@ -100,10 +100,9 @@
                             @endif</td>
                         <td>
                             @if($rm->status === 'pending')
-                                <form method="POST" action="{{ route('sc.remittances.confirm', $rm) }}" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;" data-count-form>@csrf
-                                    <input type="number" name="counted" step="0.01" min="0" max="{{ number_format((float) $rm->expected_amount - (float) $rm->pay_kept, 2, '.', '') }}"
-                                           value="{{ number_format((float) $rm->amount, 2, '.', '') }}" class="form-input" style="width:120px;" aria-label="Cash counted (₱)" title="Cash you counted">
-                                    <button class="btn btn-green btn-sm">Accept</button>
+                                <form method="POST" action="{{ route('sc.remittances.confirm', $rm) }}" data-count-form
+                                      onsubmit="return confirm({{ \Illuminate\Support\Js::from('Accept ₱' . number_format($rm->amount, 2) . ' from ' . ($rm->rider->full_name ?? 'the rider') . '? Only accept it if you counted this amount.') }});">@csrf
+                                    <button class="btn btn-green btn-sm">Accept ₱{{ number_format($rm->amount, 2) }}</button>
                                 </form>
                                 <details style="margin-top:6px;" data-reject-remittance><summary class="text-sm" style="cursor:pointer;color:#B91C1C;">Reject…</summary>
                                     <form method="POST" action="{{ route('sc.remittances.reject', $rm) }}" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;">@csrf

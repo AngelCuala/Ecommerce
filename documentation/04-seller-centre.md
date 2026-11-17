@@ -49,15 +49,21 @@ in this order (none can be skipped):
 4. **Ready for Pickup:** the seller chooses which logistics company should collect the parcel.
    Companies that serve the seller's town are listed first. This sends a pickup request to that
    company ([page 5](05-sorting-center.md#step-1-the-seller-asks-for-a-pickup)).
+   **Bulk pickup:** the company, not the seller, sets the day. A request before 12:00 is picked up
+   today, after that tomorrow, in a time window the seller picks from those offered (9 AM–12 PM or
+   1–5 PM). Every parcel the seller makes ready that day joins the same **pickup stop**, and one rider
+   collects them all.
 5. When the rider collects the parcel (with a photo), the order becomes **Shipped**. From here the
    logistics company and its riders take over.
 
 The seller can **cancel** with a reason until the parcel is picked up. The stock and the buyer's
 vouchers go back, an online payment is refunded, and the buyer is told why.
 
-**Returns:** if a buyer asks to return an item, the seller approves (the buyer is refunded, possibly
-for just some items) or rejects with a reason. If the seller doesn't answer within 3 days, it's
-approved automatically.
+**Returns:** if a buyer asks to return an item, the seller approves (possibly for just some items)
+or rejects with a reason. If the seller doesn't answer within 3 days, it's approved automatically.
+The order page shows where the item is on its way back. A rider hands it to the seller, and only then
+is the buyer's money sent ([page 3](03-buyer-and-storefront.md#returns-and-refunds)). The seller's
+earning for the returned items is taken out of their wallet as soon as the return is approved.
 
 ## Discounts the seller can run
 
@@ -71,8 +77,13 @@ approved automatically.
 
 - On every item sold, ALVY keeps a **commission** (10% by default). The rate is saved on the order
   at the moment of purchase, so changing the rate later never changes old orders.
-- **Earnings** are *Pending* until the order is completed, then *Available*. Available money can be
-  requested as a payout.
+- **The wallet (Earnings page)** has one line per delivered order with the seller's earning:
+  - *On hold* while the order is in its 7-day return window (with the date it is released);
+  - *Available* once the order is completed (the buyer pressed Order Received, or the window ended);
+  - *Reversed* if the order is refunded. If it was already available, a separate minus line is added.
+- **Withdrawals:** the seller withdraws any amount of the available balance (no fee) to a saved GCash,
+  Maya or bank account. It shows as *Processing* until ALVY sends it and marks it *Completed* with the
+  bank reference, or *Failed* (the amount goes back to the available balance). One withdrawal at a time.
 - Cancelled, refunded and unpaid orders don't count as sales anywhere, so the dashboard, sales
   reports and commission pages always show the same numbers.
 - Reports can be downloaded as CSV, Excel or PDF.
@@ -114,7 +125,8 @@ pages in [resources/views/seller/](../resources/views/seller).
 | Waybill label | [partials/waybill](../resources/views/partials/waybill), [Barcode](../app/Support/Barcode.php), [QrCode](../app/Support/QrCode.php) |
 | Vouchers, flash sales, promotions | [VoucherController](../app/Http/Controllers/Seller/VoucherController.php), [FlashSaleController](../app/Http/Controllers/Seller/FlashSaleController.php), [PromotionController](../app/Http/Controllers/Seller/PromotionController.php) |
 | Commission and sales numbers | [SellerCommission](../app/Services/SellerCommission.php), [SellerSales](../app/Services/SellerSales.php) |
-| Earnings and payouts | [EarningsController](../app/Http/Controllers/Seller/EarningsController.php) |
+| Earnings, wallet and withdrawals | [EarningsController](../app/Http/Controllers/Seller/EarningsController.php), [SellerWallet](../app/Services/SellerWallet.php), [SellerWalletEntry](../app/Models/SellerWalletEntry.php), [SellerPayout](../app/Models/SellerPayout.php), [PayoutAccount](../app/Models/PayoutAccount.php) |
+| Bulk pickups (pickup stops, windows) | [PickupStops](../app/Services/PickupStops.php), [PickupStop](../app/Models/PickupStop.php), times in `config/marketplace.php` |
 | Strikes | [StrikesController](../app/Http/Controllers/Seller/StrikesController.php), [ContactStrikes](../app/Services/ContactStrikes.php) |
 | Dashboard and sidebar numbers | [DashboardController](../app/Http/Controllers/Seller/DashboardController.php), [SellerBadges](../app/Support/SellerBadges.php) |
 | Reviews, store settings, store categories | [ReviewController](../app/Http/Controllers/Seller/ReviewController.php), [StoreSettingsController](../app/Http/Controllers/Seller/StoreSettingsController.php), [StoreCategoryController](../app/Http/Controllers/Seller/StoreCategoryController.php) |

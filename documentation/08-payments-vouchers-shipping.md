@@ -82,12 +82,29 @@ checkout. If an order is cancelled, its vouchers become usable again.
 
 | Who | Gets | Where they see it |
 |---|---|---|
-| **Seller** | the item total after their own promotions and vouchers, minus ALVY's commission (10% by default; the rate is saved on each order) | Earnings, Commissions |
-| **ALVY** | the commission, and pays for its own vouchers | Admin reports |
-| **Logistics company** | the shipping fee, split between the hubs that handled the parcel, minus what it pays its riders | Commission & Earnings |
-| **Rider** | ₱30 per pickup, ₱50 per delivery; trucks per trip | Rider Pay, Wallet |
+| **Seller** | the item total after their own promotions and vouchers, minus ALVY's commission (10% by default; the rate is saved on each order). Held in the wallet during the return window, then withdrawable | Earnings (wallet), Commissions |
+| **ALVY** | the commission (kept even when the order is refunded), and pays for its own vouchers | Admin dashboard and reports |
+| **Logistics company** | 40% of the shipping fee, split evenly between every hub the parcel passed, minus ALVY's commission on it | Commission & Earnings |
+| **Rider** | 30% of the shipping fee per pickup and 30% per delivery | Rider Pay, Wallet |
+| **Linehaul driver** | nothing per trip since 16 Nov 2026 (paid by their company); older trips ₱400 car, ₱600 van, ₱1,000 truck, ₱1,500 6-wheeler | Trip pay |
 
-Nobody earns anything from cancelled, refunded or unpaid orders.
+Nobody else earns anything from cancelled, refunded or unpaid orders.
+
+### How the money moves
+
+- **Cash on delivery:** the rider collects it → remits it to the company (which confirms it) → the
+  company sends ALVY the item price with a report (**ALVY Remittance**), keeping the shipping fee.
+- **Paid at checkout** (GCash to ALVY, or online): ALVY has the money; it owes the company the shipping
+  fee, taken off the company's next remittance.
+- ALVY pays **sellers** when they withdraw, and **refunds** buyers.
+
+### Refunds
+
+An approved return's money is a **refund** sent only when the item is back with the seller. The
+buyer chooses GCash, Maya or a bank (paid online: back the same way), and an admin sends it and
+records the reference ([page 3](03-buyer-and-storefront.md#returns-and-refunds)). The order's
+`refunded_amount` is written when it's sent, so ALVY's sales total goes down then. The seller's earning
+for the returned items is reversed at approval, and ALVY's commission stays.
 
 ## Where to find it in the code
 
@@ -102,4 +119,8 @@ Nobody earns anything from cancelled, refunded or unpaid orders.
 | Vouchers | [Voucher](../app/Models/Voucher.php), [VoucherRules](../app/Support/VoucherRules.php), [VoucherWalletController](../app/Http/Controllers/Buyer/VoucherWalletController.php) |
 | Seller commission | [SellerCommission](../app/Services/SellerCommission.php), rate in `config/marketplace.php` |
 | Logistics earnings | [SortingCenterCommission](../app/Services/SortingCenterCommission.php) |
-| Rider pay and cash | [RiderWallet](../app/Services/RiderWallet.php) |
+| Rider pay and cash | [RiderWallet](../app/Services/RiderWallet.php), [RiderDispatch](../app/Services/RiderDispatch.php) (`jobPay`) |
+| Seller wallet and withdrawals | [SellerWallet](../app/Services/SellerWallet.php) |
+| Hub remittances to ALVY | [HubRemittances](../app/Services/HubRemittances.php) |
+| Refunds of returns | [Refunds](../app/Services/Refunds.php), [ReturnDecisions](../app/Services/ReturnDecisions.php) |
+| Linehaul trip pay | `Linehaul::PAY` in [Linehaul](../app/Services/Linehaul.php) |
